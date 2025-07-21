@@ -4,9 +4,9 @@ const config = {
     targetWidth: 800,
     targetHeight: 450,
     backgroundColor: '#f4e8dc',
-    maxParticles: 100,
-    gravity: 0.1,
-    pixelSize: 2,
+    maxParticles: 150,
+    gravity: 0.08,    // Gentler gravity for isometric view
+    pixelSize: 3,     // Larger pixels for visibility
     gridSize: 32,
     // Isometric playable area boundaries (in grid units)
     isoBounds: {
@@ -84,10 +84,12 @@ function setup() {
 }
 
 function initializeEntities() {
+    // Richer, more saturated colors matching the background palette
     const butterflyColors = [
-        [[255, 150, 100], [255, 200, 150]],
-        [[100, 150, 255], [150, 200, 255]],
-        [[150, 255, 150], [200, 255, 200]]
+        [[255, 140, 60], [255, 220, 120]],   // Orange/yellow like the flowers
+        [[220, 100, 150], [255, 180, 200]],  // Pink/coral
+        [[150, 120, 200], [200, 170, 255]],  // Purple/lavender
+        [[100, 180, 140], [150, 220, 180]]   // Teal/mint
     ];
     
     // Place butterflies using grid coordinates
@@ -244,11 +246,22 @@ function drawUILayer() {
     
     if (!debugMode.enabled) {
         if (gameState.framesSinceMovement > 60) {
+            // Pixel art style cursor hint - rotating square
+            layers.ui.push();
+            layers.ui.translate(adjustedMouseX, adjustedMouseY);
+            layers.ui.rotate(frameCount * 0.02);
             layers.ui.noFill();
-            layers.ui.stroke(255, 255, 255, 50);
-            layers.ui.strokeWeight(1);
-            let radius = 30 + sin(frameCount * 0.05) * 5;
-            layers.ui.ellipse(adjustedMouseX, adjustedMouseY, radius * 2);
+            layers.ui.stroke(255, 255, 255, 80);
+            layers.ui.strokeWeight(2);
+            const size = 20 + sin(frameCount * 0.05) * 4;
+            // Draw pixelated diamond shape
+            layers.ui.beginShape();
+            layers.ui.vertex(0, -size);
+            layers.ui.vertex(size, 0);
+            layers.ui.vertex(0, size);
+            layers.ui.vertex(-size, 0);
+            layers.ui.endShape(CLOSE);
+            layers.ui.pop();
         }
         
         gameState.flowerManager.drawPlantingHint(layers.ui, adjustedMouseX, adjustedMouseY, gameState.flowers);
@@ -606,9 +619,10 @@ function handleDebugPlacement() {
     
     if (debugMode.selectedTool === 'butterfly') {
         const butterflyColors = [
-            [[255, 150, 100], [255, 200, 150]],
-            [[100, 150, 255], [150, 200, 255]],
-            [[150, 255, 150], [200, 255, 200]]
+            [[255, 140, 60], [255, 220, 120]],   // Orange/yellow
+            [[220, 100, 150], [255, 180, 200]],  // Pink/coral
+            [[150, 120, 200], [200, 170, 255]],  // Purple/lavender
+            [[100, 180, 140], [150, 220, 180]]   // Teal/mint
         ];
         const colors = random(butterflyColors);
         // Butterflies float above the grid

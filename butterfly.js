@@ -4,7 +4,7 @@ class Butterfly {
         this.y = y;
         this.targetX = x;
         this.targetY = y;
-        this.size = 16;
+        this.size = 20; // Larger butterflies
         this.colors = colors;
         
         this.state = 'resting';
@@ -109,12 +109,13 @@ class Butterfly {
         }
         
         if (frameCount % 5 === 0) {
+            // Drop darker, more visible stress particles
             const color = [
-                this.colors[0][0] * 0.7,
-                this.colors[0][1] * 0.7,
-                this.colors[0][2] * 0.7
+                this.colors[0][0] * 0.6,
+                this.colors[0][1] * 0.6,
+                this.colors[0][2] * 0.6
             ];
-            particleSystem.emit(this.x, this.y, color, 2, 'scale');
+            particleSystem.emit(this.x, this.y, color, 3, 'scale');
         }
         
         this.stateTimer++;
@@ -181,27 +182,47 @@ class Butterfly {
         const rightWingX = this.size * wingSpread;
         const wingY = -2;
         
-        graphics.fill(this.colors[0][0], this.colors[0][1], this.colors[0][2], alpha * 0.9);
-        this.drawWing(graphics, leftWingX, wingY, -1);
-        this.drawWing(graphics, rightWingX, wingY, 1);
+        // Draw butterfly with full opacity for visibility
+        this.drawWing(graphics, leftWingX, wingY, -1, alpha);
+        this.drawWing(graphics, rightWingX, wingY, 1, alpha);
         
-        graphics.fill(80, 60, 40, alpha * 0.95);
+        // Body with strong contrast
+        graphics.fill(40, 30, 20, alpha);
+        graphics.rect(-2, -4, 4, 8);
+        graphics.fill(60, 45, 30, alpha);
         graphics.rect(-1, -3, 2, 6);
         
         graphics.pop();
     }
     
-    drawWing(graphics, x, y, direction) {
+    drawWing(graphics, x, y, direction, alpha) {
         graphics.push();
         graphics.translate(x, y);
         
-        for (let py = 0; py < 8; py++) {
-            for (let px = 0; px < 6; px++) {
+        // Draw wing with pixel art style matching background
+        for (let py = 0; py < 10; py++) {
+            for (let px = 0; px < 8; px++) {
                 if (this.getWingPattern(px, py)) {
-                    const colorIndex = (px + py) % this.colors.length;
-                    const color = this.colors[colorIndex];
-                    graphics.fill(color[0], color[1], color[2], 240);
-                    graphics.rect(px * 2 * direction, py * 2 - 4, 2, 2);
+                    // Base wing color with full opacity
+                    if (py < 6) {
+                        graphics.fill(this.colors[0][0], this.colors[0][1], this.colors[0][2], alpha);
+                    } else {
+                        // Pattern/accent color
+                        graphics.fill(this.colors[1][0], this.colors[1][1], this.colors[1][2], alpha);
+                    }
+                    
+                    // Add highlight pixels for depth
+                    if ((px + py) % 3 === 0 && py < 4) {
+                        const highlight = 30;
+                        graphics.fill(
+                            min(255, this.colors[0][0] + highlight),
+                            min(255, this.colors[0][1] + highlight),
+                            min(255, this.colors[0][2] + highlight),
+                            alpha
+                        );
+                    }
+                    
+                    graphics.rect(px * 2 * direction, py * 2 - 6, 2, 2);
                 }
             }
         }
@@ -211,14 +232,16 @@ class Butterfly {
     
     getWingPattern(x, y) {
         const patterns = [
-            [1,1,1,1,1,0],
-            [1,1,1,1,1,1],
-            [1,1,1,1,1,1],
-            [1,1,1,1,1,1],
-            [1,1,1,1,1,1],
-            [1,1,1,1,1,0],
-            [1,1,1,0,0,0],
-            [1,0,0,0,0,0]
+            [0,1,1,1,1,1,0,0],
+            [1,1,1,1,1,1,1,0],
+            [1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,0],
+            [1,1,1,1,1,1,0,0],
+            [1,1,1,1,0,0,0,0],
+            [1,1,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0]
         ];
         return patterns[y] && patterns[y][x];
     }

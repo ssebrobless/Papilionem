@@ -11,15 +11,19 @@ class Flower {
             dissolve: 180   // 3 seconds
         };
         
-        this.size = 8;
-        this.petalCount = 5;
-        this.stemHeight = 20;
-        this.petalColor = [
-            random(200, 255),
-            random(150, 255),
-            random(200, 255)
+        this.size = 10;
+        this.petalCount = 4; // Simpler for pixel art
+        this.stemHeight = 16;
+        // Stronger, more saturated colors matching the background palette
+        const flowerPalettes = [
+            { petals: [255, 180, 120], center: [255, 240, 180] }, // Warm orange
+            { petals: [255, 150, 200], center: [255, 255, 220] }, // Pink
+            { petals: [200, 150, 255], center: [255, 230, 150] }, // Purple
+            { petals: [255, 220, 150], center: [255, 255, 200] }  // Yellow
         ];
-        this.centerColor = [255, 230, 100];
+        const palette = random(flowerPalettes);
+        this.petalColor = palette.petals;
+        this.centerColor = palette.center;
         
         this.pollenTimer = 0;
         this.pollenCooldown = 180;
@@ -104,9 +108,12 @@ class Flower {
             alpha = map(this.stageTimer, 0, this.stageDurations.dissolve, 255, 0);
         }
         
-        graphics.stroke(100, 180, 100, alpha * 0.95);
-        graphics.strokeWeight(2);
-        graphics.line(0, 0, 0, this.stemHeight);
+        // Pixel art stem
+        graphics.noStroke();
+        graphics.fill(80, 140, 80, alpha);
+        graphics.rect(-2, 0, 4, this.stemHeight);
+        graphics.fill(100, 160, 100, alpha);
+        graphics.rect(-1, 0, 2, this.stemHeight);
         
         graphics.translate(0, -this.stemHeight);
         
@@ -133,17 +140,30 @@ class Flower {
                 petalAlpha * 0.95
             );
             
-            for (let j = 0; j < petalSize; j += 2) {
+            // Simplified pixel art petals
+            for (let j = 2; j < petalSize; j += 3) {
                 const px = cos(angle) * j;
                 const py = sin(angle) * j;
-                const size = map(j, 0, petalSize, 4, 2);
-                graphics.rect(px - size/2, py - size/2, size, size);
+                graphics.rect(px - 2, py - 2, 4, 4);
+                // Add depth with darker edges
+                if (j > petalSize - 4) {
+                    const darkerColor = [
+                        this.petalColor[0] * 0.8,
+                        this.petalColor[1] * 0.8,
+                        this.petalColor[2] * 0.8
+                    ];
+                    graphics.fill(darkerColor[0], darkerColor[1], darkerColor[2], petalAlpha);
+                }
             }
         }
         
-        const centerSize = this.stage === 'mature' ? 6 : 4;
-        graphics.fill(this.centerColor[0], this.centerColor[1], this.centerColor[2], alpha * 0.95);
+        // Pixelated flower center
+        const centerSize = this.stage === 'mature' ? 8 : 6;
+        graphics.fill(this.centerColor[0], this.centerColor[1], this.centerColor[2], alpha);
         graphics.rect(-centerSize/2, -centerSize/2, centerSize, centerSize);
+        // Add highlight pixel
+        graphics.fill(255, 255, 255, alpha * 0.8);
+        graphics.rect(-centerSize/2 + 2, -centerSize/2 + 2, 2, 2);
         
         if (this.stage === 'mature' && this.pollenTimer === 0) {
             const glowAlpha = (sin(frameCount * 0.1) + 1) * 0.5 * 100;

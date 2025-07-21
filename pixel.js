@@ -2,15 +2,18 @@ class Pixel {
     constructor(x, y, color, type = 'scale') {
         this.x = x;
         this.y = y;
-        this.vx = random(-0.5, 0.5);
-        this.vy = random(-1, 0);
+        // Isometric physics - particles drift along isometric axes
+        const isoAngle = random(TWO_PI);
+        const speed = random(0.2, 0.8);
+        this.vx = cos(isoAngle) * speed;
+        this.vy = sin(isoAngle) * speed - 0.5;
         this.color = color;
         this.type = type;
         this.lifetime = 255;
         this.settled = false;
         this.bounce = 0.3;
-        this.friction = 0.99;
-        this.size = config.pixelSize;
+        this.friction = 0.98;
+        this.size = config.pixelSize * 1.5; // Larger pixels for visibility
     }
     
     update() {
@@ -80,11 +83,15 @@ class ParticleSystem {
     emitBurst(x, y, color, count = 5) {
         for (let i = 0; i < count; i++) {
             if (this.particles.length < config.maxParticles) {
-                const angle = (TWO_PI / count) * i + random(-0.2, 0.2);
-                const speed = random(1, 3);
+                // Emit particles in isometric pattern
+                const isoAngles = [PI/4, 3*PI/4, 5*PI/4, 7*PI/4]; // Diagonal directions
+                const baseAngle = random(isoAngles);
+                const angle = baseAngle + random(-0.3, 0.3);
+                const speed = random(1.5, 3);
                 const pixel = new Pixel(x, y, color, 'joy');
                 pixel.vx = cos(angle) * speed;
-                pixel.vy = sin(angle) * speed - 1;
+                pixel.vy = sin(angle) * speed - 0.5;
+                pixel.size = config.pixelSize; // Keep consistent size
                 this.particles.push(pixel);
             }
         }

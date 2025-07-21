@@ -66,13 +66,24 @@ class ColorPool {
         
         for (let pixel of this.pixels) {
             graphics.noStroke();
-            graphics.fill(pixel.color[0], pixel.color[1], pixel.color[2], 240);
+            // Draw pixels with stronger presence
+            graphics.fill(pixel.color[0], pixel.color[1], pixel.color[2], 255);
             graphics.rect(
                 pixel.x - this.radius, 
                 pixel.y - this.radius, 
                 config.pixelSize, 
                 config.pixelSize
             );
+            // Add subtle highlight to some pixels
+            if (random() < 0.3) {
+                graphics.fill(255, 255, 255, 100);
+                graphics.rect(
+                    pixel.x - this.radius + 1, 
+                    pixel.y - this.radius + 1, 
+                    1, 
+                    1
+                );
+            }
         }
         
         if (this.isPulsing) {
