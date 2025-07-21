@@ -19,7 +19,7 @@ const config = {
         y: 4
     },
     entityHeightOffset: {
-        butterfly: 20,  // Butterflies float 20 pixels above ground
+        butterfly: 12,  // Butterflies float gently above ground
         flower: 0       // Flowers sit on the ground
     }
 };

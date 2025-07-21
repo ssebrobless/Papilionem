@@ -4,8 +4,9 @@ class Butterfly {
         this.y = y;
         this.targetX = x;
         this.targetY = y;
-        this.size = 20; // Larger butterflies
+        this.size = 12; // Smaller, cuter butterflies
         this.colors = colors;
+        this.elasticForce = 0.02; // Pull strength when outside bounds
         
         this.state = 'resting';
         this.stateTimer = 0;
@@ -13,10 +14,10 @@ class Butterfly {
         this.wingSpeed = 0.05;
         
         this.personality = random(['brave', 'cautious', 'curious']);
-        this.comfortZone = this.personality === 'brave' ? 40 : 
-                          this.personality === 'cautious' ? 80 : 60;
-        this.fleeDistance = this.personality === 'brave' ? 20 : 
-                           this.personality === 'cautious' ? 60 : 40;
+        this.comfortZone = this.personality === 'brave' ? 50 : 
+                          this.personality === 'cautious' ? 90 : 70;
+        this.fleeDistance = this.personality === 'brave' ? 30 : 
+                           this.personality === 'cautious' ? 70 : 50;
         
         this.speed = 0.05;
         this.wanderTimer = random(100, 200);
@@ -57,7 +58,7 @@ class Butterfly {
     updateResting(distToCursor, cursorVelocity) {
         this.wingSpeed = 0.02;
         
-        if (distToCursor < this.comfortZone && cursorVelocity > 2) {
+        if (distToCursor < this.fleeDistance && cursorVelocity > 4) {
             this.setState('fleeing');
         } else if (distToCursor < this.comfortZone) {
             this.setState('alert');
@@ -67,7 +68,7 @@ class Butterfly {
     updateAlert(distToCursor, cursorVelocity, stillFrames) {
         this.wingSpeed = 0.01;
         
-        if (cursorVelocity > 3 || distToCursor < this.fleeDistance) {
+        if (cursorVelocity > 5 || distToCursor < this.fleeDistance) {
             this.setState('fleeing');
         } else if (distToCursor > this.comfortZone) {
             this.setState('resting');
@@ -91,22 +92,15 @@ class Butterfly {
     }
     
     updateFleeing(cursorX, cursorY, particleSystem) {
-        this.wingSpeed = 0.3;
-        this.speed = 0.15;
+        this.wingSpeed = 0.25;
+        this.speed = 0.12;
         
         const angle = atan2(this.y - cursorY, this.x - cursorX);
-        this.targetX = this.x + cos(angle) * 100;
-        this.targetY = this.y + sin(angle) * 100;
+        const fleeDistance = 60; // Less dramatic flee distance
+        this.targetX = this.x + cos(angle) * fleeDistance;
+        this.targetY = this.y + sin(angle) * fleeDistance;
         
-        // Constrain to isometric playable area
-        if (!isWithinPlayableArea(this.targetX, this.targetY)) {
-            // If target is outside, find a random safe position within bounds
-            const safeGridX = random(1, config.isoBounds.maxX - 1);
-            const safeGridY = random(1, config.isoBounds.maxY - 1);
-            const safePos = isoToScreen(safeGridX, safeGridY);
-            this.targetX = safePos.x;
-            this.targetY = safePos.y - config.entityHeightOffset.butterfly;
-        }
+        // Don't constrain immediately - let elastic boundary handle it
         
         if (frameCount % 5 === 0) {
             // Drop darker, more visible stress particles
@@ -121,7 +115,10 @@ class Butterfly {
         this.stateTimer++;
         if (this.stateTimer > 60) {
             this.setState('resting');
-            this.speed = 0.05;
+            this.speed = 0.05; // Return to normal speed
+        } else if (this.stateTimer > 30) {
+            // Gradual deceleration
+            this.speed = max(0.05, this.speed * 0.95);
         }
     }
     
@@ -133,6 +130,35 @@ class Butterfly {
     move() {
         const dx = this.targetX - this.x;
         const dy = this.targetY - this.y;
+        
+        // Apply elastic boundary force if outside playable area
+        if (!isWithinPlayableArea(this.x, this.y)) {
+            // Find nearest point within bounds
+            const gridCenterX = config.isoBounds.maxX / 2;
+            const gridCenterY = config.isoBounds.maxY / 2;
+            
+            // Try to find the closest edge point
+            let closestGridX = constrain(gridCenterX, 0, config.isoBounds.maxX);
+            let closestGridY = constrain(gridCenterY, 0, config.isoBounds.maxY);
+            
+            const nearestInBounds = isoToScreen(closestGridX, closestGridY);
+            
+            // Calculate distance from playable area
+            const distFromBounds = dist(this.x, this.y, nearestInBounds.x, nearestInBounds.y);
+            const softBoundary = 80;  // Start gentle pull
+            const hardBoundary = 150; // Maximum distance allowed
+            
+            if (distFromBounds > softBoundary) {
+                // Gradual elastic pull that gets stronger with distance
+                const pullAngle = atan2(nearestInBounds.y - this.y, nearestInBounds.x - this.x);
+                const overDistance = distFromBounds - softBoundary;
+                const pullStrength = min(overDistance / (hardBoundary - softBoundary), 1) * this.elasticForce;
+                
+                // Apply pull to target, not position directly
+                this.targetX += cos(pullAngle) * pullStrength * 50;
+                this.targetY += sin(pullAngle) * pullStrength * 50;
+            }
+        }
         
         this.x += dx * this.speed;
         this.y += dy * this.speed;
@@ -150,8 +176,8 @@ class Butterfly {
             
             if (flowers.length > 0 && random() < 0.6) {
                 const flower = random(flowers);
-                this.targetX = flower.x + random(-10, 10);
-                this.targetY = flower.y - 10;
+                this.targetX = flower.x + random(-8, 8);
+                this.targetY = flower.y - 8;
                 this.restingFlower = flower;
             } else {
                 // Wander to a random position within the isometric bounds
@@ -174,55 +200,68 @@ class Butterfly {
             alpha = map(this.lifetime, 0, this.fadeStartLifetime, 0, 255);
         }
         
-        const wingSpread = abs(sin(this.wingAngle)) * 0.8 + 0.2;
+        const wingFlap = sin(this.wingAngle);
+        const wingSpread = map(wingFlap, -1, 1, 0.4, 1);
+        const wingTilt = map(wingFlap, -1, 1, -0.2, 0.1);
         
         graphics.noStroke();
         
-        const leftWingX = -this.size * wingSpread;
-        const rightWingX = this.size * wingSpread;
-        const wingY = -2;
+        // Draw wings with Stardew Valley style - attached to body
+        graphics.push();
+        graphics.rotate(wingTilt);
+        this.drawStardewWing(graphics, -1, wingSpread, alpha); // Left wing
+        this.drawStardewWing(graphics, 1, wingSpread, alpha);  // Right wing
+        graphics.pop();
         
-        // Draw butterfly with full opacity for visibility
-        this.drawWing(graphics, leftWingX, wingY, -1, alpha);
-        this.drawWing(graphics, rightWingX, wingY, 1, alpha);
-        
-        // Body with strong contrast
-        graphics.fill(40, 30, 20, alpha);
-        graphics.rect(-2, -4, 4, 8);
-        graphics.fill(60, 45, 30, alpha);
-        graphics.rect(-1, -3, 2, 6);
+        // Draw body on top
+        this.drawBody(graphics, alpha);
         
         graphics.pop();
     }
     
-    drawWing(graphics, x, y, direction, alpha) {
+    drawStardewWing(graphics, direction, spread, alpha) {
         graphics.push();
-        graphics.translate(x, y);
+        graphics.scale(spread, 1);
         
-        // Draw wing with pixel art style matching background
-        for (let py = 0; py < 10; py++) {
-            for (let px = 0; px < 8; px++) {
-                if (this.getWingPattern(px, py)) {
-                    // Base wing color with full opacity
-                    if (py < 6) {
-                        graphics.fill(this.colors[0][0], this.colors[0][1], this.colors[0][2], alpha);
-                    } else {
-                        // Pattern/accent color
+        // Stardew Valley style wing - simpler, cuter, attached to body
+        const wingPattern = [
+            [0,0,1,1,1],
+            [0,1,1,1,1],
+            [1,1,1,1,1],
+            [1,1,1,1,0],
+            [1,1,1,0,0],
+            [0,1,0,0,0]
+        ];
+        
+        // Wing base position (attached to body)
+        const startX = direction * 2;
+        const startY = -2;
+        
+        for (let y = 0; y < wingPattern.length; y++) {
+            for (let x = 0; x < wingPattern[y].length; x++) {
+                if (wingPattern[y][x]) {
+                    // Main wing color
+                    graphics.fill(this.colors[0][0], this.colors[0][1], this.colors[0][2], alpha);
+                    
+                    // Add pattern spots
+                    if ((x === 2 && y === 2) || (x === 3 && y === 1)) {
                         graphics.fill(this.colors[1][0], this.colors[1][1], this.colors[1][2], alpha);
                     }
                     
-                    // Add highlight pixels for depth
-                    if ((px + py) % 3 === 0 && py < 4) {
-                        const highlight = 30;
+                    // Edge darkening for depth
+                    if (x === 0 || x === 4 || y === 5) {
+                        const dark = 0.8;
                         graphics.fill(
-                            min(255, this.colors[0][0] + highlight),
-                            min(255, this.colors[0][1] + highlight),
-                            min(255, this.colors[0][2] + highlight),
+                            this.colors[0][0] * dark,
+                            this.colors[0][1] * dark,
+                            this.colors[0][2] * dark,
                             alpha
                         );
                     }
                     
-                    graphics.rect(px * 2 * direction, py * 2 - 6, 2, 2);
+                    const pixelX = startX + (x * 2 * direction);
+                    const pixelY = startY + (y * 2) - 4;
+                    graphics.rect(pixelX, pixelY, 2, 2);
                 }
             }
         }
@@ -230,20 +269,23 @@ class Butterfly {
         graphics.pop();
     }
     
-    getWingPattern(x, y) {
-        const patterns = [
-            [0,1,1,1,1,1,0,0],
-            [1,1,1,1,1,1,1,0],
-            [1,1,1,1,1,1,1,1],
-            [1,1,1,1,1,1,1,1],
-            [1,1,1,1,1,1,1,1],
-            [1,1,1,1,1,1,1,0],
-            [1,1,1,1,1,1,0,0],
-            [1,1,1,1,0,0,0,0],
-            [1,1,0,0,0,0,0,0],
-            [0,0,0,0,0,0,0,0]
-        ];
-        return patterns[y] && patterns[y][x];
+    drawBody(graphics, alpha) {
+        // Cute pixel art body
+        graphics.fill(40, 30, 20, alpha);
+        graphics.rect(-2, -3, 4, 6); // Main body
+        
+        // Body highlights
+        graphics.fill(60, 45, 30, alpha);
+        graphics.rect(-1, -2, 2, 4);
+        
+        // Head
+        graphics.fill(40, 30, 20, alpha);
+        graphics.rect(-1, -4, 2, 2);
+        
+        // Antennae
+        graphics.fill(40, 30, 20, alpha * 0.8);
+        graphics.rect(-2, -5, 1, 2);
+        graphics.rect(1, -5, 1, 2);
     }
     
     isDead() {
