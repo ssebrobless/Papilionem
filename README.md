@@ -21,6 +21,7 @@ An interactive digital art piece exploring themes of fragility and beauty throug
 - Move cursor slowly to interact gently with butterflies
 - Click to plant flowers (requires 5 pollen)
 - Watch as the garden creates its own living ecosystem
+- Hold B to visualize elastic boundary zones
 
 ### Debug Mode (Press D)
 - **Arrow Keys**: Move cursor with isometric movement
@@ -55,8 +56,19 @@ isoBounds: {
 
 The grid is automatically offset to align with the background image using `config.gridOffset`. Coordinates run from (0,0) to (maxX, maxY) with the orange boundary showing the playable area.
 
+## Butterfly Behavior
+
+Butterflies have a sophisticated elastic boundary system:
+- **Inside Grid**: Normal movement and reactions
+- **Near Edge**: Can flee beyond boundaries when scared
+- **Outside Grid**: Face directional resistance - moving away is harder than returning
+- **Far Outside**: Strong elastic pull brings them back naturally
+
+The resistance system creates natural, believable movement where butterflies can temporarily escape but always drift back to the garden.
+
 ## Development Status
 
 Core mechanics and debug tools complete. Remaining polish:
 - Visual effects (bloom, dithering, light trails)
-- Zone-based AI behaviors for butterflies
+- Pool merging mechanic
+- Rare color combinations
