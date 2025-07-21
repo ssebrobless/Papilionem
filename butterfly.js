@@ -14,10 +14,10 @@ class Butterfly {
         this.wingSpeed = 0.05;
         
         this.personality = random(['brave', 'cautious', 'curious']);
-        this.comfortZone = this.personality === 'brave' ? 50 : 
-                          this.personality === 'cautious' ? 90 : 70;
-        this.fleeDistance = this.personality === 'brave' ? 30 : 
-                           this.personality === 'cautious' ? 70 : 50;
+        this.comfortZone = this.personality === 'brave' ? 60 : 
+                          this.personality === 'cautious' ? 100 : 80;
+        this.fleeDistance = this.personality === 'brave' ? 40 : 
+                           this.personality === 'cautious' ? 80 : 60;
         
         this.speed = 0.05;
         this.wanderTimer = random(100, 200);
@@ -58,9 +58,10 @@ class Butterfly {
     updateResting(distToCursor, cursorVelocity) {
         this.wingSpeed = 0.02;
         
-        if (distToCursor < this.fleeDistance && cursorVelocity > 4) {
+        // Much less reactive - only flee if very close AND fast movement
+        if (distToCursor < this.fleeDistance * 0.5 && cursorVelocity > 6) {
             this.setState('fleeing');
-        } else if (distToCursor < this.comfortZone) {
+        } else if (distToCursor < this.comfortZone && cursorVelocity > 2) {
             this.setState('alert');
         }
     }
@@ -68,9 +69,10 @@ class Butterfly {
     updateAlert(distToCursor, cursorVelocity, stillFrames) {
         this.wingSpeed = 0.01;
         
-        if (cursorVelocity > 5 || distToCursor < this.fleeDistance) {
+        // Much higher thresholds for fleeing
+        if (cursorVelocity > 8 && distToCursor < this.fleeDistance * 0.7) {
             this.setState('fleeing');
-        } else if (distToCursor > this.comfortZone) {
+        } else if (distToCursor > this.comfortZone * 1.2) {
             this.setState('resting');
         } else if (stillFrames > 120 && this.personality !== 'cautious') {
             this.setState('display');
@@ -93,10 +95,10 @@ class Butterfly {
     
     updateFleeing(cursorX, cursorY, particleSystem) {
         this.wingSpeed = 0.25;
-        this.speed = 0.12;
+        this.speed = 0.1;
         
         const angle = atan2(this.y - cursorY, this.x - cursorX);
-        const fleeDistance = 60; // Less dramatic flee distance
+        const fleeDistance = 40; // Much less dramatic
         this.targetX = this.x + cos(angle) * fleeDistance;
         this.targetY = this.y + sin(angle) * fleeDistance;
         
@@ -113,12 +115,12 @@ class Butterfly {
         }
         
         this.stateTimer++;
-        if (this.stateTimer > 60) {
+        if (this.stateTimer > 45) {
             this.setState('resting');
             this.speed = 0.05; // Return to normal speed
-        } else if (this.stateTimer > 30) {
+        } else if (this.stateTimer > 20) {
             // Gradual deceleration
-            this.speed = max(0.05, this.speed * 0.95);
+            this.speed = max(0.05, this.speed * 0.92);
         }
     }
     
@@ -128,40 +130,76 @@ class Butterfly {
     }
     
     move() {
-        const dx = this.targetX - this.x;
-        const dy = this.targetY - this.y;
+        let dx = this.targetX - this.x;
+        let dy = this.targetY - this.y;
+        let actualSpeed = this.speed;
         
-        // Apply elastic boundary force if outside playable area
+        // Check if butterfly is outside playable area
         if (!isWithinPlayableArea(this.x, this.y)) {
-            // Find nearest point within bounds
-            const gridCenterX = config.isoBounds.maxX / 2;
-            const gridCenterY = config.isoBounds.maxY / 2;
+            // Find nearest point on the boundary
+            const nearestBoundaryPoint = this.findNearestBoundaryPoint();
+            const distFromBounds = dist(this.x, this.y, nearestBoundaryPoint.x, nearestBoundaryPoint.y);
             
-            // Try to find the closest edge point
-            let closestGridX = constrain(gridCenterX, 0, config.isoBounds.maxX);
-            let closestGridY = constrain(gridCenterY, 0, config.isoBounds.maxY);
+            // Calculate angle of intended movement
+            const moveAngle = atan2(dy, dx);
             
-            const nearestInBounds = isoToScreen(closestGridX, closestGridY);
+            // Calculate angle toward the playable area
+            const returnAngle = atan2(nearestBoundaryPoint.y - this.y, nearestBoundaryPoint.x - this.x);
             
-            // Calculate distance from playable area
-            const distFromBounds = dist(this.x, this.y, nearestInBounds.x, nearestInBounds.y);
-            const softBoundary = 80;  // Start gentle pull
-            const hardBoundary = 150; // Maximum distance allowed
+            // Calculate angular difference (0 = moving toward grid, PI = moving away)
+            let angleDiff = abs(moveAngle - returnAngle);
+            if (angleDiff > PI) angleDiff = TWO_PI - angleDiff;
             
-            if (distFromBounds > softBoundary) {
-                // Gradual elastic pull that gets stronger with distance
-                const pullAngle = atan2(nearestInBounds.y - this.y, nearestInBounds.x - this.x);
-                const overDistance = distFromBounds - softBoundary;
-                const pullStrength = min(overDistance / (hardBoundary - softBoundary), 1) * this.elasticForce;
-                
-                // Apply pull to target, not position directly
-                this.targetX += cos(pullAngle) * pullStrength * 50;
-                this.targetY += sin(pullAngle) * pullStrength * 50;
+            // Exponential resistance based on distance and angle
+            const distanceFactor = pow(distFromBounds / 50, 2); // Exponential growth
+            const angleFactor = angleDiff / PI; // 0 to 1, where 1 is directly away
+            
+            // Apply directional resistance
+            if (angleDiff > PI/2) {
+                // Moving away from grid - apply strong resistance
+                const resistance = 1 - (0.9 * angleFactor * min(distanceFactor, 1));
+                actualSpeed *= max(0.1, resistance);
+            } else {
+                // Moving toward grid - slight boost
+                actualSpeed *= 1 + (0.3 * (1 - angleFactor));
+            }
+            
+            // Passive pull back to bounds
+            const pullStrength = min(distanceFactor * 0.03, 0.15);
+            dx += (nearestBoundaryPoint.x - this.x) * pullStrength;
+            dy += (nearestBoundaryPoint.y - this.y) * pullStrength;
+        }
+        
+        this.x += dx * actualSpeed;
+        this.y += dy * actualSpeed;
+    }
+    
+    findNearestBoundaryPoint() {
+        // Sample points along the boundary to find nearest
+        let nearestDist = Infinity;
+        let nearestPoint = null;
+        
+        // Check edges of the diamond
+        for (let t = 0; t <= 1; t += 0.1) {
+            // Top-right edge
+            const tr = isoToScreen(config.isoBounds.maxX * t, 0);
+            // Bottom-right edge
+            const br = isoToScreen(config.isoBounds.maxX, config.isoBounds.maxY * t);
+            // Bottom-left edge
+            const bl = isoToScreen(config.isoBounds.maxX * (1-t), config.isoBounds.maxY);
+            // Top-left edge
+            const tl = isoToScreen(0, config.isoBounds.maxY * (1-t));
+            
+            for (let point of [tr, br, bl, tl]) {
+                const d = dist(this.x, this.y, point.x, point.y);
+                if (d < nearestDist) {
+                    nearestDist = d;
+                    nearestPoint = point;
+                }
             }
         }
         
-        this.x += dx * this.speed;
-        this.y += dy * this.speed;
+        return nearestPoint || isoToScreen(config.isoBounds.maxX/2, config.isoBounds.maxY/2);
     }
     
     updateWings() {
@@ -181,8 +219,10 @@ class Butterfly {
                 this.restingFlower = flower;
             } else {
                 // Wander to a random position within the isometric bounds
-                const gridX = random(1, config.isoBounds.maxX - 1);
-                const gridY = random(1, config.isoBounds.maxY - 1);
+                // Prefer more central positions
+                const centerBias = 0.3; // How much to bias toward center
+                const gridX = random(1 + centerBias, config.isoBounds.maxX - 1 - centerBias);
+                const gridY = random(1 + centerBias, config.isoBounds.maxY - 1 - centerBias);
                 const screenPos = isoToScreen(gridX, gridY);
                 this.targetX = screenPos.x;
                 this.targetY = screenPos.y - config.entityHeightOffset.butterfly;

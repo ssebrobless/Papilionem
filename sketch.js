@@ -92,10 +92,10 @@ function initializeEntities() {
         [[100, 180, 140], [150, 220, 180]]   // Teal/mint
     ];
     
-    // Place butterflies using grid coordinates
+    // Place butterflies using grid coordinates - start them centrally
     for (let i = 0; i < 2; i++) {
-        const gridX = random(2, 7);
-        const gridY = random(2, 7);
+        const gridX = random(3, 6);
+        const gridY = random(3, 6);
         const screenPos = isoToScreen(gridX, gridY);
         const colors = random(butterflyColors);
         // Butterflies float above ground
@@ -267,6 +267,11 @@ function drawUILayer() {
         gameState.flowerManager.drawPlantingHint(layers.ui, adjustedMouseX, adjustedMouseY, gameState.flowers);
     } else {
         drawDebugOverlays();
+    }
+    
+    // Boundary zones can be shown in any mode
+    if (keyIsDown(66)) { // Hold 'B' to see boundary zones
+        drawBoundaryZones();
     }
     
     layers.ui.pop();
@@ -491,7 +496,58 @@ function drawDebugInfo() {
     text(`Pollen: ${gameState.flowerManager.pollenCount}/5`, 10, 50);
     text(`FPS: ${frameRate().toFixed(0)}`, 10, 65);
     text(`Press D for Debug Mode`, 10, 80);
+    text(`Hold B to see boundary zones`, 10, 95);
     pop();
+}
+
+function drawBoundaryZones() {
+    layers.ui.push();
+    
+    // Draw expanding boundary zones
+    const bounds = config.isoBounds;
+    
+    // Get corners of playable area
+    const corners = [
+        isoToScreen(0, 0),
+        isoToScreen(bounds.maxX, 0),
+        isoToScreen(bounds.maxX, bounds.maxY),
+        isoToScreen(0, bounds.maxY)
+    ];
+    
+    // Draw zones at different distances
+    const zones = [
+        { dist: 0, color: [100, 255, 100, 50], label: "Safe" },
+        { dist: 50, color: [255, 255, 100, 40], label: "Soft" },
+        { dist: 100, color: [255, 150, 100, 30], label: "Hard" },
+        { dist: 150, color: [255, 100, 100, 20], label: "Max" }
+    ];
+    
+    layers.ui.noStroke();
+    
+    // Draw zones in reverse order (largest first)
+    for (let i = zones.length - 1; i >= 0; i--) {
+        const zone = zones[i];
+        layers.ui.fill(...zone.color);
+        
+        // Create expanded diamond shape
+        layers.ui.beginShape();
+        for (let j = 0; j < corners.length; j++) {
+            const corner = corners[j];
+            const next = corners[(j + 1) % corners.length];
+            
+            // Calculate outward normal
+            const dx = next.x - corner.x;
+            const dy = next.y - corner.y;
+            const len = sqrt(dx * dx + dy * dy);
+            const nx = -dy / len * zone.dist;
+            const ny = dx / len * zone.dist;
+            
+            layers.ui.vertex(corner.x + nx, corner.y + ny);
+        }
+        layers.ui.endShape(CLOSE);
+    }
+    
+    layers.ui.pop();
 }
 
 function windowResized() {
