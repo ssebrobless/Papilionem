@@ -131,7 +131,12 @@ class ParticleSystem {
                 graphics.fill(particle.color[0], particle.color[1], particle.color[2], 240);
             }
             
-            graphics.rect(particle.x, particle.y, particle.size, particle.size);
+            // Draw particles as diamonds to match isometric aesthetic
+            graphics.push();
+            graphics.translate(particle.x + particle.size/2, particle.y + particle.size/2);
+            graphics.rotate(PI/4);
+            graphics.rect(-particle.size/2, -particle.size/2, particle.size, particle.size);
+            graphics.pop();
         }
     }
     
