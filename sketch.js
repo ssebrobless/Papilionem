@@ -7,16 +7,16 @@ const config = {
     maxParticles: 150,
     gravity: 0.08,    // Gentler gravity for isometric view
     pixelSize: 3,     // Larger pixels for visibility
-    gridSize: 32,
+    gridSize: 16,     // Finer grid - each old tile is now 4 tiles
     // Isometric playable area boundaries (in grid units)
     isoBounds: {
-        maxX: 9,    // Maximum X coordinate (right edge)
-        maxY: 9      // Maximum Y coordinate (bottom edge)
+        maxX: 18,    // Maximum X coordinate (right edge) - doubled for finer grid
+        maxY: 18     // Maximum Y coordinate (bottom edge) - doubled for finer grid
     },
     // Grid offset to align with background image
     gridOffset: {
-        x: 4,
-        y: 4
+        x: 8,        // Doubled for finer grid
+        y: 8         // Doubled for finer grid
     },
     entityHeightOffset: {
         butterfly: 12,  // Butterflies float gently above ground
@@ -353,11 +353,16 @@ function drawIsometricGrid() {
     layers.ui.endShape(CLOSE);
     
     // Draw grid lines within bounds
-    layers.ui.stroke(255, 255, 255, 30);
     layers.ui.strokeWeight(1);
     
     // Lines going right-down (constant Y)
     for (let y = 0; y <= bounds.maxY; y++) {
+        // Draw major grid lines (every 2 units) stronger
+        if (y % 2 === 0) {
+            layers.ui.stroke(255, 255, 255, 40);
+        } else {
+            layers.ui.stroke(255, 255, 255, 20);
+        }
         const start = isoToScreen(0, y);
         const end = isoToScreen(bounds.maxX, y);
         layers.ui.line(start.x, start.y, end.x, end.y);
@@ -365,6 +370,12 @@ function drawIsometricGrid() {
     
     // Lines going left-down (constant X)
     for (let x = 0; x <= bounds.maxX; x++) {
+        // Draw major grid lines (every 2 units) stronger
+        if (x % 2 === 0) {
+            layers.ui.stroke(255, 255, 255, 40);
+        } else {
+            layers.ui.stroke(255, 255, 255, 20);
+        }
         const start = isoToScreen(x, 0);
         const end = isoToScreen(x, bounds.maxY);
         layers.ui.line(start.x, start.y, end.x, end.y);
@@ -442,7 +453,7 @@ function drawDebugCursor() {
 function drawDebugUI() {
     layers.ui.fill(0, 0, 0, 150);
     layers.ui.noStroke();
-    layers.ui.rect(10, 10, 250, 180);
+    layers.ui.rect(10, 10, 250, 195);
     
     layers.ui.fill(255);
     layers.ui.textAlign(LEFT);
@@ -464,6 +475,7 @@ function drawDebugUI() {
     layers.ui.textSize(10);
     layers.ui.fill(200);
     layers.ui.text(`Bounds: (0,0) to (${config.isoBounds.maxX},${config.isoBounds.maxY})`, 15, 165);
+    layers.ui.text(`Grid: ${config.gridSize}px tiles`, 15, 180);
 }
 
 function updateCursorTracking() {

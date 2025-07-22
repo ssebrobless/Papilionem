@@ -45,16 +45,16 @@ This simplified system lets you define which isometric grid positions look good 
 
 ### Configuring Playable Boundaries
 
-The isometric grid uses a coordinate system aligned with the background image. To adjust the playable area, edit `config.isoBounds` in `sketch.js`:
+The isometric grid uses a fine-grained coordinate system (18x18) aligned with the background image. To adjust the playable area, edit `config.isoBounds` in `sketch.js`:
 
 ```javascript
 isoBounds: {
-    maxX: 9,    // Maximum X coordinate (right edge)
-    maxY: 9     // Maximum Y coordinate (bottom edge)
+    maxX: 18,   // Maximum X coordinate (right edge)
+    maxY: 18    // Maximum Y coordinate (bottom edge)
 }
 ```
 
-The grid is automatically offset to align with the background image using `config.gridOffset`. Coordinates run from (0,0) to (maxX, maxY) with the orange boundary showing the playable area.
+The grid is automatically offset to align with the background image using `config.gridOffset`. Each visible diamond tile contains 4 smaller grid positions for precise entity placement.
 
 ## Butterfly Behavior
 

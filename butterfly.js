@@ -111,7 +111,7 @@ class Butterfly {
                 this.colors[0][1] * 0.6,
                 this.colors[0][2] * 0.6
             ];
-            particleSystem.emit(this.x, this.y, color, 3, 'scale');
+            particleSystem.emit(this.x, this.y, color, 2, 'scale');
         }
         
         this.stateTimer++;
@@ -220,9 +220,9 @@ class Butterfly {
             } else {
                 // Wander to a random position within the isometric bounds
                 // Prefer more central positions
-                const centerBias = 0.3; // How much to bias toward center
-                const gridX = random(1 + centerBias, config.isoBounds.maxX - 1 - centerBias);
-                const gridY = random(1 + centerBias, config.isoBounds.maxY - 1 - centerBias);
+                const centerBias = 1; // Adjusted for finer grid
+                const gridX = random(2 + centerBias, config.isoBounds.maxX - 2 - centerBias);
+                const gridY = random(2 + centerBias, config.isoBounds.maxY - 2 - centerBias);
                 const screenPos = isoToScreen(gridX, gridY);
                 this.targetX = screenPos.x;
                 this.targetY = screenPos.y - config.entityHeightOffset.butterfly;
