@@ -15,7 +15,7 @@ class Butterfly {
         this.wanderTimer = random(60, 120); // How often to pick new destination
         
         // Goal-oriented movement
-        this.goalGridPos = {...this.gridPos}; // Long-term destination
+        this.goalGridPos = null; // Will be set on first update
         this.movesSinceNewGoal = 0; // Track moves toward current goal
         
         this.pixelDropTimer = 0;
@@ -65,50 +65,93 @@ class Butterfly {
     wander(flowers) {
         this.wanderTimer--;
         
+        // Pick initial goal if we don't have one
+        if (!this.goalGridPos) {
+            this.pickNewGoal(flowers);
+        }
+        
         if (this.wanderTimer <= 0) {
-            this.wanderTimer = random(40, 90); // Wander more frequently but shorter distances
+            this.wanderTimer = random(40, 90); // Time between movement decisions
             
-            const maxWanderDistance = 3; // Maximum grid units to move
+            // Calculate chance to forget current goal
+            // Starts at 0%, increases rapidly after a few moves
+            const forgetChance = this.movesSinceNewGoal === 0 ? 0 :
+                                this.movesSinceNewGoal === 1 ? 0.1 :
+                                this.movesSinceNewGoal === 2 ? 0.25 :
+                                this.movesSinceNewGoal === 3 ? 0.45 :
+                                this.movesSinceNewGoal === 4 ? 0.7 : 0.9;
             
-            if (flowers.length > 0 && random() < 0.3) {
-                // Sometimes move toward a flower if it's nearby
-                const nearbyFlowers = flowers.filter(flower => {
-                    const flowerGrid = screenToIso(flower.x, flower.y);
-                    const dist = abs(flowerGrid.x - this.gridPos.x) + abs(flowerGrid.y - this.gridPos.y);
-                    return dist < maxWanderDistance * 2;
-                });
-                
-                if (nearbyFlowers.length > 0) {
-                    const flower = random(nearbyFlowers);
-                    const flowerGrid = screenToIso(flower.x, flower.y);
-                    // Move partially toward the flower
-                    const dx = constrain(flowerGrid.x - this.gridPos.x, -maxWanderDistance, maxWanderDistance);
-                    const dy = constrain(flowerGrid.y - this.gridPos.y, -maxWanderDistance, maxWanderDistance);
-                    this.targetGridPos.x = constrain(this.gridPos.x + dx * 0.5, 0, config.isoBounds.maxX);
-                    this.targetGridPos.y = constrain(this.gridPos.y + dy * 0.5, 0, config.isoBounds.maxY);
-                } else {
-                    // No nearby flowers, do local wander
-                    this.localWander(maxWanderDistance);
-                }
-            } else {
-                // Local wandering within small radius
-                this.localWander(maxWanderDistance);
+            // Check if we've reached our goal or forgotten it
+            const reachedGoal = abs(this.gridPos.x - this.goalGridPos.x) < 1 && 
+                               abs(this.gridPos.y - this.goalGridPos.y) < 1;
+            
+            if (reachedGoal || random() < forgetChance) {
+                // Pick a new goal
+                this.pickNewGoal(flowers);
             }
+            
+            // Move toward goal with some randomness
+            this.moveTowardGoal();
+            
+            // Track that we've made a move
+            this.movesSinceNewGoal++;
         }
     }
     
-    localWander(maxDistance) {
-        // Pick a random direction and distance
-        const angle = random(TWO_PI);
-        const distance = random(0.5, maxDistance);
+    pickNewGoal(flowers) {
+        this.movesSinceNewGoal = 0;
         
-        // Calculate new position
-        const newX = this.gridPos.x + cos(angle) * distance;
-        const newY = this.gridPos.y + sin(angle) * distance;
+        // Initialize goalGridPos if needed
+        if (!this.goalGridPos) {
+            this.goalGridPos = {x: 0, y: 0};
+        }
         
-        // Constrain to bounds
-        this.targetGridPos.x = constrain(newX, 1, config.isoBounds.maxX - 1);
-        this.targetGridPos.y = constrain(newY, 1, config.isoBounds.maxY - 1);
+        // 30% chance to pick a flower as goal if any exist
+        if (flowers.length > 0 && random() < 0.3) {
+            const flower = random(flowers);
+            const flowerGrid = screenToIso(flower.x, flower.y);
+            this.goalGridPos.x = flowerGrid.x;
+            this.goalGridPos.y = flowerGrid.y;
+        } else {
+            // Pick random spot on the grid
+            this.goalGridPos.x = random(2, config.isoBounds.maxX - 2);
+            this.goalGridPos.y = random(2, config.isoBounds.maxY - 2);
+        }
+    }
+    
+    moveTowardGoal() {
+        // Calculate direction to goal
+        const dx = this.goalGridPos.x - this.gridPos.x;
+        const dy = this.goalGridPos.y - this.gridPos.y;
+        
+        // If we're close enough, just stay put
+        if (abs(dx) < 0.5 && abs(dy) < 0.5) {
+            return;
+        }
+        
+        // Normalize direction
+        const dist = sqrt(dx * dx + dy * dy);
+        let moveX = dx / dist;
+        let moveY = dy / dist;
+        
+        // Add some randomness to movement (up to 45 degrees deviation)
+        const wobble = random(-0.4, 0.4);
+        const angle = atan2(moveY, moveX) + wobble;
+        moveX = cos(angle);
+        moveY = sin(angle);
+        
+        // Move 1-2 grid units in that direction
+        const moveDistance = random(0.8, 1.5);
+        this.targetGridPos.x = constrain(
+            this.gridPos.x + moveX * moveDistance, 
+            1, 
+            config.isoBounds.maxX - 1
+        );
+        this.targetGridPos.y = constrain(
+            this.gridPos.y + moveY * moveDistance, 
+            1, 
+            config.isoBounds.maxY - 1
+        );
     }
     
     draw(graphics) {
