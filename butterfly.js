@@ -1,11 +1,15 @@
-class Butterfly {
+class Butterfly extends Entity {
     constructor(x, y, colors) {
-        this.x = x;
-        this.y = y;
-        // Store grid position for isometric movement
-        this.gridPos = screenToIso(x, y);
-        this.targetGridPos = {...this.gridPos};
+        super(x, y);
+        
+        // Override base properties
         this.size = 12; // Smaller, cuter butterflies
+        this.lifetime = 10000; // Long lifetime
+        this.fadeStartLifetime = 2000;
+        this.shadowOffset = gameConfig.entities.heightOffset.butterfly;
+        
+        // Butterfly specific properties
+        this.targetGridPos = {...this.gridPos};
         this.colors = colors;
         
         this.wingAngle = 0;
@@ -20,12 +24,14 @@ class Butterfly {
         
         this.pixelDropTimer = 0;
         this.lastPixelDrop = 0;
-        
-        this.lifetime = 10000; // Long lifetime for testing
     }
     
-    update(cursorX, cursorY, cursorVelocity, stillFrames, flowers, particleSystem) {
-        this.lifetime--;
+    update(gameState) {
+        // Call parent update
+        super.update(gameState);
+        
+        // Extract what we need from gameState
+        const { flowers, particleSystem } = gameState;
         
         // Simple wandering behavior
         this.wander(flowers);
@@ -53,9 +59,9 @@ class Butterfly {
         this.gridPos.y += gridDy * this.speed;
         
         // Convert to screen space
-        const newScreenPos = isoToScreen(this.gridPos.x, this.gridPos.y);
+        const newScreenPos = gridManager.isoToScreen(this.gridPos.x, this.gridPos.y);
         this.x = newScreenPos.x;
-        this.y = newScreenPos.y - config.entityHeightOffset.butterfly;
+        this.y = newScreenPos.y - this.shadowOffset;
     }
     
     updateWings() {
@@ -109,13 +115,13 @@ class Butterfly {
         // 30% chance to pick a flower as goal if any exist
         if (flowers.length > 0 && random() < 0.3) {
             const flower = random(flowers);
-            const flowerGrid = screenToIso(flower.x, flower.y);
+            const flowerGrid = gridManager.screenToIso(flower.x, flower.y);
             this.goalGridPos.x = flowerGrid.x;
             this.goalGridPos.y = flowerGrid.y;
         } else {
             // Pick random spot on the grid
-            this.goalGridPos.x = random(2, config.isoBounds.maxX - 2);
-            this.goalGridPos.y = random(2, config.isoBounds.maxY - 2);
+            this.goalGridPos.x = random(2, gridManager.bounds.maxX - 2);
+            this.goalGridPos.y = random(2, gridManager.bounds.maxY - 2);
         }
     }
     
@@ -145,27 +151,25 @@ class Butterfly {
         this.targetGridPos.x = constrain(
             this.gridPos.x + moveX * moveDistance, 
             1, 
-            config.isoBounds.maxX - 1
+            gridManager.bounds.maxX - 1
         );
         this.targetGridPos.y = constrain(
             this.gridPos.y + moveY * moveDistance, 
             1, 
-            config.isoBounds.maxY - 1
+            gridManager.bounds.maxY - 1
         );
     }
     
-    draw(graphics) {
-        graphics.push();
-        
-        // No alpha/transparency - completely solid
-        
-        // Draw solid shadow
-        const shadowY = config.entityHeightOffset.butterfly;
+    // Override parent's shadow drawing for custom butterfly shadow
+    drawShadow(graphics, alpha) {
         graphics.noStroke();
-        graphics.fill(0, 0, 0, 50); // Darker solid shadow
-        graphics.ellipse(this.x, this.y + shadowY, this.size * 0.8, this.size * 0.4);
-        
-        // Draw butterfly
+        graphics.fill(0, 0, 0, min(50, alpha * 0.2));
+        graphics.ellipse(this.x, this.y + this.shadowOffset, this.size * 0.8, this.size * 0.4);
+    }
+    
+    // Override parent's entity drawing
+    drawEntity(graphics, alpha) {
+        // Draw butterfly at current position
         graphics.translate(this.x, this.y);
         
         const wingFlap = sin(this.wingAngle);
@@ -183,8 +187,6 @@ class Butterfly {
         
         // Draw body on top
         this.drawBody(graphics);
-        
-        graphics.pop();
     }
     
     drawStardewWing(graphics, direction, spread) {
@@ -255,7 +257,4 @@ class Butterfly {
         graphics.rect(1, -5, 1, 2);
     }
     
-    isDead() {
-        return this.lifetime <= 0;
-    }
 }

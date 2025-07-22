@@ -3,7 +3,7 @@ class Entity {
     constructor(x, y) {
         this.x = x;
         this.y = y;
-        this.gridPos = screenToIso(x, y);
+        this.gridPos = gridManager.screenToIso(x, y);
         
         // Lifecycle
         this.lifetime = 1000;

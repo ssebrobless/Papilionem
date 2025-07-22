@@ -126,12 +126,20 @@ function initializeEntities() {
         }
     }
     
-    // Place initial flower
-    const flowerScreenPos = isoToScreen(6, 8);  // Adjusted for finer grid
-    gameState.flowers.push(new Flower(
-        flowerScreenPos.x,
-        flowerScreenPos.y  // isoToScreen already includes ground level
-    ));
+    // Place initial flowers with variety
+    const flowerPositions = [
+        {x: 6, y: 8},
+        {x: 10, y: 12},
+        {x: 14, y: 6}
+    ];
+    
+    for (let pos of flowerPositions) {
+        const flowerScreenPos = isoToScreen(pos.x, pos.y);
+        gameState.flowers.push(new Flower(
+            flowerScreenPos.x,
+            flowerScreenPos.y
+        ));
+    }
 }
 
 function initializeLayers() {
@@ -196,16 +204,13 @@ function updateEntities() {
     const adjustedMouseX = mouseX * (config.baseWidth / config.targetWidth);
     const adjustedMouseY = mouseY * (config.baseHeight / config.targetHeight);
     
+    // Update gameState with current cursor info
+    gameState.adjustedMouseX = adjustedMouseX;
+    gameState.adjustedMouseY = adjustedMouseY;
+    
     for (let i = gameState.butterflies.length - 1; i >= 0; i--) {
         const butterfly = gameState.butterflies[i];
-        butterfly.update(
-            adjustedMouseX, 
-            adjustedMouseY, 
-            gameState.cursorVelocity,
-            gameState.framesSinceMovement,
-            gameState.flowers,
-            gameState.particleSystem
-        );
+        butterfly.update(gameState);
         
         if (butterfly.isDead()) {
             const fadeColors = butterfly.colors.map(c => 
