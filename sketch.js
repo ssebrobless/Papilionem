@@ -218,12 +218,31 @@ function updateEntities() {
 function drawEntitiesLayer() {
     layers.entities.push();
     
+    // Collect all entities for depth sorting
+    let entities = [];
+    
     for (let flower of gameState.flowers) {
-        flower.draw(layers.entities);
+        entities.push({
+            obj: flower,
+            y: flower.y,
+            type: 'flower'
+        });
     }
     
     for (let butterfly of gameState.butterflies) {
-        butterfly.draw(layers.entities);
+        entities.push({
+            obj: butterfly,
+            y: butterfly.y,
+            type: 'butterfly'
+        });
+    }
+    
+    // Sort by y position (draw back to front)
+    entities.sort((a, b) => a.y - b.y);
+    
+    // Draw in sorted order
+    for (let entity of entities) {
+        entity.obj.draw(layers.entities);
     }
     
     layers.entities.pop();
@@ -297,6 +316,29 @@ function isoToScreen(gridX, gridY) {
     const screenY = (offsetX + offsetY) * tileHeight / 2;
     
     return { x: screenX, y: screenY + tileHeight / 2 };
+}
+
+// Helper function to convert screen coordinates to grid coordinates
+function screenToIso(screenX, screenY) {
+    const tileWidth = config.gridSize * 2;
+    const tileHeight = config.gridSize;
+    
+    // Adjust for tile height offset
+    screenY -= tileHeight / 2;
+    
+    // Convert from screen to isometric
+    const offsetX = screenX - config.baseWidth / 2;
+    const offsetY = screenY;
+    
+    // Inverse of isometric transformation
+    const isoX = (2 * offsetY + offsetX) / tileWidth;
+    const isoY = (2 * offsetY - offsetX) / tileWidth;
+    
+    // Remove grid offset
+    return {
+        x: (isoX + isoY) / 2 - config.gridOffset.x,
+        y: (isoY - isoX) / 2 - config.gridOffset.y
+    };
 }
 
 // Helper function to check if a screen position is within the isometric playable area

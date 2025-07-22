@@ -4,6 +4,9 @@ class Butterfly {
         this.y = y;
         this.targetX = x;
         this.targetY = y;
+        // Store grid position for isometric movement
+        this.gridPos = screenToIso(x, y + config.entityHeightOffset.butterfly);
+        this.targetGridPos = {...this.gridPos};
         this.size = 12; // Smaller, cuter butterflies
         this.colors = colors;
         this.elasticForce = 0.02; // Pull strength when outside bounds
@@ -97,12 +100,23 @@ class Butterfly {
         this.wingSpeed = 0.25;
         this.speed = 0.1;
         
-        const angle = atan2(this.y - cursorY, this.x - cursorX);
-        const fleeDistance = 40; // Much less dramatic
-        this.targetX = this.x + cos(angle) * fleeDistance;
-        this.targetY = this.y + sin(angle) * fleeDistance;
+        // Convert cursor to grid space for proper isometric fleeing
+        const cursorGrid = screenToIso(cursorX, cursorY);
+        const dx = this.gridPos.x - cursorGrid.x;
+        const dy = this.gridPos.y - cursorGrid.y;
         
-        // Don't constrain immediately - let elastic boundary handle it
+        // Flee along isometric axes
+        const fleeDistance = 2.5; // In grid units
+        const dist = sqrt(dx * dx + dy * dy);
+        if (dist > 0) {
+            this.targetGridPos.x = this.gridPos.x + (dx / dist) * fleeDistance;
+            this.targetGridPos.y = this.gridPos.y + (dy / dist) * fleeDistance;
+        }
+        
+        // Convert back to screen space
+        const screenPos = isoToScreen(this.targetGridPos.x, this.targetGridPos.y);
+        this.targetX = screenPos.x;
+        this.targetY = screenPos.y - config.entityHeightOffset.butterfly;
         
         if (frameCount % 5 === 0) {
             // Drop darker, more visible stress particles
@@ -130,9 +144,19 @@ class Butterfly {
     }
     
     move() {
-        let dx = this.targetX - this.x;
-        let dy = this.targetY - this.y;
-        let actualSpeed = this.speed;
+        // Move in grid space for proper isometric movement
+        const gridDx = this.targetGridPos.x - this.gridPos.x;
+        const gridDy = this.targetGridPos.y - this.gridPos.y;
+        
+        // Update grid position
+        this.gridPos.x += gridDx * this.speed;
+        this.gridPos.y += gridDy * this.speed;
+        
+        // Convert to screen space
+        const newScreenPos = isoToScreen(this.gridPos.x, this.gridPos.y);
+        let dx = newScreenPos.x - this.x;
+        let dy = (newScreenPos.y - config.entityHeightOffset.butterfly) - this.y;
+        let actualSpeed = 1; // We already applied speed in grid space
         
         // Check if butterfly is outside playable area
         if (!isWithinPlayableArea(this.x, this.y)) {
@@ -214,16 +238,25 @@ class Butterfly {
             
             if (flowers.length > 0 && random() < 0.6) {
                 const flower = random(flowers);
-                this.targetX = flower.x + random(-8, 8);
-                this.targetY = flower.y - 8;
+                // Convert flower position to grid
+                const flowerGrid = screenToIso(flower.x, flower.y);
+                this.targetGridPos.x = flowerGrid.x + random(-0.5, 0.5);
+                this.targetGridPos.y = flowerGrid.y + random(-0.5, 0.5);
+                
+                // Update screen target for compatibility
+                const screenPos = isoToScreen(this.targetGridPos.x, this.targetGridPos.y);
+                this.targetX = screenPos.x;
+                this.targetY = screenPos.y - config.entityHeightOffset.butterfly;
                 this.restingFlower = flower;
             } else {
                 // Wander to a random position within the isometric bounds
                 // Prefer more central positions
                 const centerBias = 1; // Adjusted for finer grid
-                const gridX = random(2 + centerBias, config.isoBounds.maxX - 2 - centerBias);
-                const gridY = random(2 + centerBias, config.isoBounds.maxY - 2 - centerBias);
-                const screenPos = isoToScreen(gridX, gridY);
+                this.targetGridPos.x = random(2 + centerBias, config.isoBounds.maxX - 2 - centerBias);
+                this.targetGridPos.y = random(2 + centerBias, config.isoBounds.maxY - 2 - centerBias);
+                
+                // Update screen target for compatibility
+                const screenPos = isoToScreen(this.targetGridPos.x, this.targetGridPos.y);
                 this.targetX = screenPos.x;
                 this.targetY = screenPos.y - config.entityHeightOffset.butterfly;
                 this.restingFlower = null;
@@ -233,12 +266,20 @@ class Butterfly {
     
     draw(graphics) {
         graphics.push();
-        graphics.translate(this.x, this.y);
         
         let alpha = 255;
         if (this.lifetime < this.fadeStartLifetime) {
             alpha = map(this.lifetime, 0, this.fadeStartLifetime, 0, 255);
         }
+        
+        // Draw shadow to ground the butterfly in isometric space
+        const shadowY = config.entityHeightOffset.butterfly;
+        graphics.noStroke();
+        graphics.fill(0, 0, 0, alpha * 0.2);
+        graphics.ellipse(this.x, this.y + shadowY, this.size * 0.8, this.size * 0.4);
+        
+        // Draw butterfly
+        graphics.translate(this.x, this.y);
         
         const wingFlap = sin(this.wingAngle);
         const wingSpread = map(wingFlap, -1, 1, 0.4, 1);

@@ -18,7 +18,14 @@ class Pixel {
     
     update() {
         if (!this.settled) {
+            // Apply gravity along isometric Y axis (southeast direction)
             this.vy += config.gravity;
+            
+            // Add slight drift along isometric axes for more natural fall
+            const isoDrift = 0.02;
+            if (random() < 0.5) {
+                this.vx += isoDrift * (random() < 0.5 ? 1 : -1);
+            }
             
             this.vx *= this.friction;
             this.vy *= this.friction;
