@@ -98,15 +98,21 @@ class Flower {
     
     draw(graphics) {
         graphics.push();
-        graphics.translate(this.x, this.y);
-        
-        const sway = sin(this.swayAngle) * this.swayAmount;
-        graphics.rotate(sway);
         
         let alpha = 255;
         if (this.stage === 'dissolve') {
             alpha = map(this.stageTimer, 0, this.stageDurations.dissolve, 255, 0);
         }
+        
+        // Draw shadow at base
+        graphics.noStroke();
+        graphics.fill(0, 0, 0, alpha * 0.15);
+        graphics.ellipse(this.x, this.y + 2, this.size * 1.5, this.size * 0.7);
+        
+        graphics.translate(this.x, this.y);
+        
+        const sway = sin(this.swayAngle) * this.swayAmount;
+        graphics.rotate(sway);
         
         // Pixel art stem
         graphics.noStroke();
