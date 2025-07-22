@@ -24,21 +24,30 @@
 </head>
 <body>
     <div id="canvas-container"></div>
-    <!-- Core systems -->
-    <script src="config.js"></script>
-    <script src="eventBus.js"></script>
-    <script src="gridManager.js"></script>
-    <script src="entity.js"></script>
-    <script src="entityManager.js"></script>
-    <script src="renderManager.js"></script>
+    <!-- Core systems - must load first -->
+    <script src="core/config.js"></script>
+    <script src="core/entity.js"></script>
+    <script src="core/gridManager.js"></script>
+    <script src="core/renderManager.js"></script>
     
     <!-- Game entities -->
-    <script src="pixel.js"></script>
-    <script src="butterfly.js"></script>
-    <script src="colorpool.js"></script>
-    <script src="flower.js"></script>
+    <script src="entities/butterfly.js"></script>
+    <script src="entities/flower.js"></script>
     
-    <!-- Main game -->
+    <!-- System managers -->
+    <script src="systems/eventBus.js"></script>
+    <script src="systems/populationManager.js"></script>
+    <script src="systems/interactionSystem.js"></script>
+    <script src="systems/particleSystem.js"></script>
+    
+    <!-- UI -->
+    <script src="ui/debugUI.js"></script>
+    <script src="ui/gameUI.js"></script>
+    
+    <!-- Game core orchestrator - must load before sketch.js -->
+    <script src="core/gameCore.js"></script>
+    
+    <!-- Main p5.js wrapper -->
     <script src="sketch.js"></script>
 </body>
 </html>

@@ -29,8 +29,8 @@ class GridManager {
     
     // Convert screen coordinates to isometric grid coordinates
     screenToIso(screenX, screenY) {
-        const offsetX = config.baseWidth / 2;
-        const offsetY = 100;
+        const offsetX = gameConfig.canvas.baseWidth / 2;
+        const offsetY = gameConfig.isometric.offsetY;
         
         const x = (screenX - offsetX) / this.tileWidth + (screenY - offsetY) / this.tileHeight;
         const y = (screenY - offsetY) / this.tileHeight - (screenX - offsetX) / this.tileWidth;
@@ -43,8 +43,8 @@ class GridManager {
     
     // Convert isometric grid coordinates to screen coordinates  
     isoToScreen(isoX, isoY) {
-        const offsetX = config.baseWidth / 2;
-        const offsetY = 100;
+        const offsetX = gameConfig.canvas.baseWidth / 2;
+        const offsetY = gameConfig.isometric.offsetY;
         
         const x = (isoX - isoY) * this.tileWidth / 2 + offsetX;
         const y = (isoX + isoY) * this.tileHeight / 2 + offsetY;

@@ -73,7 +73,11 @@ class RenderManager {
         this.layers.entities.clear();
         this.layers.particles.clear();
         this.layers.ui.clear();
-        if (debugMode.enabled) {
+        // Get debug mode state from gameCore or fallback
+        const debugEnabled = (typeof gameCore !== 'undefined' && gameCore.getDebugMode().enabled) || 
+                           (typeof debugMode !== 'undefined' && debugMode.enabled);
+        
+        if (debugEnabled) {
             this.layers.debug.clear();
         }
     }
@@ -93,7 +97,11 @@ class RenderManager {
         this.drawParticlesLayer();
         this.drawUILayer();
         
-        if (debugMode.enabled) {
+        // Get debug mode state from gameCore or fallback
+        const debugEnabled = (typeof gameCore !== 'undefined' && gameCore.getDebugMode().enabled) || 
+                           (typeof debugMode !== 'undefined' && debugMode.enabled);
+        
+        if (debugEnabled) {
             this.drawDebugLayer();
         }
         
@@ -109,10 +117,18 @@ class RenderManager {
         // Draw all entity types with proper depth sorting
         const allEntities = [];
         
-        // Collect all entities
-        if (entityManager) {
+        // Collect all entities from either EntityManager or direct gameCore access
+        if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
+            const state = gameCore.getGameState();
+            allEntities.push(...state.flowers);
+            allEntities.push(...state.butterflies);
+        } else if (entityManager) {
             allEntities.push(...entityManager.getEntities('flowers'));
             allEntities.push(...entityManager.getEntities('butterflies'));
+        } else if (typeof gameState !== 'undefined') {
+            // Fallback to legacy gameState
+            if (gameState.flowers) allEntities.push(...gameState.flowers);
+            if (gameState.butterflies) allEntities.push(...gameState.butterflies);
         }
         
         // Sort by depth (isometric y position)
@@ -135,14 +151,22 @@ class RenderManager {
         const layer = this.layers.particles;
         layer.push();
         
-        // Draw color pools
-        if (window.gameState && window.gameState.poolManager) {
-            window.gameState.poolManager.draw(layer);
-        }
-        
-        // Draw particles
-        if (window.gameState && window.gameState.particleSystem) {
-            window.gameState.particleSystem.draw(layer);
+        // Draw color pools and particles from gameCore or fallback sources
+        if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
+            if (gameCore.poolManager) {
+                gameCore.poolManager.draw(layer);
+            }
+            if (gameCore.particleSystem) {
+                gameCore.particleSystem.draw(layer);
+            }
+        } else if (window.gameState) {
+            // Fallback to legacy gameState
+            if (window.gameState.poolManager) {
+                window.gameState.poolManager.draw(layer);
+            }
+            if (window.gameState.particleSystem) {
+                window.gameState.particleSystem.draw(layer);
+            }
         }
         
         layer.pop();
@@ -153,9 +177,29 @@ class RenderManager {
         const layer = this.layers.ui;
         layer.push();
         
-        if (!debugMode.enabled) {
+        // Get debug mode state from gameCore or fallback
+        const debugEnabled = (typeof gameCore !== 'undefined' && gameCore.getDebugMode().enabled) || 
+                           (typeof debugMode !== 'undefined' && debugMode.enabled);
+        
+        if (!debugEnabled) {
+            // Get state from gameCore or fallback
+            let framesSinceMovement = 0;
+            let flowerManager = null;
+            let flowers = [];
+            
+            if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
+                const state = gameCore.getGameState();
+                framesSinceMovement = state.framesSinceMovement || 0;
+                flowerManager = gameCore.flowerManager;
+                flowers = state.flowers;
+            } else if (typeof gameState !== 'undefined') {
+                framesSinceMovement = gameState.framesSinceMovement || 0;
+                flowerManager = gameState.flowerManager;
+                flowers = gameState.flowers;
+            }
+            
             // Draw cursor interaction zone
-            if (gameState.framesSinceMovement > gameConfig.interaction.stillFramesRequired) {
+            if (framesSinceMovement > gameConfig.interaction.stillFramesRequired) {
                 const adjustedMouseX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
                 const adjustedMouseY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
                 
@@ -167,10 +211,10 @@ class RenderManager {
             }
             
             // Draw planting hint
-            if (window.gameState && window.gameState.flowerManager) {
+            if (flowerManager && flowerManager.drawPlantingHint) {
                 const adjustedMouseX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
                 const adjustedMouseY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
-                window.gameState.flowerManager.drawPlantingHint(layer, adjustedMouseX, adjustedMouseY, entityManager.getEntities('flowers'));
+                flowerManager.drawPlantingHint(layer, adjustedMouseX, adjustedMouseY, flowers);
             }
         }
         
@@ -199,8 +243,14 @@ class RenderManager {
     
     // Draw debug cursor
     drawDebugCursor(layer) {
-        const gridX = debugMode.cursorX;
-        const gridY = debugMode.cursorY;
+        // Get debug mode state from gameCore or fallback
+        const debugModeState = (typeof gameCore !== 'undefined' && gameCore.getDebugMode()) || 
+                              (typeof debugMode !== 'undefined' ? debugMode : null);
+        
+        if (!debugModeState) return;
+        
+        const gridX = debugModeState.cursorX;
+        const gridY = debugModeState.cursorY;
         const screenPos = gridManager.isoToScreen(gridX, gridY);
         
         layer.noFill();
@@ -224,8 +274,8 @@ class RenderManager {
             path: [255, 255, 0]
         };
         
-        if (toolColors[debugMode.selectedTool]) {
-            layer.fill(...toolColors[debugMode.selectedTool], 100);
+        if (toolColors[debugModeState.selectedTool]) {
+            layer.fill(...toolColors[debugModeState.selectedTool], 100);
             layer.beginShape();
             layer.vertex(screenPos.x, screenPos.y - gridManager.tileHeight + 2);
             layer.vertex(screenPos.x + gridManager.tileWidth/2 - 2, screenPos.y);
@@ -237,6 +287,12 @@ class RenderManager {
     
     // Draw debug UI panel
     drawDebugUI(layer) {
+        // Get debug mode state from gameCore or fallback
+        const debugModeState = (typeof gameCore !== 'undefined' && gameCore.getDebugMode()) || 
+                              (typeof debugMode !== 'undefined' ? debugMode : null);
+        
+        if (!debugModeState) return;
+        
         layer.fill(0, 0, 0, 150);
         layer.noStroke();
         layer.rect(10, 10, 200, 150);
@@ -244,8 +300,8 @@ class RenderManager {
         layer.fill(255);
         layer.textAlign(LEFT);
         layer.text('DEBUG MODE (D to toggle)', 15, 25);
-        layer.text(`Cursor: ${debugMode.cursorX}, ${debugMode.cursorY}`, 15, 45);
-        layer.text(`Tool: ${debugMode.selectedTool}`, 15, 65);
+        layer.text(`Cursor: ${debugModeState.cursorX}, ${debugModeState.cursorY}`, 15, 45);
+        layer.text(`Tool: ${debugModeState.selectedTool}`, 15, 65);
         layer.text('Arrow keys: Move cursor', 15, 85);
         layer.text('Q/E: Change tool', 15, 105);
         layer.text('Space: Place/Toggle', 15, 125);
@@ -262,14 +318,22 @@ class RenderManager {
         image(this.layers.particles, 0, 0, targetWidth, targetHeight);
         image(this.layers.ui, 0, 0, targetWidth, targetHeight);
         
-        if (debugMode.enabled) {
+        // Get debug mode state from gameCore or fallback
+        const debugEnabled = (typeof gameCore !== 'undefined' && gameCore.getDebugMode().enabled) || 
+                           (typeof debugMode !== 'undefined' && debugMode.enabled);
+                           
+        if (debugEnabled) {
             image(this.layers.debug, 0, 0, targetWidth, targetHeight);
         }
     }
     
     // Draw info panel (non-debug)
     drawInfoPanel() {
-        if (debugMode.enabled) return;
+        // Get debug mode state from gameCore or fallback
+        const debugEnabled = (typeof gameCore !== 'undefined' && gameCore.getDebugMode().enabled) || 
+                           (typeof debugMode !== 'undefined' && debugMode.enabled);
+        
+        if (debugEnabled) return;
         
         push();
         noStroke();

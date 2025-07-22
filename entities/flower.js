@@ -127,20 +127,8 @@ class Flower extends Entity {
     
     generatePollen(particleSystem) {
         const pollenColor = [250, 250, 250];
-        
-        for (let i = 0; i < 3; i++) {
-            const angle = random(TWO_PI);
-            const distance = random(5, 15);
-            const px = this.x + cos(angle) * distance;
-            const py = this.y - this.size + sin(angle) * distance;
-            
-            const pollen = new Pixel(px, py, pollenColor, 'pollen');
-            pollen.vx = cos(angle) * 0.5;
-            pollen.vy = -random(0.5, 1);
-            pollen.lifetime = 400;
-            
-            particleSystem.particles.push(pollen);
-        }
+        // Use emit for pollen generation - the particle system will handle physics
+        particleSystem.emit(this.x, this.y - this.size, pollenColor, 3, 'pollen');
     }
     
     // Override parent's shadow drawing for soft layered shadow
@@ -653,13 +641,7 @@ class FlowerManager {
     }
     
     update(flowers, butterflies, particleSystem) {
-        this.pollenCount = 0;
-        
-        for (let particle of particleSystem.particles) {
-            if (particle.type === 'pollen' && !particle.settled) {
-                this.pollenCount++;
-            }
-        }
+        this.pollenCount = particleSystem.getPollenCount();
         
         // Create a gameState object for flowers
         const gameState = { butterflies, particleSystem };
@@ -702,14 +684,15 @@ class FlowerManager {
         if (this.canPlant(x, y, flowers) && flowers.length < 8) {  // Allow more flowers
             flowers.push(new Flower(x, y));
             
+            // Remove pollen particles for planting (up to 5)
             let pollenConsumed = 0;
-            for (let i = particleSystem.particles.length - 1; i >= 0; i--) {
-                const particle = particleSystem.particles[i];
-                if (particle.type === 'pollen' && pollenConsumed < 5) {
-                    particleSystem.particles.splice(i, 1);
+            particleSystem.removePixels(p => {
+                if (p.type === 'pollen' && pollenConsumed < 5) {
                     pollenConsumed++;
+                    return true;
                 }
-            }
+                return false;
+            });
             
             particleSystem.emitBurst(x, y, [255, 255, 255], 8);
             
