@@ -19,8 +19,12 @@ class RenderManager {
         
         for (let layerName in this.layers) {
             this.layers[layerName] = createGraphics(baseWidth, baseHeight);
-            this.layers[layerName].pixelDensity(1);
+            this.layers[layerName].pixelDensity(displayDensity());
         }
+        
+        // Keep pixel art aesthetic for entity and particle layers
+        this.layers.entities.noSmooth();
+        this.layers.particles.noSmooth();
         
         this.initialized = true;
     }

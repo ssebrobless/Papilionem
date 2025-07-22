@@ -60,7 +60,7 @@ let layers = {
 };
 
 function preload() {
-    backgroundImage = loadImage('background.png');
+    backgroundImage = loadImage('background2.png');
 }
 
 function setup() {
@@ -68,7 +68,10 @@ function setup() {
     const canvas = createCanvas(config.targetWidth, config.targetHeight);
     canvas.parent(container);
     
-    pixelDensity(1);
+    // Use display's native pixel density for crisp rendering
+    pixelDensity(displayDensity());
+    
+    // Keep pixel art aesthetic with nearest neighbor scaling
     noSmooth();
     
     gameState.particleSystem = new ParticleSystem();
@@ -137,10 +140,16 @@ function initializeLayers() {
     layers.particles = createGraphics(config.baseWidth, config.baseHeight);
     layers.ui = createGraphics(config.baseWidth, config.baseHeight);
     
-    layers.background.pixelDensity(1);
-    layers.entities.pixelDensity(1);
-    layers.particles.pixelDensity(1);
-    layers.ui.pixelDensity(1);
+    // Use native pixel density for all layers
+    const density = displayDensity();
+    layers.background.pixelDensity(density);
+    layers.entities.pixelDensity(density);
+    layers.particles.pixelDensity(density);
+    layers.ui.pixelDensity(density);
+    
+    // Keep pixel art aesthetic
+    layers.entities.noSmooth();
+    layers.particles.noSmooth();
 }
 
 function drawBackground() {
@@ -627,7 +636,7 @@ function windowResized() {
     // Resize the actual canvas
     resizeCanvas(config.targetWidth, config.targetHeight);
     
-    // Recreate layers at new size
+    // Recreate layers at new size with proper pixel density
     initializeLayers();
     drawBackground();
 }
