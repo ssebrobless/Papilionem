@@ -124,10 +124,10 @@ function initializeEntities() {
     }
     
     // Place initial flower
-    const flowerScreenPos = isoToScreen(3, 4);
+    const flowerScreenPos = isoToScreen(6, 8);  // Adjusted for finer grid
     gameState.flowers.push(new Flower(
         flowerScreenPos.x,
-        flowerScreenPos.y + config.gridSize / 2  // Ground level
+        flowerScreenPos.y  // isoToScreen already includes ground level
     ));
 }
 
@@ -683,7 +683,7 @@ function handleDebugPlacement() {
     // Convert isometric grid coordinates to screen coordinates
     const screenPos = isoToScreen(gridX, gridY);
     const pixelX = screenPos.x;
-    const pixelY = screenPos.y + config.gridSize / 2; // Add half tile height for ground level
+    const pixelY = screenPos.y; // Ground level already included in isoToScreen
     
     if (debugMode.selectedTool === 'butterfly') {
         const butterflyColors = [
