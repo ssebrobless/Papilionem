@@ -5,7 +5,7 @@ class Butterfly {
         this.targetX = x;
         this.targetY = y;
         // Store grid position for isometric movement
-        this.gridPos = screenToIso(x, y + config.entityHeightOffset.butterfly);
+        this.gridPos = screenToIso(x, y);
         this.targetGridPos = {...this.gridPos};
         this.size = 12; // Smaller, cuter butterflies
         this.colors = colors;
