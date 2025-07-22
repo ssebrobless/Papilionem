@@ -176,9 +176,7 @@ function draw() {
     
     // Draw all layers scaled to fill the canvas
     image(layers.background, 0, 0, config.targetWidth, config.targetHeight);
-    blendMode(MULTIPLY);
     image(layers.entities, 0, 0, config.targetWidth, config.targetHeight);
-    blendMode(BLEND);
     image(layers.particles, 0, 0, config.targetWidth, config.targetHeight);
     image(layers.ui, 0, 0, config.targetWidth, config.targetHeight);
     
