@@ -66,23 +66,24 @@ class ColorPool {
         
         for (let pixel of this.pixels) {
             graphics.noStroke();
-            // Draw pixels with stronger presence
+            // Draw pixels with stronger presence as diamonds
+            graphics.push();
+            graphics.translate(pixel.x - this.radius + config.pixelSize/2, 
+                             pixel.y - this.radius + config.pixelSize/2);
+            graphics.rotate(PI/4);
             graphics.fill(pixel.color[0], pixel.color[1], pixel.color[2], 255);
-            graphics.rect(
-                pixel.x - this.radius, 
-                pixel.y - this.radius, 
-                config.pixelSize, 
-                config.pixelSize
-            );
-            // Add subtle highlight to some pixels
+            graphics.rect(-config.pixelSize/2, -config.pixelSize/2, 
+                         config.pixelSize, config.pixelSize);
+            graphics.pop();
+            // Add subtle highlight to some pixels (also as diamonds)
             if (random() < 0.3) {
+                graphics.push();
+                graphics.translate(pixel.x - this.radius + config.pixelSize/2, 
+                                 pixel.y - this.radius + config.pixelSize/2);
+                graphics.rotate(PI/4);
                 graphics.fill(255, 255, 255, 100);
-                graphics.rect(
-                    pixel.x - this.radius + 1, 
-                    pixel.y - this.radius + 1, 
-                    1, 
-                    1
-                );
+                graphics.rect(-0.5, -0.5, 1, 1);
+                graphics.pop();
             }
         }
         
