@@ -2,145 +2,45 @@ class Butterfly {
     constructor(x, y, colors) {
         this.x = x;
         this.y = y;
-        this.targetX = x;
-        this.targetY = y;
         // Store grid position for isometric movement
         this.gridPos = screenToIso(x, y);
         this.targetGridPos = {...this.gridPos};
         this.size = 12; // Smaller, cuter butterflies
         this.colors = colors;
-        this.elasticForce = 0.02; // Pull strength when outside bounds
         
-        this.state = 'resting';
-        this.stateTimer = 0;
         this.wingAngle = 0;
         this.wingSpeed = 0.05;
         
-        this.personality = random(['brave', 'cautious', 'curious']);
-        this.comfortZone = this.personality === 'brave' ? 60 : 
-                          this.personality === 'cautious' ? 100 : 80;
-        this.fleeDistance = this.personality === 'brave' ? 40 : 
-                           this.personality === 'cautious' ? 80 : 60;
+        this.speed = 0.008; // Much slower movement
+        this.wanderTimer = random(60, 120); // How often to pick new destination
         
-        this.speed = 0.05;
-        this.wanderTimer = random(100, 200);
-        this.restingFlower = null;
+        // Goal-oriented movement
+        this.goalGridPos = {...this.gridPos}; // Long-term destination
+        this.movesSinceNewGoal = 0; // Track moves toward current goal
         
         this.pixelDropTimer = 0;
         this.lastPixelDrop = 0;
         
-        this.lifetime = 1000 + random(500);
-        this.fadeStartLifetime = 200;
+        this.lifetime = 10000; // Long lifetime for testing
     }
     
     update(cursorX, cursorY, cursorVelocity, stillFrames, flowers, particleSystem) {
         this.lifetime--;
         
-        const distToCursor = dist(this.x, this.y, cursorX, cursorY);
-        
-        switch(this.state) {
-            case 'resting':
-                this.updateResting(distToCursor, cursorVelocity);
-                break;
-            case 'alert':
-                this.updateAlert(distToCursor, cursorVelocity, stillFrames);
-                break;
-            case 'display':
-                this.updateDisplay(particleSystem);
-                break;
-            case 'fleeing':
-                this.updateFleeing(cursorX, cursorY, particleSystem);
-                break;
-        }
-        
-        this.move();
-        this.updateWings();
+        // Simple wandering behavior
         this.wander(flowers);
-    }
-    
-    updateResting(distToCursor, cursorVelocity) {
-        this.wingSpeed = 0.02;
         
-        // Much less reactive - only flee if very close AND fast movement
-        if (distToCursor < this.fleeDistance * 0.5 && cursorVelocity > 6) {
-            this.setState('fleeing');
-        } else if (distToCursor < this.comfortZone && cursorVelocity > 2) {
-            this.setState('alert');
-        }
-    }
-    
-    updateAlert(distToCursor, cursorVelocity, stillFrames) {
-        this.wingSpeed = 0.01;
+        // Move toward target
+        this.move();
         
-        // Much higher thresholds for fleeing
-        if (cursorVelocity > 8 && distToCursor < this.fleeDistance * 0.7) {
-            this.setState('fleeing');
-        } else if (distToCursor > this.comfortZone * 1.2) {
-            this.setState('resting');
-        } else if (stillFrames > 120 && this.personality !== 'cautious') {
-            this.setState('display');
-        }
-    }
-    
-    updateDisplay(particleSystem) {
-        this.wingSpeed = 0.1;
-        this.stateTimer++;
+        // Update wing animation
+        this.updateWings();
         
-        if (this.stateTimer > 60 && this.stateTimer % 20 === 0) {
+        // Occasionally drop pixels
+        if (frameCount % 120 === 0 && random() < 0.3) {
             const color = random(this.colors);
-            particleSystem.emitBurst(this.x, this.y, color, 5);
+            particleSystem.emit(this.x, this.y, color, 1, 'scale');
         }
-        
-        if (this.stateTimer > 150) {
-            this.setState('resting');
-        }
-    }
-    
-    updateFleeing(cursorX, cursorY, particleSystem) {
-        this.wingSpeed = 0.25;
-        this.speed = 0.1;
-        
-        // Convert cursor to grid space for proper isometric fleeing
-        const cursorGrid = screenToIso(cursorX, cursorY);
-        const dx = this.gridPos.x - cursorGrid.x;
-        const dy = this.gridPos.y - cursorGrid.y;
-        
-        // Flee along isometric axes
-        const fleeDistance = 2.5; // In grid units
-        const dist = sqrt(dx * dx + dy * dy);
-        if (dist > 0) {
-            this.targetGridPos.x = this.gridPos.x + (dx / dist) * fleeDistance;
-            this.targetGridPos.y = this.gridPos.y + (dy / dist) * fleeDistance;
-        }
-        
-        // Convert back to screen space
-        const screenPos = isoToScreen(this.targetGridPos.x, this.targetGridPos.y);
-        this.targetX = screenPos.x;
-        this.targetY = screenPos.y - config.entityHeightOffset.butterfly;
-        
-        if (frameCount % 5 === 0) {
-            // Drop darker, more visible stress particles
-            const color = [
-                this.colors[0][0] * 0.6,
-                this.colors[0][1] * 0.6,
-                this.colors[0][2] * 0.6
-            ];
-            particleSystem.emit(this.x, this.y, color, 2, 'scale');
-        }
-        
-        this.stateTimer++;
-        if (this.stateTimer > 45) {
-            this.setState('resting');
-            this.speed = 0.05; // Return to normal speed
-        } else if (this.stateTimer > 20) {
-            // Gradual deceleration
-            this.speed = max(0.05, this.speed * 0.92);
-        }
-    }
-    
-    setState(newState) {
-        this.state = newState;
-        this.stateTimer = 0;
     }
     
     move() {
@@ -154,76 +54,8 @@ class Butterfly {
         
         // Convert to screen space
         const newScreenPos = isoToScreen(this.gridPos.x, this.gridPos.y);
-        let dx = newScreenPos.x - this.x;
-        let dy = (newScreenPos.y - config.entityHeightOffset.butterfly) - this.y;
-        let actualSpeed = 1; // We already applied speed in grid space
-        
-        // Check if butterfly is outside playable area
-        if (!isWithinPlayableArea(this.x, this.y)) {
-            // Find nearest point on the boundary
-            const nearestBoundaryPoint = this.findNearestBoundaryPoint();
-            const distFromBounds = dist(this.x, this.y, nearestBoundaryPoint.x, nearestBoundaryPoint.y);
-            
-            // Calculate angle of intended movement
-            const moveAngle = atan2(dy, dx);
-            
-            // Calculate angle toward the playable area
-            const returnAngle = atan2(nearestBoundaryPoint.y - this.y, nearestBoundaryPoint.x - this.x);
-            
-            // Calculate angular difference (0 = moving toward grid, PI = moving away)
-            let angleDiff = abs(moveAngle - returnAngle);
-            if (angleDiff > PI) angleDiff = TWO_PI - angleDiff;
-            
-            // Exponential resistance based on distance and angle
-            const distanceFactor = pow(distFromBounds / 50, 2); // Exponential growth
-            const angleFactor = angleDiff / PI; // 0 to 1, where 1 is directly away
-            
-            // Apply directional resistance
-            if (angleDiff > PI/2) {
-                // Moving away from grid - apply strong resistance
-                const resistance = 1 - (0.9 * angleFactor * min(distanceFactor, 1));
-                actualSpeed *= max(0.1, resistance);
-            } else {
-                // Moving toward grid - slight boost
-                actualSpeed *= 1 + (0.3 * (1 - angleFactor));
-            }
-            
-            // Passive pull back to bounds
-            const pullStrength = min(distanceFactor * 0.03, 0.15);
-            dx += (nearestBoundaryPoint.x - this.x) * pullStrength;
-            dy += (nearestBoundaryPoint.y - this.y) * pullStrength;
-        }
-        
-        this.x += dx * actualSpeed;
-        this.y += dy * actualSpeed;
-    }
-    
-    findNearestBoundaryPoint() {
-        // Sample points along the boundary to find nearest
-        let nearestDist = Infinity;
-        let nearestPoint = null;
-        
-        // Check edges of the diamond
-        for (let t = 0; t <= 1; t += 0.1) {
-            // Top-right edge
-            const tr = isoToScreen(config.isoBounds.maxX * t, 0);
-            // Bottom-right edge
-            const br = isoToScreen(config.isoBounds.maxX, config.isoBounds.maxY * t);
-            // Bottom-left edge
-            const bl = isoToScreen(config.isoBounds.maxX * (1-t), config.isoBounds.maxY);
-            // Top-left edge
-            const tl = isoToScreen(0, config.isoBounds.maxY * (1-t));
-            
-            for (let point of [tr, br, bl, tl]) {
-                const d = dist(this.x, this.y, point.x, point.y);
-                if (d < nearestDist) {
-                    nearestDist = d;
-                    nearestPoint = point;
-                }
-            }
-        }
-        
-        return nearestPoint || isoToScreen(config.isoBounds.maxX/2, config.isoBounds.maxY/2);
+        this.x = newScreenPos.x;
+        this.y = newScreenPos.y - config.entityHeightOffset.butterfly;
     }
     
     updateWings() {
@@ -233,49 +65,61 @@ class Butterfly {
     wander(flowers) {
         this.wanderTimer--;
         
-        if (this.wanderTimer <= 0 && this.state === 'resting') {
-            this.wanderTimer = random(100, 300);
+        if (this.wanderTimer <= 0) {
+            this.wanderTimer = random(40, 90); // Wander more frequently but shorter distances
             
-            if (flowers.length > 0 && random() < 0.6) {
-                const flower = random(flowers);
-                // Convert flower position to grid
-                const flowerGrid = screenToIso(flower.x, flower.y);
-                this.targetGridPos.x = flowerGrid.x + random(-0.5, 0.5);
-                this.targetGridPos.y = flowerGrid.y + random(-0.5, 0.5);
+            const maxWanderDistance = 3; // Maximum grid units to move
+            
+            if (flowers.length > 0 && random() < 0.3) {
+                // Sometimes move toward a flower if it's nearby
+                const nearbyFlowers = flowers.filter(flower => {
+                    const flowerGrid = screenToIso(flower.x, flower.y);
+                    const dist = abs(flowerGrid.x - this.gridPos.x) + abs(flowerGrid.y - this.gridPos.y);
+                    return dist < maxWanderDistance * 2;
+                });
                 
-                // Update screen target for compatibility
-                const screenPos = isoToScreen(this.targetGridPos.x, this.targetGridPos.y);
-                this.targetX = screenPos.x;
-                this.targetY = screenPos.y - config.entityHeightOffset.butterfly;
-                this.restingFlower = flower;
+                if (nearbyFlowers.length > 0) {
+                    const flower = random(nearbyFlowers);
+                    const flowerGrid = screenToIso(flower.x, flower.y);
+                    // Move partially toward the flower
+                    const dx = constrain(flowerGrid.x - this.gridPos.x, -maxWanderDistance, maxWanderDistance);
+                    const dy = constrain(flowerGrid.y - this.gridPos.y, -maxWanderDistance, maxWanderDistance);
+                    this.targetGridPos.x = constrain(this.gridPos.x + dx * 0.5, 0, config.isoBounds.maxX);
+                    this.targetGridPos.y = constrain(this.gridPos.y + dy * 0.5, 0, config.isoBounds.maxY);
+                } else {
+                    // No nearby flowers, do local wander
+                    this.localWander(maxWanderDistance);
+                }
             } else {
-                // Wander to a random position within the isometric bounds
-                // Prefer more central positions
-                const centerBias = 1; // Adjusted for finer grid
-                this.targetGridPos.x = random(2 + centerBias, config.isoBounds.maxX - 2 - centerBias);
-                this.targetGridPos.y = random(2 + centerBias, config.isoBounds.maxY - 2 - centerBias);
-                
-                // Update screen target for compatibility
-                const screenPos = isoToScreen(this.targetGridPos.x, this.targetGridPos.y);
-                this.targetX = screenPos.x;
-                this.targetY = screenPos.y - config.entityHeightOffset.butterfly;
-                this.restingFlower = null;
+                // Local wandering within small radius
+                this.localWander(maxWanderDistance);
             }
         }
+    }
+    
+    localWander(maxDistance) {
+        // Pick a random direction and distance
+        const angle = random(TWO_PI);
+        const distance = random(0.5, maxDistance);
+        
+        // Calculate new position
+        const newX = this.gridPos.x + cos(angle) * distance;
+        const newY = this.gridPos.y + sin(angle) * distance;
+        
+        // Constrain to bounds
+        this.targetGridPos.x = constrain(newX, 1, config.isoBounds.maxX - 1);
+        this.targetGridPos.y = constrain(newY, 1, config.isoBounds.maxY - 1);
     }
     
     draw(graphics) {
         graphics.push();
         
-        let alpha = 255;
-        if (this.lifetime < this.fadeStartLifetime) {
-            alpha = map(this.lifetime, 0, this.fadeStartLifetime, 0, 255);
-        }
+        // No alpha/transparency - completely solid
         
-        // Draw shadow to ground the butterfly in isometric space
+        // Draw solid shadow
         const shadowY = config.entityHeightOffset.butterfly;
         graphics.noStroke();
-        graphics.fill(0, 0, 0, alpha * 0.2);
+        graphics.fill(0, 0, 0, 50); // Darker solid shadow
         graphics.ellipse(this.x, this.y + shadowY, this.size * 0.8, this.size * 0.4);
         
         // Draw butterfly
@@ -290,17 +134,17 @@ class Butterfly {
         // Draw wings with Stardew Valley style - attached to body
         graphics.push();
         graphics.rotate(wingTilt);
-        this.drawStardewWing(graphics, -1, wingSpread, alpha); // Left wing
-        this.drawStardewWing(graphics, 1, wingSpread, alpha);  // Right wing
+        this.drawStardewWing(graphics, -1, wingSpread); // Left wing
+        this.drawStardewWing(graphics, 1, wingSpread);  // Right wing
         graphics.pop();
         
         // Draw body on top
-        this.drawBody(graphics, alpha);
+        this.drawBody(graphics);
         
         graphics.pop();
     }
     
-    drawStardewWing(graphics, direction, spread, alpha) {
+    drawStardewWing(graphics, direction, spread) {
         graphics.push();
         graphics.scale(spread, 1);
         
@@ -321,12 +165,12 @@ class Butterfly {
         for (let y = 0; y < wingPattern.length; y++) {
             for (let x = 0; x < wingPattern[y].length; x++) {
                 if (wingPattern[y][x]) {
-                    // Main wing color
-                    graphics.fill(this.colors[0][0], this.colors[0][1], this.colors[0][2], alpha);
+                    // Main wing color - full opacity
+                    graphics.fill(this.colors[0][0], this.colors[0][1], this.colors[0][2]);
                     
                     // Add pattern spots
                     if ((x === 2 && y === 2) || (x === 3 && y === 1)) {
-                        graphics.fill(this.colors[1][0], this.colors[1][1], this.colors[1][2], alpha);
+                        graphics.fill(this.colors[1][0], this.colors[1][1], this.colors[1][2]);
                     }
                     
                     // Edge darkening for depth
@@ -335,8 +179,7 @@ class Butterfly {
                         graphics.fill(
                             this.colors[0][0] * dark,
                             this.colors[0][1] * dark,
-                            this.colors[0][2] * dark,
-                            alpha
+                            this.colors[0][2] * dark
                         );
                     }
                     
@@ -350,21 +193,21 @@ class Butterfly {
         graphics.pop();
     }
     
-    drawBody(graphics, alpha) {
-        // Cute pixel art body
-        graphics.fill(40, 30, 20, alpha);
+    drawBody(graphics) {
+        // Cute pixel art body - full opacity
+        graphics.fill(40, 30, 20);
         graphics.rect(-2, -3, 4, 6); // Main body
         
         // Body highlights
-        graphics.fill(60, 45, 30, alpha);
+        graphics.fill(60, 45, 30);
         graphics.rect(-1, -2, 2, 4);
         
         // Head
-        graphics.fill(40, 30, 20, alpha);
+        graphics.fill(40, 30, 20);
         graphics.rect(-1, -4, 2, 2);
         
         // Antennae
-        graphics.fill(40, 30, 20, alpha * 0.8);
+        graphics.fill(40, 30, 20);
         graphics.rect(-2, -5, 1, 2);
         graphics.rect(1, -5, 1, 2);
     }

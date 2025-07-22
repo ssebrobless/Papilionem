@@ -34,18 +34,29 @@ class Pixel {
             this.y += this.vy;
             
             // Check if pixel hits the isometric ground
-            const groundLevel = config.baseHeight - 50; // Approximate ground level
-            if (this.y + this.size >= groundLevel && isWithinPlayableArea(this.x, this.y)) {
-                this.y = groundLevel - this.size;
-                this.vy *= -this.bounce;
+            // Convert to grid coordinates to check ground level
+            const gridPos = screenToIso(this.x, this.y);
+            
+            // Check if within playable grid bounds
+            if (gridPos.x >= 0 && gridPos.x <= config.isoBounds.maxX &&
+                gridPos.y >= 0 && gridPos.y <= config.isoBounds.maxY) {
                 
-                if (abs(this.vy) < 0.1 && abs(this.vx) < 0.1) {
-                    this.settled = true;
-                    this.vx = 0;
-                    this.vy = 0;
+                // Get the ground level for this grid position
+                const groundScreenPos = isoToScreen(gridPos.x, gridPos.y);
+                const groundLevel = groundScreenPos.y;
+                
+                if (this.y + this.size >= groundLevel) {
+                    this.y = groundLevel - this.size;
+                    this.vy *= -this.bounce;
+                    
+                    if (abs(this.vy) < 0.1 && abs(this.vx) < 0.1) {
+                        this.settled = true;
+                        this.vx = 0;
+                        this.vy = 0;
+                    }
                 }
             } else if (this.y + this.size >= config.baseHeight) {
-                // If outside playable area, just stop at canvas bottom
+                // If outside grid, still stop at canvas bottom
                 this.y = config.baseHeight - this.size;
                 this.settled = true;
                 this.vx = 0;
