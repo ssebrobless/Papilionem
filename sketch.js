@@ -94,8 +94,8 @@ function initializeEntities() {
     
     // Place butterflies using grid coordinates - start them centrally
     for (let i = 0; i < 2; i++) {
-        const gridX = random(3, 6);
-        const gridY = random(3, 6);
+        const gridX = random(6, 12);  // Adjusted for finer grid
+        const gridY = random(6, 12);  // Adjusted for finer grid
         const screenPos = isoToScreen(gridX, gridY);
         const colors = random(butterflyColors);
         // Butterflies float above ground
@@ -107,8 +107,8 @@ function initializeEntities() {
     }
     
     // Create initial color pool near bottom of playable area
-    const poolGridX = 4 + random(-1, 1);
-    const poolGridY = 7;
+    const poolGridX = 9 + random(-2, 2);  // Adjusted for finer grid
+    const poolGridY = 14;  // Adjusted for finer grid
     const poolScreenPos = isoToScreen(poolGridX, poolGridY);
     const pool = gameState.poolManager.findOrCreatePool(poolScreenPos.x, poolScreenPos.y);
     
