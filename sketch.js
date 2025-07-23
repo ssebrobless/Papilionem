@@ -47,7 +47,14 @@ function windowResized() {
 }
 
 function mousePressed() {
-    // Delegate to GameCore
+    // Check debug UI god mode buttons first
+    if (typeof debugUI !== 'undefined' && debugUI.enabled) {
+        if (debugUI.handleMouseClick(mouseX, mouseY)) {
+            return; // Button handled the click
+        }
+    }
+    
+    // Handle normal game mouse input
     gameCore.handleMousePressed();
 }
 

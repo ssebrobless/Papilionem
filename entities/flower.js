@@ -1,11 +1,17 @@
 class Flower extends Entity {
-    constructor(x, y) {
+    constructor(x, y, isImmortal = false) {
         super(x, y);
         
         // Override base properties
         this.lifetime = 2580; // Sum of all stage durations
         this.fadeStartLifetime = 0; // We handle fading in dissolve stage
         this.shadowOffset = 2; // Flowers sit on ground
+        
+        // Unique ID for tracking feeding cooldowns
+        this.id = `flower_${Date.now()}_${Math.floor(x)}_${Math.floor(y)}_${random(1000)}`;
+        
+        // Immortality flag for starting flowers
+        this.isImmortal = isImmortal;
         
         // Flower lifecycle stages
         this.stage = 'bloom';
@@ -149,8 +155,8 @@ class Flower extends Entity {
     
     // Override parent's entity drawing
     drawEntity(graphics, alpha) {
-        // Handle flower-specific alpha during dissolve
-        if (this.stage === 'dissolve') {
+        // Handle flower-specific alpha during dissolve (but not for immortal flowers)
+        if (this.stage === 'dissolve' && !this.isImmortal) {
             alpha = map(this.stageTimer, 0, this.stageDurations.dissolve, 255, 0);
         }
         
@@ -393,8 +399,27 @@ class Flower extends Entity {
     
     // Override isDead to check stage instead of lifetime
     isDead() {
-        return this.stage === 'dissolve' && 
-               this.stageTimer >= this.stageDurations.dissolve;
+        const shouldDie = this.stage === 'dissolve' && 
+                         this.stageTimer >= this.stageDurations.dissolve;
+        
+        // Immortal flowers restart their lifecycle instead of dying
+        if (shouldDie && this.isImmortal) {
+            this.restartLifecycle();
+            return false;
+        }
+        
+        return shouldDie;
+    }
+    
+    // Restart lifecycle for immortal flowers
+    restartLifecycle() {
+        this.stage = 'bloom';
+        this.stageTimer = 0;
+        this.pollenTimer = 0;
+        this.lastVisitor = null;
+        
+        // Emit rebirth event
+        eventBus.emit(GameEvents.FLOWER_BLOOMED, { flower: this });
     }
     
     canPlantNear(x, y) {

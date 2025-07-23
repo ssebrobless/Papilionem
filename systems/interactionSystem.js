@@ -16,6 +16,14 @@ class InteractionSystem {
         this.hoveredButterfly = null;
         this.hoverFrames = 0;
         this.hoverTriggered = false;
+        
+        // Cursor state visualization for butterfly interactions
+        this.currentCursorState = 'neutral'; // 'scaring', 'neutral', 'attracting'
+        this.interactingButterfly = null;
+        this.patienceProgress = 0;
+        
+        // Listen for cursor state events from butterflies
+        this.setupCursorStateListeners();
     }
     
     // Update cursor tracking and calculate interaction zones
@@ -94,6 +102,9 @@ class InteractionSystem {
     
     // Draw interaction UI elements
     drawInteractionHints(graphics) {
+        // Draw cursor state indicator first (underneath other indicators)
+        this.drawCursorStateIndicator(graphics);
+        
         // Draw hover progress indicator when hovering a butterfly
         if (this.hoveredButterfly && this.hoverFrames > 0 && !this.hoverTriggered) {
             const progress = this.hoverFrames / this.stillFramesRequired;
@@ -124,8 +135,8 @@ class InteractionSystem {
             }
             
             graphics.pop();
-        } else if (this.isGentle() && !this.hoveredButterfly) {
-            // Draw gentle cursor zone when still but not hovering anything
+        } else if (this.isGentle() && !this.hoveredButterfly && this.currentCursorState === 'neutral') {
+            // Draw gentle cursor zone when still but not hovering anything (only if not showing other states)
             graphics.noFill();
             graphics.stroke(255, 255, 255, 30);
             graphics.strokeWeight(1);
@@ -209,6 +220,81 @@ class InteractionSystem {
         this.hoveredButterfly = null;
         this.hoverFrames = 0;
         this.hoverTriggered = false;
+    }
+    
+    // Setup cursor state event listeners
+    setupCursorStateListeners() {
+        if (typeof eventBus !== 'undefined') {
+            eventBus.on('cursor:state', (data) => {
+                this.currentCursorState = data.cursorState;
+                this.interactingButterfly = data.butterfly;
+                this.patienceProgress = data.patience / data.butterfly.patienceRequired;
+            });
+            
+            // Reset cursor state when butterfly interactions end
+            eventBus.on('butterfly:endFollowing', () => {
+                this.currentCursorState = 'neutral';
+                this.interactingButterfly = null;
+                this.patienceProgress = 0;
+            });
+        }
+    }
+    
+    // Draw cursor state visualization
+    drawCursorStateIndicator(graphics) {
+        // Only show cursor state indicator when interacting with a butterfly
+        if (!this.interactingButterfly || this.currentCursorState === 'neutral') return;
+        
+        graphics.push();
+        graphics.translate(this.adjustedMouseX, this.adjustedMouseY);
+        graphics.noStroke();
+        
+        if (this.currentCursorState === 'scaring') {
+            // Red warning indicator for scaring cursor
+            graphics.fill(255, 100, 100, 150);
+            graphics.ellipse(0, 0, 40, 40);
+            
+            // Warning text
+            graphics.fill(255, 255, 255, 200);
+            graphics.textAlign(CENTER);
+            graphics.textSize(10);
+            graphics.text('TOO FAST', 0, -25);
+            
+        } else if (this.currentCursorState === 'attracting') {
+            // Building trust indicator
+            const maxRadius = 30;
+            const currentRadius = 10 + this.patienceProgress * 20;
+            
+            // Patience building ring  
+            graphics.fill(100, 255, 100, 80);
+            graphics.ellipse(0, 0, currentRadius * 2, currentRadius * 2);
+            
+            // Progress ring
+            if (this.patienceProgress > 0) {
+                graphics.noFill();
+                graphics.stroke(100, 255, 100, 150);
+                graphics.strokeWeight(2);
+                
+                const startAngle = -PI/2;
+                const endAngle = startAngle + (this.patienceProgress * TWO_PI);
+                
+                graphics.arc(0, 0, maxRadius, maxRadius, startAngle, endAngle);
+            }
+            
+            // Trust building text
+            graphics.noStroke();
+            graphics.fill(255, 255, 255, 200);
+            graphics.textAlign(CENTER);
+            graphics.textSize(8);
+            
+            if (this.patienceProgress < 1) {
+                graphics.text('BUILDING TRUST...', 0, -20);
+            } else {
+                graphics.text('FOLLOWING!', 0, -20);
+            }
+        }
+        
+        graphics.pop();
     }
 }
 

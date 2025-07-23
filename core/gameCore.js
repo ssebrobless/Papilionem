@@ -10,6 +10,7 @@ class GameCore {
         this.poolManager = null;
         this.flowerManager = null;
         this.entityManager = null;
+        this.mainColorPool = null;
         
         // Game state
         this.gameState = {
@@ -39,6 +40,7 @@ class GameCore {
             'entityManager',
             'particleSystem',
             'poolManager', 
+            'mainColorPool',
             'flowerManager',
             'interactionSystem',
             'ecosystemEvents',
@@ -80,16 +82,19 @@ class GameCore {
             // Step 7: Initialize pool manager
             await this.initializePoolManager();
             
-            // Step 8: Initialize flower manager
+            // Step 8: Initialize main color pool
+            await this.initializeMainColorPool();
+            
+            // Step 9: Initialize flower manager
             await this.initializeFlowerManager();
             
-            // Step 9: Initialize interaction system
+            // Step 10: Initialize interaction system
             await this.initializeInteractionSystem();
             
-            // Step 10: Set up ecosystem event chains
+            // Step 11: Set up ecosystem event chains
             await this.setupEcosystemEvents();
             
-            // Step 11: Create initial entities
+            // Step 12: Create initial entities
             await this.initializeStartingEntities();
             
             this.gameState.initialized = true;
@@ -179,6 +184,17 @@ class GameCore {
         console.log('✓ Pool manager initialized');
     }
     
+    async initializeMainColorPool() {
+        if (typeof mainColorPool === 'undefined') {
+            throw new Error('MainColorPool not found - ensure systems/colorPool.js is loaded');
+        }
+        // Use the global instance already created in colorPool.js
+        this.mainColorPool = mainColorPool;
+        this.gameState.mainColorPool = this.mainColorPool;
+        this.completedSteps.add('mainColorPool');
+        console.log('✓ Main color pool initialized');
+    }
+    
     async initializeFlowerManager() {
         if (typeof FlowerManager === 'undefined') {
             throw new Error('FlowerManager not found - ensure entities/flower.js is loaded');
@@ -221,6 +237,15 @@ class GameCore {
             this.handleFlowerDeath(data.entity);
         });
         
+        // God mode event listeners
+        eventBus.on('debug:spawnButterfly', (data) => {
+            this.godSpawnButterfly(data.x, data.y, data.colors);
+        });
+        
+        eventBus.on('debug:spawnFlower', (data) => {
+            this.godSpawnFlower(data.x, data.y);
+        });
+        
         eventBus.on(GameEvents.POOL_READY, (data) => {
             this.handlePoolReady(data.pool);
         });
@@ -234,7 +259,7 @@ class GameCore {
             throw new Error('Entity classes not found - ensure entities/*.js are loaded');
         }
         
-        // Create initial butterflies with rich colors
+        // Create initial butterflies with rich colors (first one is immortal)
         const butterflyColors = gameConfig.entities.butterfly.colors;
         const startingButterflyCount = 2;
         
@@ -244,14 +269,21 @@ class GameCore {
             const screenPos = this.gridManager.isoToScreen(gridX, gridY);
             const colors = random(butterflyColors);
             
+            // First butterfly is immortal to prevent ecosystem collapse
+            const isImmortal = (i === 0);
             const butterfly = new Butterfly(
                 screenPos.x, 
                 screenPos.y - gameConfig.entities.heightOffset.butterfly, 
-                colors
+                colors,
+                isImmortal
             );
             
             this.gameState.butterflies.push(butterfly);
             this.entityManager.addEntity('butterflies', butterfly);
+            
+            if (isImmortal) {
+                console.log('🦋 Created immortal butterfly to prevent ecosystem collapse');
+            }
         }
         
         // Create initial color pool
@@ -271,16 +303,17 @@ class GameCore {
             }
         }
         
-        // Create initial flowers
+        // Create initial flowers (first 3 are immortal)
         const flowerPositions = [
             {x: 6, y: 8},
             {x: 10, y: 12},
             {x: 14, y: 6}
         ];
         
-        for (let pos of flowerPositions) {
+        for (let i = 0; i < flowerPositions.length; i++) {
+            const pos = flowerPositions[i];
             const flowerScreenPos = this.gridManager.isoToScreen(pos.x, pos.y);
-            const flower = new Flower(flowerScreenPos.x, flowerScreenPos.y);
+            const flower = new Flower(flowerScreenPos.x, flowerScreenPos.y, true); // All starting flowers are immortal
             
             this.gameState.flowers.push(flower);
             this.entityManager.addEntity('flowers', flower);
@@ -310,6 +343,7 @@ class GameCore {
         this.updateEntities();
         this.particleSystem.update();
         this.poolManager.update(this.particleSystem, this.gameState.butterflies);
+        this.mainColorPool.update(this.gameState.butterflies, this.particleSystem);
         this.flowerManager.update(this.gameState.flowers, this.gameState.butterflies, this.particleSystem);
         
         // Update entity manager (handles interactions and lifecycle)
@@ -558,6 +592,37 @@ class GameCore {
             this.renderManager.drawBackground();
         } else {
             console.warn('GameCore: RenderManager not ready for resize operation');
+        }
+    }
+    
+    // God mode spawn methods
+    godSpawnButterfly(x, y, colors) {
+        if (this.gameState.butterflies.length < gameConfig.entities.maxButterflies) {
+            // If this is the first butterfly and none exist, make it immortal
+            const isFirstButterfly = this.gameState.butterflies.length === 0;
+            const butterfly = new Butterfly(x, y, colors, isFirstButterfly);
+            this.gameState.butterflies.push(butterfly);
+            
+            // Spawn burst effect
+            this.particleSystem.emitBurst(x, y, [255, 255, 255], 8);
+            
+            console.log(`🦋 Spawned butterfly via god mode${isFirstButterfly ? ' (immortal)' : ''}`);
+        } else {
+            console.log('🦋 Cannot spawn butterfly - max population reached');
+        }
+    }
+    
+    godSpawnFlower(x, y) {
+        if (this.gameState.flowers.length < gameConfig.entities.maxFlowers) {
+            const flower = new Flower(x, y);
+            this.gameState.flowers.push(flower);
+            
+            // Spawn burst effect
+            this.particleSystem.emitBurst(x, y, [255, 255, 255], 8);
+            
+            console.log('🌸 Spawned flower via god mode');
+        } else {
+            console.log('🌸 Cannot spawn flower - max population reached');
         }
     }
     

@@ -138,7 +138,9 @@ class Pixel {
     }
     
     updateLifetime() {
-        const fadeSpeed = safeGetConfig(`particles.types.${this.type}.fadeSpeed`, this.type === 'joy' ? 2 : 0);
+        // Use unified config system - no drift-prone fallbacks
+        const typeConfig = gameConfig.particles.types[this.type];
+        const fadeSpeed = typeConfig ? typeConfig.fadeSpeed : 0;
         if (fadeSpeed > 0 && this.lifetime > 0) {
             this.lifetime -= fadeSpeed;
         }
@@ -190,7 +192,8 @@ class ColorPool {
         this.x = x;
         this.y = y;
         this.pixels = [];
-        this.radius = safeGetConfig('colorPools.radius', 20);
+        // Use unified config system - no drift-prone fallbacks
+        this.radius = gameConfig.colorPools.radius;
         this.pulseTimer = 0;
         this.isPulsing = false;
         this.spawnTimer = 0;
@@ -212,7 +215,7 @@ class ColorPool {
         
         this.updateAverageColor();
         
-        const requiredPixels = safeGetConfig('colorPools.requiredPixels', 50);
+        const requiredPixels = gameConfig.colorPools.requiredPixels;
         if (this.pixels.length >= requiredPixels && !this.isPulsing) {
             this.isPulsing = true;
             if (typeof eventBus !== 'undefined' && typeof GameEvents !== 'undefined') {
@@ -240,10 +243,10 @@ class ColorPool {
     
     update() {
         if (this.isPulsing) {
-            this.pulseTimer += safeGetConfig('colorPools.pulseSpeed', 0.1);
+            this.pulseTimer += gameConfig.colorPools.pulseSpeed;
             this.spawnTimer++;
             
-            const spawnDelay = safeGetConfig('colorPools.spawnDelay', 180);
+            const spawnDelay = gameConfig.colorPools.spawnDelay;
             if (this.spawnTimer > spawnDelay) {
                 return 'spawn';
             }
@@ -266,12 +269,12 @@ class ColorPool {
             graphics.noStroke();
             graphics.push();
             graphics.translate(
-                pixel.x - this.radius + safeGetConfig('particles.pixelSize', 3)/2, 
-                pixel.y - this.radius + safeGetConfig('particles.pixelSize', 3)/2
+                pixel.x - this.radius + gameConfig.particles.pixelSize/2, 
+                pixel.y - this.radius + gameConfig.particles.pixelSize/2
             );
             graphics.rotate(PI/4);
             graphics.fill(pixel.color[0], pixel.color[1], pixel.color[2], 255);
-            const pixelSize = safeGetConfig('particles.pixelSize', 3);
+            const pixelSize = gameConfig.particles.pixelSize;
             graphics.rect(-pixelSize/2, -pixelSize/2, pixelSize, pixelSize);
             graphics.pop();
             
@@ -279,8 +282,8 @@ class ColorPool {
             if (random() < 0.3) {
                 graphics.push();
                 graphics.translate(
-                    pixel.x - this.radius + safeGetConfig('particles.pixelSize', 3)/2, 
-                    pixel.y - this.radius + safeGetConfig('particles.pixelSize', 3)/2
+                    pixel.x - this.radius + gameConfig.particles.pixelSize/2, 
+                    pixel.y - this.radius + gameConfig.particles.pixelSize/2
                 );
                 graphics.rotate(PI/4);
                 graphics.fill(255, 255, 255, 100);
@@ -327,7 +330,7 @@ class ColorPool {
     }
     
     consumeForSpawn() {
-        const requiredPixels = safeGetConfig('colorPools.requiredPixels', 50);
+        const requiredPixels = gameConfig.colorPools.requiredPixels;
         const consumed = this.pixels.splice(0, requiredPixels);
         this.updateAverageColor();
         
@@ -351,7 +354,8 @@ class ColorPool {
 class ParticleSystem {
     constructor() {
         this.particles = [];
-        this.maxParticles = safeGetConfig('particles.maxParticles', 100);
+        // Use unified config system - no drift-prone fallbacks
+        this.maxParticles = gameConfig.particles.maxParticles;
     }
     
     emit(x, y, color, count = 1, type = 'scale') {
@@ -391,7 +395,7 @@ class ParticleSystem {
                 const pixel = new Pixel(x, y, color, 'joy');
                 pixel.vx = cos(angle) * speed;
                 pixel.vy = sin(angle) * speed - 0.5;
-                pixel.size = safeGetConfig('particles.pixelSize', 3); // Keep consistent size
+                pixel.size = gameConfig.particles.pixelSize; // Keep consistent size
                 this.particles.push(pixel);
             }
         }
@@ -517,7 +521,7 @@ class PoolManager {
     }
     
     processSpawnRequests(spawnRequests, butterflies, particleSystem) {
-        const maxButterflies = safeGetConfig('entities.maxButterflies', 12);
+        const maxButterflies = gameConfig.entities.maxButterflies;
         
         for (let pool of spawnRequests) {
             if (butterflies.length < maxButterflies && pool.consumeForSpawn()) {

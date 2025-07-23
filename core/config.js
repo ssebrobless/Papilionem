@@ -106,6 +106,14 @@ const gameConfig = {
             pollen: {
                 lifetime: 400,
                 fadeSpeed: 1
+            },
+            stress: {
+                lifetime: 180, // Shorter lifetime than joy pixels
+                fadeSpeed: 3   // Faster fade than joy pixels (more frantic)
+            },
+            happy: {
+                lifetime: 300, // Longer lifetime for happy pixels
+                fadeSpeed: 1   // Slow fade for happy pixels (persistent joy)
             }
         }
     },

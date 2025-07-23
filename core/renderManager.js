@@ -156,6 +156,9 @@ class RenderManager {
             if (gameCore.poolManager) {
                 gameCore.poolManager.draw(layer);
             }
+            if (gameCore.mainColorPool) {
+                gameCore.mainColorPool.draw(layer);
+            }
             if (gameCore.particleSystem) {
                 gameCore.particleSystem.draw(layer);
             }
@@ -163,6 +166,9 @@ class RenderManager {
             // Fallback to legacy gameState
             if (window.gameState.poolManager) {
                 window.gameState.poolManager.draw(layer);
+            }
+            if (window.gameState.mainColorPool) {
+                window.gameState.mainColorPool.draw(layer);
             }
             if (window.gameState.particleSystem) {
                 window.gameState.particleSystem.draw(layer);
