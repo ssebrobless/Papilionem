@@ -51,10 +51,8 @@ class MainColorPool {
             this.spawnButterfly(butterflies, particleSystem);
         }
         
-        // Gradually decay glow intensity
-        if (this.glowIntensity > 0) {
-            this.glowIntensity = Math.max(0, this.glowIntensity - 0.1);
-        }
+        // Glow intensity persists and accumulates (no decay)
+        // This creates a sense of inevitable progress as butterflies age
     }
     
     // Apply magnetic gravity to all particles
@@ -69,6 +67,11 @@ class MainColorPool {
     
     // Apply gravity force to a single particle
     applyGravityToParticle(particle) {
+        // Skip particles still in pop-out phase
+        if (particle.popOutDuration > 0 && particle.popOutTimer < particle.popOutDuration) {
+            return;
+        }
+        
         const dx = this.x - particle.x;
         const dy = this.y - particle.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -169,8 +172,11 @@ class MainColorPool {
         // Create spawn animation effect
         particleSystem.emitBurst(this.x, this.y, [255, 255, 255], 12);
         
-        // Reduce glow intensity
+        // Reduce glow intensity by spawn threshold but don't go below 0
         this.glowIntensity = Math.max(0, this.glowIntensity - this.spawnThreshold);
+        
+        // Create magical explosion effect
+        this.createSpawnExplosion(particleSystem, this.x, this.y);
         
         // Set spawn cooldown
         this.spawnCooldown = this.spawnCooldownDuration;
@@ -227,9 +233,10 @@ class MainColorPool {
         graphics.push();
         graphics.translate(this.x, this.y);
         
-        // Draw pool boundary (for debug/visibility)
+        // Draw pool boundary and exclusion zone (for debug/visibility)
         if (typeof debugUI !== 'undefined' && debugUI.enabled) {
             this.drawPoolBoundary(graphics);
+            this.drawExclusionZone(graphics);
         }
         
         // Draw absorbed pixels as a glowing mass
@@ -254,6 +261,32 @@ class MainColorPool {
         graphics.ellipse(0, 0, screenRadiusX * 2, screenRadiusY * 2);
     }
     
+    // Draw flower exclusion zone for debug mode
+    drawExclusionZone(graphics) {
+        graphics.noFill();
+        graphics.stroke(255, 100, 100, 80);
+        graphics.strokeWeight(1);
+        
+        // 2.5 tile radius exclusion zone
+        const exclusionRadius = 2.5 * gameConfig.grid.cellSize;
+        const screenRadiusX = exclusionRadius;
+        const screenRadiusY = exclusionRadius * 0.5; // Isometric compression
+        
+        // Draw dashed ellipse manually
+        const segments = 32;
+        for (let i = 0; i < segments; i += 2) {
+            const angle1 = (TWO_PI / segments) * i;
+            const angle2 = (TWO_PI / segments) * (i + 1);
+            
+            const x1 = cos(angle1) * screenRadiusX;
+            const y1 = sin(angle1) * screenRadiusY;
+            const x2 = cos(angle2) * screenRadiusX;
+            const y2 = sin(angle2) * screenRadiusY;
+            
+            graphics.line(x1, y1, x2, y2);
+        }
+    }
+    
     // Draw absorbed pixels with glow
     drawAbsorbedPixels(graphics) {
         graphics.noStroke();
@@ -274,45 +307,101 @@ class MainColorPool {
         }
     }
     
+    // Create magical explosion effect when spawning
+    createSpawnExplosion(particleSystem, x, y) {
+        // Create a burst of magical particles in a ring pattern
+        const numParticles = 24;
+        for (let i = 0; i < numParticles; i++) {
+            const angle = (TWO_PI / numParticles) * i;
+            const speed = random(2, 4);
+            
+            // Alternate between white and pool-colored particles
+            const color = i % 2 === 0 ? 
+                [255, 255, 255] : 
+                [200 + random(55), 120 + random(100), 100 + random(50)];
+            
+            const pixel = particleSystem.emit(x, y, color, 1, 'joy');
+            if (pixel) {
+                // Override velocity for explosion pattern
+                pixel.vx = cos(angle) * speed;
+                pixel.vy = sin(angle) * speed - 1; // Slight upward bias
+                pixel.lifetime = 400; // Longer lifetime for dramatic effect
+            }
+        }
+        
+        // Create inner burst of smaller particles
+        for (let i = 0; i < 12; i++) {
+            const angle = random(TWO_PI);
+            const speed = random(1, 2);
+            const pixel = particleSystem.emit(x, y, [255, 255, 200], 1, 'joy');
+            if (pixel) {
+                pixel.vx = cos(angle) * speed;
+                pixel.vy = sin(angle) * speed - 0.5;
+            }
+        }
+    }
+    
     // Draw glow effect based on intensity
     drawGlowEffect(graphics) {
-        // Always show a subtle base glow
-        const baseGlow = 0.2;
+        // Always show a subtle base glow that increases with intensity
+        const baseGlow = 0.25 + (this.glowIntensity / this.maxGlowIntensity) * 0.3;
         const glowRatio = Math.max(baseGlow, this.glowIntensity / this.maxGlowIntensity);
-        const pulse = sin(this.pulseTimer) * 0.2 + 0.8;
+        const pulse = sin(this.pulseTimer) * 0.15 + 0.85;
         
-        // Progress indicator ring
+        // Progress indicator ring - more prominent
         const progress = this.glowIntensity / this.spawnThreshold;
         
-        // Outer progress ring
+        // Outer progress ring with enhanced visibility
         if (progress > 0) {
             graphics.push();
-            graphics.noFill();
-            graphics.strokeWeight(3);
-            // Color transitions from blue to gold as it fills
-            const r = lerp(100, 255, progress);
-            const g = lerp(150, 220, progress);
-            const b = lerp(255, 100, progress);
-            graphics.stroke(r, g, b, 150);
             
-            // Draw arc showing progress
+            // Draw glowing background ring
+            graphics.strokeWeight(6);
+            graphics.stroke(255, 255, 255, 30);
+            graphics.noFill();
+            graphics.ellipse(0, 0, 90, 63);
+            
+            // Draw progress ring
+            graphics.strokeWeight(5);
+            // Enhanced color transitions from deep purple to bright gold
+            const r = lerp(150, 255, progress);
+            const g = lerp(100, 230, progress);
+            const b = lerp(255, 50, progress);
+            graphics.stroke(r, g, b, 200 + pulse * 55); // More opaque
+            
+            // Draw arc showing progress with glow effect
             const angle = map(progress, 0, 1, 0, TWO_PI);
-            graphics.arc(0, 0, 80, 56, -HALF_PI, -HALF_PI + angle);
+            graphics.arc(0, 0, 90, 63, -HALF_PI, -HALF_PI + angle);
+            
+            // Add flowing particles along the ring
+            if (progress > 0.1) {
+                const particleAngle = (frameCount * 0.02) % angle - HALF_PI;
+                const px = cos(particleAngle) * 45;
+                const py = sin(particleAngle) * 31.5;
+                graphics.push();
+                graphics.noStroke();
+                graphics.fill(255, 255, 255, 150);
+                graphics.ellipse(px, py, 8, 8);
+                graphics.pop();
+            }
+            
             graphics.pop();
         }
         
-        // Multiple glow layers with enhanced visibility
-        for (let i = 4; i > 0; i--) {
-            const layerSize = (30 + glowRatio * 50) * (i / 4) * pulse;
-            const layerAlpha = (baseGlow * 40 + glowRatio * 80) / i;
+        // Progressive ambient glow that builds with intensity
+        const numLayers = 5 + Math.floor(glowRatio * 3);
+        for (let i = numLayers; i > 0; i--) {
+            const layerSize = (35 + glowRatio * 60) * (i / numLayers) * pulse;
+            const layerAlpha = (baseGlow * 50 + glowRatio * 100) / (i * 0.7);
             
             graphics.noStroke();
-            // Magical purple-pink glow
+            // Enhanced magical glow with more vibrant colors
+            const glowProgress = glowRatio;
             graphics.fill(
-                200 + glowRatio * 55, 
-                100 + glowRatio * 100, 
-                255 - glowRatio * 100, 
-                layerAlpha
+                200 + glowProgress * 55, 
+                120 + glowProgress * 100, 
+                255 - glowProgress * 150, 
+                Math.min(layerAlpha, 150)
             );
             graphics.ellipse(0, 0, layerSize, layerSize * 0.7);
         }

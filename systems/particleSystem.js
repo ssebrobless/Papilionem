@@ -32,6 +32,10 @@ class Pixel {
         this.bounce = gameConfig.particles.bounce;
         this.friction = gameConfig.particles.friction;
         this.size = gameConfig.particles.pixelSize * 1.5; // Larger pixels for visibility
+        
+        // Pop-out effect for happy pixels
+        this.popOutDuration = 0;
+        this.popOutTimer = 0;
     }
     
     calculateGroundTarget() {
@@ -66,6 +70,18 @@ class Pixel {
     }
     
     update() {
+        // Handle pop-out animation phase for happy pixels
+        if (this.popOutDuration > 0 && this.popOutTimer < this.popOutDuration) {
+            this.popOutTimer++;
+            // During pop-out, only apply friction, no gravity or attraction
+            this.vx *= this.friction;
+            this.vy *= this.friction;
+            this.x += this.vx;
+            this.y += this.vy;
+            // Don't do normal physics during pop-out
+            return;
+        }
+        
         if (!this.settled) {
             this.updatePhysics();
             this.checkGroundCollision();

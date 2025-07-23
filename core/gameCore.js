@@ -304,11 +304,10 @@ class GameCore {
             }
         }
         
-        // Create initial flowers (first 3 are immortal)
+        // Create initial flowers (2 immortal flowers in opposite corners)
         const flowerPositions = [
-            {x: 6, y: 8},
-            {x: 10, y: 12},
-            {x: 14, y: 6}
+            {x: 3, y: 3},    // Top-left corner area
+            {x: 14, y: 14}   // Bottom-right corner area
         ];
         
         for (let i = 0; i < flowerPositions.length; i++) {
@@ -343,6 +342,9 @@ class GameCore {
         // Update all game systems
         this.updateEntities();
         this.particleSystem.update();
+        
+        // Occasionally spawn new flowers if conditions are met
+        this.updateFlowerSpawning();
         this.poolManager.update(this.particleSystem, this.gameState.butterflies);
         this.mainColorPool.update(this.gameState.butterflies, this.particleSystem);
         this.flowerManager.update(this.gameState.flowers, this.gameState.butterflies, this.particleSystem);
@@ -366,6 +368,59 @@ class GameCore {
             if (butterfly.isDead()) {
                 this.handleButterflyDeath(butterfly);
                 this.gameState.butterflies.splice(i, 1);
+            }
+        }
+    }
+    
+    // Automatic flower spawning mechanism
+    updateFlowerSpawning() {
+        // Only spawn if under flower limit
+        if (this.gameState.flowers.length >= gameConfig.entities.maxFlowers) return;
+        
+        // Check every 10 seconds (600 frames)
+        if (frameCount % 600 !== 0) return;
+        
+        // Require at least 10 pollen particles and at least 3 butterflies
+        const pollenCount = this.particleSystem.getPollenCount();
+        if (pollenCount < 10 || this.gameState.butterflies.length < 3) return;
+        
+        // 30% chance to spawn when conditions are met
+        if (random() < 0.3) {
+            // Find a suitable random location
+            let attempts = 0;
+            let validPosition = null;
+            
+            while (attempts < 20 && !validPosition) {
+                const gridX = random(3, 15);
+                const gridY = random(3, 15);
+                const screenPos = this.gridManager.isoToScreen(gridX, gridY);
+                
+                // Check if position is valid using flower manager
+                if (this.flowerManager.canPlant(screenPos.x, screenPos.y, this.gameState.flowers)) {
+                    validPosition = screenPos;
+                }
+                attempts++;
+            }
+            
+            if (validPosition) {
+                const newFlower = new Flower(validPosition.x, validPosition.y, false);
+                this.gameState.flowers.push(newFlower);
+                this.entityManager.addEntity('flowers', newFlower);
+                
+                // Consume some pollen
+                let pollenConsumed = 0;
+                this.particleSystem.removePixels(p => {
+                    if (p.type === 'pollen' && pollenConsumed < 8) {
+                        pollenConsumed++;
+                        return true;
+                    }
+                    return false;
+                });
+                
+                // Magical appearance effect
+                this.particleSystem.emitBurst(validPosition.x, validPosition.y, [255, 255, 200], 10);
+                
+                console.log('🌺 New flower naturally spawned');
             }
         }
     }

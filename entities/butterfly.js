@@ -97,6 +97,12 @@ class Butterfly extends Entity {
         this.exclamationTimer = 0;
         this.exclamationDuration = 45; // 0.75 seconds
         this.exclamationY = 0; // Vertical offset for animation
+        
+        // Post-feeding dash behavior
+        this.postFeedingDash = false;
+        this.dashSpeed = 0.02; // Fast movement after feeding
+        this.dashDuration = 120; // 2 seconds of fast movement
+        this.dashTimer = 0;
     }
     
     update(gameState) {
@@ -226,7 +232,15 @@ class Butterfly extends Entity {
         
         // Calculate speed based on state and happiness
         let currentSpeed = this.speed;
-        if (this.state === 'scared') {
+        if (this.postFeedingDash) {
+            // Fast dash after feeding
+            currentSpeed = this.dashSpeed;
+            this.dashTimer++;
+            if (this.dashTimer >= this.dashDuration) {
+                this.postFeedingDash = false;
+                this.dashTimer = 0;
+            }
+        } else if (this.state === 'scared') {
             currentSpeed = this.fleeSpeed;
         } else if (this.state === 'feeding') {
             currentSpeed = 0; // Don't move while feeding
@@ -1107,12 +1121,41 @@ class Butterfly extends Entity {
         this.wanderTimer = random(30, 60); // Resume wandering
         this.postFeedingCooldown = this.postFeedingCooldownDuration; // Set cooldown
         
-        console.log(`🍯 FEEDING ENDED: Butterfly returning to normal state (post-feeding cooldown: ${this.postFeedingCooldownDuration} frames)`);
+        // Set up post-feeding dash to prevent farming
+        this.setPostFeedingDestination();
+        
+        console.log(`🍯 FEEDING ENDED: Butterfly dashing away (post-feeding cooldown: ${this.postFeedingCooldownDuration} frames)`);
     }
     
     // Generate unique ID for flower (fallback if flower doesn't have id)
     getFlowerId(flower) {
         return `${Math.floor(flower.x)}_${Math.floor(flower.y)}`;
+    }
+    
+    // Set post-feeding destination far from current location
+    setPostFeedingDestination() {
+        // Choose a random direction
+        const angle = random(TWO_PI);
+        const distance = random(6, 10); // 6-10 grid units away
+        
+        // Calculate target position
+        const targetX = this.gridPos.x + cos(angle) * distance;
+        const targetY = this.gridPos.y + sin(angle) * distance;
+        
+        // Ensure target is within bounds
+        this.targetGridPos.x = constrain(targetX, 2, gridManager.bounds.maxX - 2);
+        this.targetGridPos.y = constrain(targetY, 2, gridManager.bounds.maxY - 2);
+        
+        // Clear any existing goals
+        this.goalGridPos = null;
+        this.seekingFlower = false;
+        this.meanderTarget = null;
+        
+        // Enable dash mode
+        this.postFeedingDash = true;
+        this.dashTimer = 0;
+        
+        console.log(`🦋 POST-FEEDING DASH: Moving ${distance.toFixed(1)} units away at angle ${(angle * 180/PI).toFixed(0)}°`);
     }
     
     // Validate current goal and seek new flower if needed (COMMITTED SEEKING)
@@ -1256,7 +1299,18 @@ class Butterfly extends Entity {
                     const offsetX = random(-5, 5);
                     const offsetY = random(-3, 3);
                     const color = random(this.colors);
-                    particleSystem.emit(this.x + offsetX, this.y + offsetY, color, 1, 'happy');
+                    const pixel = particleSystem.emit(this.x + offsetX, this.y + offsetY, color, 1, 'happy');
+                    
+                    // Add pop-out effect for visibility
+                    if (pixel) {
+                        // Override initial velocity for pop-out effect
+                        const popAngle = random(TWO_PI);
+                        const popSpeed = random(1, 2);
+                        pixel.vx = cos(popAngle) * popSpeed;
+                        pixel.vy = sin(popAngle) * popSpeed - 1; // Slight upward bias
+                        pixel.popOutDuration = 30; // 0.5 seconds of pop-out before attraction
+                        pixel.popOutTimer = 0;
+                    }
                 }
                 
                 // Silent emission - no console spam

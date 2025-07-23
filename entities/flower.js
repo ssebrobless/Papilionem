@@ -484,6 +484,14 @@ class FlowerManager {
         // Only allow planting within the isometric playable area
         if (!isWithinPlayableArea(x, y)) return false;
         
+        // Check distance from magic pool (2 tile radius exclusion)
+        const gridPos = gridManager.screenToIso(x, y);
+        const poolCenter = { x: 8.5, y: 7 }; // Magic pool center
+        const distToPool = Math.hypot(gridPos.x - poolCenter.x, gridPos.y - poolCenter.y);
+        if (distToPool < 2.5) { // 2 tile radius plus small buffer
+            return false;
+        }
+        
         for (let flower of flowers) {
             if (!flower.canPlantNear(x, y)) {
                 return false;
