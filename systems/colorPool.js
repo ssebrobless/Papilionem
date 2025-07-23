@@ -64,7 +64,7 @@ class MainColorPool {
     applyGravityToParticles(particleSystem) {
         for (let particle of particleSystem.particles) {
             // Only affect happy and scale particles (not stress particles)
-            if (particle.type === 'happy' || particle.type === 'scale') {
+            if (particle.type === 'happy' || particle.type === 'happy_visual' || particle.type === 'scale') {
                 this.applyGravityToParticle(particle);
             }
         }
@@ -144,7 +144,12 @@ class MainColorPool {
         });
         
         // Increase glow intensity based on particle type
-        const glowIncrease = particle.type === 'happy' ? 2 : 1;
+        let glowIncrease = 1; // Default for 'scale' particles
+        if (particle.type === 'happy') {
+            glowIncrease = 2; // Full value for happiness particles
+        } else if (particle.type === 'happy_visual') {
+            glowIncrease = 0.5; // 1/4 value for visual particles (2 * 0.5 = 1, same as scale)
+        }
         this.glowIntensity = Math.min(this.maxGlowIntensity, this.glowIntensity + glowIncrease);
         
         // Mark particle for removal by setting lifetime to 0
@@ -237,8 +242,8 @@ class MainColorPool {
         // Don't spawn if already spawned
         if (state.goldenButterflySpawned) return false;
         
-        // Check if all other butterfly types have been encountered
-        const requiredTypes = ['friendly', 'cautious', 'energetic', 'skittish', 'wise', 'mystic'];
+        // Check if at least the common butterfly types have been encountered
+        const requiredTypes = ['friendly']; // Only require common types first
         for (let type of requiredTypes) {
             if (!state.encounteredButterflies.has(type)) {
                 return false;
@@ -409,35 +414,53 @@ class MainColorPool {
         const glowRatio = Math.max(baseGlow, this.glowIntensity / this.maxGlowIntensity);
         const pulse = sin(this.pulseTimer) * 0.15 + 0.85;
         
-        // Progress indicator ring - more prominent
+        // Progress indicator ring - much more prominent and always visible
         const progress = this.glowIntensity / this.spawnThreshold;
         
-        // Outer progress ring with enhanced visibility
+        // Always show progress ring (even at 0%) for clear feedback
+        graphics.push();
+        graphics.translate(5, 10); // Offset position as requested
+        
+        // Draw larger, more visible background ring - properly isometric (2:1 ratio)
+        graphics.strokeWeight(8);
+        graphics.stroke(255, 255, 255, 60); // More opaque background
+        graphics.noFill();
+        graphics.ellipse(0, 0, 110, 55); // True isometric proportions (width, height * 0.5)
+        
+        // Draw progress ring with much more visibility - properly isometric
         if (progress > 0) {
-            graphics.push();
-            
-            // Draw glowing background ring
-            graphics.strokeWeight(6);
-            graphics.stroke(255, 255, 255, 30);
-            graphics.noFill();
-            graphics.ellipse(0, 0, 90, 63);
-            
-            // Draw progress ring
-            graphics.strokeWeight(5);
+            graphics.strokeWeight(7);
             // Enhanced color transitions from deep purple to bright gold
-            const r = lerp(150, 255, progress);
-            const g = lerp(100, 230, progress);
-            const b = lerp(255, 50, progress);
-            graphics.stroke(r, g, b, 200 + pulse * 55); // More opaque
+            const r = lerp(150, 255, Math.min(progress, 1));
+            const g = lerp(100, 230, Math.min(progress, 1));
+            const b = lerp(255, 50, Math.min(progress, 1));
+            graphics.stroke(r, g, b, 220 + pulse * 35); // Very opaque
             
-            // Draw arc showing progress with glow effect
-            const angle = map(progress, 0, 1, 0, TWO_PI);
-            graphics.arc(0, 0, 90, 63, -HALF_PI, -HALF_PI + angle);
-            
-            // Removed flowing particle - too distracting
-            
-            graphics.pop();
+            // Draw arc showing progress with proper isometric ellipse
+            const angle = map(Math.min(progress, 1), 0, 1, 0, TWO_PI);
+            graphics.arc(0, 0, 110, 55, -HALF_PI, -HALF_PI + angle);
         }
+        
+        graphics.pop();
+        
+        // Show numerical progress as text with background bubble - keep this separate for better readability
+        graphics.push();
+        graphics.translate(1, 1); // Same offset for consistency
+        graphics.textAlign(CENTER, CENTER);
+        
+        // Draw background bubble for contrast
+        graphics.noStroke();
+        graphics.fill(0, 0, 0, 120); // Semi-transparent dark background
+        graphics.ellipse(0, -60, 35, 18); // Background bubble
+        
+        // Draw text with high contrast
+        graphics.textSize(11); // Slightly larger
+        graphics.fill(255, 255, 255, 250); // Very high contrast, almost opaque
+        graphics.stroke(0, 0, 0, 150); // Stronger outline for better readability
+        graphics.strokeWeight(0.8);
+        const percentText = Math.round(Math.min(progress * 100, 100)) + "%";
+        graphics.text(percentText, 0, -60);
+        graphics.pop();
         
         // Progressive ambient glow that builds with intensity
         const numLayers = 5 + Math.floor(glowRatio * 3);

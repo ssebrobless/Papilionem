@@ -887,8 +887,8 @@ class Butterfly extends Entity {
             const x = this.x + dx * t;
             const y = this.y + dy * t;
             
-            // Fade effect
-            const alpha = map(i, 0, segments, 30, 10);
+            // Fade effect - more visible but not fully solid
+            const alpha = map(i, 0, segments, 120, 60); // Much more visible (was 30, 10)
             graphics.stroke(255, 255, 200, alpha);
             graphics.strokeWeight(2);
             
@@ -1491,7 +1491,7 @@ class Butterfly extends Entity {
         // Check if target flower still exists and is nearby
         if (!this.targetFlower || !flowers.includes(this.targetFlower)) {
             console.log(`🍯 FEEDING END: Target flower no longer exists`);
-            this.endFeeding();
+            this.endFeeding(particleSystem);
             return;
         }
         
@@ -1499,7 +1499,7 @@ class Butterfly extends Entity {
         const distToFlower = Math.hypot(this.x - this.targetFlower.x, this.y - this.targetFlower.y);
         if (distToFlower > 25) { // Lost contact with flower
             console.log(`🍯 FEEDING END: Too far from flower (distance: ${distToFlower.toFixed(1)})`);
-            this.endFeeding();
+            this.endFeeding(particleSystem);
             return;
         }
         
@@ -1522,7 +1522,7 @@ class Butterfly extends Entity {
         if (this.feedingTimer >= this.maxFeedingTime || this.happiness >= targetHappiness) {
             const reason = this.feedingTimer >= this.maxFeedingTime ? 'time limit' : 'target happiness';
             console.log(`🍯 FEEDING END: ${reason} (timer: ${this.feedingTimer}/${this.maxFeedingTime}, happiness: ${Math.round(this.happiness)}%/${targetHappiness}%)`);
-            this.endFeeding();
+            this.endFeeding(particleSystem);
         }
     }
     
@@ -1565,7 +1565,7 @@ class Butterfly extends Entity {
     }
     
     // End feeding state and set cooldown
-    endFeeding() {
+    endFeeding(particleSystem) {
         console.log(`🍯 END FEEDING CALLED: state='${this.state}', timer=${this.feedingTimer}, happiness=${Math.round(this.happiness)}%`);
         
         if (this.targetFlower) {
@@ -1967,21 +1967,34 @@ class Butterfly extends Entity {
                 // Happy butterflies always emit, amount based on happiness
                 const happinessRatio = (this.happiness - this.baselineHappiness) / (this.maxHappiness - this.baselineHappiness);
                 
-                // More happiness = more particles (increased 2-3x)
-                const particleCount = Math.ceil(happinessRatio * 8); // 1-8 particles
+                // More happiness = more particles with dramatic visual impact
+                const baseParticleCount = Math.ceil(happinessRatio * 8); // 1-8 base particles for pool contribution
+                const visualMultiplier = 4; // 4x more particles for visual effect
+                const visualParticleCount = baseParticleCount * visualMultiplier; // 4-32 particles visually
                 
                 // Special effects for very happy butterflies
                 if (this.happiness > 95 && random() < 0.3) {
                     // Fountain effect for extremely happy butterflies
-                    particleSystem.emitFountain(this.x, this.y, random(this.colors), 12, 2);
+                    particleSystem.emitFountain(this.x, this.y, random(this.colors), 20, 3);
                 } else if (this.happiness > 85 && random() < 0.2) {
                     // Spiral effect for very happy butterflies
-                    particleSystem.emitSpiral(this.x, this.y, random(this.colors), 8);
+                    particleSystem.emitSpiral(this.x, this.y, random(this.colors), 12);
                 }
                 
-                // Regular happy particles
-                for (let i = 0; i < particleCount; i++) {
+                // Create base particles that contribute full value to magic pool
+                for (let i = 0; i < baseParticleCount; i++) {
                     particleSystem.emit(this.x + random(-5, 5), this.y + random(-3, 3), random(this.colors), 1, 'happy');
+                }
+                
+                // Create additional visual particles that contribute 1/4 value to magic pool
+                const extraVisualCount = visualParticleCount - baseParticleCount;
+                for (let i = 0; i < extraVisualCount; i++) {
+                    const particle = particleSystem.emit(this.x + random(-8, 8), this.y + random(-5, 5), random(this.colors), 1, 'happy_visual');
+                    if (particle) {
+                        // Make visual particles smaller and more ephemeral for volume effect
+                        particle.size = particle.size * 0.7;
+                        particle.lifetime = particle.lifetime * 0.6;
+                    }
                 }
                 
                 // Silent emission - no console spam

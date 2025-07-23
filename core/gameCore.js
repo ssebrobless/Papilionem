@@ -381,45 +381,48 @@ class GameCore {
         }
     }
     
-    // Automatic flower spawning mechanism
+    // Dynamic flower spawning mechanism (3-6 flowers total)
     updateFlowerSpawning() {
-        // Only spawn if under flower limit
-        if (this.gameState.flowers.length >= gameConfig.entities.maxFlowers) return;
+        const totalFlowers = this.gameState.flowers.length;
+        const immortalFlowers = this.gameState.flowers.filter(f => f.isImmortal).length;
+        const ephemeralFlowers = totalFlowers - immortalFlowers;
         
-        // Check every 10 seconds (600 frames)
-        if (frameCount % 600 !== 0) return;
+        // Target: 3-6 total flowers (2 immortal + 1-4 ephemeral)
+        const minTotal = 3;
+        const maxTotal = 6;
+        const minEphemeral = minTotal - immortalFlowers;
+        const maxEphemeral = maxTotal - immortalFlowers;
         
-        // Require at least 10 pollen particles and at least 3 butterflies
+        // Check every 8 seconds (480 frames) for more dynamic spawning
+        if (frameCount % 480 !== 0) return;
+        
+        // Dynamic spawning probability based on current count
+        let spawnChance = 0;
+        if (ephemeralFlowers < minEphemeral) {
+            spawnChance = 0.8; // High chance if below minimum
+        } else if (ephemeralFlowers < maxEphemeral) {
+            // Decreasing chance as we approach maximum
+            const ratio = (ephemeralFlowers - minEphemeral) / (maxEphemeral - minEphemeral);
+            spawnChance = 0.4 * (1 - ratio); // 40% at min, 0% at max
+        }
+        
+        // Require ecosystem conditions: butterflies and pollen
         const pollenCount = this.particleSystem.getPollenCount();
-        if (pollenCount < 10 || this.gameState.butterflies.length < 3) return;
+        const hasEcosystemConditions = pollenCount >= 8 && this.gameState.butterflies.length >= 2;
         
-        // 30% chance to spawn when conditions are met
-        if (random() < 0.3) {
-            // Find a suitable random location
-            let attempts = 0;
-            let validPosition = null;
-            
-            while (attempts < 20 && !validPosition) {
-                const gridX = random(3, 15);
-                const gridY = random(3, 15);
-                const screenPos = this.gridManager.isoToScreen(gridX, gridY);
-                
-                // Check if position is valid using flower manager
-                if (this.flowerManager.canPlant(screenPos.x, screenPos.y, this.gameState.flowers)) {
-                    validPosition = screenPos;
-                }
-                attempts++;
-            }
+        if (spawnChance > 0 && hasEcosystemConditions && random() < spawnChance) {
+            const validPosition = this.findValidFlowerPosition();
             
             if (validPosition) {
+                // Create ephemeral flower with full lifecycle
                 const newFlower = new Flower(validPosition.x, validPosition.y, false);
                 this.gameState.flowers.push(newFlower);
                 this.entityManager.addEntity('flowers', newFlower);
                 
-                // Consume some pollen
+                // Consume pollen for spawning
                 let pollenConsumed = 0;
                 this.particleSystem.removePixels(p => {
-                    if (p.type === 'pollen' && pollenConsumed < 8) {
+                    if (p.type === 'pollen' && pollenConsumed < 6) {
                         pollenConsumed++;
                         return true;
                     }
@@ -427,11 +430,66 @@ class GameCore {
                 });
                 
                 // Magical appearance effect
-                this.particleSystem.emitBurst(validPosition.x, validPosition.y, [255, 255, 200], 10);
+                this.particleSystem.emitBurst(validPosition.x, validPosition.y, [255, 255, 200], 12);
                 
-                console.log('🌺 New flower naturally spawned');
+                console.log(`🌺 Ephemeral flower spawned (${ephemeralFlowers + 1}/${maxEphemeral} ephemeral, ${totalFlowers + 1} total)`);
             }
         }
+    }
+    
+    // Find a valid position for flower spawning with advanced constraints
+    findValidFlowerPosition() {
+        const maxAttempts = 30;
+        let bestPosition = null;
+        let bestScore = -1;
+        
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const gridX = random(2, this.gridManager.bounds.maxX - 2);
+            const gridY = random(2, this.gridManager.bounds.maxY - 2);
+            const screenPos = this.gridManager.isoToScreen(gridX, gridY);
+            
+            // Check basic validity (flower manager constraints)
+            if (!this.flowerManager.canPlant(screenPos.x, screenPos.y, this.gameState.flowers)) {
+                continue;
+            }
+            
+            // Check magic pool exclusion (2.5 grid radius)
+            const poolCenter = { x: 8.5, y: 7 }; // Magic pool center
+            const distToPool = Math.hypot(gridX - poolCenter.x, gridY - poolCenter.y);
+            if (distToPool < 2.5) {
+                continue;
+            }
+            
+            // Score position based on distance from existing flowers (preference for spacing)
+            let minDistToFlower = Infinity;
+            for (let flower of this.gameState.flowers) {
+                const flowerGrid = this.gridManager.screenToIso(flower.x, flower.y);
+                const dist = Math.hypot(gridX - flowerGrid.x, gridY - flowerGrid.y);
+                minDistToFlower = Math.min(minDistToFlower, dist);
+            }
+            
+            // Score: prefer positions with good spacing (not too close, not too far)
+            let score = 0;
+            if (minDistToFlower > 4) {
+                score = 1.0; // Good spacing
+            } else if (minDistToFlower > 2.5) {
+                score = 0.7; // Acceptable spacing
+            } else if (minDistToFlower > 1.5) {
+                score = 0.3; // Close but usable
+            } else {
+                score = 0; // Too close
+            }
+            
+            // Add some randomness to prevent clustering
+            score += random(-0.1, 0.1);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestPosition = screenPos;
+            }
+        }
+        
+        return bestScore > 0.2 ? bestPosition : null; // Only accept decent positions
     }
     
     // Main draw method
