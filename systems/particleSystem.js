@@ -11,6 +11,11 @@
  */
 class Pixel {
     constructor(x, y, color, type = 'scale') {
+        this.reset(x, y, color, type);
+    }
+    
+    // Reset method for object pooling - reinitializes all properties
+    reset(x, y, color, type = 'scale') {
         this.x = x;
         this.y = y;
         
@@ -41,6 +46,9 @@ class Pixel {
         this.orbitAngle = random(TWO_PI);
         this.orbitSpeed = 0;
         this.spiralRadius = 0;
+        
+        // Pool management flag
+        this.active = true;
     }
     
     calculateGroundTarget() {
@@ -191,7 +199,7 @@ class Pixel {
     }
     
     isDead() {
-        return this.lifetime <= 0;
+        return this.lifetime <= 0 || !this.active;
     }
     
     distanceTo(x, y) {
@@ -573,11 +581,168 @@ class ColorPool {
 }
 
 /**
+ * Advanced particle object pool that eliminates object creation/destruction overhead
+ * Pre-allocates a fixed number of Pixel objects and reuses them throughout the game
+ */
+class ParticlePool {
+    constructor(maxSize = 200) {
+        this.maxSize = maxSize;
+        this.pool = [];
+        this.activeParticles = [];
+        this.inactiveIndices = [];
+        
+        // Pre-allocate all particles
+        this.initializePool();
+        
+        // Performance tracking
+        this.stats = {
+            totalAllocated: maxSize,
+            activeCount: 0,
+            inactiveCount: maxSize,
+            peakUsage: 0,
+            reuseCount: 0
+        };
+    }
+    
+    initializePool() {
+        // Pre-allocate maximum number of Pixel objects
+        for (let i = 0; i < this.maxSize; i++) {
+            // Create pixels with dummy values - they'll be reset when retrieved
+            const pixel = new Pixel(0, 0, [255, 255, 255], 'scale');
+            pixel.active = false; // Mark as inactive initially
+            this.pool.push(pixel);
+            this.inactiveIndices.push(i);
+        }
+        
+        console.log(`🎯 ParticlePool initialized with ${this.maxSize} pre-allocated particles`);
+    }
+    
+    getParticle(x, y, color, type = 'scale') {
+        // Check if we have any inactive particles available
+        if (this.inactiveIndices.length === 0) {
+            console.warn(`⚠️ ParticlePool exhausted! ${this.maxSize} particles already active`);
+            return null; // Pool exhausted
+        }
+        
+        // Get an inactive particle from the pool
+        const index = this.inactiveIndices.pop();
+        const particle = this.pool[index];
+        
+        // Reset the particle with new parameters
+        particle.reset(x, y, color, type);
+        particle.active = true;
+        
+        // Add to active particles tracking
+        this.activeParticles.push(particle);
+        
+        // Update stats
+        this.stats.activeCount++;
+        this.stats.inactiveCount--;
+        this.stats.reuseCount++;
+        this.stats.peakUsage = Math.max(this.stats.peakUsage, this.stats.activeCount);
+        
+        return particle;
+    }
+    
+    releaseParticle(particle) {
+        if (!particle || !particle.active) {
+            return false; // Particle already inactive or invalid
+        }
+        
+        // Find the particle in our pool
+        const poolIndex = this.pool.indexOf(particle);
+        if (poolIndex === -1) {
+            console.warn('⚠️ Attempted to release particle not from this pool');
+            return false;
+        }
+        
+        // Mark as inactive
+        particle.active = false;
+        
+        // Remove from active particles
+        const activeIndex = this.activeParticles.indexOf(particle);
+        if (activeIndex !== -1) {
+            this.activeParticles.splice(activeIndex, 1);
+        }
+        
+        // Add back to inactive indices
+        this.inactiveIndices.push(poolIndex);
+        
+        // Update stats
+        this.stats.activeCount--;
+        this.stats.inactiveCount++;
+        
+        return true;
+    }
+    
+    getActiveParticles() {
+        // Return array of active particles only
+        return this.activeParticles.slice(); // Return copy to prevent external modification
+    }
+    
+    updateActiveParticles() {
+        // Optimized update loop - only process active particles
+        for (let i = this.activeParticles.length - 1; i >= 0; i--) {
+            const particle = this.activeParticles[i];
+            
+            if (!particle.active) {
+                // Particle was marked inactive, remove from active list
+                this.activeParticles.splice(i, 1);
+                continue;
+            }
+            
+            particle.update();
+            
+            // Check if particle died during update
+            if (particle.isDead()) {
+                this.releaseParticle(particle);
+            }
+        }
+    }
+    
+    clear() {
+        // Release all active particles back to the pool
+        while (this.activeParticles.length > 0) {
+            this.releaseParticle(this.activeParticles[0]);
+        }
+    }
+    
+    getStats() {
+        return {
+            ...this.stats,
+            poolUtilization: (this.stats.activeCount / this.maxSize) * 100,
+            memoryEfficiency: (this.stats.reuseCount / Math.max(this.stats.peakUsage, 1)) * 100
+        };
+    }
+    
+    // Get particles matching a predicate (for compatibility with existing code)
+    getParticlesWhere(predicate) {
+        return this.activeParticles.filter(predicate);
+    }
+    
+    // Remove particles matching a predicate (for compatibility with existing code)
+    removeParticlesWhere(predicate) {
+        for (let i = this.activeParticles.length - 1; i >= 0; i--) {
+            const particle = this.activeParticles[i];
+            if (predicate(particle)) {
+                this.releaseParticle(particle);
+            }
+        }
+    }
+}
+
+/**
  * Main particle system that manages all particles and their lifecycle
  */
 class ParticleSystem {
     constructor() {
-        this.particles = [];
+        // Initialize particle pool based on gameConfig with headroom for bursts
+        const poolSize = Math.max(gameConfig.particles.maxParticles * 2, 200);
+        this.particlePool = new ParticlePool(poolSize);
+        
+        // Legacy compatibility - this.particles now points to active particles
+        this.particles = this.particlePool.activeParticles;
+        
         // Use unified config system - no drift-prone fallbacks
         this.maxParticles = gameConfig.particles.maxParticles;
         
@@ -595,6 +760,8 @@ class ParticleSystem {
             lastParticleCount: 0,
             renderTime: 0
         };
+        
+        console.log(`🎮 ParticleSystem initialized with pool size: ${poolSize}, active limit: ${this.maxParticles}`);
     }
     
     emit(x, y, color, count = 1, type = 'scale') {
@@ -603,9 +770,10 @@ class ParticleSystem {
             if (this.particles.length < this.maxParticles) {
                 const offsetX = random(-5, 5);
                 const offsetY = random(-5, 5);
-                const pixel = new Pixel(x + offsetX, y + offsetY, color, type);
-                this.particles.push(pixel);
-                lastPixel = pixel;
+                const pixel = this.particlePool.getParticle(x + offsetX, y + offsetY, color, type);
+                if (pixel) {
+                    lastPixel = pixel;
+                }
             }
         }
         
@@ -630,11 +798,12 @@ class ParticleSystem {
                 const baseAngle = random(this.isometricAngles);
                 const angle = baseAngle + random(-0.3, 0.3);
                 const speed = random(1.5, 3);
-                const pixel = new Pixel(x, y, color, 'joy');
-                pixel.vx = cos(angle) * speed;
-                pixel.vy = sin(angle) * speed - 0.5;
-                pixel.size = gameConfig.particles.pixelSize; // Keep consistent size
-                this.particles.push(pixel);
+                const pixel = this.particlePool.getParticle(x, y, color, 'joy');
+                if (pixel) {
+                    pixel.vx = cos(angle) * speed;
+                    pixel.vy = sin(angle) * speed - 0.5;
+                    pixel.size = gameConfig.particles.pixelSize; // Keep consistent size
+                }
             }
         }
         
@@ -655,12 +824,13 @@ class ParticleSystem {
             if (this.particles.length < this.maxParticles) {
                 const angle = random(PI * 0.3, PI * 0.7); // Upward arc
                 const speed = random(2, 4) * height / 3;
-                const pixel = new Pixel(x + random(-2, 2), y, color, 'joy');
-                pixel.vx = cos(angle) * speed;
-                pixel.vy = -sin(angle) * speed; // Negative for upward
-                pixel.lifetime = 300 + random(100); // Longer lifetime
-                pixel.size = gameConfig.particles.pixelSize * random(0.8, 1.2);
-                this.particles.push(pixel);
+                const pixel = this.particlePool.getParticle(x + random(-2, 2), y, color, 'joy');
+                if (pixel) {
+                    pixel.vx = cos(angle) * speed;
+                    pixel.vy = -sin(angle) * speed; // Negative for upward
+                    pixel.lifetime = 300 + random(100); // Longer lifetime
+                    pixel.size = gameConfig.particles.pixelSize * random(0.8, 1.2);
+                }
             }
         }
     }
@@ -671,26 +841,21 @@ class ParticleSystem {
             if (this.particles.length < this.maxParticles) {
                 const angle = (TWO_PI / count) * i;
                 const speed = 2;
-                const pixel = new Pixel(x, y, color, 'joy');
-                pixel.vx = cos(angle) * speed;
-                pixel.vy = sin(angle) * speed;
-                pixel.orbitAngle = angle;
-                pixel.orbitSpeed = 0.1;
-                pixel.lifetime = 200;
-                this.particles.push(pixel);
+                const pixel = this.particlePool.getParticle(x, y, color, 'joy');
+                if (pixel) {
+                    pixel.vx = cos(angle) * speed;
+                    pixel.vy = sin(angle) * speed;
+                    pixel.orbitAngle = angle;
+                    pixel.orbitSpeed = 0.1;
+                    pixel.lifetime = 200;
+                }
             }
         }
     }
     
     update() {
-        for (let i = this.particles.length - 1; i >= 0; i--) {
-            const particle = this.particles[i];
-            particle.update();
-            
-            if (particle.isDead()) {
-                this.particles.splice(i, 1);
-            }
-        }
+        // Use the particle pool's optimized update method
+        this.particlePool.updateActiveParticles();
     }
     
     getSettledPixels() {
@@ -702,11 +867,7 @@ class ParticleSystem {
     }
     
     removePixels(predicate) {
-        for (let i = this.particles.length - 1; i >= 0; i--) {
-            if (predicate(this.particles[i])) {
-                this.particles.splice(i, 1);
-            }
-        }
+        this.particlePool.removeParticlesWhere(predicate);
     }
     
     draw(graphics) {
@@ -749,7 +910,7 @@ class ParticleSystem {
     }
     
     clear() {
-        this.particles = [];
+        this.particlePool.clear();
     }
     
     // Debug information
@@ -759,6 +920,33 @@ class ParticleSystem {
     
     getParticlesByType(type) {
         return this.particles.filter(p => p.type === type);
+    }
+    
+    // Get particle pool statistics for performance monitoring
+    getPoolStats() {
+        return this.particlePool.getStats();
+    }
+    
+    // Get comprehensive performance data including both rendering and pooling stats
+    getPerformanceStats() {
+        const poolStats = this.getPoolStats();
+        const renderStats = this.getRenderStats();
+        
+        return {
+            pool: poolStats,
+            rendering: renderStats,
+            memoryEfficiency: {
+                objectsCreated: poolStats.totalAllocated,
+                objectsReused: poolStats.reuseCount,
+                reuseRatio: poolStats.reuseCount / Math.max(poolStats.peakUsage, 1),
+                poolUtilization: poolStats.poolUtilization
+            },
+            performance: {
+                avgParticlesPerBatch: renderStats.averageParticlesPerBatch,
+                lastRenderTime: renderStats.renderTime,
+                batchingEnabled: renderStats.batchingEnabled
+            }
+        };
     }
 }
 
@@ -915,6 +1103,7 @@ class PoolManager {
 // Export classes for global use
 if (typeof window !== 'undefined') {
     window.Pixel = Pixel;
+    window.ParticlePool = ParticlePool;
     window.ParticleBatchRenderer = ParticleBatchRenderer;
     window.ColorPool = ColorPool;
     window.ParticleSystem = ParticleSystem;

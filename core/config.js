@@ -87,7 +87,7 @@ const gameConfig = {
     
     // Particle system settings
     particles: {
-        maxParticles: 100,
+        maxParticles: 100, // Active particle limit, pool pre-allocates 2x this amount
         gravity: 0.1,
         pixelSize: 2,
         bounce: 0.3,

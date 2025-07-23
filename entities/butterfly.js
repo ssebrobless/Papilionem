@@ -541,6 +541,9 @@ class Butterfly extends Entity {
                 const happinessLoss = 2 + random(1, 3); // Lose 2-5% happiness
                 this.happiness = Math.max(5, this.happiness - happinessLoss); // Never drop below 5%
                 
+                // Calculate actual distance only for event emission
+                const distToCursor = Math.sqrt(distToCursorSq);
+                
                 // Emit scared event
                 eventBus.emit(GameEvents.BUTTERFLY_SCARED, {
                     butterfly: this,
@@ -710,6 +713,7 @@ class Butterfly extends Entity {
         // Calculate distance to current target
         const dx = this.meanderTarget.x - this.gridPos.x;
         const dy = this.meanderTarget.y - this.gridPos.y;
+        const distToTarget = Math.sqrt(dx * dx + dy * dy);
         
         // Check if we've reached the target (within 0.5 grid units)
         if (dx*dx + dy*dy < 0.25) { // 0.5^2 = 0.25
@@ -2041,6 +2045,9 @@ class Butterfly extends Entity {
                 this.resetCursorInteraction();
                 return;
             }
+            
+            // Calculate actual distance only when needed for interaction evaluation
+            const distToCursor = Math.sqrt(distToCursorSq);
             
             // Cursor is nearby - evaluate interaction
             this.evaluateCursorPresence(cursorVelocity, cursorX, cursorY, distToCursor, particleSystem);
