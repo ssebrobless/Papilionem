@@ -318,11 +318,8 @@ class Butterfly extends Entity {
                 'joy'
             );
             
-            // Add some upward velocity to joy pixels
-            if (pixel) {
-                pixel.vy = random(-2, -0.5);
-                pixel.vx = random(-0.5, 0.5);
-            }
+            // Joy pixels get their velocity from the isometric physics system
+            // No need to manually override - the Pixel constructor handles this
         }
         
         // Emit display event for other systems to react

@@ -22,11 +22,15 @@ class Pixel {
         this.x = x;
         this.y = y;
         
-        // Isometric physics - particles drift along isometric axes
-        const isoAngle = random(TWO_PI);
-        const speed = random(0.2, 0.8);
-        this.vx = cos(isoAngle) * speed;
-        this.vy = sin(isoAngle) * speed - 0.5;
+        // Store initial position to calculate target ground position
+        this.startX = x;
+        this.startY = y;
+        
+        // Find the isometric ground position beneath this particle
+        this.calculateGroundTarget();
+        
+        // Isometric physics - particles drift naturally towards ground with scatter
+        this.initializeIsometricVelocity(type);
         
         this.color = color;
         this.type = type;
@@ -35,6 +39,31 @@ class Pixel {
         this.bounce = safeGetConfig('particles.bounce', 0.3);
         this.friction = safeGetConfig('particles.friction', 0.99);
         this.size = safeGetConfig('particles.pixelSize', 3) * 1.5; // Larger pixels for visibility
+    }
+    
+    calculateGroundTarget() {
+        // Use unified physics engine for ground targeting
+        const target = isometricPhysics.calculateGroundTarget(this.startX, this.startY, 0.3);
+        this.targetGroundX = target.x;
+        this.targetGroundY = target.y;
+    }
+    
+    initializeIsometricVelocity(type) {
+        if (type === 'joy') {
+            // Use unified physics for burst velocity
+            const velocity = isometricPhysics.calculateBurstVelocity(-2, -0.5, 1);
+            this.vx = velocity.vx;
+            this.vy = velocity.vy;
+        } else {
+            // Use unified physics for target-directed velocity
+            const velocity = isometricPhysics.calculateTargetVelocity(
+                this.x, this.y, 
+                this.targetGroundX, this.targetGroundY, 
+                random(0.3, 0.8), 0.4
+            );
+            this.vx = velocity.vx;
+            this.vy = velocity.vy;
+        }
     }
     
     getInitialLifetime() {
@@ -58,18 +87,20 @@ class Pixel {
     }
     
     updatePhysics() {
-        // Apply gravity along isometric Y axis (southeast direction)
-        this.vy += safeGetConfig('particles.gravity', 0.1);
-        
-        // Add slight drift along isometric axes for more natural fall
-        const isoDrift = 0.02;
-        if (random() < 0.5) {
-            this.vx += isoDrift * (random() < 0.5 ? 1 : -1);
+        // Use unified physics engine for all movement
+        if (!this.settled && this.targetGroundX !== undefined && this.targetGroundY !== undefined) {
+            // Apply attraction force towards ground target
+            isometricPhysics.applyAttractionForce(this, this.targetGroundX, this.targetGroundY, 0.1, 0.3);
+        } else {
+            // Apply standard gravity
+            isometricPhysics.applyGravity(this);
         }
         
-        this.vx *= this.friction;
-        this.vy *= this.friction;
+        // Add natural drift
+        isometricPhysics.addIsometricDrift(this, 0.01, 0.3);
         
+        // Apply friction and update position
+        isometricPhysics.applyFriction(this);
         this.x += this.vx;
         this.y += this.vy;
     }
@@ -94,16 +125,10 @@ class Pixel {
         }
         
         if (isInBounds && groundLevel !== null) {
-            if (this.y + this.size >= groundLevel) {
-                this.y = groundLevel - this.size;
-                this.vy *= -this.bounce;
-                
-                if (abs(this.vy) < 0.1 && abs(this.vx) < 0.1) {
-                    this.settled = true;
-                    this.vx = 0;
-                    this.vy = 0;
-                    this.onSettled();
-                }
+            // Use unified physics for ground collision
+            if (!this.settled && isometricPhysics.handleGroundCollision(this, groundLevel, 0.3)) {
+                this.settled = true;
+                this.onSettled();
             }
         } else {
             // Fallback: use canvas height
