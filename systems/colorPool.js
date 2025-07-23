@@ -90,29 +90,48 @@ class MainColorPool {
                                (this.maxGravityStrength - this.minGravityStrength) * 
                                (1 - normalizedDistance * normalizedDistance);
         
-        // Apply spiral force instead of direct attraction
+        // Apply bathtub drain vortex effect
         if (distance > 0) {
-            // Update spiral radius and angle
-            particle.spiralRadius = distance;
-            particle.orbitSpeed = gravityStrength * 2; // Faster near center
-            particle.orbitAngle += particle.orbitSpeed;
+            // Calculate distance ratio for spiral transition
+            const distanceRatio = distance / this.maxGravityDistance;
             
-            // Calculate tangential force for spiral motion
-            const tangentX = -dy / distance;
-            const tangentY = dx / distance;
+            // Determine spiral intensity based on distance (bathtub drain effect)
+            let spiralRatio = 0;
+            if (distanceRatio > 0.7) {
+                // Far particles: minimal spiral (5% tangential, 95% inward)
+                spiralRatio = 0.05;
+            } else if (distanceRatio > 0.4) {
+                // Medium particles: gentle spiral (20% tangential, 80% inward)  
+                spiralRatio = 0.2;
+            } else if (distanceRatio > 0.2) {
+                // Close particles: noticeable spiral (40% tangential, 60% inward)
+                spiralRatio = 0.4;
+            } else {
+                // Very close: dramatic vortex (60% tangential, 40% inward)
+                spiralRatio = 0.6;
+            }
             
-            // Combine inward pull with tangential motion
-            const inwardForce = gravityStrength;
-            const tangentForce = gravityStrength * 0.5; // Spiral effect
+            // Calculate force components
+            const totalForce = gravityStrength;
+            const inwardForce = totalForce * (1 - spiralRatio);
+            const tangentForce = totalForce * spiralRatio;
             
-            particle.vx += (dx / distance) * inwardForce + tangentX * tangentForce;
-            particle.vy += (dy / distance) * inwardForce + tangentY * tangentForce;
+            // Calculate proper tangential direction (perpendicular to radial)
+            const radialX = dx / distance; // Normalized vector toward center
+            const radialY = dy / distance;
+            const tangentX = -radialY; // Perpendicular for clockwise spiral
+            const tangentY = radialX;
             
-            // Increase speed as particles get closer (vortex effect)
-            if (distance < 50) {
-                const speedBoost = (50 - distance) / 50;
-                particle.vx *= (1 + speedBoost * 0.5);
-                particle.vy *= (1 + speedBoost * 0.5);
+            // Apply forces
+            particle.vx += radialX * inwardForce + tangentX * tangentForce;
+            particle.vy += radialY * inwardForce + tangentY * tangentForce;
+            
+            // Vortex acceleration for dramatic drain effect when very close
+            if (distance < 40) {
+                const vortexBoost = (40 - distance) / 40;
+                const boostMultiplier = 1 + vortexBoost * 0.8;
+                particle.vx *= boostMultiplier;
+                particle.vy *= boostMultiplier;
             }
         }
         

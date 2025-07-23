@@ -114,6 +114,10 @@ const gameConfig = {
             happy: {
                 lifetime: -1, // Infinite lifetime until absorbed
                 fadeSpeed: 0  // No fade for happy pixels
+            },
+            happy_visual: {
+                lifetime: 200, // Shorter lifetime for visual effect particles
+                fadeSpeed: 1   // Gentle fade for visual particles
             }
         }
     },

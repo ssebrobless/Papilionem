@@ -51,13 +51,14 @@ class Pixel {
     }
     
     initializeIsometricVelocity(type) {
-        if (type === 'joy') {
-            // Use unified physics for burst velocity
-            const velocity = isometricPhysics.calculateBurstVelocity(-2, -0.5, 1);
+        if (type === 'joy' || type === 'happy' || type === 'happy_visual') {
+            // Use unified physics for burst velocity (dynamic movement for joy and happiness particles)
+            const intensity = type === 'happy_visual' ? 0.8 : 1.0; // Visual particles slightly less intense
+            const velocity = isometricPhysics.calculateBurstVelocity(-2, -0.5, intensity);
             this.vx = velocity.vx;
             this.vy = velocity.vy;
         } else {
-            // Use unified physics for target-directed velocity
+            // Use unified physics for target-directed velocity (scale, pollen, stress particles)
             const velocity = isometricPhysics.calculateTargetVelocity(
                 this.x, this.y, 
                 this.targetGroundX, this.targetGroundY, 
@@ -97,7 +98,17 @@ class Pixel {
     }
     
     updatePhysics() {
-        // Use unified physics engine for all movement
+        // Happy particles skip ground physics - only subject to pool attraction
+        if (this.type === 'happy' || this.type === 'happy_visual') {
+            // Only apply friction and basic physics for happy particles
+            // Pool attraction will be applied separately by mainColorPool
+            isometricPhysics.applyFriction(this);
+            this.x += this.vx;
+            this.y += this.vy;
+            return;
+        }
+        
+        // All other particles use unified physics engine for ground movement  
         if (!this.settled && this.targetGroundX !== undefined && this.targetGroundY !== undefined) {
             // Apply attraction force towards ground target
             isometricPhysics.applyAttractionForce(this, this.targetGroundX, this.targetGroundY, 0.1, 0.3);
