@@ -344,12 +344,14 @@ class ParticleSystem {
     }
     
     emit(x, y, color, count = 1, type = 'scale') {
+        let lastPixel = null;
         for (let i = 0; i < count; i++) {
             if (this.particles.length < this.maxParticles) {
                 const offsetX = random(-5, 5);
                 const offsetY = random(-5, 5);
                 const pixel = new Pixel(x + offsetX, y + offsetY, color, type);
                 this.particles.push(pixel);
+                lastPixel = pixel;
             }
         }
         
@@ -362,6 +364,9 @@ class ParticleSystem {
                 color 
             });
         }
+        
+        // Return the last created pixel for single emissions
+        return count === 1 ? lastPixel : null;
     }
     
     emitBurst(x, y, color, count = 5) {

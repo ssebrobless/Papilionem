@@ -1,14 +1,15 @@
 // Centralized grid management system
 class GridManager {
     constructor() {
-        this.cellSize = 18;
+        // Restore original working grid parameters
+        this.gridSize = 16;  // Original working value
         this.gridWidth = 18;
         this.gridHeight = 18;
         
-        // Cache frequently used calculations
-        this.halfCell = this.cellSize / 2;
-        this.tileWidth = this.cellSize;
-        this.tileHeight = this.cellSize / 2;
+        // Cache frequently used calculations - using original formulas
+        this.tileWidth = this.gridSize * 2;  // 32px (original working size)
+        this.tileHeight = this.gridSize;     // 16px (original working size)
+        this.halfCell = this.gridSize / 2;
         
         // Define playable bounds
         this.bounds = {
@@ -27,29 +28,50 @@ class GridManager {
         };
     }
     
-    // Convert screen coordinates to isometric grid coordinates
+    // Convert screen coordinates to isometric grid coordinates  
     screenToIso(screenX, screenY) {
-        const offsetX = gameConfig.canvas.baseWidth / 2;
-        const offsetY = gameConfig.isometric.offsetY;
+        // Use original working algorithm
+        const tileWidth = this.tileWidth;
+        const tileHeight = this.tileHeight;
         
-        const x = (screenX - offsetX) / this.tileWidth + (screenY - offsetY) / this.tileHeight;
-        const y = (screenY - offsetY) / this.tileHeight - (screenX - offsetX) / this.tileWidth;
+        // Adjust for tile height offset
+        screenY -= tileHeight / 2;
+        
+        // Convert from screen to isometric
+        const offsetX = screenX - gameConfig.canvas.baseWidth / 2;
+        const offsetY = screenY;
+        
+        // Inverse of isometric transformation
+        const isoX = (2 * offsetY + offsetX) / tileWidth;
+        const isoY = (2 * offsetY - offsetX) / tileWidth;
+        
+        // Remove grid offset (using config values)
+        const gridOffsetX = gameConfig.grid.gridOffset.x;
+        const gridOffsetY = gameConfig.grid.gridOffset.y;
         
         return {
-            x: round(x),
-            y: round(y)
+            x: round((isoX + isoY) / 2 - gridOffsetX),
+            y: round((isoY - isoX) / 2 - gridOffsetY)
         };
     }
     
     // Convert isometric grid coordinates to screen coordinates  
     isoToScreen(isoX, isoY) {
-        const offsetX = gameConfig.canvas.baseWidth / 2;
-        const offsetY = gameConfig.isometric.offsetY;
+        // Use original working algorithm
+        const tileWidth = this.tileWidth;
+        const tileHeight = this.tileHeight;
         
-        const x = (isoX - isoY) * this.tileWidth / 2 + offsetX;
-        const y = (isoX + isoY) * this.tileHeight / 2 + offsetY;
+        // Apply grid offset to align with background
+        const gridOffsetX = gameConfig.grid.gridOffset.x;
+        const gridOffsetY = gameConfig.grid.gridOffset.y;
         
-        return { x, y };
+        const offsetX = isoX + gridOffsetX;
+        const offsetY = isoY + gridOffsetY;
+        
+        const screenX = (offsetX - offsetY) * tileWidth / 2 + gameConfig.canvas.baseWidth / 2;
+        const screenY = (offsetX + offsetY) * tileHeight / 2;
+        
+        return { x: screenX, y: screenY + tileHeight / 2 };
     }
     
     // Get the ground Y position at a given grid coordinate
@@ -180,6 +202,39 @@ class GridManager {
         }
     }
     
+    // Unified function to draw a single isometric tile
+    drawTile(graphics, gridX, gridY, fillColor = null, strokeColor = null, strokeWeight = 1) {
+        // Set fill
+        if (fillColor) {
+            graphics.fill(...fillColor);
+        } else {
+            graphics.noFill();
+        }
+        
+        // Set stroke
+        if (strokeColor) {
+            graphics.stroke(...strokeColor);
+            graphics.strokeWeight(strokeWeight);
+        } else {
+            graphics.noStroke();
+        }
+        
+        // Calculate diamond vertices using actual grid geometry
+        // The tile diamond is bounded by the four surrounding grid points
+        const topLeft = this.isoToScreen(gridX, gridY);
+        const topRight = this.isoToScreen(gridX + 1, gridY);  
+        const bottomRight = this.isoToScreen(gridX + 1, gridY + 1);
+        const bottomLeft = this.isoToScreen(gridX, gridY + 1);
+        
+        // Draw diamond shape using actual grid point positions
+        graphics.beginShape();
+        graphics.vertex(topLeft.x, topLeft.y);       // Top
+        graphics.vertex(topRight.x, topRight.y);     // Right  
+        graphics.vertex(bottomRight.x, bottomRight.y); // Bottom
+        graphics.vertex(bottomLeft.x, bottomLeft.y);   // Left
+        graphics.endShape(CLOSE);
+    }
+    
     // Draw zones for debug mode
     drawZones(graphics) {
         const zoneColors = {
@@ -193,21 +248,96 @@ class GridManager {
             const color = zoneColors[zoneType];
             if (!color) continue;
             
-            graphics.fill(...color);
-            graphics.noStroke();
-            
             for (let cell of cells) {
-                const screenPos = this.isoToScreen(cell.x, cell.y);
-                
-                // Draw diamond shape for isometric cell
-                graphics.beginShape();
-                graphics.vertex(screenPos.x, screenPos.y - this.tileHeight);
-                graphics.vertex(screenPos.x + this.tileWidth/2, screenPos.y);
-                graphics.vertex(screenPos.x, screenPos.y + this.tileHeight);
-                graphics.vertex(screenPos.x - this.tileWidth/2, screenPos.y);
-                graphics.endShape(CLOSE);
+                // Use unified tile drawing function
+                this.drawTile(graphics, cell.x, cell.y, color);
             }
         }
+    }
+    
+    // Unified diamond drawing for UI elements (screen coordinates)
+    drawDiamond(graphics, centerX, centerY, size, fillColor = null, strokeColor = null, strokeWeight = 1) {
+        // Set fill
+        if (fillColor) {
+            graphics.fill(...fillColor);
+        } else {
+            graphics.noFill();
+        }
+        
+        // Set stroke
+        if (strokeColor) {
+            graphics.stroke(...strokeColor);
+            graphics.strokeWeight(strokeWeight);
+        } else {
+            graphics.noStroke();
+        }
+        
+        // Draw diamond using consistent geometry
+        graphics.beginShape();
+        graphics.vertex(centerX, centerY - size);     // Top
+        graphics.vertex(centerX + size, centerY);     // Right
+        graphics.vertex(centerX, centerY + size);     // Bottom  
+        graphics.vertex(centerX - size, centerY);     // Left
+        graphics.endShape(CLOSE);
+    }
+    
+    // Unified boundary calculation and drawing
+    drawBoundary(graphics, strokeColor = [255, 200, 100, 100], strokeWeight = 2) {
+        graphics.stroke(...strokeColor);
+        graphics.strokeWeight(strokeWeight);
+        graphics.noFill();
+        
+        // Calculate the four corners of the playable area
+        const corners = this.getBoundaryCorners();
+        
+        graphics.beginShape();
+        for (let corner of corners) {
+            graphics.vertex(corner.x, corner.y);
+        }
+        graphics.endShape(CLOSE);
+    }
+    
+    // Get boundary corner positions (reusable for zones)
+    getBoundaryCorners() {
+        return [
+            this.isoToScreen(0, 0),
+            this.isoToScreen(this.bounds.maxX, 0),
+            this.isoToScreen(this.bounds.maxX, this.bounds.maxY),
+            this.isoToScreen(0, this.bounds.maxY)
+        ];
+    }
+    
+    // Unified boundary zone drawing (for debug/UI)
+    drawBoundaryZones(graphics, zones) {
+        graphics.push();
+        graphics.noStroke();
+        
+        const corners = this.getBoundaryCorners();
+        
+        // Draw zones in reverse order (largest first)
+        for (let i = zones.length - 1; i >= 0; i--) {
+            const zone = zones[i];
+            graphics.fill(...zone.color);
+            
+            // Create expanded shape
+            graphics.beginShape();
+            for (let j = 0; j < corners.length; j++) {
+                const corner = corners[j];
+                const next = corners[(j + 1) % corners.length];
+                
+                // Calculate outward normal
+                const dx = next.x - corner.x;
+                const dy = next.y - corner.y;
+                const len = sqrt(dx * dx + dy * dy);
+                const nx = -dy / len * zone.dist;
+                const ny = dx / len * zone.dist;
+                
+                graphics.vertex(corner.x + nx, corner.y + ny);
+            }
+            graphics.endShape(CLOSE);
+        }
+        
+        graphics.pop();
     }
 }
 

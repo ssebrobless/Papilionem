@@ -55,13 +55,23 @@ class GameUI {
             this.drawCursorHint(graphics, gameState);
         }
         
-        // Draw planting hints
+        // Draw enhanced planting hints with ghost flower preview
         if (this.flowerManager && gameState.flowers) {
             const config = window.config || { baseWidth: 800, baseHeight: 450, targetWidth: 800, targetHeight: 450 };
             const adjustedMouseX = mouseX * (config.baseWidth / config.targetWidth);
             const adjustedMouseY = mouseY * (config.baseHeight / config.targetHeight);
+            
+            // Draw ghost flower preview when enough pollen is available
+            if (this.flowerManager.pollenCount >= 5) {
+                this.drawGhostFlowerPreview(graphics, adjustedMouseX, adjustedMouseY, gameState.flowers);
+            }
+            
+            // Draw original planting hint particles
             this.flowerManager.drawPlantingHint(graphics, adjustedMouseX, adjustedMouseY, gameState.flowers);
         }
+        
+        // Draw pollen cluster visualization
+        this.drawPollenCluster(graphics, gameState);
         
         // Draw boundary zones if requested
         if (this.showBoundaryZones) {
@@ -87,61 +97,16 @@ class GameUI {
         // Pulsing diamond size
         const size = this.cursorHint.size + sin(frameCount * this.cursorHint.pulseSpeed) * 4;
         
-        // Draw pixelated diamond shape
-        graphics.beginShape();
-        graphics.vertex(0, -size);
-        graphics.vertex(size, 0);
-        graphics.vertex(0, size);
-        graphics.vertex(-size, 0);
-        graphics.endShape(CLOSE);
+        // Use unified diamond drawing system
+        gridManager.drawDiamond(graphics, 0, 0, size, null, [255, 255, 255, this.cursorHint.alpha], 2);
         
         graphics.pop();
     }
     
-    // Draw boundary zones visualization
+    // Draw boundary zones visualization using unified system
     drawBoundaryZones(graphics) {
-        graphics.push();
-        
-        // Get playable area boundaries from config
-        const bounds = {
-            maxX: 18, // These should come from config
-            maxY: 18
-        };
-        
-        // Get corners of playable area using isometric conversion
-        const corners = [
-            this.isoToScreen(0, 0),
-            this.isoToScreen(bounds.maxX, 0),
-            this.isoToScreen(bounds.maxX, bounds.maxY),
-            this.isoToScreen(0, bounds.maxY)
-        ];
-        
-        graphics.noStroke();
-        
-        // Draw zones in reverse order (largest first)
-        for (let i = this.boundaryZones.length - 1; i >= 0; i--) {
-            const zone = this.boundaryZones[i];
-            graphics.fill(...zone.color);
-            
-            // Create expanded diamond shape
-            graphics.beginShape();
-            for (let j = 0; j < corners.length; j++) {
-                const corner = corners[j];
-                const next = corners[(j + 1) % corners.length];
-                
-                // Calculate outward normal
-                const dx = next.x - corner.x;
-                const dy = next.y - corner.y;
-                const len = sqrt(dx * dx + dy * dy);
-                const nx = -dy / len * zone.dist;
-                const ny = dx / len * zone.dist;
-                
-                graphics.vertex(corner.x + nx, corner.y + ny);
-            }
-            graphics.endShape(CLOSE);
-        }
-        
-        graphics.pop();
+        // Use unified boundary zone drawing with our configured zones
+        gridManager.drawBoundaryZones(graphics, this.boundaryZones);
     }
     
     // Draw info panel on main canvas (not on UI layer)
@@ -163,9 +128,31 @@ class GameUI {
         text(`Still frames: ${gameState.framesSinceMovement}`, x, y);
         y += lineHeight;
         
-        // Pollen count
+        // Enhanced pollen count display
         if (this.flowerManager) {
-            text(`Pollen: ${this.flowerManager.pollenCount}/5`, x, y);
+            const pollenCount = this.flowerManager.pollenCount;
+            
+            // Change color and size based on pollen count
+            push();
+            if (pollenCount >= 5) {
+                // Ready to plant - glow effect
+                fill(255, 255, 200);
+                textStyle(BOLD);
+            } else if (pollenCount >= 3) {
+                // Getting close - warm color
+                fill(255, 220, 150);
+            }
+            
+            text(`Pollen: ${pollenCount}/5`, x, y);
+            
+            // Add "Ready to plant!" text when at 5
+            if (pollenCount >= 5) {
+                fill(255, 255, 200, 150);
+                textStyle(NORMAL);
+                text(` Ready to plant!`, x + 70, y);
+            }
+            
+            pop();
             y += lineHeight;
         }
         
@@ -219,6 +206,28 @@ class GameUI {
         return { x: screenX, y: screenY + tileHeight / 2 };
     }
     
+    // Helper to check if screen coordinates are within the playable area
+    isWithinPlayableArea(x, y) {
+        // Use gridManager if available
+        if (typeof gridManager !== 'undefined' && gridManager.screenToIso) {
+            const gridPos = gridManager.screenToIso(x, y);
+            return gridManager.isInBounds(gridPos.x, gridPos.y);
+        }
+        
+        // Fallback: define a diamond-shaped playable area based on the isometric grid
+        const config = window.config || { baseWidth: 800, baseHeight: 450 };
+        const centerX = config.baseWidth / 2;
+        const centerY = config.baseHeight / 2;
+        
+        // Convert to relative position from center
+        const relX = x - centerX;
+        const relY = y - centerY;
+        
+        // Check if within diamond bounds (simplified)
+        const maxDist = 250; // Approximate playable area radius
+        return Math.abs(relX) + Math.abs(relY * 2) < maxDist;
+    }
+    
     // Handle interaction feedback (for failed plant attempts, etc.)
     showInteractionFeedback(x, y, type = 'neutral') {
         // This would emit particles or other visual feedback
@@ -241,23 +250,141 @@ class GameUI {
     
     // Draw visual hints for player interactions
     drawInteractionHints(graphics) {
-        if (!this.interactionSystem || !this.interactionSystem.isGentle()) return;
+        if (!this.interactionSystem) return;
         
-        const cursor = this.interactionSystem.getCursorPosition();
-        
-        // Draw gentle interaction zone
-        graphics.noFill();
-        graphics.stroke(255, 255, 255, 50);
-        graphics.strokeWeight(1);
-        
-        const radius = 30 + sin(frameCount * 0.05) * 5; // Pulsing radius
-        graphics.ellipse(cursor.x, cursor.y, radius * 2);
+        // Delegate to the interaction system which has more sophisticated hint drawing
+        this.interactionSystem.drawInteractionHints(graphics);
     }
     
     // Update method for any time-based animations
     update() {
         // Any per-frame updates for UI animations would go here
         // Currently the UI is mostly stateless and driven by frameCount
+    }
+    
+    // Draw a ghost flower preview at cursor position when planting is possible
+    drawGhostFlowerPreview(graphics, x, y, flowers) {
+        // First check if we're within the playable area using the same logic as FlowerManager
+        if (!this.isWithinPlayableArea(x, y)) return;
+        
+        if (!this.flowerManager.canPlant(x, y, flowers)) return;
+        
+        graphics.push();
+        graphics.translate(x, y);
+        
+        // Subtle pulsing alpha for ghost effect
+        const baseAlpha = 40;
+        const pulseAlpha = sin(frameCount * 0.08) * 20;
+        const alpha = baseAlpha + pulseAlpha;
+        
+        // Draw a simple ghost flower silhouette
+        graphics.noStroke();
+        
+        // Ghost stem
+        graphics.fill(200, 255, 200, alpha * 0.5);
+        for (let i = 0; i < 12; i += 2) {
+            const stemX = sin(frameCount * 0.02) * (i / 12) * 2;
+            graphics.rect(stemX - 1, -i - 2, 2, 2);
+        }
+        
+        // Ghost petals in a simple flower shape
+        const petalCount = 5;
+        const petalSize = 8;
+        
+        graphics.push();
+        graphics.translate(0, -12);
+        
+        for (let i = 0; i < petalCount; i++) {
+            const angle = (TWO_PI / petalCount) * i;
+            graphics.push();
+            graphics.rotate(angle);
+            
+            // Simple petal shape
+            graphics.fill(255, 255, 255, alpha);
+            graphics.ellipse(petalSize/2, 0, petalSize, petalSize/3);
+            graphics.pop();
+        }
+        
+        // Ghost center
+        graphics.fill(255, 255, 200, alpha * 1.5);
+        graphics.ellipse(0, 0, 4, 4);
+        
+        graphics.pop();
+        
+        // Add a subtle ring around the planting area
+        graphics.noFill();
+        graphics.stroke(255, 255, 255, alpha * 0.5);
+        graphics.strokeWeight(1);
+        const ringSize = 20 + sin(frameCount * 0.05) * 3;
+        graphics.ellipse(0, 0, ringSize * 2);
+        
+        graphics.pop();
+    }
+    
+    // Draw pollen cluster visualization to show collection progress
+    drawPollenCluster(graphics, gameState) {
+        if (!this.flowerManager) return;
+        
+        const pollenCount = this.flowerManager.pollenCount;
+        if (pollenCount === 0) return;
+        
+        // Position near the pollen counter
+        const x = this.infoPanel.x + 80;
+        const y = this.infoPanel.y + this.infoPanel.lineHeight * 3 - 5;
+        
+        graphics.push();
+        graphics.translate(x, y);
+        
+        // Draw pollen particles in a cluster formation
+        const maxPollen = 5;
+        const spacing = 8;
+        
+        for (let i = 0; i < maxPollen; i++) {
+            const angle = (TWO_PI / maxPollen) * i - PI/2; // Start from top
+            const dist = 10;
+            const px = cos(angle) * dist;
+            const py = sin(angle) * dist;
+            
+            if (i < pollenCount) {
+                // Active pollen particle
+                graphics.noStroke();
+                graphics.fill(255, 255, 200);
+                
+                // Add glow effect for collected pollen
+                const glowSize = 6 + sin(frameCount * 0.1 + i) * 1;
+                graphics.fill(255, 255, 200, 30);
+                graphics.ellipse(px, py, glowSize * 2);
+                
+                // Main particle
+                graphics.fill(255, 255, 200);
+                graphics.ellipse(px, py, 4, 4);
+            } else {
+                // Empty slot indicator
+                graphics.noFill();
+                graphics.stroke(255, 255, 255, 30);
+                graphics.strokeWeight(1);
+                graphics.ellipse(px, py, 6, 6);
+            }
+        }
+        
+        // When ready to plant, add a flower hint in the center
+        if (pollenCount >= 5) {
+            const flowerAlpha = (sin(frameCount * 0.08) + 1) * 0.5 * 100 + 50;
+            
+            // Tiny flower icon
+            graphics.noStroke();
+            for (let i = 0; i < 5; i++) {
+                const angle = (TWO_PI / 5) * i;
+                const px = cos(angle) * 3;
+                const py = sin(angle) * 3;
+                graphics.fill(255, 255, 255, flowerAlpha);
+                graphics.ellipse(px, py, 3, 3);
+            }
+            graphics.fill(255, 255, 200, flowerAlpha);
+            graphics.ellipse(0, 0, 3, 3);
+        }
+        
+        graphics.pop();
     }
     
     // Clean shutdown

@@ -11,10 +11,15 @@ const gameConfig = {
     
     // Grid settings
     grid: {
-        cellSize: 18,
+        cellSize: 16,  // Restored original working value
         gridWidth: 18,
         gridHeight: 18,
-        debugGridSize: 32 // For debug mode display
+        debugGridSize: 32, // For debug mode display
+        // Grid offset to align with background image
+        gridOffset: {
+            x: 10,   // Move grid up and left to fix "one too high" issue
+            y: 8    // Reduced from previous values
+        }
     },
     
     // Isometric view settings

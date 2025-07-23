@@ -181,40 +181,55 @@ class RenderManager {
         const debugEnabled = (typeof gameCore !== 'undefined' && gameCore.getDebugMode().enabled) || 
                            (typeof debugMode !== 'undefined' && debugMode.enabled);
         
-        if (!debugEnabled) {
-            // Get state from gameCore or fallback
-            let framesSinceMovement = 0;
-            let flowerManager = null;
-            let flowers = [];
-            
+        // Use gameUI system if available
+        if (typeof gameUI !== 'undefined' && gameUI.initialized) {
+            // Get game state
+            let gameState = {};
             if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
-                const state = gameCore.getGameState();
-                framesSinceMovement = state.framesSinceMovement || 0;
-                flowerManager = gameCore.flowerManager;
-                flowers = state.flowers;
-            } else if (typeof gameState !== 'undefined') {
-                framesSinceMovement = gameState.framesSinceMovement || 0;
-                flowerManager = gameState.flowerManager;
-                flowers = gameState.flowers;
+                gameState = gameCore.getGameState();
+            } else if (typeof window.gameState !== 'undefined') {
+                gameState = window.gameState;
             }
             
-            // Draw cursor interaction zone
-            if (framesSinceMovement > gameConfig.interaction.stillFramesRequired) {
-                const adjustedMouseX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
-                const adjustedMouseY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
+            // Draw using gameUI system
+            gameUI.draw(layer, gameState, { enabled: debugEnabled });
+        } else {
+            // Fallback to original inline drawing
+            if (!debugEnabled) {
+                // Get state from gameCore or fallback
+                let framesSinceMovement = 0;
+                let flowerManager = null;
+                let flowers = [];
                 
-                layer.noFill();
-                layer.stroke(255, 255, 255, 50);
-                layer.strokeWeight(1);
-                const radius = gameConfig.interaction.cursorZoneRadius + sin(frameCount * 0.05) * 5;
-                layer.ellipse(adjustedMouseX, adjustedMouseY, radius * 2);
-            }
-            
-            // Draw planting hint
-            if (flowerManager && flowerManager.drawPlantingHint) {
-                const adjustedMouseX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
-                const adjustedMouseY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
-                flowerManager.drawPlantingHint(layer, adjustedMouseX, adjustedMouseY, flowers);
+                if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
+                    const state = gameCore.getGameState();
+                    framesSinceMovement = state.framesSinceMovement || 0;
+                    flowerManager = gameCore.flowerManager;
+                    flowers = state.flowers;
+                } else if (typeof gameState !== 'undefined') {
+                    framesSinceMovement = gameState.framesSinceMovement || 0;
+                    flowerManager = gameState.flowerManager;
+                    flowers = gameState.flowers;
+                }
+                
+                // Draw cursor interaction zone
+                if (framesSinceMovement > gameConfig.interaction.stillFramesRequired) {
+                    const adjustedMouseX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
+                    const adjustedMouseY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
+                    
+                    layer.noFill();
+                    layer.stroke(255, 255, 255, 50);
+                    layer.strokeWeight(1);
+                    const radius = gameConfig.interaction.cursorZoneRadius + sin(frameCount * 0.05) * 5;
+                    layer.ellipse(adjustedMouseX, adjustedMouseY, radius * 2);
+                }
+                
+                // Draw planting hint
+                if (flowerManager && flowerManager.drawPlantingHint) {
+                    const adjustedMouseX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
+                    const adjustedMouseY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
+                    flowerManager.drawPlantingHint(layer, adjustedMouseX, adjustedMouseY, flowers);
+                }
             }
         }
         
@@ -251,37 +266,22 @@ class RenderManager {
         
         const gridX = debugModeState.cursorX;
         const gridY = debugModeState.cursorY;
-        const screenPos = gridManager.isoToScreen(gridX, gridY);
         
-        layer.noFill();
-        layer.stroke(255, 255, 255, 200);
-        layer.strokeWeight(2);
+        // Draw cursor outline using unified tile function
+        gridManager.drawTile(layer, gridX, gridY, null, [255, 255, 255, 200], 2);
         
-        // Draw diamond cursor
-        layer.beginShape();
-        layer.vertex(screenPos.x, screenPos.y - gridManager.tileHeight);
-        layer.vertex(screenPos.x + gridManager.tileWidth/2, screenPos.y);
-        layer.vertex(screenPos.x, screenPos.y + gridManager.tileHeight);
-        layer.vertex(screenPos.x - gridManager.tileWidth/2, screenPos.y);
-        layer.endShape(CLOSE);
-        
-        // Tool preview
+        // Tool preview fill
         const toolColors = {
-            butterfly: [255, 150, 100],
-            flower: [150, 255, 150],
-            grass: [0, 255, 0],
-            blocked: [255, 0, 0],
-            path: [255, 255, 0]
+            butterfly: [255, 150, 100, 100],
+            flower: [150, 255, 150, 100],
+            grass: [0, 255, 0, 100],
+            blocked: [255, 0, 0, 100],
+            path: [255, 255, 0, 100]
         };
         
         if (toolColors[debugModeState.selectedTool]) {
-            layer.fill(...toolColors[debugModeState.selectedTool], 100);
-            layer.beginShape();
-            layer.vertex(screenPos.x, screenPos.y - gridManager.tileHeight + 2);
-            layer.vertex(screenPos.x + gridManager.tileWidth/2 - 2, screenPos.y);
-            layer.vertex(screenPos.x, screenPos.y + gridManager.tileHeight - 2);
-            layer.vertex(screenPos.x - gridManager.tileWidth/2 + 2, screenPos.y);
-            layer.endShape(CLOSE);
+            // Draw tool preview using unified tile function
+            gridManager.drawTile(layer, gridX, gridY, toolColors[debugModeState.selectedTool]);
         }
     }
     

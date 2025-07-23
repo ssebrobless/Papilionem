@@ -187,6 +187,12 @@ class GameCore {
         this.gameState.flowerManager = this.flowerManager;
         this.completedSteps.add('flowerManager');
         console.log('✓ Flower manager initialized');
+        
+        // Initialize gameUI with flowerManager reference
+        if (typeof gameUI !== 'undefined') {
+            gameUI.initialize(this.flowerManager, gameConfig.interaction);
+            console.log('✓ Game UI initialized');
+        }
     }
     
     async initializeInteractionSystem() {
@@ -309,10 +315,8 @@ class GameCore {
         // Update entity manager (handles interactions and lifecycle)
         this.entityManager.update(this.gameState);
         
-        // Check for interaction system events
-        if (this.interactionSystem.isGentle()) {
-            this.interactionSystem.checkButterflyInteractions(this.gameState.butterflies);
-        }
+        // Check for butterfly interactions
+        this.interactionSystem.checkButterflyInteractions(this.gameState.butterflies);
         
         // Emit periodic events
         this.emitPeriodicEvents();
@@ -521,6 +525,12 @@ class GameCore {
     }
     
     handleWindowResize() {
+        // Skip resize if not initialized yet
+        if (!this.gameState.initialized || !this.renderManager) {
+            console.log('GameCore: Skipping window resize - system not initialized yet');
+            return;
+        }
+        
         const availableWidth = windowWidth * 0.95;
         const availableHeight = windowHeight * 0.95;
         const baseAspect = gameConfig.canvas.baseWidth / gameConfig.canvas.baseHeight;
@@ -536,15 +546,19 @@ class GameCore {
             targetHeight = availableWidth / baseAspect;
         }
         
-        // Update render manager
-        this.renderManager.updateCanvasSize(targetWidth, targetHeight);
-        
-        // Resize the actual canvas
-        resizeCanvas(targetWidth, targetHeight);
-        
-        // Reinitialize render layers
-        this.renderManager.initialize();
-        this.renderManager.drawBackground();
+        // Update render manager - additional safety check
+        if (this.renderManager && typeof this.renderManager.updateCanvasSize === 'function') {
+            this.renderManager.updateCanvasSize(targetWidth, targetHeight);
+            
+            // Resize the actual canvas
+            resizeCanvas(targetWidth, targetHeight);
+            
+            // Reinitialize render layers
+            this.renderManager.initialize();
+            this.renderManager.drawBackground();
+        } else {
+            console.warn('GameCore: RenderManager not ready for resize operation');
+        }
     }
     
     // Entity death handlers
@@ -560,7 +574,7 @@ class GameCore {
                 10
             );
         }
-        eventBus.emit(GameEvents.BUTTERFLY_DIED, { butterfly });
+        // Event already emitted by caller - don't re-emit to avoid infinite recursion
     }
     
     handleFlowerDeath(flower) {

@@ -17,36 +17,42 @@ class Flower extends Entity {
             dissolve: 180   // 3 seconds
         };
         
-        this.size = 16;  // Larger base size for more detail
-        this.stemHeight = 24;  // Taller stems for better proportion
-        
-        // Pick a random flower type
-        const flowerTypes = ['daisy', 'tulip', 'rose', 'sunflower', 'lily'];
+        // Pick a random flower type with new varieties
+        const flowerTypes = ['daisy', 'tulip', 'bush', 'lavender', 'sprout'];
         this.flowerType = random(flowerTypes);
         
-        // Set properties based on flower type
+        // Set properties based on flower type - appropriately sized
         switch(this.flowerType) {
             case 'daisy':
-                this.petalCount = 8;
-                this.petalStyle = 'thin';
+                this.size = 10;
+                this.stemHeight = 12;
+                this.petalCount = 6;
+                this.petalStyle = 'simple';
                 break;
             case 'tulip':
+                this.size = 11;
+                this.stemHeight = 14;
                 this.petalCount = 6;
                 this.petalStyle = 'cup';
                 break;
-            case 'rose':
+            case 'bush':
+                this.size = 8;
+                this.stemHeight = 4; // Very short, spreading
+                this.clusterCount = 3 + floor(random(3)); // 3-5 flower heads
                 this.petalCount = 5;
-                this.petalStyle = 'layered';
+                this.petalStyle = 'cluster';
                 break;
-            case 'sunflower':
-                this.petalCount = 16;
-                this.petalStyle = 'pointed';
-                this.size = 20; // Much bigger
-                this.stemHeight = 32; // Taller stem
+            case 'lavender':
+                this.size = 6;
+                this.stemHeight = 16;
+                this.stemCount = 3 + floor(random(3)); // 3-5 stems
+                this.petalStyle = 'vertical';
                 break;
-            case 'lily':
-                this.petalCount = 6;
-                this.petalStyle = 'curved';
+            case 'sprout':
+                this.size = 6;
+                this.stemHeight = 3; // Tiny, close to ground
+                this.petalCount = 4;
+                this.petalStyle = 'tiny';
                 break;
         }
         
@@ -69,11 +75,11 @@ class Flower extends Entity {
         
         this.swayAngle = random(TWO_PI);
         this.swaySpeed = 0.02 + random(0.01);
-        this.swayAmount = 0.15;
+        this.swayAmount = 0.08; // Reduced sway
         
         // Individual petal animation
         this.petalPhase = random(TWO_PI);
-        this.petalWaveSpeed = 0.03 + random(0.02);
+        this.petalWaveSpeed = 0.02; // Slower, subtler animation
     }
     
     update(gameState) {
@@ -148,479 +154,242 @@ class Flower extends Entity {
             alpha = map(this.stageTimer, 0, this.stageDurations.dissolve, 255, 0);
         }
         
+        // Base position anchored to ground
+        graphics.push();
         graphics.translate(this.x, this.y);
         
-        const sway = sin(this.swayAngle) * this.swayAmount;
-        graphics.rotate(sway);
+        // Draw stem(s) based on flower type
+        if (this.flowerType === 'lavender') {
+            this.drawLavenderStems(graphics, alpha);
+        } else if (this.flowerType !== 'bush' && this.flowerType !== 'sprout') {
+            this.drawStem(graphics, alpha);
+        }
         
-        // Organic curved stem with gradient
+        // Draw flower head(s)
+        this.drawFlowerHead(graphics, alpha);
+        
+        graphics.pop();
+    }
+    
+    drawStem(graphics, alpha) {
         graphics.noStroke();
+        
+        // Draw stem anchored to ground - no sway applied to stem base
         for (let y = 0; y < this.stemHeight; y += 2) {
-            const stemCurve = sin(y * 0.1 + this.swayAngle) * 2;
-            const stemWidth = map(y, 0, this.stemHeight, 5, 3);
-            const brightness = map(y, 0, this.stemHeight, 0.7, 1);
+            // Only slight curve near the top (no sway at base)
+            const bendFactor = (y / this.stemHeight);
+            const bendAmount = bendFactor * bendFactor; // Quadratic curve
+            const stemX = sin(this.swayAngle) * bendAmount * 3 * this.swayAmount;
+            const stemWidth = map(y, 0, this.stemHeight, 3, 1.5);
             
-            // Dark edge
-            graphics.fill(60 * brightness, 120 * brightness, 60 * brightness, alpha);
-            graphics.rect(stemCurve - stemWidth/2, y, stemWidth, 2);
-            
-            // Light center
-            graphics.fill(100 * brightness, 180 * brightness, 100 * brightness, alpha);
-            graphics.rect(stemCurve - stemWidth/2 + 1, y, stemWidth - 2, 2);
+            graphics.fill(80, 140, 80, alpha);
+            graphics.rect(stemX - stemWidth/2, -y - 2, stemWidth, 2);
         }
-        
-        // Add detailed leaves
-        if (this.flowerType !== 'daisy') {
-            // Left leaf
-            const leaf1Y = this.stemHeight * 0.6;
-            const leaf1Angle = -0.5 + sin(this.swayAngle * 0.5) * 0.1;
-            this.drawLeaf(graphics, -4, leaf1Y, leaf1Angle, alpha);
+    }
+    drawLavenderStems(graphics, alpha) {
+        // Multiple thin stems for lavender - anchored at base
+        for (let i = 0; i < this.stemCount; i++) {
+            const stemOffset = (i - this.stemCount/2) * 4;
             
-            // Right leaf
-            const leaf2Y = this.stemHeight * 0.4;
-            const leaf2Angle = 0.5 + sin(this.swayAngle * 0.5 + PI) * 0.1;
-            this.drawLeaf(graphics, 4, leaf2Y, leaf2Angle, alpha);
+            graphics.push();
+            graphics.translate(stemOffset, 0);
+            
+            // Thin vertical stem with minimal sway only at top
+            graphics.fill(100, 120, 140, alpha);
+            for (let y = 0; y < this.stemHeight; y += 2) {
+                const bendFactor = (y / this.stemHeight);
+                const x = sin(this.swayAngle + i * 0.3) * bendFactor * bendFactor * 2 * this.swayAmount;
+                graphics.rect(x - 1, -y - 2, 2, 2);
+            }
+            
+            graphics.pop();
         }
+    }
+    
+    drawFlowerHead(graphics, alpha) {
+        const sway = sin(this.swayAngle) * this.swayAmount;
         
-        graphics.translate(0, -this.stemHeight);
-        
-        // Draw petals based on flower type
         switch(this.flowerType) {
             case 'daisy':
-                this.drawDaisyPetals(graphics, alpha);
+                graphics.push();
+                // Position flower head at top of stem with sway
+                graphics.translate(sway * 6, -this.stemHeight);
+                graphics.rotate(sway * 0.3);
+                this.drawSimpleDaisy(graphics, alpha);
+                graphics.pop();
                 break;
             case 'tulip':
-                this.drawTulipPetals(graphics, alpha);
+                graphics.push();
+                // Position flower head at top of stem with sway
+                graphics.translate(sway * 5, -this.stemHeight);
+                graphics.rotate(sway * 0.2);
+                this.drawSimpleTulip(graphics, alpha);
+                graphics.pop();
                 break;
-            case 'rose':
-                this.drawRosePetals(graphics, alpha);
+            case 'bush':
+                this.drawBushClusters(graphics, alpha);
                 break;
-            case 'sunflower':
-                this.drawSunflowerPetals(graphics, alpha);
+            case 'lavender':
+                this.drawLavenderClusters(graphics, alpha);
                 break;
-            case 'lily':
-                this.drawLilyPetals(graphics, alpha);
+            case 'sprout':
+                graphics.push();
+                // Sprouts don't sway much due to short stems
+                graphics.translate(0, -this.stemHeight);
+                this.drawTinySprout(graphics, alpha);
+                graphics.pop();
                 break;
         }
     }
     
-    drawDaisyPetals(graphics, alpha) {
+    drawSimpleDaisy(graphics, alpha) {
         const petalSize = this.getPetalSize();
-        const petalWave = sin(frameCount * 0.05 + this.petalPhase) * 0.1;
         
-        // Draw petals in two layers for depth
-        for (let layer = 0; layer < 2; layer++) {
-            for (let i = 0; i < this.petalCount; i++) {
-                const angle = (TWO_PI / this.petalCount) * i + (layer ? PI / this.petalCount : 0);
-                const layerOffset = layer ? 0.9 : 1;
-                
-                // Create gradient effect
-                for (let j = 0; j < petalSize * layerOffset; j++) {
-                    const distance = j;
-                    const px = cos(angle + petalWave) * distance;
-                    const py = sin(angle + petalWave) * distance;
-                    
-                    // Petal shape - wider in middle, tapered at ends
-                    const petalWidth = sin((distance / (petalSize * layerOffset)) * PI) * 4;
-                    const brightness = map(distance, 0, petalSize * layerOffset, 1.1, 0.85);
-                    
-                    // Apply shading
-                    const r = min(255, this.petalColor[0] * brightness);
-                    const g = min(255, this.petalColor[1] * brightness);
-                    const b = min(255, this.petalColor[2] * brightness);
-                    
-                    graphics.fill(r, g, b, alpha * (layer ? 0.8 : 1));
-                    graphics.noStroke();
-                    
-                    // Draw petal segment
-                    for (let w = -petalWidth; w <= petalWidth; w += 2) {
-                        const segmentSize = map(abs(w), 0, petalWidth, 2, 1);
-                        graphics.rect(px + w - segmentSize/2, py - segmentSize/2, segmentSize, segmentSize);
-                    }
-                }
-            }
+        // Simplified petals - single pass
+        graphics.noStroke();
+        graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
+        
+        for (let i = 0; i < this.petalCount; i++) {
+            const angle = (TWO_PI / this.petalCount) * i;
+            const px = cos(angle) * petalSize * 0.4;
+            const py = sin(angle) * petalSize * 0.4;
+            graphics.ellipse(px, py, petalSize * 0.6, petalSize * 0.3);
         }
         
-        // Detailed center with texture
-        const centerSize = 8;
-        // Dark ring
-        graphics.fill(200, 160, 60, alpha);
-        for (let r = centerSize; r > centerSize - 2; r--) {
-            for (let angle = 0; angle < TWO_PI; angle += 0.3) {
-                graphics.rect(cos(angle) * r - 1, sin(angle) * r - 1, 2, 2);
-            }
-        }
-        
-        // Yellow center
+        // Simple center
         graphics.fill(255, 220, 100, alpha);
-        graphics.ellipse(0, 0, centerSize, centerSize);
-        
-        // Center texture
-        graphics.fill(240, 200, 80, alpha);
-        for (let i = 0; i < 6; i++) {
-            const angle = random(TWO_PI);
-            const dist = random(centerSize/2 - 1);
-            graphics.rect(cos(angle) * dist - 0.5, sin(angle) * dist - 0.5, 1, 1);
-        }
-        
-        // Pollen ready glow
-        if (this.stage === 'mature' && this.pollenTimer === 0) {
-            const glowAlpha = (sin(frameCount * 0.1) + 1) * 0.5 * 60;
-            for (let i = 2; i > 0; i--) {
-                graphics.fill(255, 255, 220, glowAlpha / i);
-                graphics.ellipse(0, 0, centerSize + i * 3, centerSize + i * 3);
-            }
-        }
-    }
-    
-    drawTulipPetals(graphics, alpha) {
-        const petalSize = this.getPetalSize();
-        const cupDepth = petalSize * 1.2;
-        const petalSway = sin(frameCount * 0.03 + this.petalPhase) * 0.05;
-        
-        // Draw overlapping cup-shaped petals
-        for (let i = 0; i < this.petalCount; i++) {
-            const angle = (TWO_PI / this.petalCount) * i;
-            
-            graphics.push();
-            graphics.rotate(angle + petalSway);
-            
-            // Create cup shape with gradient
-            for (let y = -cupDepth; y < cupDepth * 0.3; y++) {
-                const cupWidth = sin((y + cupDepth) / cupDepth * PI * 0.7) * petalSize * 0.8;
-                const brightness = map(y, -cupDepth, cupDepth * 0.3, 0.85, 1.1);
-                
-                // Main petal color with gradient
-                const r = min(255, this.petalColor[0] * brightness);
-                const g = min(255, this.petalColor[1] * brightness);
-                const b = min(255, this.petalColor[2] * brightness);
-                graphics.fill(r, g, b, alpha);
-                
-                // Draw petal width
-                for (let x = -cupWidth; x <= cupWidth; x += 2) {
-                    const edgeFade = map(abs(x), cupWidth * 0.7, cupWidth, 1, 0.7);
-                    const segmentAlpha = alpha * edgeFade;
-                    graphics.fill(r, g, b, segmentAlpha);
-                    graphics.rect(x - 1, y - 1, 2, 2);
-                    
-                    // Add highlight on one edge
-                    if (i % 2 === 0 && x < -cupWidth * 0.6 && x > -cupWidth * 0.8) {
-                        graphics.fill(255, 255, 255, alpha * 0.3);
-                        graphics.rect(x, y, 1, 1);
-                    }
-                }
-            }
-            
-            graphics.pop();
-        }
-        
-        // Dark center with gradient
-        for (let r = 5; r > 0; r--) {
-            const darkness = map(r, 0, 5, 0.2, 1);
-            graphics.fill(40 * darkness, 30 * darkness, 20 * darkness, alpha);
-            graphics.ellipse(0, 0, r * 2, r * 2);
-        }
-        
-        // Inner glow
-        graphics.fill(this.accentColor[0], this.accentColor[1], this.accentColor[2], alpha * 0.4);
-        graphics.ellipse(0, -2, 4, 4);
-        
-        // Pollen ready effect
-        if (this.stage === 'mature' && this.pollenTimer === 0) {
-            const glowAlpha = (sin(frameCount * 0.1) + 1) * 0.5 * 50;
-            graphics.fill(255, 240, 200, glowAlpha);
-            for (let i = 0; i < 3; i++) {
-                const sparkAngle = (TWO_PI / 3) * i + frameCount * 0.05;
-                const sparkDist = 6 + sin(frameCount * 0.1) * 2;
-                graphics.rect(cos(sparkAngle) * sparkDist - 1, sin(sparkAngle) * sparkDist - 1, 2, 2);
-            }
-        }
-    }
-    
-    drawRosePetals(graphics, alpha) {
-        const petalSize = this.getPetalSize();
-        const petalCurl = sin(frameCount * 0.04 + this.petalPhase) * 0.1;
-        
-        // Draw multiple layers of curled petals
-        for (let layer = 3; layer >= 0; layer--) {
-            const layerSize = petalSize - layer * 3;
-            const layerRotation = layer * 0.3 + petalCurl;
-            const petalCount = this.petalCount + (3 - layer) * 2; // More petals in outer layers
-            
-            for (let i = 0; i < petalCount; i++) {
-                const angle = (TWO_PI / petalCount) * i + layerRotation;
-                
-                graphics.push();
-                graphics.rotate(angle);
-                
-                // Draw individual rose petal with curl
-                for (let r = 0; r < layerSize; r++) {
-                    const petalAngle = map(r, 0, layerSize, 0, PI * 0.3);
-                    const petalX = r;
-                    const petalY = sin(petalAngle) * 4 * (1 - layer * 0.2);
-                    
-                    // Create gradient from center to edge
-                    const brightness = map(r, 0, layerSize, 1.2, 0.8) - layer * 0.1;
-                    const r_color = min(255, this.petalColor[0] * brightness);
-                    const g_color = min(255, this.petalColor[1] * brightness);
-                    const b_color = min(255, this.petalColor[2] * brightness);
-                    
-                    // Petal width varies along length
-                    const petalWidth = sin((r / layerSize) * PI) * 5 * (1 - layer * 0.15);
-                    
-                    for (let w = -petalWidth; w <= petalWidth; w += 2) {
-                        const edgeDarkness = map(abs(w), petalWidth * 0.7, petalWidth, 1, 0.7);
-                        graphics.fill(r_color * edgeDarkness, g_color * edgeDarkness, b_color * edgeDarkness, alpha);
-                        graphics.rect(petalX + w - 1, petalY - 1, 2, 2);
-                    }
-                    
-                    // Add petal texture
-                    if (r % 4 === 0 && random() < 0.3) {
-                        graphics.fill(this.accentColor[0], this.accentColor[1], this.accentColor[2], alpha * 0.5);
-                        graphics.rect(petalX - 1, petalY, 1, 1);
-                    }
-                }
-                
-                graphics.pop();
-            }
-        }
-        
-        // Detailed center with swirl
-        for (let r = 4; r > 0; r--) {
-            const swirl = frameCount * 0.02 + r * 0.5;
-            for (let a = 0; a < TWO_PI; a += PI/3) {
-                const cx = cos(a + swirl) * r;
-                const cy = sin(a + swirl) * r;
-                graphics.fill(this.centerColor[0] * (1 - r * 0.1), this.centerColor[1] * (1 - r * 0.1), this.centerColor[2], alpha);
-                graphics.rect(cx - 1, cy - 1, 2, 2);
-            }
-        }
-        
-        // Pollen ready sparkle
-        if (this.stage === 'mature' && this.pollenTimer === 0) {
-            const glowAlpha = (sin(frameCount * 0.1) + 1) * 0.5 * 40;
-            graphics.fill(255, 220, 255, glowAlpha);
-            for (let i = 0; i < 5; i++) {
-                const sparkAngle = (TWO_PI / 5) * i + frameCount * 0.03;
-                const sparkDist = 8 + sin(frameCount * 0.15 + i) * 3;
-                graphics.ellipse(cos(sparkAngle) * sparkDist, sin(sparkAngle) * sparkDist, 3, 3);
-            }
-        }
-    }
-    
-    drawSunflowerPetals(graphics, alpha) {
-        const petalSize = this.getPetalSize();
-        const petalWave = sin(frameCount * 0.02 + this.petalPhase) * 0.05;
-        
-        // Draw two layers of petals for fullness
-        for (let layer = 0; layer < 2; layer++) {
-            const layerOffset = layer ? PI / this.petalCount : 0;
-            const layerSize = layer ? petalSize * 0.9 : petalSize;
-            
-            for (let i = 0; i < this.petalCount; i++) {
-                const angle = (TWO_PI / this.petalCount) * i + layerOffset + petalWave;
-                
-                graphics.push();
-                graphics.rotate(angle);
-                
-                // Draw textured sunflower petal
-                for (let j = 0; j < layerSize; j++) {
-                    const petalWidth = sin((j / layerSize) * PI * 0.8) * 4;
-                    const brightness = map(j, 0, layerSize, 1.2, 0.7);
-                    
-                    // Golden yellow gradient
-                    const r = min(255, 255 * brightness);
-                    const g = min(255, 200 * brightness);
-                    const b = min(255, 50 * brightness);
-                    
-                    for (let w = -petalWidth; w <= petalWidth; w += 2) {
-                        // Add slight orange tinge to edges
-                        const edgeTint = map(abs(w), 0, petalWidth, 1, 1.2);
-                        graphics.fill(r * edgeTint, g, b, alpha * (layer ? 0.8 : 1));
-                        graphics.rect(j - 1, w - 1, 2, 2);
-                        
-                        // Petal veins
-                        if (j % 6 === 0 && abs(w) < petalWidth * 0.5) {
-                            graphics.fill(240, 180, 40, alpha * 0.6);
-                            graphics.rect(j, w, 1, 1);
-                        }
-                    }
-                }
-                
-                graphics.pop();
-            }
-        }
-        
-        // Large detailed center with spiral pattern
-        const centerSize = 14;
-        
-        // Dark outer ring
-        graphics.fill(80, 50, 20, alpha);
-        graphics.ellipse(0, 0, centerSize, centerSize);
-        
-        // Spiral seed pattern
-        const goldenAngle = 137.5 * PI / 180;
-        for (let i = 0; i < 40; i++) {
-            const angle = i * goldenAngle;
-            const radius = sqrt(i) * 2;
-            if (radius < centerSize/2 - 1) {
-                const x = cos(angle) * radius;
-                const y = sin(angle) * radius;
-                const seedBrightness = map(radius, 0, centerSize/2, 0.8, 0.4);
-                graphics.fill(101 * seedBrightness, 67 * seedBrightness, 33 * seedBrightness, alpha);
-                graphics.rect(x - 1, y - 1, 2, 2);
-                
-                // Highlight some seeds
-                if (i % 7 === 0) {
-                    graphics.fill(120, 80, 40, alpha);
-                    graphics.rect(x, y - 1, 1, 1);
-                }
-            }
-        }
-        
-        // Pollen ready glow
-        if (this.stage === 'mature' && this.pollenTimer === 0) {
-            const glowAlpha = (sin(frameCount * 0.1) + 1) * 0.5 * 50;
-            for (let r = centerSize + 4; r > centerSize; r -= 2) {
-                graphics.fill(255, 240, 180, glowAlpha * (1 - (r - centerSize) / 4));
-                graphics.ellipse(0, 0, r, r);
-            }
-        }
-    }
-    
-    drawLilyPetals(graphics, alpha) {
-        const petalSize = this.getPetalSize();
-        const petalCurl = sin(frameCount * 0.03 + this.petalPhase) * 0.15;
-        
-        // Draw elegant curved petals
-        for (let i = 0; i < this.petalCount; i++) {
-            const angle = (TWO_PI / this.petalCount) * i;
-            
-            graphics.push();
-            graphics.rotate(angle);
-            
-            // Draw curved lily petal with gradient and spots
-            for (let j = 0; j < petalSize; j++) {
-                // Create elegant S-curve
-                const petalCurve = sin((j / petalSize) * PI) * 6;
-                const curlAmount = sin((j / petalSize) * PI * 2) * 2 * petalCurl;
-                const px = j;
-                const py = petalCurve + curlAmount;
-                
-                // Petal width with elegant taper
-                const petalWidth = sin((j / petalSize) * PI * 0.9) * 5;
-                
-                // Create gradient from base to tip
-                const brightness = map(j, 0, petalSize, 1, 0.7);
-                const tipTint = map(j, petalSize * 0.7, petalSize, 1, 1.3);
-                
-                for (let w = -petalWidth; w <= petalWidth; w += 2) {
-                    // Main petal color with gradient
-                    const edgeFade = map(abs(w), petalWidth * 0.8, petalWidth, 1, 0.6);
-                    const r = min(255, this.petalColor[0] * brightness * tipTint * edgeFade);
-                    const g = min(255, this.petalColor[1] * brightness * edgeFade);
-                    const b = min(255, this.petalColor[2] * brightness * edgeFade);
-                    
-                    graphics.fill(r, g, b, alpha);
-                    graphics.rect(px - 1, py + w - 1, 2, 2);
-                    
-                    // Add characteristic lily spots
-                    if (j > petalSize * 0.3 && j < petalSize * 0.7 && random() < 0.02) {
-                        graphics.fill(this.accentColor[0], this.accentColor[1], this.accentColor[2], alpha * 0.6);
-                        graphics.rect(px, py + w, 1, 1);
-                    }
-                    
-                    // White highlight along center
-                    if (abs(w) < 1 && j > petalSize * 0.2) {
-                        graphics.fill(255, 255, 255, alpha * 0.4);
-                        graphics.rect(px, py, 1, 1);
-                    }
-                }
-            }
-            
-            graphics.pop();
-        }
-        
-        // Detailed stamen with pollen
-        for (let i = 0; i < 6; i++) {
-            const angle = (TWO_PI / 6) * i + frameCount * 0.01;
-            const stamenLength = 5 + sin(frameCount * 0.05 + i) * 1;
-            
-            // Stamen filament
-            for (let j = 0; j < stamenLength; j++) {
-                const sx = cos(angle) * j;
-                const sy = sin(angle) * j;
-                graphics.fill(200, 180, 100, alpha);
-                graphics.rect(sx - 0.5, sy - 0.5, 1, 1);
-            }
-            
-            // Anther with pollen
-            const ax = cos(angle) * stamenLength;
-            const ay = sin(angle) * stamenLength;
-            graphics.fill(255, 180, 100, alpha);
-            graphics.rect(ax - 1.5, ay - 1.5, 3, 3);
-            graphics.fill(255, 220, 150, alpha);
-            graphics.rect(ax - 0.5, ay - 0.5, 1, 1);
-        }
-        
-        // Pistil in center
-        graphics.fill(this.centerColor[0] * 0.8, this.centerColor[1] * 0.8, this.centerColor[2] * 0.8, alpha);
         graphics.ellipse(0, 0, 4, 4);
-        graphics.fill(this.centerColor[0], this.centerColor[1], this.centerColor[2], alpha);
-        graphics.ellipse(0, 0, 2, 2);
+        
+        // Pollen ready indicator
+        if (this.stage === 'mature' && this.pollenTimer === 0) {
+            graphics.fill(255, 255, 220, 60);
+            graphics.ellipse(0, 0, 7, 7);
+        }
+    }
+    
+    drawSimpleTulip(graphics, alpha) {
+        const petalSize = this.getPetalSize();
+        
+        // Simplified tulip - just an elliptical flower head
+        graphics.noStroke();
+        graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
+        graphics.ellipse(0, 0, petalSize, petalSize * 1.2);
+        
+        // Simple dark center
+        graphics.fill(40, 30, 20, alpha);
+        graphics.ellipse(0, 0, 3, 3);
+        
+        // Pollen ready indicator
+        if (this.stage === 'mature' && this.pollenTimer === 0) {
+            graphics.fill(255, 240, 200, 50);
+            graphics.ellipse(0, 0, petalSize + 2, petalSize + 2);
+        }
+    }
+    
+    drawBushClusters(graphics, alpha) {
+        const sway = sin(this.swayAngle) * this.swayAmount;
+        
+        // Multiple small flower heads in a cluster
+        for (let i = 0; i < this.clusterCount; i++) {
+            const angle = (TWO_PI / this.clusterCount) * i;
+            const distance = this.size * 0.6;
+            const clusterX = cos(angle) * distance + sway * 4;
+            const clusterY = sin(angle) * distance * 0.3 - this.stemHeight;
+            
+            graphics.push();
+            graphics.translate(clusterX, clusterY);
+            graphics.rotate(sway * 0.2);
+            
+            // Simplified small flower - just petals and center
+            graphics.noStroke();
+            graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
+            graphics.ellipse(0, 0, 5, 5); // Simple circular flower head
+            
+            // Tiny center
+            graphics.fill(this.centerColor[0], this.centerColor[1], this.centerColor[2], alpha);
+            graphics.ellipse(0, 0, 2, 2);
+            
+            graphics.pop();
+        }
+        
+        // Pollen ready glow for whole cluster
+        if (this.stage === 'mature' && this.pollenTimer === 0) {
+            graphics.fill(255, 255, 220, 40);
+            graphics.ellipse(sway * 4, -this.stemHeight, this.size * 1.5, this.size * 0.8);
+        }
+    }
+    
+    drawLavenderClusters(graphics, alpha) {
+        // Draw simplified purple clusters on each stem
+        for (let i = 0; i < this.stemCount; i++) {
+            const stemOffset = (i - this.stemCount/2) * 4;
+            const stemSway = sin(this.swayAngle + i * 0.3) * this.swayAmount;
+            
+            graphics.push();
+            graphics.translate(stemOffset + stemSway * 4, -this.stemHeight);
+            
+            // Simplified lavender spike - just a vertical cluster
+            graphics.noStroke();
+            graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
+            
+            // Draw as simple vertical ellipse with texture
+            for (let j = 0; j < 5; j++) {
+                const y = j * 2;
+                const size = 3 - j * 0.3;
+                graphics.ellipse(0, y, size, size);
+            }
+            
+            graphics.pop();
+        }
         
         // Pollen ready effect
         if (this.stage === 'mature' && this.pollenTimer === 0) {
-            const glowAlpha = (sin(frameCount * 0.1) + 1) * 0.5 * 40;
-            // Pollen particles floating
-            for (let i = 0; i < 6; i++) {
-                const pollenAngle = (TWO_PI / 6) * i + frameCount * 0.02;
-                const pollenDist = 8 + sin(frameCount * 0.08 + i) * 4;
-                graphics.fill(255, 240, 180, glowAlpha + 20);
-                graphics.ellipse(cos(pollenAngle) * pollenDist, sin(pollenAngle) * pollenDist, 2, 2);
-            }
+            const avgSway = sin(this.swayAngle) * this.swayAmount * 2;
+            graphics.fill(255, 220, 255, 50);
+            graphics.ellipse(avgSway, -this.stemHeight - 2, this.size * 1.5, this.size * 0.8);
         }
     }
+    
+    drawTinySprout(graphics, alpha) {
+        // Very simple tiny flower close to ground
+        graphics.noStroke();
+        
+        // Tiny petals
+        for (let i = 0; i < this.petalCount; i++) {
+            const angle = (TWO_PI / this.petalCount) * i;
+            graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
+            const px = cos(angle) * 3;
+            const py = sin(angle) * 3;
+            graphics.ellipse(px, py, 4, 4);
+        }
+        
+        // Tiny center
+        graphics.fill(this.centerColor[0], this.centerColor[1], this.centerColor[2], alpha);
+        graphics.ellipse(0, 0, 3, 3);
+        
+        // Subtle pollen ready
+        if (this.stage === 'mature' && this.pollenTimer === 0) {
+            graphics.fill(255, 255, 200, 60);
+            graphics.ellipse(0, 0, 6, 6);
+        }
+    }
+    
     
     getPetalSize() {
         let baseSize = this.size;
         
-        // Add subtle breathing animation
-        baseSize += sin(frameCount * 0.02 + this.petalPhase) * 1;
+        // Subtle size variation
+        baseSize += sin(frameCount * 0.02 + this.petalPhase) * 0.5;
         
         if (this.stage === 'bloom') {
-            return map(this.stageTimer, 0, this.stageDurations.bloom, 4, baseSize);
+            return map(this.stageTimer, 0, this.stageDurations.bloom, 2, baseSize);
         } else if (this.stage === 'wilting') {
             const wiltProgress = this.stageTimer / this.stageDurations.wilting;
-            // Petals curl and shrink when wilting
-            return baseSize * (1 - wiltProgress * 0.4);
+            return baseSize * (1 - wiltProgress * 0.3);
         }
         return baseSize;
     }
     
-    drawLeaf(graphics, x, y, angle, alpha) {
-        graphics.push();
-        graphics.translate(x, y);
-        graphics.rotate(angle);
-        
-        // Leaf shape with gradient
-        for (let i = 0; i < 8; i++) {
-            const leafY = i - 4;
-            const leafWidth = 4 - abs(leafY) * 0.8;
-            const brightness = map(abs(leafY), 0, 4, 1, 0.7);
-            
-            graphics.fill(70 * brightness, 140 * brightness, 70 * brightness, alpha);
-            graphics.rect(-leafWidth, leafY, leafWidth * 2, 1);
-            
-            // Leaf vein
-            if (i === 4) {
-                graphics.fill(60, 120, 60, alpha);
-                graphics.rect(-0.5, -4, 1, 8);
-            }
-        }
-        
-        graphics.pop();
-    }
     
     // Override isDead to check stage instead of lifetime
     isDead() {
@@ -630,8 +399,8 @@ class Flower extends Entity {
     
     canPlantNear(x, y) {
         const dist = Math.hypot(this.x - x, this.y - y);
-        // Larger spacing for these detailed flowers
-        return dist > 60;
+        // Smaller spacing for smaller flowers
+        return dist > 40;
     }
 }
 
@@ -681,7 +450,7 @@ class FlowerManager {
     }
     
     plantFlower(x, y, flowers, particleSystem) {
-        if (this.canPlant(x, y, flowers) && flowers.length < 8) {  // Allow more flowers
+        if (this.canPlant(x, y, flowers) && flowers.length < 6) {  // Original limit
             flowers.push(new Flower(x, y));
             
             // Remove pollen particles for planting (up to 5)

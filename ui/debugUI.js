@@ -172,135 +172,46 @@ class DebugUI {
         this.drawDebugUI(graphics);
     }
     
-    // Draw isometric grid
+    // Draw isometric grid using unified system
     drawGrid(graphics) {
-        graphics.stroke(255, 255, 255, 30);
-        graphics.strokeWeight(1);
+        // Use gridManager's unified grid drawing
+        gridManager.drawGrid(graphics);
         
-        const bounds = gridManager.bounds;
-        
-        // Draw boundary outline
-        graphics.stroke(255, 200, 100, 100);
-        graphics.strokeWeight(2);
-        graphics.noFill();
-        
-        // Calculate the four corners of the playable area
-        const topCorner = gridManager.isoToScreen(0, 0);
-        const rightCorner = gridManager.isoToScreen(bounds.maxX, 0);
-        const bottomCorner = gridManager.isoToScreen(bounds.maxX, bounds.maxY);
-        const leftCorner = gridManager.isoToScreen(0, bounds.maxY);
-        
-        const boundaryPoints = [
-            [topCorner.x, topCorner.y],
-            [rightCorner.x, rightCorner.y],
-            [bottomCorner.x, bottomCorner.y],
-            [leftCorner.x, leftCorner.y]
-        ];
-        
-        graphics.beginShape();
-        for (let point of boundaryPoints) {
-            graphics.vertex(point[0], point[1]);
-        }
-        graphics.endShape(CLOSE);
-        
-        // Draw grid lines within bounds
-        graphics.strokeWeight(1);
-        
-        // Lines going right-down (constant Y)
-        for (let y = 0; y <= bounds.maxY; y++) {
-            // Draw major grid lines (every 2 units) stronger
-            if (y % 2 === 0) {
-                graphics.stroke(255, 255, 255, 40);
-            } else {
-                graphics.stroke(255, 255, 255, 20);
-            }
-            const start = gridManager.isoToScreen(0, y);
-            const end = gridManager.isoToScreen(bounds.maxX, y);
-            graphics.line(start.x, start.y, end.x, end.y);
-        }
-        
-        // Lines going left-down (constant X)
-        for (let x = 0; x <= bounds.maxX; x++) {
-            // Draw major grid lines (every 2 units) stronger
-            if (x % 2 === 0) {
-                graphics.stroke(255, 255, 255, 40);
-            } else {
-                graphics.stroke(255, 255, 255, 20);
-            }
-            const start = gridManager.isoToScreen(x, 0);
-            const end = gridManager.isoToScreen(x, bounds.maxY);
-            graphics.line(start.x, start.y, end.x, end.y);
-        }
+        // Add boundary outline
+        gridManager.drawBoundary(graphics);
     }
     
     // Draw tile states (walkable/blocked)
     drawTileStates(graphics) {
         // Draw walkable tiles
-        graphics.fill(100, 255, 100, 50);
-        graphics.noStroke();
         for (let tileKey of this.walkableTiles) {
             const [x, y] = tileKey.split(',').map(Number);
-            this.drawIsometricTile(graphics, x, y);
+            gridManager.drawTile(graphics, x, y, [100, 255, 100, 50]);
         }
         
         // Draw blocked tiles
-        graphics.fill(255, 100, 100, 50);
-        graphics.noStroke();
         for (let tileKey of this.blockedTiles) {
             const [x, y] = tileKey.split(',').map(Number);
-            this.drawIsometricTile(graphics, x, y);
+            gridManager.drawTile(graphics, x, y, [255, 100, 100, 50]);
         }
-    }
-    
-    // Draw isometric tile shape
-    drawIsometricTile(graphics, gridX, gridY) {
-        const screenPos = gridManager.isoToScreen(gridX, gridY);
-        const tileWidth = gridManager.tileWidth;
-        const tileHeight = gridManager.tileHeight;
-        
-        graphics.beginShape();
-        graphics.vertex(screenPos.x, screenPos.y);
-        graphics.vertex(screenPos.x + tileWidth / 2, screenPos.y + tileHeight / 2);
-        graphics.vertex(screenPos.x, screenPos.y + tileHeight);
-        graphics.vertex(screenPos.x - tileWidth / 2, screenPos.y + tileHeight / 2);
-        graphics.endShape(CLOSE);
     }
     
     // Draw debug cursor
     drawDebugCursor(graphics) {
-        const screenPos = gridManager.isoToScreen(this.cursorX, this.cursorY);
-        const tileWidth = gridManager.tileWidth;
-        const tileHeight = gridManager.tileHeight;
-        
-        graphics.noFill();
-        graphics.stroke(255, 255, 255, 200);
-        graphics.strokeWeight(2);
-        
-        // Draw isometric tile cursor for all tools
-        graphics.beginShape();
-        graphics.vertex(screenPos.x, screenPos.y);
-        graphics.vertex(screenPos.x + tileWidth / 2, screenPos.y + tileHeight / 2);
-        graphics.vertex(screenPos.x, screenPos.y + tileHeight);
-        graphics.vertex(screenPos.x - tileWidth / 2, screenPos.y + tileHeight / 2);
-        graphics.endShape(CLOSE);
+        // Draw cursor outline using unified tile function
+        gridManager.drawTile(graphics, this.cursorX, this.cursorY, null, [255, 255, 255, 200], 2);
         
         // Show tool-specific visual feedback
         const toolColors = {
-            butterfly: [255, 150, 100],
-            flower: [150, 255, 150],
-            walkable: [100, 255, 100],
-            blocked: [255, 100, 100]
+            butterfly: [255, 150, 100, 50],
+            flower: [150, 255, 150, 50],
+            walkable: [100, 255, 100, 50],
+            blocked: [255, 100, 100, 50]
         };
         
         if (toolColors[this.selectedTool]) {
-            graphics.fill(...toolColors[this.selectedTool], 50);
-            graphics.noStroke();
-            graphics.beginShape();
-            graphics.vertex(screenPos.x, screenPos.y);
-            graphics.vertex(screenPos.x + tileWidth / 2, screenPos.y + tileHeight / 2);
-            graphics.vertex(screenPos.x, screenPos.y + tileHeight);
-            graphics.vertex(screenPos.x - tileWidth / 2, screenPos.y + tileHeight / 2);
-            graphics.endShape(CLOSE);
+            // Draw tool preview using unified tile function
+            gridManager.drawTile(graphics, this.cursorX, this.cursorY, toolColors[this.selectedTool]);
         }
     }
     
@@ -334,22 +245,9 @@ class DebugUI {
         graphics.textSize(12);
     }
     
-    // Draw boundary zones (when B key is held)
+    // Draw boundary zones (when B key is held) using unified system
     drawBoundaryZones(graphics) {
-        graphics.push();
-        
-        // Draw expanding boundary zones
-        const bounds = gridManager.bounds;
-        
-        // Get corners of playable area
-        const corners = [
-            gridManager.isoToScreen(0, 0),
-            gridManager.isoToScreen(bounds.maxX, 0),
-            gridManager.isoToScreen(bounds.maxX, bounds.maxY),
-            gridManager.isoToScreen(0, bounds.maxY)
-        ];
-        
-        // Draw zones at different distances
+        // Define zone configuration
         const zones = [
             { dist: 0, color: [100, 255, 100, 50], label: "Safe" },
             { dist: 50, color: [255, 255, 100, 40], label: "Soft" },
@@ -357,32 +255,8 @@ class DebugUI {
             { dist: 150, color: [255, 100, 100, 20], label: "Max" }
         ];
         
-        graphics.noStroke();
-        
-        // Draw zones in reverse order (largest first)
-        for (let i = zones.length - 1; i >= 0; i--) {
-            const zone = zones[i];
-            graphics.fill(...zone.color);
-            
-            // Create expanded diamond shape
-            graphics.beginShape();
-            for (let j = 0; j < corners.length; j++) {
-                const corner = corners[j];
-                const next = corners[(j + 1) % corners.length];
-                
-                // Calculate outward normal
-                const dx = next.x - corner.x;
-                const dy = next.y - corner.y;
-                const len = sqrt(dx * dx + dy * dy);
-                const nx = -dy / len * zone.dist;
-                const ny = dx / len * zone.dist;
-                
-                graphics.vertex(corner.x + nx, corner.y + ny);
-            }
-            graphics.endShape(CLOSE);
-        }
-        
-        graphics.pop();
+        // Use unified boundary zone drawing
+        gridManager.drawBoundaryZones(graphics, zones);
     }
 }
 

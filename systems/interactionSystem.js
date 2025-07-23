@@ -11,6 +11,11 @@ class InteractionSystem {
         // Interaction thresholds from config
         this.stillFramesRequired = gameConfig.interaction.stillFramesRequired;
         this.cursorZoneRadius = gameConfig.interaction.cursorZoneRadius;
+        
+        // Gentle hover tracking
+        this.hoveredButterfly = null;
+        this.hoverFrames = 0;
+        this.hoverTriggered = false;
     }
     
     // Update cursor tracking and calculate interaction zones
@@ -89,27 +94,121 @@ class InteractionSystem {
     
     // Draw interaction UI elements
     drawInteractionHints(graphics) {
-        if (this.isGentle()) {
-            // Draw gentle cursor zone
+        // Draw hover progress indicator when hovering a butterfly
+        if (this.hoveredButterfly && this.hoverFrames > 0 && !this.hoverTriggered) {
+            const progress = this.hoverFrames / this.stillFramesRequired;
+            
+            // Draw a subtle progress ring around the cursor
+            graphics.push();
             graphics.noFill();
-            graphics.stroke(255, 255, 255, 50);
+            graphics.strokeWeight(2);
+            
+            // Fading in circle
+            const alpha = map(progress, 0, 0.3, 0, 100);
+            graphics.stroke(255, 255, 255, alpha);
+            graphics.ellipse(this.adjustedMouseX, this.adjustedMouseY, this.cursorZoneRadius * 2);
+            
+            // Progress arc
+            if (progress > 0.1) {
+                graphics.stroke(255, 255, 255, 120);
+                const startAngle = -PI/2;
+                const endAngle = startAngle + (progress * TWO_PI);
+                graphics.arc(
+                    this.adjustedMouseX, 
+                    this.adjustedMouseY, 
+                    this.cursorZoneRadius * 2 - 4, 
+                    this.cursorZoneRadius * 2 - 4,
+                    startAngle,
+                    endAngle
+                );
+            }
+            
+            graphics.pop();
+        } else if (this.isGentle() && !this.hoveredButterfly) {
+            // Draw gentle cursor zone when still but not hovering anything
+            graphics.noFill();
+            graphics.stroke(255, 255, 255, 30);
             graphics.strokeWeight(1);
             const radius = this.cursorZoneRadius + sin(frameCount * 0.05) * 5;
             graphics.ellipse(this.adjustedMouseX, this.adjustedMouseY, radius * 2);
-            
-            // Emit gentle hover events for nearby entities
-            // This would be called from the main game loop with entity lists
         }
     }
     
     // Check for butterfly interactions
     checkButterflyInteractions(butterflies) {
-        if (!this.isGentle()) return;
-        
+        // Find butterflies within range
         const nearbyButterflies = this.getEntitiesInRange(butterflies);
-        for (let butterfly of nearbyButterflies) {
-            eventBus.emit(GameEvents.GENTLE_HOVER, { butterfly });
+        
+        // Check if we're still hovering the same butterfly
+        if (this.hoveredButterfly && nearbyButterflies.includes(this.hoveredButterfly)) {
+            // Still hovering the same butterfly
+            if (this.isGentle()) {
+                this.hoverFrames++;
+                
+                // Check if we've hovered long enough and haven't triggered yet
+                if (this.hoverFrames >= this.stillFramesRequired && !this.hoverTriggered) {
+                    this.hoverTriggered = true;
+                    
+                    // Trigger the display animation
+                    this.hoveredButterfly.startDisplay();
+                    
+                    // Emit event
+                    eventBus.emit(GameEvents.GENTLE_HOVER, { 
+                        butterfly: this.hoveredButterfly,
+                        duration: this.hoverFrames
+                    });
+                    
+                    eventBus.emit(GameEvents.BUTTERFLY_DISPLAY, { 
+                        butterfly: this.hoveredButterfly 
+                    });
+                }
+            } else {
+                // Cursor is moving, reset hover
+                this.resetHover();
+            }
+        } else {
+            // Either no butterfly nearby or switched to a different one
+            this.resetHover();
+            
+            // Start tracking a new butterfly if there's one nearby
+            if (nearbyButterflies.length > 0 && this.isGentle()) {
+                // Pick the closest butterfly
+                let closestButterfly = nearbyButterflies[0];
+                let closestDist = closestButterfly.distanceTo(this.adjustedMouseX, this.adjustedMouseY);
+                
+                for (let butterfly of nearbyButterflies) {
+                    const dist = butterfly.distanceTo(this.adjustedMouseX, this.adjustedMouseY);
+                    if (dist < closestDist) {
+                        closestDist = dist;
+                        closestButterfly = butterfly;
+                    }
+                }
+                
+                // Only start hovering if butterfly hasn't been hovered recently
+                if (!closestButterfly.hasBeenHovered) {
+                    this.hoveredButterfly = closestButterfly;
+                    this.hoverFrames = 0;
+                    this.hoverTriggered = false;
+                }
+            }
         }
+        
+        // Reset butterflies that are no longer being hovered
+        for (let butterfly of butterflies) {
+            if (butterfly !== this.hoveredButterfly && butterfly.hasBeenHovered) {
+                const dist = butterfly.distanceTo(this.adjustedMouseX, this.adjustedMouseY);
+                if (dist > this.cursorZoneRadius * 2) {
+                    butterfly.resetHoverState();
+                }
+            }
+        }
+    }
+    
+    // Reset hover tracking
+    resetHover() {
+        this.hoveredButterfly = null;
+        this.hoverFrames = 0;
+        this.hoverTriggered = false;
     }
 }
 

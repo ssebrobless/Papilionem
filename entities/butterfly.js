@@ -24,6 +24,13 @@ class Butterfly extends Entity {
         
         this.pixelDropTimer = 0;
         this.lastPixelDrop = 0;
+        
+        // Gentle hover display state
+        this.state = 'normal'; // 'normal', 'display'
+        this.displayTimer = 0;
+        this.displayDuration = 180; // 3 seconds at 60fps
+        this.wingDisplaySpeed = 0.15; // Faster wing flapping during display
+        this.hasBeenHovered = false; // Track if already displayed to this cursor position
     }
     
     update(gameState) {
@@ -33,17 +40,23 @@ class Butterfly extends Entity {
         // Extract what we need from gameState
         const { flowers, particleSystem } = gameState;
         
-        // Simple wandering behavior
-        this.wander(flowers);
-        
-        // Move toward target
-        this.move();
+        // Handle display state
+        if (this.state === 'display') {
+            this.updateDisplay(particleSystem);
+        } else {
+            // Normal behavior when not displaying
+            // Simple wandering behavior
+            this.wander(flowers);
+            
+            // Move toward target
+            this.move();
+        }
         
         // Update wing animation
         this.updateWings();
         
-        // Occasionally drop pixels
-        if (frameCount % 120 === 0 && random() < 0.3) {
+        // Occasionally drop pixels in normal state
+        if (this.state === 'normal' && frameCount % 120 === 0 && random() < 0.3) {
             const color = random(this.colors);
             particleSystem.emit(this.x, this.y, color, 1, 'scale');
         }
@@ -65,7 +78,9 @@ class Butterfly extends Entity {
     }
     
     updateWings() {
-        this.wingAngle += this.wingSpeed;
+        // Use faster wing speed during display
+        const speed = this.state === 'display' ? this.wingDisplaySpeed : this.wingSpeed;
+        this.wingAngle += speed;
     }
     
     wander(flowers) {
@@ -255,6 +270,72 @@ class Butterfly extends Entity {
         graphics.fill(40, 30, 20);
         graphics.rect(-2, -5, 1, 2);
         graphics.rect(1, -5, 1, 2);
+    }
+    
+    // Start wing display animation
+    startDisplay() {
+        if (this.state === 'normal') {
+            this.state = 'display';
+            this.displayTimer = 0;
+            this.hasBeenHovered = true;
+        }
+    }
+    
+    // Update display state
+    updateDisplay(particleSystem) {
+        this.displayTimer++;
+        
+        // Emit joy pixels at specific intervals during display
+        if (this.displayTimer === 30 || this.displayTimer === 60 || this.displayTimer === 90) {
+            this.emitJoyPixels(particleSystem);
+        }
+        
+        // End display after duration
+        if (this.displayTimer >= this.displayDuration) {
+            this.state = 'normal';
+            this.displayTimer = 0;
+        }
+    }
+    
+    // Emit joy pixels during display
+    emitJoyPixels(particleSystem) {
+        const numPixels = floor(random(3, 6)); // 3-5 pixels
+        
+        for (let i = 0; i < numPixels; i++) {
+            // Use butterfly's colors for joy pixels
+            const color = random(this.colors);
+            
+            // Emit with slight random offset and upward velocity
+            const offsetX = random(-5, 5);
+            const offsetY = random(-5, 5);
+            
+            // Create joy pixel with upward motion
+            const pixel = particleSystem.emit(
+                this.x + offsetX, 
+                this.y + offsetY, 
+                color, 
+                1, 
+                'joy'
+            );
+            
+            // Add some upward velocity to joy pixels
+            if (pixel) {
+                pixel.vy = random(-2, -0.5);
+                pixel.vx = random(-0.5, 0.5);
+            }
+        }
+        
+        // Emit display event for other systems to react
+        eventBus.emit(GameEvents.BUTTERFLY_DROPPED_PIXELS, {
+            butterfly: this,
+            count: numPixels,
+            type: 'joy'
+        });
+    }
+    
+    // Reset hover state when cursor moves away
+    resetHoverState() {
+        this.hasBeenHovered = false;
     }
     
 }
