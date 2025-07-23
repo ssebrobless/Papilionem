@@ -44,7 +44,7 @@ class Flower extends Entity {
                 break;
             case 'lavender':
                 this.size = 6;
-                this.stemHeight = 16;
+                this.stemHeight = gameConfig.entities.flower.stemHeight;
                 this.stemCount = 3 + floor(random(3)); // 3-5 stems
                 this.petalStyle = 'vertical';
                 break;

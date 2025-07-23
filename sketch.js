@@ -66,9 +66,9 @@ function isWithinPlayableArea(x, y) {
     }
     
     // Fallback: define a diamond-shaped playable area based on the isometric grid
-    const config = window.gameConfig || { canvas: { baseWidth: 800, baseHeight: 450 }};
-    const centerX = config.canvas.baseWidth / 2;
-    const centerY = config.canvas.baseHeight / 2;
+    // Use unified config system - no fallbacks to prevent drift
+    const centerX = gameConfig.canvas.baseWidth / 2;
+    const centerY = gameConfig.canvas.baseHeight / 2;
     
     // Convert to relative position from center
     const relX = x - centerX;

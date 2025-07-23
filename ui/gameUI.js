@@ -14,13 +14,8 @@ class GameUI {
         this.interactionSystem = null;
         this.flowerManager = null;
         
-        // Visual elements configuration
-        this.cursorHint = {
-            size: 20,
-            pulseSpeed: 0.05,
-            rotationSpeed: 0.02,
-            alpha: 80
-        };
+        // Visual elements configuration  
+        // (cursor hint removed - redundant with interaction system feedback)
         
         this.infoPanel = {
             x: 10,
@@ -50,16 +45,13 @@ class GameUI {
         
         graphics.push();
         
-        // Draw cursor interaction hints when player is still
-        if (gameState.framesSinceMovement > this.stillFramesRequired) {
-            this.drawCursorHint(graphics, gameState);
-        }
+        // Cursor hints handled by interaction system - no duplicate rendering needed
         
         // Draw enhanced planting hints with ghost flower preview
         if (this.flowerManager && gameState.flowers) {
-            const config = window.config || { baseWidth: 800, baseHeight: 450, targetWidth: 800, targetHeight: 450 };
-            const adjustedMouseX = mouseX * (config.baseWidth / config.targetWidth);
-            const adjustedMouseY = mouseY * (config.baseHeight / config.targetHeight);
+            // Use unified coordinate system to prevent cursor tracking issues
+            const adjustedMouseX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
+            const adjustedMouseY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
             
             // Draw ghost flower preview when enough pollen is available
             if (this.flowerManager.pollenCount >= 5) {
@@ -81,27 +73,7 @@ class GameUI {
         graphics.pop();
     }
     
-    // Draw the rotating cursor hint when player is still
-    drawCursorHint(graphics, gameState) {
-        const config = window.config || { baseWidth: 800, baseHeight: 450, targetWidth: 800, targetHeight: 450 };
-        const adjustedMouseX = mouseX * (config.baseWidth / config.targetWidth);
-        const adjustedMouseY = mouseY * (config.baseHeight / config.targetHeight);
-        
-        graphics.push();
-        graphics.translate(adjustedMouseX, adjustedMouseY);
-        graphics.rotate(frameCount * this.cursorHint.rotationSpeed);
-        graphics.noFill();
-        graphics.stroke(255, 255, 255, this.cursorHint.alpha);
-        graphics.strokeWeight(2);
-        
-        // Pulsing diamond size
-        const size = this.cursorHint.size + sin(frameCount * this.cursorHint.pulseSpeed) * 4;
-        
-        // Use unified diamond drawing system
-        gridManager.drawDiamond(graphics, 0, 0, size, null, [255, 255, 255, this.cursorHint.alpha], 2);
-        
-        graphics.pop();
-    }
+    // Cursor hint removed - interaction system provides better contextual feedback
     
     // Draw boundary zones visualization using unified system
     drawBoundaryZones(graphics) {
@@ -186,24 +158,8 @@ class GameUI {
     
     // Helper function for isometric conversion (temporary until gridManager is available)
     isoToScreen(gridX, gridY) {
-        const config = {
-            gridSize: 16,
-            baseWidth: 800,
-            baseHeight: 450,
-            gridOffset: { x: 8, y: 8 }
-        };
-        
-        const tileWidth = config.gridSize * 2;
-        const tileHeight = config.gridSize;
-        
-        // Apply grid offset to align with background
-        const offsetX = gridX + config.gridOffset.x;
-        const offsetY = gridY + config.gridOffset.y;
-        
-        const screenX = (offsetX - offsetY) * tileWidth / 2 + config.baseWidth / 2;
-        const screenY = (offsetX + offsetY) * tileHeight / 2;
-        
-        return { x: screenX, y: screenY + tileHeight / 2 };
+        // Use unified grid system to prevent coordinate drift
+        return gridManager.isoToScreen(gridX, gridY);
     }
     
     // Helper to check if screen coordinates are within the playable area
@@ -215,9 +171,8 @@ class GameUI {
         }
         
         // Fallback: define a diamond-shaped playable area based on the isometric grid
-        const config = window.config || { baseWidth: 800, baseHeight: 450 };
-        const centerX = config.baseWidth / 2;
-        const centerY = config.baseHeight / 2;
+        const centerX = gameConfig.canvas.baseWidth / 2;
+        const centerY = gameConfig.canvas.baseHeight / 2;
         
         // Convert to relative position from center
         const relX = x - centerX;

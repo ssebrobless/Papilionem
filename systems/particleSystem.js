@@ -4,15 +4,7 @@
 // Import dependencies (assumes global availability)
 // Requires: config, gridManager, eventBus, GameEvents
 
-/**
- * Helper function to safely get config values with fallbacks
- */
-function safeGetConfig(path, fallback) {
-    if (typeof getConfig !== 'undefined') {
-        return getConfig(path) || fallback;
-    }
-    return fallback;
-}
+// safeGetConfig removed - use unified gameConfig to prevent drift
 
 /**
  * Individual pixel particle with physics and lifecycle
@@ -36,9 +28,10 @@ class Pixel {
         this.type = type;
         this.lifetime = this.getInitialLifetime();
         this.settled = false;
-        this.bounce = safeGetConfig('particles.bounce', 0.3);
-        this.friction = safeGetConfig('particles.friction', 0.99);
-        this.size = safeGetConfig('particles.pixelSize', 3) * 1.5; // Larger pixels for visibility
+        // Use unified config - no drift-prone fallbacks
+        this.bounce = gameConfig.particles.bounce;
+        this.friction = gameConfig.particles.friction;
+        this.size = gameConfig.particles.pixelSize * 1.5; // Larger pixels for visibility
     }
     
     calculateGroundTarget() {
@@ -67,13 +60,9 @@ class Pixel {
     }
     
     getInitialLifetime() {
-        if (typeof getConfig !== 'undefined') {
-            const typeConfig = getConfig(`particles.types.${this.type}`);
-            return typeConfig ? typeConfig.lifetime : 255;
-        }
-        // Legacy fallbacks
-        const lifetimes = { scale: -1, joy: 255, pollen: 400 };
-        return lifetimes[this.type] || 255;
+        // Use unified config system - no legacy fallbacks
+        const typeConfig = gameConfig.particles.types[this.type];
+        return typeConfig ? typeConfig.lifetime : 255;
     }
     
     update() {
@@ -113,13 +102,8 @@ class Pixel {
             gridPos = gridManager.screenToIso(this.x, this.y);
             isInBounds = gridManager.isInBounds(gridPos.x, gridPos.y);
             groundLevel = isInBounds ? gridManager.getGroundY(gridPos.x, gridPos.y) : null;
-        } else if (typeof screenToIso !== 'undefined') {
-            // Fallback to legacy functions
-            gridPos = screenToIso(this.x, this.y);
-            isInBounds = gridPos.x >= 0 && gridPos.x <= 18 && gridPos.y >= 0 && gridPos.y <= 18;
-            groundLevel = isInBounds ? isoToScreen(gridPos.x, gridPos.y).y : null;
         } else {
-            // Fallback to canvas bounds
+            // No legacy fallbacks - system should fail fast if gridManager unavailable
             isInBounds = false;
             groundLevel = null;
         }
@@ -132,7 +116,8 @@ class Pixel {
             }
         } else {
             // Fallback: use canvas height
-            const canvasHeight = safeGetConfig('canvas.baseHeight', 450);
+            // Use unified config - no hardcoded fallbacks  
+            const canvasHeight = gameConfig.canvas.baseHeight;
             if (this.y + this.size >= canvasHeight) {
                 this.y = canvasHeight - this.size;
                 this.settled = true;
@@ -144,7 +129,8 @@ class Pixel {
     }
     
     checkWallCollisions() {
-        const canvasWidth = safeGetConfig('canvas.baseWidth', 800);
+        // Use unified config - no hardcoded fallbacks
+        const canvasWidth = gameConfig.canvas.baseWidth;
         if (this.x <= 0 || this.x + this.size >= canvasWidth) {
             this.vx *= -this.bounce;
             this.x = constrain(this.x, 0, canvasWidth - this.size);
@@ -474,7 +460,8 @@ class ParticleSystem {
 class PoolManager {
     constructor() {
         this.pools = new Map();
-        this.gridSize = safeGetConfig('colorPools.gridSize', 40);
+        // Use unified config - no fallbacks to prevent drift
+        this.gridSize = gameConfig.colorPools.gridSize;
         this.setupEventListeners();
     }
     
@@ -571,7 +558,8 @@ class PoolManager {
             isInPlayableArea = isWithinPlayableArea(x, y);
         } else {
             // Fallback: assume valid if within canvas bounds
-            isInPlayableArea = x > 0 && x < 800 && y > 0 && y < 450;
+            // Use unified config - no hardcoded dimensions
+            isInPlayableArea = x > 0 && x < gameConfig.canvas.baseWidth && y > 0 && y < gameConfig.canvas.baseHeight;
         }
         
         if (isInPlayableArea) {

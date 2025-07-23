@@ -127,8 +127,8 @@ class GridMovable {
             this.gridPos.y += dy * this.speed;
         }
         
-        // Update screen position
-        const screenPos = isoToScreen(this.gridPos.x, this.gridPos.y);
+        // Update screen position using unified coordinate system
+        const screenPos = gridManager.isoToScreen(this.gridPos.x, this.gridPos.y);
         this.x = screenPos.x;
         this.y = screenPos.y;
     }
