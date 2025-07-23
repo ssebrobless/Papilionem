@@ -17,7 +17,13 @@ class GameCore {
             butterflies: [],
             flowers: [],
             initialized: false,
-            paused: false
+            paused: false,
+            encounteredButterflies: new Set(),
+            goldenButterflySpawned: false,
+            butterflySpawnCounts: {}, // Track spawn count per personality type
+            feedingCombo: 0, // Sequential feeding combo
+            lastFeedingTime: 0, // For combo tracking
+            maxCombo: 0 // Track best combo
         };
         
         // Debug mode state
@@ -259,8 +265,7 @@ class GameCore {
             throw new Error('Entity classes not found - ensure entities/*.js are loaded');
         }
         
-        // Create initial butterflies with rich colors (first one is immortal)
-        const butterflyColors = gameConfig.entities.butterfly.colors;
+        // Create initial butterflies - let personalities determine colors (first one is immortal)
         const startingButterflyCount = 2;
         
         for (let i = 0; i < startingButterflyCount; i++) {
@@ -268,14 +273,13 @@ class GameCore {
             const gridX = random(3, this.gridManager.bounds.maxX - 3);
             const gridY = random(3, this.gridManager.bounds.maxY - 3);
             const screenPos = this.gridManager.isoToScreen(gridX, gridY);
-            const colors = random(butterflyColors);
             
             // First butterfly is immortal to prevent ecosystem collapse
             const isImmortal = (i === 0);
             const butterfly = new Butterfly(
                 screenPos.x, 
                 screenPos.y - gameConfig.entities.heightOffset.butterfly, 
-                colors,
+                null, // Let personality determine colors
                 isImmortal
             );
             
@@ -294,7 +298,7 @@ class GameCore {
         const pool = this.poolManager.findOrCreatePool(poolScreenPos.x, poolScreenPos.y);
         
         if (pool) {
-            const poolColor = random(butterflyColors)[0];
+            const poolColor = random(gameConfig.entities.butterfly.colors)[0];
             for (let i = 0; i < 45; i++) {
                 pool.addPixel({
                     x: poolScreenPos.x + random(-15, 15),
@@ -342,6 +346,11 @@ class GameCore {
         // Update all game systems
         this.updateEntities();
         this.particleSystem.update();
+        
+        // Update special effects
+        if (typeof specialEffects !== 'undefined') {
+            specialEffects.update();
+        }
         
         // Occasionally spawn new flowers if conditions are met
         this.updateFlowerSpawning();
@@ -468,6 +477,12 @@ class GameCore {
     drawInfoPanel() {
         if (this.debugMode.enabled) return;
         
+        // Draw game completion message if complete
+        if (this.gameState.gameComplete) {
+            this.drawCompletionScreen();
+            return;
+        }
+        
         push();
         noStroke();
         fill(150);
@@ -485,6 +500,62 @@ class GameCore {
         
         for (let i = 0; i < info.length; i++) {
             text(info[i], 10, 20 + i * 15);
+        }
+        
+        pop();
+    }
+    
+    drawCompletionScreen() {
+        push();
+        
+        // Semi-transparent overlay
+        fill(0, 0, 0, 150);
+        rect(0, 0, width, height);
+        
+        // Completion message
+        textAlign(CENTER, CENTER);
+        
+        // Golden glow effect
+        const glowTime = frameCount * 0.05;
+        for (let i = 3; i > 0; i--) {
+            const alpha = 100 / i;
+            const size = 300 + sin(glowTime) * 50 * i;
+            noStroke();
+            fill(255, 215, 0, alpha);
+            ellipse(width/2, height/2 - 50, size, size * 0.7);
+        }
+        
+        // Main text
+        fill(255, 255, 255);
+        textSize(48);
+        text("🦋 Ephemera Complete 🦋", width/2, height/2 - 100);
+        
+        textSize(24);
+        fill(255, 215, 0);
+        text("You've befriended the legendary Golden Butterfly!", width/2, height/2 - 40);
+        
+        textSize(16);
+        fill(255);
+        text("All butterfly species discovered", width/2, height/2 + 20);
+        
+        // Show encountered butterflies
+        const encountered = Array.from(this.gameState.encounteredButterflies);
+        textSize(14);
+        text(`Butterflies encountered: ${encountered.length}`, width/2, height/2 + 60);
+        
+        textSize(12);
+        fill(200);
+        const typeList = encountered.join(', ');
+        text(typeList, width/2, height/2 + 90);
+        
+        // Sparkle effects
+        for (let i = 0; i < 20; i++) {
+            const sparkleX = width/2 + cos(glowTime + i) * 200;
+            const sparkleY = height/2 + sin(glowTime + i) * 150 - 50;
+            const sparkleSize = 2 + sin(glowTime * 2 + i) * 2;
+            fill(255, 255, 100, 200);
+            noStroke();
+            ellipse(sparkleX, sparkleY, sparkleSize, sparkleSize);
         }
         
         pop();
@@ -579,11 +650,10 @@ class GameCore {
         const screenPos = this.gridManager.isoToScreen(gridX, gridY);
         
         if (this.debugMode.selectedTool === 'butterfly') {
-            const colors = random(gameConfig.entities.butterfly.colors);
             const butterfly = new Butterfly(
                 screenPos.x, 
                 screenPos.y - gameConfig.entities.heightOffset.butterfly, 
-                colors
+                null // Let personality determine colors
             );
             this.gameState.butterflies.push(butterfly);
             this.entityManager.addEntity('butterflies', butterfly);
@@ -656,7 +726,7 @@ class GameCore {
         if (this.gameState.butterflies.length < gameConfig.entities.maxButterflies) {
             // If this is the first butterfly and none exist, make it immortal
             const isFirstButterfly = this.gameState.butterflies.length === 0;
-            const butterfly = new Butterfly(x, y, colors, isFirstButterfly);
+            const butterfly = new Butterfly(x, y, colors || null, isFirstButterfly); // Allow custom colors or use personality
             this.gameState.butterflies.push(butterfly);
             
             // Spawn burst effect

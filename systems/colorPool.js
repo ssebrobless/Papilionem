@@ -51,8 +51,13 @@ class MainColorPool {
             this.spawnButterfly(butterflies, particleSystem);
         }
         
-        // Glow intensity persists and accumulates (no decay)
-        // This creates a sense of inevitable progress as butterflies age
+        // Decay glow intensity only when there are more than 2 butterflies
+        // This makes spawning progressively harder as population grows
+        if (butterflies.length > 2 && this.glowIntensity > 0) {
+            // Decay rate scales with butterfly count
+            const decayRate = 0.05 + (butterflies.length - 3) * 0.02; // 0.05 base + 0.02 per butterfly over 3
+            this.glowIntensity = Math.max(0, this.glowIntensity - decayRate);
+        }
     }
     
     // Apply magnetic gravity to all particles
@@ -85,13 +90,30 @@ class MainColorPool {
                                (this.maxGravityStrength - this.minGravityStrength) * 
                                (1 - normalizedDistance * normalizedDistance);
         
-        // Apply force toward pool center
+        // Apply spiral force instead of direct attraction
         if (distance > 0) {
-            const forceX = (dx / distance) * gravityStrength;
-            const forceY = (dy / distance) * gravityStrength;
+            // Update spiral radius and angle
+            particle.spiralRadius = distance;
+            particle.orbitSpeed = gravityStrength * 2; // Faster near center
+            particle.orbitAngle += particle.orbitSpeed;
             
-            particle.vx += forceX;
-            particle.vy += forceY;
+            // Calculate tangential force for spiral motion
+            const tangentX = -dy / distance;
+            const tangentY = dx / distance;
+            
+            // Combine inward pull with tangential motion
+            const inwardForce = gravityStrength;
+            const tangentForce = gravityStrength * 0.5; // Spiral effect
+            
+            particle.vx += (dx / distance) * inwardForce + tangentX * tangentForce;
+            particle.vy += (dy / distance) * inwardForce + tangentY * tangentForce;
+            
+            // Increase speed as particles get closer (vortex effect)
+            if (distance < 50) {
+                const speedBoost = (50 - distance) / 50;
+                particle.vx *= (1 + speedBoost * 0.5);
+                particle.vy *= (1 + speedBoost * 0.5);
+            }
         }
         
         // Check if particle should be absorbed
@@ -102,18 +124,13 @@ class MainColorPool {
     
     // Check if position is within the pool's absorption zone
     isWithinAbsorptionZone(x, y) {
-        // Convert screen coordinates to grid coordinates
-        const gridPos = gridManager.screenToIso(x, y);
+        // Tighter absorption zone for dramatic final spiral
+        const dx = x - this.x;
+        const dy = y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // Check if within elliptical bounds
-        const dx = gridPos.x - this.gridCenter.x;
-        const dy = gridPos.y - this.gridCenter.y;
-        
-        // Elliptical bounds: (x-cx)²/rx² + (y-cy)²/ry² <= 1
-        const normalizedDistance = (dx * dx) / (this.gridRadius * this.gridRadius) + 
-                                  (dy * dy) / (this.gridRadius * this.gridRadius);
-        
-        return normalizedDistance <= 1;
+        // Very small absorption radius for dramatic effect
+        return distance < 8;
     }
     
     // Absorb a particle into the pool
@@ -155,19 +172,34 @@ class MainColorPool {
         
         const spawnScreen = gridManager.isoToScreen(clampedGridX, clampedGridY);
         
-        // Create new butterfly with mixed colors from absorbed pixels
-        const butterflyColors = this.getMixedColorsForButterfly();
+        // Check if we should spawn the golden butterfly
+        let personalityType = null;
+        if (this.shouldSpawnGoldenButterfly()) {
+            personalityType = 'golden';
+            console.log('🌟 GOLDEN BUTTERFLY SPAWNING!');
+        }
+        
+        // Create new butterfly - let personality determine colors
         // If this would be the first butterfly, make it immortal
         const isFirstButterfly = butterflies.length === 0;
         const newButterfly = new Butterfly(
             spawnScreen.x, 
             spawnScreen.y - gameConfig.entities.heightOffset.butterfly, 
-            butterflyColors,
-            isFirstButterfly
+            null, // Let personality determine colors
+            isFirstButterfly,
+            personalityType // Golden if conditions met, otherwise random
         );
         
         // Add butterfly to game
         butterflies.push(newButterfly);
+        
+        // Track encountered butterfly types
+        if (typeof gameCore !== 'undefined' && gameCore.gameState) {
+            gameCore.gameState.encounteredButterflies.add(newButterfly.personalityType);
+            if (newButterfly.personalityType === 'golden') {
+                gameCore.gameState.goldenButterflySpawned = true;
+            }
+        }
         
         // Create spawn animation effect
         particleSystem.emitBurst(this.x, this.y, [255, 255, 255], 12);
@@ -194,6 +226,27 @@ class MainColorPool {
         });
         
         console.log('🦋 Spawned butterfly from main color pool');
+    }
+    
+    // Check if conditions are met to spawn the golden butterfly
+    shouldSpawnGoldenButterfly() {
+        if (typeof gameCore === 'undefined' || !gameCore.gameState) return false;
+        
+        const state = gameCore.gameState;
+        
+        // Don't spawn if already spawned
+        if (state.goldenButterflySpawned) return false;
+        
+        // Check if all other butterfly types have been encountered
+        const requiredTypes = ['friendly', 'cautious', 'energetic', 'skittish', 'wise', 'mystic'];
+        for (let type of requiredTypes) {
+            if (!state.encounteredButterflies.has(type)) {
+                return false;
+            }
+        }
+        
+        // All types encountered, spawn golden butterfly!
+        return true;
     }
     
     // Generate mixed colors for new butterfly based on absorbed pixels
@@ -339,6 +392,14 @@ class MainColorPool {
                 pixel.vy = sin(angle) * speed - 0.5;
             }
         }
+        
+        // Add a magical fountain effect for spawn
+        particleSystem.emitFountain(x, y, [255, 215, 0], 30, 4); // Golden fountain
+        
+        // And a spiral for extra flair
+        setTimeout(() => {
+            particleSystem.emitSpiral(x, y, [255, 255, 255], 16);
+        }, 100);
     }
     
     // Draw glow effect based on intensity
@@ -373,17 +434,7 @@ class MainColorPool {
             const angle = map(progress, 0, 1, 0, TWO_PI);
             graphics.arc(0, 0, 90, 63, -HALF_PI, -HALF_PI + angle);
             
-            // Add flowing particles along the ring
-            if (progress > 0.1) {
-                const particleAngle = (frameCount * 0.02) % angle - HALF_PI;
-                const px = cos(particleAngle) * 45;
-                const py = sin(particleAngle) * 31.5;
-                graphics.push();
-                graphics.noStroke();
-                graphics.fill(255, 255, 255, 150);
-                graphics.ellipse(px, py, 8, 8);
-                graphics.pop();
-            }
+            // Removed flowing particle - too distracting
             
             graphics.pop();
         }

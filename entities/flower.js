@@ -27,53 +27,59 @@ class Flower extends Entity {
         const flowerTypes = ['daisy', 'tulip', 'bush', 'lavender', 'sprout'];
         this.flowerType = random(flowerTypes);
         
-        // Set properties based on flower type - appropriately sized
+        // Set properties based on flower type - larger and more visible
         switch(this.flowerType) {
             case 'daisy':
-                this.size = 10;
-                this.stemHeight = 12;
-                this.petalCount = 6;
+                this.size = 14; // Increased from 10
+                this.stemHeight = 16; // Increased from 12
+                this.petalCount = 8; // More petals
                 this.petalStyle = 'simple';
                 break;
             case 'tulip':
-                this.size = 11;
-                this.stemHeight = 14;
+                this.size = 15; // Increased from 11
+                this.stemHeight = 18; // Increased from 14
                 this.petalCount = 6;
                 this.petalStyle = 'cup';
                 break;
             case 'bush':
-                this.size = 8;
-                this.stemHeight = 4; // Very short, spreading
+                this.size = 12; // Increased from 8
+                this.stemHeight = 6; // Slightly taller
                 this.clusterCount = 3 + floor(random(3)); // 3-5 flower heads
-                this.petalCount = 5;
+                this.petalCount = 6; // More petals
                 this.petalStyle = 'cluster';
                 break;
             case 'lavender':
-                this.size = 6;
+                this.size = 8; // Increased from 6
                 this.stemHeight = gameConfig.entities.flower.stemHeight;
                 this.stemCount = 3 + floor(random(3)); // 3-5 stems
                 this.petalStyle = 'vertical';
                 break;
             case 'sprout':
-                this.size = 6;
-                this.stemHeight = 3; // Tiny, close to ground
-                this.petalCount = 4;
+                this.size = 10; // Increased from 6
+                this.stemHeight = 5; // Slightly taller
+                this.petalCount = 5; // More petals
                 this.petalStyle = 'tiny';
                 break;
         }
         
-        // Rich colors matching the background's painted aesthetic
+        // Vibrant colors with strong contrast against the background
         const flowerPalettes = [
-            { petals: [255, 182, 193], center: [255, 248, 220], accent: [255, 160, 170] }, // Soft pink
-            { petals: [255, 160, 200], center: [255, 220, 180], accent: [240, 140, 180] }, // Rose pink
-            { petals: [218, 160, 255], center: [255, 248, 200], accent: [200, 140, 240] }, // Lavender
-            { petals: [255, 200, 120], center: [255, 255, 200], accent: [240, 180, 100] }, // Peach
-            { petals: [200, 180, 255], center: [255, 240, 220], accent: [180, 160, 240] }  // Periwinkle
+            { petals: [255, 105, 180], center: [255, 255, 100], accent: [255, 20, 147], stemColor: [34, 139, 34] }, // Hot pink
+            { petals: [255, 69, 0], center: [255, 255, 0], accent: [255, 140, 0], stemColor: [0, 100, 0] }, // Bright orange
+            { petals: [148, 0, 211], center: [255, 255, 150], accent: [186, 85, 211], stemColor: [34, 139, 34] }, // Vivid purple
+            { petals: [255, 20, 147], center: [255, 255, 200], accent: [255, 105, 180], stemColor: [0, 128, 0] }, // Deep pink
+            { petals: [30, 144, 255], center: [255, 255, 255], accent: [0, 191, 255], stemColor: [34, 139, 34] }  // Bright blue
         ];
         const palette = random(flowerPalettes);
         this.petalColor = palette.petals;
         this.centerColor = palette.center;
         this.accentColor = palette.accent;
+        this.stemColor = palette.stemColor || [34, 139, 34]; // Default green if not specified
+        
+        // Ensure stemColor is always defined
+        if (!this.stemColor) {
+            this.stemColor = [34, 139, 34];
+        }
         
         this.pollenTimer = 0;
         this.pollenCooldown = 180;
@@ -90,6 +96,11 @@ class Flower extends Entity {
     
     update(gameState) {
         const { butterflies, particleSystem } = gameState;
+        
+        // Update golden blessing timer
+        if (this.goldenBlessing > 0) {
+            this.goldenBlessing--;
+        }
         
         // Immortal flowers are locked at mature stage and don't age AT ALL
         if (this.isImmortal) {
@@ -145,14 +156,91 @@ class Flower extends Entity {
             const dist = Math.hypot(butterfly.x - this.x, butterfly.y - this.y);
             
             if (dist < 20 && 
-                butterfly.state === 'resting' && 
+                butterfly.state === 'feeding' && 
                 butterfly !== this.lastVisitor &&
                 this.pollenTimer === 0) {
+                
+                // Special interactions based on butterfly personality
+                this.handleSpecialInteraction(butterfly, particleSystem);
                 
                 this.generatePollen(particleSystem);
                 this.lastVisitor = butterfly;
                 this.pollenTimer = this.pollenCooldown;
             }
+        }
+    }
+    
+    // Handle special interactions based on butterfly personality
+    handleSpecialInteraction(butterfly, particleSystem) {
+        if (!butterfly.personalityType) return;
+        
+        switch (butterfly.personalityType) {
+            case 'friendly':
+                // Friendly butterflies make flowers bloom more vibrantly
+                if (this.stage === 'mature' && frameCount % 60 === 0) {
+                    // Emit heart-shaped particles
+                    for (let i = 0; i < 3; i++) {
+                        const angle = random(TWO_PI);
+                        const dist = random(10, 20);
+                        const x = this.x + cos(angle) * dist;
+                        const y = this.y - this.stemHeight + sin(angle) * dist;
+                        const color = [255, 182, 193]; // Light pink
+                        particleSystem.emit(x, y, color, 1, 'joy');
+                    }
+                }
+                break;
+                
+            case 'cautious':
+                // Cautious butterflies make flowers last longer
+                if (this.stage === 'mature' && !this.isImmortal) {
+                    this.stageTimer = Math.max(0, this.stageTimer - 1); // Slow aging
+                }
+                break;
+                
+            case 'energetic':
+                // Energetic butterflies make flowers bloom faster
+                if (this.stage === 'bloom') {
+                    this.stageTimer += 60; // Speed up blooming
+                    particleSystem.emitBurst(this.x, this.y - this.stemHeight, [255, 200, 255], 5);
+                }
+                break;
+                
+            case 'skittish':
+                // Skittish butterflies create pollen explosions from excitement
+                if (random() < 0.3) {
+                    for (let i = 0; i < 5; i++) {
+                        particleSystem.emit(
+                            this.x + random(-15, 15), 
+                            this.y - this.stemHeight + random(-10, 10), 
+                            [250, 250, 200], 
+                            1, 
+                            'pollen'
+                        );
+                    }
+                }
+                break;
+                
+            case 'wise':
+                // Wise butterflies make flowers produce more pollen
+                this.generatePollen(particleSystem); // Extra pollen
+                break;
+                
+            case 'golden':
+                // Golden butterflies make flowers golden temporarily
+                this.goldenBlessing = 300; // 5 seconds of golden state
+                particleSystem.emitSpiral(this.x, this.y - this.stemHeight, [255, 215, 0], 16);
+                break;
+                
+            case 'mystic':
+                // Mystic butterflies create rainbow pollen
+                const rainbowColors = [
+                    [255, 0, 0], [255, 127, 0], [255, 255, 0],
+                    [0, 255, 0], [0, 0, 255], [75, 0, 130], [148, 0, 211]
+                ];
+                for (let i = 0; i < 3; i++) {
+                    particleSystem.emit(this.x, this.y - this.size, random(rainbowColors), 1, 'pollen');
+                }
+                break;
         }
     }
     
@@ -183,6 +271,16 @@ class Flower extends Entity {
         graphics.push();
         graphics.translate(this.x, this.y);
         
+        // Draw golden blessing effect
+        if (this.goldenBlessing > 0) {
+            this.drawGoldenBlessing(graphics);
+        }
+        
+        // Draw pulsing guide aura when butterflies are being led
+        if (this.shouldShowLeadingGuide()) {
+            this.drawLeadingGuideAura(graphics);
+        }
+        
         // Draw stem(s) based on flower type
         if (this.flowerType === 'lavender') {
             this.drawLavenderStems(graphics, alpha);
@@ -192,6 +290,35 @@ class Flower extends Entity {
         
         // Draw flower head(s)
         this.drawFlowerHead(graphics, alpha);
+        
+        graphics.pop();
+    }
+    
+    // Draw golden blessing effect
+    drawGoldenBlessing(graphics) {
+        graphics.push();
+        graphics.noStroke();
+        
+        const pulse = sin(frameCount * 0.1) * 0.3 + 0.7;
+        const alpha = (this.goldenBlessing / 300) * 100 * pulse;
+        
+        // Golden glow around entire flower
+        for (let i = 3; i > 0; i--) {
+            graphics.fill(255, 215, 0, alpha / i);
+            const size = (30 + i * 10) * pulse;
+            graphics.ellipse(0, -this.stemHeight, size, size * 0.7);
+        }
+        
+        // Golden sparkles
+        for (let i = 0; i < 5; i++) {
+            const angle = (TWO_PI / 5) * i + frameCount * 0.05;
+            const dist = 25 + sin(frameCount * 0.08 + i) * 5;
+            const x = cos(angle) * dist;
+            const y = sin(angle) * dist * 0.5 - this.stemHeight;
+            
+            graphics.fill(255, 255, 200, alpha * 2);
+            graphics.ellipse(x, y, 3, 3);
+        }
         
         graphics.pop();
     }
@@ -207,8 +334,13 @@ class Flower extends Entity {
             const stemX = sin(this.swayAngle) * bendAmount * 3 * this.swayAmount;
             const stemWidth = map(y, 0, this.stemHeight, 3, 1.5);
             
-            graphics.fill(80, 140, 80, alpha);
+            // Use vibrant stem color
+            graphics.fill(this.stemColor[0], this.stemColor[1], this.stemColor[2], alpha);
             graphics.rect(stemX - stemWidth/2, -y - 2, stemWidth, 2);
+            
+            // Add highlight for depth
+            graphics.fill(this.stemColor[0] + 30, this.stemColor[1] + 30, this.stemColor[2] + 30, alpha * 0.5);
+            graphics.rect(stemX - stemWidth/2 + 1, -y - 2, 1, 2);
         }
     }
     drawLavenderStems(graphics, alpha) {
@@ -219,11 +351,11 @@ class Flower extends Entity {
             graphics.push();
             graphics.translate(stemOffset, 0);
             
-            // Thin vertical stem with minimal sway only at top
-            graphics.fill(100, 120, 140, alpha);
+            // Thin vertical stem with vibrant color
             for (let y = 0; y < this.stemHeight; y += 2) {
                 const bendFactor = (y / this.stemHeight);
                 const x = sin(this.swayAngle + i * 0.3) * bendFactor * bendFactor * 2 * this.swayAmount;
+                graphics.fill(this.stemColor[0], this.stemColor[1], this.stemColor[2], alpha);
                 graphics.rect(x - 1, -y - 2, 2, 2);
             }
             
@@ -270,44 +402,90 @@ class Flower extends Entity {
     drawSimpleDaisy(graphics, alpha) {
         const petalSize = this.getPetalSize();
         
-        // Simplified petals - single pass
-        graphics.noStroke();
-        graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
+        // Dark outline for contrast
+        graphics.strokeWeight(2);
+        graphics.stroke(0, 0, 0, alpha * 0.3);
         
+        // Enhanced petals with better shape
         for (let i = 0; i < this.petalCount; i++) {
-            const angle = (TWO_PI / this.petalCount) * i;
-            const px = cos(angle) * petalSize * 0.4;
-            const py = sin(angle) * petalSize * 0.4;
-            graphics.ellipse(px, py, petalSize * 0.6, petalSize * 0.3);
+            const angle = (TWO_PI / this.petalCount) * i + this.petalPhase;
+            const petalWave = sin(frameCount * this.petalWaveSpeed + i) * 0.1 + 1;
+            
+            graphics.push();
+            graphics.rotate(angle);
+            
+            // Petal with gradient effect
+            graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
+            graphics.ellipse(petalSize * 0.5, 0, petalSize * 0.8 * petalWave, petalSize * 0.4);
+            
+            // Petal highlight
+            graphics.fill(255, 255, 255, alpha * 0.3);
+            graphics.ellipse(petalSize * 0.6, 0, petalSize * 0.3, petalSize * 0.2);
+            
+            graphics.pop();
         }
         
-        // Simple center
-        graphics.fill(255, 220, 100, alpha);
-        graphics.ellipse(0, 0, 4, 4);
+        // Prominent center
+        graphics.fill(this.centerColor[0], this.centerColor[1], this.centerColor[2], alpha);
+        graphics.ellipse(0, 0, 8, 8);
         
-        // Pollen ready indicator
+        // Center detail
+        graphics.fill(0, 0, 0, alpha * 0.2);
+        for (let i = 0; i < 5; i++) {
+            const angle = (TWO_PI / 5) * i;
+            graphics.ellipse(cos(angle) * 2, sin(angle) * 2, 2, 2);
+        }
+        
+        // Pollen ready glow
         if (this.stage === 'mature' && this.pollenTimer === 0) {
-            graphics.fill(255, 255, 220, 60);
-            graphics.ellipse(0, 0, 7, 7);
+            graphics.noStroke();
+            graphics.fill(255, 255, 100, alpha * 0.4);
+            graphics.ellipse(0, 0, 15, 15);
         }
     }
     
     drawSimpleTulip(graphics, alpha) {
         const petalSize = this.getPetalSize();
         
-        // Simplified tulip - just an elliptical flower head
-        graphics.noStroke();
+        // Tulip cup shape with dark outline
+        graphics.strokeWeight(2);
+        graphics.stroke(0, 0, 0, alpha * 0.3);
         graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
-        graphics.ellipse(0, 0, petalSize, petalSize * 1.2);
+        // Tulip cup with petals
+        for (let i = 0; i < this.petalCount; i++) {
+            const angle = (TWO_PI / this.petalCount) * i;
+            const petalWave = sin(frameCount * this.petalWaveSpeed * 0.5 + i) * 0.05 + 1;
+            
+            graphics.push();
+            graphics.rotate(angle);
+            
+            // Tulip petal shape (teardrop)
+            graphics.beginShape();
+            graphics.vertex(0, 0);
+            graphics.bezierVertex(
+                petalSize * 0.3, -petalSize * 0.2,
+                petalSize * 0.5, -petalSize * 0.6,
+                0, -petalSize * 0.8 * petalWave
+            );
+            graphics.bezierVertex(
+                -petalSize * 0.5, -petalSize * 0.6,
+                -petalSize * 0.3, -petalSize * 0.2,
+                0, 0
+            );
+            graphics.endShape(CLOSE);
+            
+            graphics.pop();
+        }
         
-        // Simple dark center
-        graphics.fill(40, 30, 20, alpha);
-        graphics.ellipse(0, 0, 3, 3);
+        // Dark center with detail
+        graphics.fill(this.centerColor[0] * 0.3, this.centerColor[1] * 0.3, this.centerColor[2] * 0.3, alpha);
+        graphics.ellipse(0, 0, 6, 6);
         
-        // Pollen ready indicator
+        // Pollen ready glow
         if (this.stage === 'mature' && this.pollenTimer === 0) {
-            graphics.fill(255, 240, 200, 50);
-            graphics.ellipse(0, 0, petalSize + 2, petalSize + 2);
+            graphics.noStroke();
+            graphics.fill(255, 240, 100, alpha * 0.5);
+            graphics.ellipse(0, 0, petalSize + 4, petalSize + 4);
         }
     }
     
@@ -325,12 +503,20 @@ class Flower extends Entity {
             graphics.translate(clusterX, clusterY);
             graphics.rotate(sway * 0.2);
             
-            // Simplified small flower - just petals and center
-            graphics.noStroke();
+            // Enhanced small flower with outline
+            graphics.strokeWeight(1);
+            graphics.stroke(0, 0, 0, alpha * 0.3);
             graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
-            graphics.ellipse(0, 0, 5, 5); // Simple circular flower head
             
-            // Tiny center
+            // Small petals
+            for (let j = 0; j < this.petalCount; j++) {
+                const petalAngle = (TWO_PI / this.petalCount) * j;
+                const px = cos(petalAngle) * 4;
+                const py = sin(petalAngle) * 4;
+                graphics.ellipse(px, py, 6, 4);
+            }
+            
+            // Bright center
             graphics.fill(this.centerColor[0], this.centerColor[1], this.centerColor[2], alpha);
             graphics.ellipse(0, 0, 2, 2);
             
@@ -445,6 +631,49 @@ class Flower extends Entity {
         const dist = Math.hypot(this.x - x, this.y - y);
         // Smaller spacing for smaller flowers
         return dist > 40;
+    }
+    
+    // Check if we should show the leading guide aura
+    shouldShowLeadingGuide() {
+        // Check if any butterfly is being led and this flower is available
+        let hasLedButterfly = false;
+        
+        // Try different ways to access butterflies
+        if (typeof window !== 'undefined' && window.gameState && window.gameState.butterflies) {
+            hasLedButterfly = window.gameState.butterflies.some(b => b.state === 'following');
+        } else if (typeof gameCore !== 'undefined' && gameCore.gameState && gameCore.gameState.butterflies) {
+            hasLedButterfly = gameCore.gameState.butterflies.some(b => b.state === 'following');
+        }
+        
+        return hasLedButterfly && this.stage !== 'dissolve' && !this.currentFeeder;
+    }
+    
+    // Draw pulsing aura to guide players when leading butterflies
+    drawLeadingGuideAura(graphics) {
+        graphics.push();
+        graphics.noFill();
+        
+        // Pulsing effect
+        const pulse = sin(frameCount * 0.08) * 0.3 + 0.7;
+        const baseSize = 40;
+        
+        // Multiple rings for visibility
+        for (let i = 2; i >= 0; i--) {
+            const size = baseSize + i * 15;
+            const alpha = 80 * pulse / (i + 1);
+            
+            // Soft green-yellow glow to indicate "feed here"
+            graphics.stroke(200, 255, 100, alpha);
+            graphics.strokeWeight(2);
+            graphics.ellipse(0, -this.stemHeight, size * pulse, size * 0.7 * pulse);
+        }
+        
+        // Central bright pulse
+        graphics.noStroke();
+        graphics.fill(220, 255, 150, 50 * pulse);
+        graphics.ellipse(0, -this.stemHeight, 25 * pulse, 18 * pulse);
+        
+        graphics.pop();
     }
 }
 

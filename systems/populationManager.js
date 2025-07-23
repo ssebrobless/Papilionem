@@ -234,7 +234,7 @@ class EntityManager {
             return null;
         }
         
-        const butterfly = new Butterfly(x, y, colors || random(gameConfig.entities.butterfly.colors));
+        const butterfly = new Butterfly(x, y, colors || null); // Allow custom colors or use personality
         this.addEntity('butterflies', butterfly);
         return butterfly;
     }

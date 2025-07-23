@@ -112,8 +112,8 @@ const gameConfig = {
                 fadeSpeed: 3   // Faster fade than joy pixels (more frantic)
             },
             happy: {
-                lifetime: 300, // Longer lifetime for happy pixels
-                fadeSpeed: 1   // Slow fade for happy pixels (persistent joy)
+                lifetime: -1, // Infinite lifetime until absorbed
+                fadeSpeed: 0  // No fade for happy pixels
             }
         }
     },

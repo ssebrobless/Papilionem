@@ -1,9 +1,196 @@
+// Butterfly personality profiles with distinctive colors and visual traits
+const BUTTERFLY_PERSONALITIES = {
+    // Common (40% spawn rate) - Warm and approachable
+    friendly: {
+        rarity: 'common',
+        traits: {
+            speed: 1.0,          // Normal speed
+            jitteriness: 0.5,    // Low - calm movement
+            trustPropensity: 1.5, // High - easy to befriend
+            trustSpeed: 1.2,     // Fast trust building
+            scareThreshold: 4.5, // High - forgiving of fast movement
+            happinessBonus: 1.0  // Normal happiness gain
+        },
+        colors: [[255, 165, 0], [255, 215, 0]],      // Bright orange and gold - warm and welcoming
+        size: 12,    // Standard size
+        wingPattern: 'solid',
+        description: "Friendly and trusting - warm orange butterflies"
+    },
+    
+    // Uncommon (30% spawn rate) - Soft and delicate
+    cautious: {
+        rarity: 'uncommon',
+        traits: {
+            speed: 0.8,          // Slower
+            jitteriness: 1.0,    // Normal
+            trustPropensity: 0.7, // Low - harder to befriend
+            trustSpeed: 0.8,     // Slow trust building
+            scareThreshold: 3.0, // Low - easily scared
+            happinessBonus: 1.2, // Slightly higher happiness when fed
+            special: 'sparkle'   // Leaves sparkle trail when happy
+        },
+        colors: [[255, 182, 193], [255, 20, 147]],   // Light pink and deep pink - cautious but beautiful
+        size: 10,    // Slightly smaller - more delicate
+        wingPattern: 'spots',
+        description: "Cautious but leaves sparkling trails - delicate pink butterflies"
+    },
+    
+    // Uncommon (30% spawn rate) - Electric and vibrant
+    energetic: {
+        rarity: 'uncommon',
+        traits: {
+            speed: 1.5,          // Fast
+            jitteriness: 1.8,    // High - zippy movement
+            trustPropensity: 1.0, // Normal
+            trustSpeed: 1.5,     // Fast but requires stillness
+            scareThreshold: 3.5, // Medium
+            happinessBonus: 0.8, // Lower happiness (burns energy)
+            special: 'speedzone' // Creates speed boost zones
+        },
+        colors: [[138, 43, 226], [75, 0, 130]],      // Blue violet and indigo - electric energy
+        size: 13,    // Slightly larger - more presence
+        wingPattern: 'lightning',
+        description: "Creates speed boost zones - electric purple butterflies"
+    },
+    
+    // Rare (20% spawn rate) - Nervous and unpredictable
+    skittish: {
+        rarity: 'rare',
+        traits: {
+            speed: 1.3,          // Fast
+            jitteriness: 2.0,    // Very high - erratic
+            trustPropensity: 0.5, // Very low
+            trustSpeed: 0.5,     // Very slow
+            scareThreshold: 2.0, // Very low - super jumpy
+            happinessBonus: 1.5, // High reward if you manage to feed
+            special: 'cascade'   // Trust cascade effect
+        },
+        colors: [[0, 255, 127], [32, 178, 170]],     // Spring green and dark turquoise - quick and fleeting
+        size: 11,    // Slightly smaller - nervous energy
+        wingPattern: 'jagged',
+        description: "Feeding creates trust cascade - nervous teal butterflies"
+    },
+    
+    // Rare (20% spawn rate) - Regal and composed
+    wise: {
+        rarity: 'rare',
+        traits: {
+            speed: 1.0,          // Normal speed (more fun than slow)
+            jitteriness: 0.3,    // Very low - graceful
+            trustPropensity: 0.8, // Medium-low
+            trustSpeed: 1.0,     // Normal but requires patience
+            scareThreshold: 5.0, // Very high - nearly unflappable
+            happinessBonus: 2.0, // Double happiness - wise feeding
+            special: 'teacher'   // Teaches nearby butterflies
+        },
+        colors: [[72, 61, 139], [106, 90, 205]],     // Dark slate blue and slate blue - deep wisdom
+        size: 14,    // Larger - commanding presence
+        wingPattern: 'ornate',
+        description: "Wise teacher - regal dark blue butterflies"
+    },
+    
+    // Epic (8% spawn rate) - Otherworldly and magical
+    mystic: {
+        rarity: 'epic',
+        traits: {
+            speed: 1.0,
+            jitteriness: 0.8,
+            trustPropensity: 0.6,
+            trustSpeed: 0.7,
+            scareThreshold: 3.5,
+            happinessBonus: 2.5,  // Very high happiness
+            special: 'shimmer'    // Visual effect
+        },
+        colors: [[218, 112, 214], [0, 255, 255]],    // Orchid and cyan - magical shimmer
+        size: 13,    // Elegant size
+        wingPattern: 'shimmer',
+        description: "Mystical butterfly with shimmering wings - magical pink-cyan butterflies"
+    },
+    
+    // Legendary (2% spawn rate) - Divine and magnificent
+    golden: {
+        rarity: 'legendary',
+        traits: {
+            speed: 0.8,
+            jitteriness: 0.5,
+            trustPropensity: 0.3,  // Very hard to befriend
+            trustSpeed: 0.4,       // Extremely slow
+            scareThreshold: 2.5,   // Moderately jumpy
+            happinessBonus: 5.0,   // Massive happiness bonus
+            special: 'golden'      // Special trust symbols
+        },
+        colors: [[255, 215, 0], [255, 255, 100]],  // Gold/bright yellow
+        size: 16,    // Largest - truly magnificent
+        wingPattern: 'golden',
+        description: "The legendary golden butterfly - divine golden magnificence"
+    }
+};
+
+// Original spawn percentages
+const BUTTERFLY_SPAWN_WEIGHTS = {
+    friendly: 40,
+    cautious: 15,
+    energetic: 15,
+    skittish: 10,
+    wise: 10,
+    mystic: 8,
+    golden: 2
+};
+
+// Get a random personality based on rarity weights with spawn limits
+function getRandomPersonality() {
+    // Get spawn counts from game state
+    const spawnCounts = (typeof gameCore !== 'undefined' && gameCore.gameState) ? 
+        gameCore.gameState.butterflySpawnCounts : {};
+    
+    // Filter out types that have spawned 3+ times
+    const availableTypes = {};
+    let totalWeight = 0;
+    
+    for (let [type, weight] of Object.entries(BUTTERFLY_SPAWN_WEIGHTS)) {
+        const count = spawnCounts[type] || 0;
+        if (count < 3) {
+            availableTypes[type] = weight;
+            totalWeight += weight;
+        }
+    }
+    
+    // If no types available (shouldn't happen), return friendly
+    if (totalWeight === 0) {
+        console.warn('All butterfly types at spawn limit!');
+        return 'friendly';
+    }
+    
+    // Roll within the adjusted total
+    const roll = random(totalWeight);
+    let cumulative = 0;
+    
+    for (let [type, weight] of Object.entries(availableTypes)) {
+        cumulative += weight;
+        if (roll < cumulative) {
+            // Track the spawn
+            if (typeof gameCore !== 'undefined' && gameCore.gameState) {
+                gameCore.gameState.butterflySpawnCounts[type] = (spawnCounts[type] || 0) + 1;
+            }
+            return type;
+        }
+    }
+    
+    // Fallback
+    return 'friendly';
+}
+
 class Butterfly extends Entity {
-    constructor(x, y, colors, isImmortal = false) {
+    constructor(x, y, colors, isImmortal = false, personalityType = null) {
         super(x, y);
         
-        // Override base properties
-        this.size = 12; // Smaller, cuter butterflies
+        // Personality system (must be set first to get size)
+        this.personalityType = personalityType || getRandomPersonality();
+        this.personality = BUTTERFLY_PERSONALITIES[this.personalityType];
+        this.traits = this.personality.traits;
+        
+        // Override base properties with personality-based values
+        this.size = this.personality.size || 12; // Personality-based size
         this.lifetime = 10000; // Long lifetime
         this.fadeStartLifetime = 2000;
         this.shadowOffset = gameConfig.entities.heightOffset.butterfly;
@@ -13,15 +200,19 @@ class Butterfly extends Entity {
         
         // Butterfly specific properties
         this.targetGridPos = {...this.gridPos};
-        this.colors = colors;
+        this.colors = colors || this.personality.colors;
+        this.wingPattern = this.personality.wingPattern || 'solid';
+        
+        // Log butterfly spawn for learning
+        console.log(`🦋 SPAWNED: ${this.personalityType} butterfly (${this.personality.rarity}) - ${this.personality.description}`);
         
         
         
         this.wingAngle = 0;
         this.wingSpeed = 0.05;
         
-        this.speed = 0.008; // Much slower movement
-        this.wanderTimer = random(60, 120); // How often to pick new destination
+        this.speed = 0.008 * this.traits.speed; // Base speed modified by personality
+        this.wanderTimer = random(60, 120) / this.traits.jitteriness; // Jittery butterflies change direction more
         
         // Goal-oriented movement
         this.goalGridPos = null; // Will be set on first update
@@ -40,9 +231,9 @@ class Butterfly extends Entity {
         // Movement response system
         this.scaredTimer = 0;
         this.scaredDuration = 120; // 2 seconds at 60fps
-        this.scareThreshold = 3.5; // Cursor velocity that triggers fear
+        this.scareThreshold = this.traits.scareThreshold; // Personality-based scare threshold
         this.scareRadius = 45; // Distance within which fast cursor scares butterfly
-        this.fleeSpeed = 0.025; // Faster movement when scared (vs normal 0.008)
+        this.fleeSpeed = 0.025 * this.traits.speed; // Flee speed based on personality
         this.wingScaredSpeed = 0.25; // Very fast frantic wing flapping when scared
         
         // Happiness system (0-100%, 30% is baseline)  
@@ -57,10 +248,16 @@ class Butterfly extends Entity {
         this.maxFeedingTime = 180; // 3 seconds at 60fps for balanced feeding
         this.targetFlower = null;
         this.feedingCooldowns = new Map(); // Track cooldowns per flower
-        this.feedingCooldownDuration = 600; // 10 seconds at 60fps
+        this.feedingCooldownDuration = 900; // 15 seconds at 60fps (increased from 10)
         this.minFeedingHappiness = 85; // Won't feed if happiness >= 85%
         this.postFeedingCooldown = 0; // Prevents immediate re-seeking after feeding
         this.postFeedingCooldownDuration = 300; // 5 seconds before seeking again
+        this.postFeedingLeadCooldown = 0; // Prevents being led immediately after feeding
+        this.postFeedingLeadCooldownDuration = 480; // 8 seconds before can be led again
+        
+        // Scare immunity after successful leading
+        this.scareImmunity = 0; // Prevents scaring after being successfully led to food
+        this.scareImmunityDuration = 120; // 2 seconds of immunity after being led to food
         
         // Happiness-based behavior
         this.happySpeed = 0.012; // Faster movement when happy
@@ -71,8 +268,8 @@ class Butterfly extends Entity {
         this.followingTimer = 0;
         this.maxFollowingTime = 600; // 10 seconds max following
         this.followDistance = 30; // Distance to maintain from cursor when following
-        this.interestRadius = 80; // Larger distance for easier interaction
-        this.patienceRequired = 90; // 1.5 seconds of gentle cursor presence (easier)
+        this.interestRadius = 80 * this.traits.trustPropensity; // Trust affects interaction distance
+        this.patienceRequired = 90 / this.traits.trustSpeed; // How long cursor must be still
         this.currentPatienceTimer = 0;
         this.trustLevel = 0; // 0-100, how much butterfly trusts the current cursor session
         this.trustGlowAlpha = 0; // Visual feedback for trust building
@@ -103,6 +300,11 @@ class Butterfly extends Entity {
         this.dashSpeed = 0.02; // Fast movement after feeding
         this.dashDuration = 120; // 2 seconds of fast movement
         this.dashTimer = 0;
+        
+        // Special ability effects
+        this.sparkleTrail = []; // For cautious butterflies
+        this.speedZoneTimer = 0; // For energetic butterflies
+        this.teachingAura = false; // For wise butterflies
     }
     
     update(gameState) {
@@ -127,6 +329,16 @@ class Butterfly extends Entity {
         // Update post-feeding cooldown
         if (this.postFeedingCooldown > 0) {
             this.postFeedingCooldown--;
+        }
+        
+        // Update post-feeding lead cooldown
+        if (this.postFeedingLeadCooldown > 0) {
+            this.postFeedingLeadCooldown--;
+        }
+        
+        // Update scare immunity timer
+        if (this.scareImmunity > 0) {
+            this.scareImmunity--;
         }
         
         // Update exclamation popup timer
@@ -221,6 +433,9 @@ class Butterfly extends Entity {
         
         // Emit particles based on happiness level
         this.updateParticleEmission(particleSystem);
+        
+        // Update special abilities based on personality
+        this.updateSpecialAbilities(gameState);
     }
     
     move() {
@@ -229,6 +444,30 @@ class Butterfly extends Entity {
         const gridDy = this.targetGridPos.y - this.gridPos.y;
         const distToTarget = sqrt(gridDx * gridDx + gridDy * gridDy);
         
+        
+        // Update speed boost timer
+        if (this.speedBoostTimer > 0) {
+            this.speedBoostTimer--;
+            if (this.speedBoostTimer <= 0) {
+                this.speedBoost = 1.0;
+            }
+        }
+        
+        // Update teaching timer
+        if (this.teachingTimer > 0) {
+            this.teachingTimer--;
+            if (this.teachingTimer <= 0) {
+                this.beingTaught = false;
+            }
+        }
+        
+        // Update trust boost timer
+        if (this.trustBoostTimer > 0) {
+            this.trustBoostTimer--;
+            if (this.trustBoostTimer <= 0) {
+                this.trustBoost = 1.0;
+            }
+        }
         
         // Calculate speed based on state and happiness
         let currentSpeed = this.speed;
@@ -256,6 +495,11 @@ class Butterfly extends Entity {
             currentSpeed = this.speed + (this.happySpeed - this.speed) * happinessRatio;
         }
         
+        // Apply speed boost if active
+        if (this.speedBoost && this.speedBoost > 1) {
+            currentSpeed *= this.speedBoost;
+        }
+        
         // Update grid position
         const oldX = this.gridPos.x;
         const oldY = this.gridPos.y;
@@ -272,6 +516,9 @@ class Butterfly extends Entity {
     
     // Check for fast cursor movement and respond accordingly
     checkMovementResponse(cursorVelocity, cursorX, cursorY, particleSystem) {
+        // Skip if butterfly has scare immunity
+        if (this.scareImmunity > 0) return;
+        
         // Only respond if not already in display state
         if (this.state === 'display') return;
         
@@ -375,7 +622,10 @@ class Butterfly extends Entity {
     
     // Emit darker stressed pixels when scared
     emitStressPixels(particleSystem) {
-        const numPixels = floor(random(2, 4)); // Fewer stress pixels than joy pixels
+        const numPixels = floor(random(3, 6)); // More stress pixels for visibility
+        
+        // Burst pattern for stress
+        const burstAngle = random(TWO_PI);
         
         for (let i = 0; i < numPixels; i++) {
             // Create darker, stressed version of butterfly colors
@@ -386,17 +636,26 @@ class Butterfly extends Entity {
                 Math.floor(baseColor[2] * 0.4)  // Much darker blue
             ];
             
-            // Add slight random offset
-            const offsetX = random(-8, 8);
-            const offsetY = random(-8, 8);
+            // Emit in a burst pattern away from threat
+            const angle = burstAngle + random(-PI/4, PI/4);
+            const distance = random(8, 15);
+            const offsetX = cos(angle) * distance;
+            const offsetY = sin(angle) * distance;
             
-            particleSystem.emit(
+            const pixel = particleSystem.emit(
                 this.x + offsetX,
                 this.y + offsetY,
                 stressColor,
                 1,
                 'stress' // New particle type for stress pixels
             );
+            
+            if (pixel) {
+                // Add outward velocity for dramatic effect
+                pixel.vx = cos(angle) * 1.5;
+                pixel.vy = sin(angle) * 1.5 + 0.5; // Slight downward bias
+                pixel.lifetime = 150; // Shorter lifetime for stress
+            }
         }
         
         // Emit stress event
@@ -428,6 +687,13 @@ class Butterfly extends Entity {
     
     // Meandering behavior for happy butterflies (>30% happiness)
     meander() {
+        // Jittery butterflies change direction more often
+        this.wanderTimer--;
+        if (this.wanderTimer <= 0) {
+            this.wanderTimer = random(60, 120) / this.traits.jitteriness;
+            this.meanderTarget = null; // Force new target
+        }
+        
         // If no meander target, pick one
         if (!this.meanderTarget) {
             this.pickMeanderTarget();
@@ -653,6 +919,34 @@ class Butterfly extends Entity {
         // Draw happiness aura/glow behind butterfly
         this.drawHappinessAura(graphics, alpha);
         
+        // Special golden crown/halo for legendary butterfly
+        if (this.personalityType === 'golden') {
+            graphics.push();
+            graphics.noStroke();
+            const goldenPulse = sin(frameCount * 0.05) * 0.2 + 0.8;
+            
+            // Crown/halo effect above butterfly
+            graphics.fill(255, 215, 0, 150 * goldenPulse);
+            graphics.ellipse(0, -10, 20 * goldenPulse, 8 * goldenPulse);
+            
+            // Three crown points
+            for (let i = -1; i <= 1; i++) {
+                graphics.push();
+                graphics.translate(i * 6, -12);
+                graphics.rotate(i * 0.2);
+                graphics.fill(255, 215, 0, 200 * goldenPulse);
+                graphics.beginShape();
+                graphics.vertex(0, 0);
+                graphics.vertex(-2, -4);
+                graphics.vertex(0, -6);
+                graphics.vertex(2, -4);
+                graphics.endShape(CLOSE);
+                graphics.pop();
+            }
+            
+            graphics.pop();
+        }
+        
         const wingFlap = sin(this.wingAngle);
         const wingSpread = map(wingFlap, -1, 1, 0.4, 1);
         const wingTilt = map(wingFlap, -1, 1, -0.2, 0.1);
@@ -684,6 +978,27 @@ class Butterfly extends Entity {
     
     // Draw happiness aura/glow behind butterfly
     drawHappinessAura(graphics, alpha) {
+        // Add shimmer effect for mystic butterflies
+        if (this.personalityType === 'mystic') {
+            const shimmerTime = frameCount * 0.1;
+            const shimmerAlpha = (sin(shimmerTime) * 0.3 + 0.7) * alpha;
+            graphics.push();
+            graphics.noStroke();
+            // Iridescent shimmer layers
+            for (let i = 3; i > 0; i--) {
+                const size = 30 * (i / 3);
+                const layerAlpha = shimmerAlpha * 0.3 / i;
+                const hue = (shimmerTime * 50 + i * 60) % 360;
+                // Convert HSB to RGB approximation
+                const r = sin(hue * PI/180) * 127 + 128;
+                const g = sin((hue + 120) * PI/180) * 127 + 128;
+                const b = sin((hue + 240) * PI/180) * 127 + 128;
+                graphics.fill(r, g, b, layerAlpha);
+                graphics.ellipse(0, 0, size, size * 0.7);
+            }
+            graphics.pop();
+        }
+        
         // Check for scared state first - red stress aura
         if (this.state === 'scared') {
             const stressPulse = sin(frameCount * 0.3) * 0.3 + 0.7;
@@ -763,15 +1078,9 @@ class Butterfly extends Entity {
         graphics.push();
         graphics.scale(spread, 1);
         
-        // Stardew Valley style wing - simpler, cuter, attached to body
-        const wingPattern = [
-            [0,0,1,1,1],
-            [0,1,1,1,1],
-            [1,1,1,1,1],
-            [1,1,1,1,0],
-            [1,1,1,0,0],
-            [0,1,0,0,0]
-        ];
+        // Get wing pattern based on personality
+        const wingPatterns = this.getWingPatterns();
+        const wingPattern = wingPatterns[this.wingPattern] || wingPatterns.solid;
         
         // Wing base position (attached to body)
         const startX = direction * 2;
@@ -780,26 +1089,12 @@ class Butterfly extends Entity {
         for (let y = 0; y < wingPattern.length; y++) {
             for (let x = 0; x < wingPattern[y].length; x++) {
                 if (wingPattern[y][x]) {
-                    // Main wing color - full opacity
-                    graphics.fill(this.colors[0][0], this.colors[0][1], this.colors[0][2]);
+                    // Get colors for this wing pattern type
+                    this.drawWingPixel(graphics, x, y, direction, wingPattern[y][x]);
                     
-                    // Add pattern spots
-                    if ((x === 2 && y === 2) || (x === 3 && y === 1)) {
-                        graphics.fill(this.colors[1][0], this.colors[1][1], this.colors[1][2]);
-                    }
-                    
-                    // Edge darkening for depth
-                    if (x === 0 || x === 4 || y === 5) {
-                        const dark = 0.8;
-                        graphics.fill(
-                            this.colors[0][0] * dark,
-                            this.colors[0][1] * dark,
-                            this.colors[0][2] * dark
-                        );
-                    }
-                    
-                    const pixelX = startX + (x * 2 * direction);
-                    const pixelY = startY + (y * 2) - 4;
+                    // Wing base position (attached to body)
+                    const pixelX = startX + (direction > 0 ? x : -x) * 2;
+                    const pixelY = startY + y * 2;
                     graphics.rect(pixelX, pixelY, 2, 2);
                 }
             }
@@ -807,6 +1102,118 @@ class Butterfly extends Entity {
         
         graphics.pop();
     }
+    
+    // Get wing patterns for different personality types
+    getWingPatterns() {
+        return {
+            solid: [
+                [0,0,1,1,1],
+                [0,1,1,1,1],
+                [1,1,1,1,1],
+                [1,1,1,1,0],
+                [1,1,1,0,0],
+                [0,1,0,0,0]
+            ],
+            spots: [
+                [0,0,1,1,1],
+                [0,1,2,1,1],
+                [1,2,1,2,1],
+                [1,1,2,1,0],
+                [1,1,1,0,0],
+                [0,1,0,0,0]
+            ],
+            lightning: [
+                [0,0,1,1,1],
+                [0,1,3,1,1],
+                [1,3,1,3,1],
+                [1,1,3,1,0],
+                [1,3,1,0,0],
+                [0,1,0,0,0]
+            ],
+            jagged: [
+                [0,0,1,0,1],
+                [0,1,0,1,1],
+                [1,0,1,0,1],
+                [1,1,0,1,0],
+                [1,0,1,0,0],
+                [0,1,0,0,0]
+            ],
+            ornate: [
+                [0,0,1,1,1],
+                [0,1,2,3,1],
+                [1,2,3,2,1],
+                [1,3,2,1,0],
+                [1,2,1,0,0],
+                [0,1,0,0,0]
+            ],
+            shimmer: [
+                [0,0,1,2,1],
+                [0,2,1,2,1],
+                [1,2,1,2,1],
+                [1,1,2,1,0],
+                [1,2,1,0,0],
+                [0,1,0,0,0]
+            ],
+            golden: [
+                [0,0,1,3,1],
+                [0,1,3,1,3],
+                [1,3,1,3,1],
+                [1,1,3,1,0],
+                [1,3,1,0,0],
+                [0,1,0,0,0]
+            ]
+        };
+    }
+    
+    // Draw individual wing pixel with pattern-specific coloring
+    drawWingPixel(graphics, x, y, direction, patternValue) {
+        switch (patternValue) {
+            case 1: // Base wing color
+                graphics.fill(this.colors[0][0], this.colors[0][1], this.colors[0][2]);
+                break;
+            case 2: // Secondary accent color
+                graphics.fill(this.colors[1][0], this.colors[1][1], this.colors[1][2]);
+                break;
+            case 3: // Special highlight/pattern color
+                if (this.wingPattern === 'golden') {
+                    // Golden sparkle effect
+                    const sparkle = sin(frameCount * 0.1 + x + y) * 0.3 + 0.7;
+                    graphics.fill(255, 255, 100 + sparkle * 155);
+                } else if (this.wingPattern === 'shimmer') {
+                    // Iridescent shimmer
+                    const shimmer = sin(frameCount * 0.05 + x * 0.5 + y * 0.3) * 0.5 + 0.5;
+                    graphics.fill(
+                        this.colors[0][0] * (0.5 + shimmer * 0.5),
+                        this.colors[1][1] * (0.5 + shimmer * 0.5),
+                        255 * shimmer
+                    );
+                } else if (this.wingPattern === 'lightning') {
+                    // Electric highlight
+                    graphics.fill(255, 255, 255);
+                } else {
+                    // Default accent
+                    const lighter = this.colors[1].map(c => Math.min(255, c * 1.2));
+                    graphics.fill(lighter[0], lighter[1], lighter[2]);
+                }
+                break;
+            default:
+                graphics.fill(this.colors[0][0], this.colors[0][1], this.colors[0][2]);
+        }
+        
+        // Apply edge darkening for depth
+        if (x === 0 || x === 4 || y === 5) {
+            const dark = 0.8;
+            const currentFill = graphics.drawingContext.fillStyle;
+            // Extract RGB values and darken them
+            graphics.fill(
+                this.colors[0][0] * dark,
+                this.colors[0][1] * dark,
+                this.colors[0][2] * dark
+            );
+        }
+    }
+    
+    // Continue from the rest of the original method that was truncated...
     
     drawBody(graphics) {
         // Cute pixel art body - full opacity
@@ -850,14 +1257,17 @@ class Butterfly extends Entity {
         graphics.pop();
     }
     
-    // Draw trust building indicator - soft green hearts
+    // Draw trust building indicator - soft green hearts (or golden stars for legendary)
     drawTrustIndicator(graphics) {
         graphics.push();
         
         const pulse = sin(frameCount * 0.1) * 0.2 + 0.8;
         const alpha = this.trustGlowAlpha * pulse;
         
-        // Draw small hearts floating up
+        // Use special symbols for golden butterfly
+        const isGolden = this.personalityType === 'golden';
+        
+        // Draw small symbols floating up
         for (let i = 0; i < 3; i++) {
             const angle = (TWO_PI / 3) * i + frameCount * 0.02;
             const distance = 15 + sin(frameCount * 0.05 + i) * 5;
@@ -868,16 +1278,37 @@ class Butterfly extends Entity {
             graphics.translate(x, y);
             graphics.scale(0.5);
             
-            // Draw simple heart shape
             graphics.noStroke();
-            graphics.fill(100, 255, 100, alpha);
-            graphics.beginShape();
-            graphics.vertex(0, -2);
-            graphics.bezierVertex(-3, -5, -6, -3, -6, 0);
-            graphics.bezierVertex(-6, 2, -3, 4, 0, 6);
-            graphics.bezierVertex(3, 4, 6, 2, 6, 0);
-            graphics.bezierVertex(6, -3, 3, -5, 0, -2);
-            graphics.endShape(CLOSE);
+            
+            if (isGolden) {
+                // Draw golden star for legendary butterfly
+                graphics.fill(255, 215, 0, alpha);
+                graphics.push();
+                graphics.rotate(frameCount * 0.05);
+                // Draw star shape
+                for (let j = 0; j < 5; j++) {
+                    const starAngle = (TWO_PI / 5) * j - HALF_PI;
+                    const innerAngle = starAngle + TWO_PI / 10;
+                    const outerRadius = 8;
+                    const innerRadius = 4;
+                    
+                    if (j === 0) graphics.beginShape();
+                    graphics.vertex(cos(starAngle) * outerRadius, sin(starAngle) * outerRadius);
+                    graphics.vertex(cos(innerAngle) * innerRadius, sin(innerAngle) * innerRadius);
+                }
+                graphics.endShape(CLOSE);
+                graphics.pop();
+            } else {
+                // Draw simple heart shape for normal butterflies
+                graphics.fill(100, 255, 100, alpha);
+                graphics.beginShape();
+                graphics.vertex(0, -2);
+                graphics.bezierVertex(-3, -5, -6, -3, -6, 0);
+                graphics.bezierVertex(-6, 2, -3, 4, 0, 6);
+                graphics.bezierVertex(3, 4, 6, 2, 6, 0);
+                graphics.bezierVertex(6, -3, 3, -5, 0, -2);
+                graphics.endShape(CLOSE);
+            }
             
             graphics.pop();
         }
@@ -913,9 +1344,25 @@ class Butterfly extends Entity {
     updateDisplay(particleSystem) {
         this.displayTimer++;
         
+        // Create a more dramatic display sequence
+        if (this.displayTimer === 1) {
+            // Initial burst when display starts
+            particleSystem.emitBurst(this.x, this.y, random(this.colors), 8);
+        }
+        
         // Emit joy pixels at specific intervals during display
         if (this.displayTimer === 30 || this.displayTimer === 60 || this.displayTimer === 90) {
             this.emitJoyPixels(particleSystem);
+        }
+        
+        // Fountain effect at peak of display
+        if (this.displayTimer === 45) {
+            particleSystem.emitFountain(this.x, this.y, random(this.colors), 15, 2.5);
+        }
+        
+        // Final spiral when display ends
+        if (this.displayTimer === this.displayDuration - 10) {
+            particleSystem.emitSpiral(this.x, this.y, random(this.colors), 12);
         }
         
         // End display after duration
@@ -1061,6 +1508,11 @@ class Butterfly extends Entity {
         const feedingRate = this.getFeedingRate(this.targetFlower);
         this.happiness = Math.min(this.maxHappiness, this.happiness + feedingRate);
         
+        // Emit golden particles when feeding from blessed flowers
+        if (this.targetFlower.goldenBlessing > 0 && frameCount % 10 === 0) {
+            particleSystem.emit(this.x, this.y, [255, 215, 0], 1, 'happy');
+        }
+        
         // Debug happiness changes
         if (Math.round(oldHappiness) !== Math.round(this.happiness)) {
             console.log(`🍯 HAPPINESS GAIN: ${Math.round(oldHappiness)}% → ${Math.round(this.happiness)}% (+${feedingRate.toFixed(3)}/frame from ${this.targetFlower.stage} flower)`);
@@ -1088,13 +1540,28 @@ class Butterfly extends Entity {
     
     // Get feeding rate based on flower stage (balanced for 3-second feeding sessions)
     getFeedingRate(flower) {
+        let baseRate = 0.125;
         switch (flower.stage) {
-            case 'bloom': return 0.125; // 22.5% over 3 seconds
-            case 'mature': return 0.167; // 30% over 3 seconds (full happiness boost)
-            case 'wilting': return 0.083; // 15% over 3 seconds  
-            case 'dissolve': return 0.042; // 7.5% over 3 seconds
-            default: return 0.125;
+            case 'bloom': baseRate = 0.125; break; // 22.5% over 3 seconds
+            case 'mature': baseRate = 0.167; break; // 30% over 3 seconds (full happiness boost)
+            case 'wilting': baseRate = 0.083; break; // 15% over 3 seconds  
+            case 'dissolve': baseRate = 0.042; break; // 7.5% over 3 seconds
         }
+        
+        // Apply personality happiness bonus
+        let rate = baseRate * this.traits.happinessBonus;
+        
+        // Apply golden blessing bonus if flower is blessed
+        if (flower.goldenBlessing > 0) {
+            rate *= 2.0; // Double feeding rate from blessed flowers
+        }
+        
+        // Apply teaching bonus if being taught
+        if (this.beingTaught) {
+            rate *= 1.5; // 50% faster when being taught
+        }
+        
+        return rate;
     }
     
     // End feeding state and set cooldown
@@ -1124,12 +1591,214 @@ class Butterfly extends Entity {
         // Set up post-feeding dash to prevent farming
         this.setPostFeedingDestination();
         
-        console.log(`🍯 FEEDING ENDED: Butterfly dashing away (post-feeding cooldown: ${this.postFeedingCooldownDuration} frames)`);
+        // Set lead cooldown to prevent immediate re-leading
+        this.postFeedingLeadCooldown = this.postFeedingLeadCooldownDuration;
+        
+        // Update combo system
+        if (typeof gameCore !== 'undefined' && gameCore.gameState) {
+            const now = frameCount;
+            const timeSinceLastFeed = now - gameCore.gameState.lastFeedingTime;
+            
+            // Combo window: 5 seconds (300 frames)
+            if (timeSinceLastFeed < 300) {
+                gameCore.gameState.feedingCombo++;
+                gameCore.gameState.maxCombo = Math.max(gameCore.gameState.maxCombo, gameCore.gameState.feedingCombo);
+                console.log(`🔥 COMBO x${gameCore.gameState.feedingCombo}!`);
+                
+                // Emit combo event for visual feedback
+                eventBus.emit('combo:achieved', {
+                    x: this.x,
+                    y: this.y,
+                    combo: gameCore.gameState.feedingCombo
+                });
+                
+                // Combo bonus particles
+                const comboParticles = gameCore.gameState.feedingCombo * 2;
+                particleSystem.emitBurst(this.x, this.y, [255, 255, 100], comboParticles);
+            } else {
+                gameCore.gameState.feedingCombo = 1;
+            }
+            
+            gameCore.gameState.lastFeedingTime = now;
+        }
+        
+        // Trigger special ability on feeding complete
+        if (this.traits.special === 'cascade' && this.targetFlower) {
+            const butterflies = gameCore ? gameCore.gameState.butterflies : [];
+            this.createTrustCascade(butterflies);
+        }
+        
+        console.log(`🍯 FEEDING ENDED: Butterfly dashing away (feeding cooldown: ${this.postFeedingCooldownDuration}, lead cooldown: ${this.postFeedingLeadCooldownDuration})`);
     }
     
     // Generate unique ID for flower (fallback if flower doesn't have id)
     getFlowerId(flower) {
         return `${Math.floor(flower.x)}_${Math.floor(flower.y)}`;
+    }
+    
+    // Update special abilities based on personality
+    updateSpecialAbilities(gameState) {
+        if (!this.traits.special) return;
+        
+        const { butterflies, particleSystem } = gameState;
+        
+        switch (this.traits.special) {
+            case 'sparkle':
+                this.updateSparkleTrail(particleSystem);
+                break;
+                
+            case 'speedzone':
+                this.updateSpeedZone(butterflies);
+                break;
+                
+            case 'teacher':
+                this.updateTeachingAura(butterflies);
+                break;
+                
+            case 'cascade':
+                // Handled in feeding completion
+                break;
+                
+            case 'shimmer':
+                // Visual effect handled in draw
+                break;
+        }
+    }
+    
+    // Cautious butterfly - leaves sparkle trail when happy
+    updateSparkleTrail(particleSystem) {
+        if (this.happiness <= this.baselineHappiness) return;
+        
+        // Add current position to trail
+        this.sparkleTrail.push({
+            x: this.x,
+            y: this.y,
+            life: 60 // 1 second
+        });
+        
+        // Update and emit sparkles from trail
+        for (let i = this.sparkleTrail.length - 1; i >= 0; i--) {
+            const sparkle = this.sparkleTrail[i];
+            sparkle.life--;
+            
+            // Emit sparkle particle every few frames
+            if (sparkle.life % 10 === 0) {
+                const pixel = particleSystem.emit(
+                    sparkle.x + random(-3, 3),
+                    sparkle.y + random(-3, 3),
+                    [255, 200, 255], // Pink sparkle
+                    1,
+                    'joy'
+                );
+                if (pixel) {
+                    pixel.lifetime = 100; // Short lived sparkles
+                    pixel.size = gameConfig.particles.pixelSize; // Smaller
+                }
+            }
+            
+            if (sparkle.life <= 0) {
+                this.sparkleTrail.splice(i, 1);
+            }
+        }
+        
+        // Limit trail length
+        if (this.sparkleTrail.length > 30) {
+            this.sparkleTrail.shift();
+        }
+    }
+    
+    // Energetic butterfly - creates speed zones
+    updateSpeedZone(butterflies) {
+        if (this.happiness <= this.baselineHappiness) return;
+        
+        this.speedZoneTimer++;
+        
+        // Create speed zone every 5 seconds
+        if (this.speedZoneTimer >= 300) {
+            this.speedZoneTimer = 0;
+            
+            // Boost nearby butterflies
+            for (let butterfly of butterflies) {
+                if (butterfly === this) continue;
+                
+                const dist = Math.hypot(this.x - butterfly.x, this.y - butterfly.y);
+                if (dist < 100) {
+                    // Give temporary speed boost
+                    butterfly.speedBoost = 1.5;
+                    butterfly.speedBoostTimer = 180; // 3 seconds
+                    
+                    // Visual feedback
+                    eventBus.emit('speedzone:created', {
+                        x: this.x,
+                        y: this.y,
+                        radius: 100
+                    });
+                }
+            }
+        }
+    }
+    
+    // Wise butterfly - teaches nearby butterflies
+    updateTeachingAura(butterflies) {
+        if (this.happiness <= 50) { // Need to be reasonably happy to teach
+            this.teachingAura = false;
+            return;
+        }
+        
+        this.teachingAura = true;
+        
+        // Emit teaching pulse periodically
+        if (!this.teachingPulseTimer) this.teachingPulseTimer = 0;
+        this.teachingPulseTimer++;
+        
+        if (this.teachingPulseTimer >= 120) { // Every 2 seconds
+            this.teachingPulseTimer = 0;
+            eventBus.emit('teaching:pulse', {
+                x: this.x,
+                y: this.y
+            });
+        }
+        
+        // Boost happiness gain of nearby butterflies
+        for (let butterfly of butterflies) {
+            if (butterfly === this) continue;
+            
+            const dist = Math.hypot(this.x - butterfly.x, this.y - butterfly.y);
+            if (dist < 80) {
+                // Mark butterfly as being taught (will affect feeding rate)
+                butterfly.beingTaught = true;
+                butterfly.teachingTimer = 10; // Reset teaching timer
+            }
+        }
+    }
+    
+    // Create trust cascade when skittish butterfly is fed
+    createTrustCascade(butterflies) {
+        console.log('🌊 TRUST CASCADE! Nearby butterflies become more trusting');
+        
+        const affectedButterflies = [];
+        
+        for (let butterfly of butterflies) {
+            if (butterfly === this) continue;
+            
+            const dist = Math.hypot(this.x - butterfly.x, this.y - butterfly.y);
+            if (dist < 150) {
+                // Temporarily boost trust
+                butterfly.trustBoost = 2.0;
+                butterfly.trustBoostTimer = 300; // 5 seconds
+                affectedButterflies.push(butterfly);
+            }
+        }
+        
+        // Visual feedback - green wave with affected butterflies
+        if (affectedButterflies.length > 0) {
+            eventBus.emit('trust:cascade', {
+                x: this.x,
+                y: this.y,
+                radius: 150,
+                butterflies: affectedButterflies
+            });
+        }
     }
     
     // Set post-feeding destination far from current location
@@ -1255,6 +1924,13 @@ class Butterfly extends Entity {
     startFeeding(flower) {
         console.log(`🍯 START FEEDING CALLED: Current state='${this.state}', happiness=${Math.round(this.happiness)}%`);
         
+        // If butterfly was being led to this flower, grant scare immunity
+        const wasBeingLed = this.state === 'following';
+        if (wasBeingLed) {
+            this.scareImmunity = this.scareImmunityDuration;
+            console.log(`🛡️ SCARE IMMUNITY GRANTED: ${this.scareImmunityDuration} frames after successful leading`);
+        }
+        
         this.state = 'feeding';
         this.targetFlower = flower;
         this.feedingTimer = 0;
@@ -1291,26 +1967,21 @@ class Butterfly extends Entity {
                 // Happy butterflies always emit, amount based on happiness
                 const happinessRatio = (this.happiness - this.baselineHappiness) / (this.maxHappiness - this.baselineHappiness);
                 
-                // More happiness = more particles
-                const particleCount = Math.ceil(happinessRatio * 3); // 1-3 particles
+                // More happiness = more particles (increased 2-3x)
+                const particleCount = Math.ceil(happinessRatio * 8); // 1-8 particles
                 
-                // Emit with some randomness in position
+                // Special effects for very happy butterflies
+                if (this.happiness > 95 && random() < 0.3) {
+                    // Fountain effect for extremely happy butterflies
+                    particleSystem.emitFountain(this.x, this.y, random(this.colors), 12, 2);
+                } else if (this.happiness > 85 && random() < 0.2) {
+                    // Spiral effect for very happy butterflies
+                    particleSystem.emitSpiral(this.x, this.y, random(this.colors), 8);
+                }
+                
+                // Regular happy particles
                 for (let i = 0; i < particleCount; i++) {
-                    const offsetX = random(-5, 5);
-                    const offsetY = random(-3, 3);
-                    const color = random(this.colors);
-                    const pixel = particleSystem.emit(this.x + offsetX, this.y + offsetY, color, 1, 'happy');
-                    
-                    // Add pop-out effect for visibility
-                    if (pixel) {
-                        // Override initial velocity for pop-out effect
-                        const popAngle = random(TWO_PI);
-                        const popSpeed = random(1, 2);
-                        pixel.vx = cos(popAngle) * popSpeed;
-                        pixel.vy = sin(popAngle) * popSpeed - 1; // Slight upward bias
-                        pixel.popOutDuration = 30; // 0.5 seconds of pop-out before attraction
-                        pixel.popOutTimer = 0;
-                    }
+                    particleSystem.emit(this.x + random(-5, 5), this.y + random(-3, 3), random(this.colors), 1, 'happy');
                 }
                 
                 // Silent emission - no console spam
@@ -1327,8 +1998,9 @@ class Butterfly extends Entity {
     
     // Handle cursor-based interaction system for leading butterflies
     handleCursorInteraction(cursorVelocity, cursorX, cursorY, particleSystem, gameState) {
-        // Skip cursor interactions if in certain states
-        if (this.state === 'scared' || this.state === 'display' || this.state === 'feeding') {
+        // Skip cursor interactions if in certain states or on cooldown
+        if (this.state === 'scared' || this.state === 'display' || this.state === 'feeding' || 
+            this.postFeedingLeadCooldown > 0) {
             this.resetCursorInteraction();
             return;
         }
@@ -1489,6 +2161,20 @@ class Butterfly extends Entity {
                     if (this.isFlowerAvailable(flower)) {
                         console.log(`🦋 USER-LED FEEDING: Starting at happiness ${Math.round(this.happiness)}%`);
                         this.startFeeding(flower);
+                        
+                        // Check for golden butterfly endgame
+                        if (this.personalityType === 'golden') {
+                            console.log('🌟 GOLDEN BUTTERFLY FED! GAME COMPLETE!');
+                            if (typeof gameCore !== 'undefined' && gameCore.gameState) {
+                                gameCore.gameState.gameComplete = true;
+                                // Emit special event for completion
+                                eventBus.emit('game:complete', {
+                                    butterfly: this,
+                                    flower: flower
+                                });
+                            }
+                        }
+                        
                         return; // Start feeding, exit following
                     }
                 }

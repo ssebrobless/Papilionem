@@ -239,6 +239,11 @@ class RenderManager {
             }
         }
         
+        // Draw special effects
+        if (typeof specialEffects !== 'undefined') {
+            specialEffects.draw(layer);
+        }
+        
         layer.pop();
     }
     

@@ -36,6 +36,11 @@ class Pixel {
         // Pop-out effect for happy pixels
         this.popOutDuration = 0;
         this.popOutTimer = 0;
+        
+        // Spiral physics for magnetic attraction
+        this.orbitAngle = random(TWO_PI);
+        this.orbitSpeed = 0;
+        this.spiralRadius = 0;
     }
     
     calculateGroundTarget() {
@@ -429,6 +434,39 @@ class ParticleSystem {
         }
     }
     
+    // Emit a fountain of particles
+    emitFountain(x, y, color, count = 20, height = 3) {
+        for (let i = 0; i < count; i++) {
+            if (this.particles.length < this.maxParticles) {
+                const angle = random(PI * 0.3, PI * 0.7); // Upward arc
+                const speed = random(2, 4) * height / 3;
+                const pixel = new Pixel(x + random(-2, 2), y, color, 'joy');
+                pixel.vx = cos(angle) * speed;
+                pixel.vy = -sin(angle) * speed; // Negative for upward
+                pixel.lifetime = 300 + random(100); // Longer lifetime
+                pixel.size = gameConfig.particles.pixelSize * random(0.8, 1.2);
+                this.particles.push(pixel);
+            }
+        }
+    }
+    
+    // Emit a spiral of particles
+    emitSpiral(x, y, color, count = 16) {
+        for (let i = 0; i < count; i++) {
+            if (this.particles.length < this.maxParticles) {
+                const angle = (TWO_PI / count) * i;
+                const speed = 2;
+                const pixel = new Pixel(x, y, color, 'joy');
+                pixel.vx = cos(angle) * speed;
+                pixel.vy = sin(angle) * speed;
+                pixel.orbitAngle = angle;
+                pixel.orbitSpeed = 0.1;
+                pixel.lifetime = 200;
+                this.particles.push(pixel);
+            }
+        }
+    }
+    
     update() {
         for (let i = this.particles.length - 1; i >= 0; i--) {
             const particle = this.particles[i];
@@ -545,8 +583,8 @@ class PoolManager {
             if (butterflies.length < maxButterflies && pool.consumeForSpawn()) {
                 const spawn = pool.getSpawnPosition();
                 
-                // Create new butterfly (assumes Butterfly class is globally available)
-                const newButterfly = new Butterfly(spawn.x, spawn.y, spawn.colors);
+                // Create new butterfly - let personality determine colors
+                const newButterfly = new Butterfly(spawn.x, spawn.y, null);
                 butterflies.push(newButterfly);
                 
                 // Create spawn effect
