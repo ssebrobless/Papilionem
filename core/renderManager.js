@@ -11,6 +11,12 @@ class RenderManager {
         
         this.initialized = false;
         this.backgroundImage = null;
+        
+        // Entity sorting cache with pre-allocated arrays
+        this.sortedEntities = [];
+        this.entitiesDirty = true;
+        this.lastEntityCount = 0;
+        this.entitySortingCache = []; // Pre-allocated array for sorting to avoid slice() allocation
     }
     
     // Initialize all render layers
@@ -109,15 +115,18 @@ class RenderManager {
         this.compositeLayers();
     }
     
+    // Mark entities as needing resort (call when entities move or spawn)
+    markEntitiesDirty() {
+        this.entitiesDirty = true;
+    }
+    
     // Draw entities layer
     drawEntitiesLayer() {
         const layer = this.layers.entities;
         layer.push();
         
-        // Draw all entity types with proper depth sorting
-        const allEntities = [];
-        
         // Collect all entities from either EntityManager or direct gameCore access
+        const allEntities = [];
         if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
             const state = gameCore.getGameState();
             allEntities.push(...state.flowers);
@@ -131,15 +140,32 @@ class RenderManager {
             if (gameState.butterflies) allEntities.push(...gameState.butterflies);
         }
         
-        // Sort by depth (isometric y position)
-        allEntities.sort((a, b) => {
-            const aY = a.gridPos ? a.gridPos.y : a.y;
-            const bY = b.gridPos ? b.gridPos.y : b.y;
-            return aY - bY;
-        });
+        // Check if we need to resort entities
+        if (this.entitiesDirty || this.lastEntityCount !== allEntities.length) {
+            // Reuse cached array instead of slice() to avoid allocation
+            this.entitySortingCache.length = 0; // Clear without allocation
+            for (let i = 0; i < allEntities.length; i++) {
+                this.entitySortingCache[i] = allEntities[i];
+            }
+            
+            // Sort by depth (isometric y position)
+            this.entitySortingCache.sort((a, b) => {
+                const aY = a.gridPos ? a.gridPos.y : a.y;
+                const bY = b.gridPos ? b.gridPos.y : b.y;
+                return aY - bY;
+            });
+            
+            // Swap the sorted cache with sortedEntities
+            const temp = this.sortedEntities;
+            this.sortedEntities = this.entitySortingCache;
+            this.entitySortingCache = temp;
+            
+            this.entitiesDirty = false;
+            this.lastEntityCount = allEntities.length;
+        }
         
         // Draw sorted entities
-        for (let entity of allEntities) {
+        for (let entity of this.sortedEntities) {
             entity.draw(layer);
         }
         
@@ -226,7 +252,7 @@ class RenderManager {
                     layer.noFill();
                     layer.stroke(255, 255, 255, 50);
                     layer.strokeWeight(1);
-                    const radius = gameConfig.interaction.cursorZoneRadius + sin(frameCount * 0.05) * 5;
+                    const radius = gameConfig.interaction.cursorZoneRadius + sinFrame(frameCount, 0.05) * 5;
                     layer.ellipse(adjustedMouseX, adjustedMouseY, radius * 2);
                 }
                 

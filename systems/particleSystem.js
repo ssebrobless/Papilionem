@@ -586,6 +586,10 @@ class ParticleSystem {
         
         // Performance tracking
         this.useBatchedRendering = true; // Can be toggled for debugging
+        
+        // Pre-allocated color arrays for common particle effects
+        this.whiteColor = [255, 255, 255];
+        this.isometricAngles = [PI/4, 3*PI/4, 5*PI/4, 7*PI/4]; // Pre-calculated diagonal directions
         this.renderStats = {
             lastBatchCount: 0,
             lastParticleCount: 0,
@@ -622,9 +626,8 @@ class ParticleSystem {
     emitBurst(x, y, color, count = 5) {
         for (let i = 0; i < count; i++) {
             if (this.particles.length < this.maxParticles) {
-                // Emit particles in isometric pattern
-                const isoAngles = [PI/4, 3*PI/4, 5*PI/4, 7*PI/4]; // Diagonal directions
-                const baseAngle = random(isoAngles);
+                // Emit particles in isometric pattern using pre-allocated angles
+                const baseAngle = random(this.isometricAngles);
                 const angle = baseAngle + random(-0.3, 0.3);
                 const speed = random(1.5, 3);
                 const pixel = new Pixel(x, y, color, 'joy');
@@ -832,8 +835,8 @@ class PoolManager {
                 const newButterfly = new Butterfly(spawn.x, spawn.y, null);
                 butterflies.push(newButterfly);
                 
-                // Create spawn effect
-                particleSystem.emitBurst(spawn.x, spawn.y, [255, 255, 255], 12);
+                // Create spawn effect using pre-allocated white color
+                particleSystem.emitBurst(spawn.x, spawn.y, particleSystem.whiteColor, 12);
                 
                 // Emit events
                 if (typeof eventBus !== 'undefined' && typeof GameEvents !== 'undefined') {

@@ -98,7 +98,7 @@ class BushFlower extends FlowerArchetype {
     }
     
     draw(graphics, flower, alpha) {
-        const sway = sin(flower.swayAngle) * flower.swayAmount;
+        const sway = sinSway(flower.swayAngle) * flower.swayAmount;
         
         // Draw multiple flower heads in a natural cluster pattern
         for (let i = 0; i < flower.clusterCount; i++) {

@@ -24,6 +24,14 @@ class MainColorPool {
         this.pulseTimer = 0;
         this.pulseSpeed = 0.05;
         
+        // Pre-allocated color arrays for spawn effects
+        this.whiteParticleColor = [255, 255, 255];
+        this.spawnEffectColors = [
+            [255, 220, 200],
+            [220, 255, 150],
+            [200, 150, 255]
+        ];
+        
         // Gravity properties
         this.minGravityStrength = 0.002; // Minimum attraction force
         this.maxGravityStrength = 0.05;  // Maximum attraction force
@@ -392,10 +400,10 @@ class MainColorPool {
             const angle = (TWO_PI / numParticles) * i;
             const speed = random(2, 4);
             
-            // Alternate between white and pool-colored particles
+            // Alternate between white and pre-allocated pool-colored particles
             const color = i % 2 === 0 ? 
-                [255, 255, 255] : 
-                [200 + random(55), 120 + random(100), 100 + random(50)];
+                this.whiteParticleColor : 
+                random(this.spawnEffectColors);
             
             const pixel = particleSystem.emit(x, y, color, 1, 'joy');
             if (pixel) {

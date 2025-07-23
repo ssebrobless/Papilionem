@@ -305,6 +305,9 @@ class Butterfly extends Entity {
         this.sparkleTrail = []; // For cautious butterflies
         this.speedZoneTimer = 0; // For energetic butterflies
         this.teachingAura = false; // For wise butterflies
+        
+        // Pre-allocated array for trust cascade to avoid frequent allocation
+        this.trustCascadeCache = [];
     }
     
     update(gameState) {
@@ -388,8 +391,9 @@ class Butterfly extends Entity {
                     this.targetGridPos.y = this.goalGridPos.y;
                     
                     // Check if we've reached the target flower
-                    const distToGoal = Math.hypot(this.gridPos.x - this.goalGridPos.x, this.gridPos.y - this.goalGridPos.y);
-                    if (distToGoal < 0.5) { // Within half a grid unit
+                    const dx = this.gridPos.x - this.goalGridPos.x;
+                    const dy = this.gridPos.y - this.goalGridPos.y;
+                    if (dx*dx + dy*dy < 0.25) { // Within half a grid unit (0.5^2 = 0.25)
                         // Find the flower at our goal and start feeding
                         const targetFlower = this.findFlowerAtGoal(flowers);
                         if (targetFlower && this.isFlowerAvailable(targetFlower)) {
@@ -523,10 +527,12 @@ class Butterfly extends Entity {
         if (this.state === 'display') return;
         
         // Calculate distance to cursor
-        const distToCursor = Math.hypot(this.x - cursorX, this.y - cursorY);
+        const dx = this.x - cursorX;
+        const dy = this.y - cursorY;
+        const distToCursorSq = dx*dx + dy*dy;
         
         // If cursor is moving fast and nearby, get scared
-        if (cursorVelocity > this.scareThreshold && distToCursor < this.scareRadius) {
+        if (cursorVelocity > this.scareThreshold && distToCursorSq < this.scareRadius * this.scareRadius) {
             if (this.state !== 'scared') {
                 this.startScared(cursorX, cursorY);
                 this.emitStressPixels(particleSystem);
@@ -614,8 +620,10 @@ class Butterfly extends Entity {
     // Continue fleeing behavior during scared state
     fleeFromCursor(cursorX, cursorY) {
         // Update flee target if cursor is still too close
-        const distToCursor = Math.hypot(this.x - cursorX, this.y - cursorY);
-        if (distToCursor < this.scareRadius * 0.7) {
+        const dx = this.x - cursorX;
+        const dy = this.y - cursorY;
+        const scareThreshold = this.scareRadius * 0.7;
+        if (dx*dx + dy*dy < scareThreshold * scareThreshold) {
             this.setFleeTarget(cursorX, cursorY);
         }
     }
@@ -700,13 +708,11 @@ class Butterfly extends Entity {
         }
         
         // Calculate distance to current target
-        const distToTarget = Math.hypot(
-            this.meanderTarget.x - this.gridPos.x,
-            this.meanderTarget.y - this.gridPos.y
-        );
+        const dx = this.meanderTarget.x - this.gridPos.x;
+        const dy = this.meanderTarget.y - this.gridPos.y;
         
         // Check if we've reached the target (within 0.5 grid units)
-        if (distToTarget < 0.5) {
+        if (dx*dx + dy*dy < 0.25) { // 0.5^2 = 0.25
             this.pickMeanderTarget(); // Pick new target when reached
             return;
         }
@@ -923,7 +929,7 @@ class Butterfly extends Entity {
         if (this.personalityType === 'golden') {
             graphics.push();
             graphics.noStroke();
-            const goldenPulse = sin(frameCount * 0.05) * 0.2 + 0.8;
+            const goldenPulse = sinFrame(frameCount, 0.05) * 0.2 + 0.8;
             
             // Crown/halo effect above butterfly
             graphics.fill(255, 215, 0, 150 * goldenPulse);
@@ -947,7 +953,7 @@ class Butterfly extends Entity {
             graphics.pop();
         }
         
-        const wingFlap = sin(this.wingAngle);
+        const wingFlap = sinWing(this.wingAngle);
         const wingSpread = map(wingFlap, -1, 1, 0.4, 1);
         const wingTilt = map(wingFlap, -1, 1, -0.2, 0.1);
         
@@ -1065,7 +1071,7 @@ class Butterfly extends Entity {
         
         // Add a subtle pulse effect for very happy butterflies
         if (happinessRatio > 0.8) {
-            const pulse = sin(frameCount * 0.1) * 0.2 + 0.8;
+            const pulse = sinFrame(frameCount, 0.1) * 0.2 + 0.8;
             const pulseSize = auraSize * pulse;
             graphics.fill(255, 255, 255, auraAlpha * 0.3 * pulse);
             graphics.ellipse(0, 0, pulseSize, pulseSize * 0.7);
@@ -1261,7 +1267,7 @@ class Butterfly extends Entity {
     drawTrustIndicator(graphics) {
         graphics.push();
         
-        const pulse = sin(frameCount * 0.1) * 0.2 + 0.8;
+        const pulse = sinFrame(frameCount, 0.1) * 0.2 + 0.8;
         const alpha = this.trustGlowAlpha * pulse;
         
         // Use special symbols for golden butterfly
@@ -1496,8 +1502,9 @@ class Butterfly extends Entity {
         }
         
         // Check if we're still close enough to the flower
-        const distToFlower = Math.hypot(this.x - this.targetFlower.x, this.y - this.targetFlower.y);
-        if (distToFlower > 25) { // Lost contact with flower
+        const dx = this.x - this.targetFlower.x;
+        const dy = this.y - this.targetFlower.y;
+        if (dx*dx + dy*dy > 625) { // Lost contact with flower (25^2 = 625)
             console.log(`🍯 FEEDING END: Too far from flower (distance: ${distToFlower.toFixed(1)})`);
             this.endFeeding(particleSystem);
             return;
@@ -1721,8 +1728,9 @@ class Butterfly extends Entity {
             for (let butterfly of butterflies) {
                 if (butterfly === this) continue;
                 
-                const dist = Math.hypot(this.x - butterfly.x, this.y - butterfly.y);
-                if (dist < 100) {
+                const dx = this.x - butterfly.x;
+                const dy = this.y - butterfly.y;
+                if (dx*dx + dy*dy < 10000) { // 100^2 = 10000
                     // Give temporary speed boost
                     butterfly.speedBoost = 1.5;
                     butterfly.speedBoostTimer = 180; // 3 seconds
@@ -1763,8 +1771,9 @@ class Butterfly extends Entity {
         for (let butterfly of butterflies) {
             if (butterfly === this) continue;
             
-            const dist = Math.hypot(this.x - butterfly.x, this.y - butterfly.y);
-            if (dist < 80) {
+            const dx = this.x - butterfly.x;
+            const dy = this.y - butterfly.y;
+            if (dx*dx + dy*dy < 6400) { // 80^2 = 6400
                 // Mark butterfly as being taught (will affect feeding rate)
                 butterfly.beingTaught = true;
                 butterfly.teachingTimer = 10; // Reset teaching timer
@@ -1776,27 +1785,29 @@ class Butterfly extends Entity {
     createTrustCascade(butterflies) {
         console.log('🌊 TRUST CASCADE! Nearby butterflies become more trusting');
         
-        const affectedButterflies = [];
+        // Use pre-allocated cache array to avoid allocation
+        this.trustCascadeCache.length = 0; // Clear without allocation
         
         for (let butterfly of butterflies) {
             if (butterfly === this) continue;
             
-            const dist = Math.hypot(this.x - butterfly.x, this.y - butterfly.y);
-            if (dist < 150) {
+            const dx = this.x - butterfly.x;
+            const dy = this.y - butterfly.y;
+            if (dx*dx + dy*dy < 22500) { // 150^2 = 22500
                 // Temporarily boost trust
                 butterfly.trustBoost = 2.0;
                 butterfly.trustBoostTimer = 300; // 5 seconds
-                affectedButterflies.push(butterfly);
+                this.trustCascadeCache.push(butterfly);
             }
         }
         
         // Visual feedback - green wave with affected butterflies
-        if (affectedButterflies.length > 0) {
+        if (this.trustCascadeCache.length > 0) {
             eventBus.emit('trust:cascade', {
                 x: this.x,
                 y: this.y,
                 radius: 150,
-                butterflies: affectedButterflies
+                butterflies: this.trustCascadeCache
             });
         }
     }
@@ -1859,8 +1870,9 @@ class Butterfly extends Entity {
         
         for (let flower of flowers) {
             const flowerGrid = gridManager.screenToIso(flower.x, flower.y);
-            const dist = Math.hypot(flowerGrid.x - this.goalGridPos.x, flowerGrid.y - this.goalGridPos.y);
-            if (dist < 1) { // Close enough to be the same flower
+            const dx = flowerGrid.x - this.goalGridPos.x;
+            const dy = flowerGrid.y - this.goalGridPos.y;
+            if (dx*dx + dy*dy < 1) { // Close enough to be the same flower (1^2 = 1)
                 return flower;
             }
         }
@@ -2018,10 +2030,12 @@ class Butterfly extends Entity {
             return;
         }
         
-        const distToCursor = Math.hypot(this.x - cursorX, this.y - cursorY);
+        const dx = this.x - cursorX;
+        const dy = this.y - cursorY;
+        const distToCursorSq = dx*dx + dy*dy;
         
         // Check if cursor is within interest radius
-        if (distToCursor <= this.interestRadius) {
+        if (distToCursorSq <= this.interestRadius * this.interestRadius) {
             // Check if another butterfly is already being interacted with
             if (!this.canInteractWithCursor(gameState.butterflies || [])) {
                 this.resetCursorInteraction();
@@ -2152,10 +2166,13 @@ class Butterfly extends Entity {
     updateFollowing(cursorX, cursorY, particleSystem, flowers) {
         this.followingTimer++;
         
-        const distToCursor = Math.hypot(this.x - cursorX, this.y - cursorY);
+        const dx = this.x - cursorX;
+        const dy = this.y - cursorY;
+        const distToCursorSq = dx*dx + dy*dy;
+        const maxDistThreshold = this.interestRadius * 1.5;
         
         // End following if cursor moved too fast or too far away
-        if (distToCursor > this.interestRadius * 1.5) {
+        if (distToCursorSq > maxDistThreshold * maxDistThreshold) {
             this.endFollowing('tooFar');
             return;
         }
@@ -2169,8 +2186,9 @@ class Butterfly extends Entity {
         // Check for user-led feeding opportunities (≤85% happiness)
         if (this.happiness < this.minFeedingHappiness) {
             for (let flower of flowers) {
-                const distToFlower = Math.hypot(this.x - flower.x, this.y - flower.y);
-                if (distToFlower < 10) { // Must be directly on flower
+                const dx = this.x - flower.x;
+                const dy = this.y - flower.y;
+                if (dx*dx + dy*dy < 100) { // Must be directly on flower (10^2 = 100)
                     if (this.isFlowerAvailable(flower)) {
                         console.log(`🦋 USER-LED FEEDING: Starting at happiness ${Math.round(this.happiness)}%`);
                         this.startFeeding(flower);

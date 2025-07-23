@@ -40,6 +40,7 @@ class GameCore {
         // Initialization tracking
         this.initializationSteps = [
             'config',
+            'trigCache',
             'eventBus', 
             'gridManager',
             'renderManager',
@@ -70,37 +71,40 @@ class GameCore {
             // Step 1: Verify config is loaded
             await this.initializeConfig();
             
-            // Step 2: Initialize event bus
+            // Step 2: Initialize trigonometric cache
+            await this.initializeTrigCache();
+            
+            // Step 3: Initialize event bus
             await this.initializeEventBus();
             
-            // Step 3: Initialize grid manager
+            // Step 4: Initialize grid manager
             await this.initializeGridManager();
             
-            // Step 4: Initialize render manager
+            // Step 5: Initialize render manager
             await this.initializeRenderManager(backgroundImage);
             
-            // Step 5: Initialize entity manager (population manager)
+            // Step 6: Initialize entity manager (population manager)
             await this.initializeEntityManager();
             
-            // Step 6: Initialize particle system
+            // Step 7: Initialize particle system
             await this.initializeParticleSystem();
             
-            // Step 7: Initialize pool manager
+            // Step 8: Initialize pool manager
             await this.initializePoolManager();
             
-            // Step 8: Initialize main color pool
+            // Step 9: Initialize main color pool
             await this.initializeMainColorPool();
             
-            // Step 9: Initialize flower manager
+            // Step 10: Initialize flower manager
             await this.initializeFlowerManager();
             
-            // Step 10: Initialize interaction system
+            // Step 11: Initialize interaction system
             await this.initializeInteractionSystem();
             
-            // Step 11: Set up ecosystem event chains
+            // Step 12: Set up ecosystem event chains
             await this.setupEcosystemEvents();
             
-            // Step 12: Create initial entities
+            // Step 13: Create initial entities
             await this.initializeStartingEntities();
             
             this.gameState.initialized = true;
@@ -118,6 +122,15 @@ class GameCore {
         }
         this.completedSteps.add('config');
         console.log('✓ Config initialized');
+    }
+    
+    async initializeTrigCache() {
+        if (typeof initializeTrigCache === 'undefined') {
+            throw new Error('TrigCache not found - ensure core/trigCache.js is loaded');
+        }
+        initializeTrigCache();
+        this.completedSteps.add('trigCache');
+        console.log('✓ Trigonometric cache initialized');
     }
     
     async initializeEventBus() {

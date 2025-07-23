@@ -299,7 +299,7 @@ class Flower extends Entity {
         graphics.push();
         graphics.noStroke();
         
-        const pulse = sin(frameCount * 0.1) * 0.3 + 0.7;
+        const pulse = sinFrame(frameCount, 0.1) * 0.3 + 0.7;
         const alpha = (this.goldenBlessing / 300) * 100 * pulse;
         
         // Golden glow around entire flower
@@ -331,7 +331,7 @@ class Flower extends Entity {
             // Only slight curve near the top (no sway at base)
             const bendFactor = (y / this.stemHeight);
             const bendAmount = bendFactor * bendFactor; // Quadratic curve
-            const stemX = sin(this.swayAngle) * bendAmount * 3 * this.swayAmount;
+            const stemX = sinSway(this.swayAngle) * bendAmount * 3 * this.swayAmount;
             const stemWidth = map(y, 0, this.stemHeight, 3, 1.5);
             
             // Use vibrant stem color
@@ -364,7 +364,7 @@ class Flower extends Entity {
     }
     
     drawFlowerHead(graphics, alpha) {
-        const sway = sin(this.swayAngle) * this.swayAmount;
+        const sway = sinSway(this.swayAngle) * this.swayAmount;
         
         switch(this.flowerType) {
             case 'daisy':
@@ -490,7 +490,7 @@ class Flower extends Entity {
     }
     
     drawBushClusters(graphics, alpha) {
-        const sway = sin(this.swayAngle) * this.swayAmount;
+        const sway = sinSway(this.swayAngle) * this.swayAmount;
         
         // Multiple small flower heads in a cluster
         for (let i = 0; i < this.clusterCount; i++) {
@@ -555,7 +555,7 @@ class Flower extends Entity {
         
         // Pollen ready effect
         if (this.stage === 'mature' && this.pollenTimer === 0) {
-            const avgSway = sin(this.swayAngle) * this.swayAmount * 2;
+            const avgSway = sinSway(this.swayAngle) * this.swayAmount * 2;
             graphics.fill(255, 220, 255, 50);
             graphics.ellipse(avgSway, -this.stemHeight - 2, this.size * 1.5, this.size * 0.8);
         }
@@ -756,7 +756,7 @@ class FlowerManager {
             graphics.push();
             graphics.translate(x, y);
             
-            const alpha = (sin(frameCount * 0.1) + 1) * 0.5 * 50 + 50;
+            const alpha = (sinFrame(frameCount, 0.1) + 1) * 0.5 * 50 + 50;
             graphics.noFill();
             graphics.stroke(255, 255, 255, alpha);
             graphics.strokeWeight(1);

@@ -22,6 +22,17 @@ class InteractionSystem {
         this.interactingButterfly = null;
         this.patienceProgress = 0;
         
+        // Pre-allocated cursor position object to avoid frequent allocation
+        this.cursorPositionCache = { x: 0, y: 0 };
+        
+        // Pre-allocated color arrays for particle effects
+        this.plantingFailColors = [
+            [255, 100, 100],
+            [100, 255, 100],
+            [100, 100, 255],
+            [255, 200, 100]
+        ];
+        
         // Listen for cursor state events from butterflies
         this.setupCursorStateListeners();
     }
@@ -53,12 +64,11 @@ class InteractionSystem {
         return this.framesSinceMovement > this.stillFramesRequired;
     }
     
-    // Get cursor position adjusted for canvas scaling
+    // Get cursor position adjusted for canvas scaling (using pre-allocated object)
     getCursorPosition() {
-        return {
-            x: this.adjustedMouseX,
-            y: this.adjustedMouseY
-        };
+        this.cursorPositionCache.x = this.adjustedMouseX;
+        this.cursorPositionCache.y = this.adjustedMouseY;
+        return this.cursorPositionCache;
     }
     
     // Check if cursor is within interaction range of an entity
@@ -80,15 +90,8 @@ class InteractionSystem {
             flowers, 
             particleSystem
         )) {
-            // Show feedback particles if planting failed
-            const testColors = [
-                [255, 100, 100],
-                [100, 255, 100],
-                [100, 100, 255],
-                [255, 200, 100]
-            ];
-            
-            const color = random(testColors);
+            // Show feedback particles if planting failed using pre-allocated colors
+            const color = random(this.plantingFailColors);
             particleSystem.emitBurst(this.adjustedMouseX, this.adjustedMouseY, color, 8);
         }
         
@@ -140,7 +143,7 @@ class InteractionSystem {
             graphics.noFill();
             graphics.stroke(255, 255, 255, 30);
             graphics.strokeWeight(1);
-            const radius = this.cursorZoneRadius + sin(frameCount * 0.05) * 5;
+            const radius = this.cursorZoneRadius + sinFrame(frameCount, 0.05) * 5;
             graphics.ellipse(this.adjustedMouseX, this.adjustedMouseY, radius * 2);
         }
     }

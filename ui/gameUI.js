@@ -238,7 +238,7 @@ class GameUI {
         // Ghost stem
         graphics.fill(200, 255, 200, alpha * 0.5);
         for (let i = 0; i < 12; i += 2) {
-            const stemX = sin(frameCount * 0.02) * (i / 12) * 2;
+            const stemX = sinFrame(frameCount, 0.02) * (i / 12) * 2;
             graphics.rect(stemX - 1, -i - 2, 2, 2);
         }
         
@@ -270,7 +270,7 @@ class GameUI {
         graphics.noFill();
         graphics.stroke(255, 255, 255, alpha * 0.5);
         graphics.strokeWeight(1);
-        const ringSize = 20 + sin(frameCount * 0.05) * 3;
+        const ringSize = 20 + sinFrame(frameCount, 0.05) * 3;
         graphics.ellipse(0, 0, ringSize * 2);
         
         graphics.pop();
