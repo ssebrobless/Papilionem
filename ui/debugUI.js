@@ -460,8 +460,9 @@ class DebugUI {
             graphics.textSize(6);
             graphics.fill(200, 200, 200, 150);
             const hasGoal = butterfly.goalGridPos ? 'GOAL' : 'NO GOAL';
-            const seekingFlowers = butterfly.happiness <= butterfly.baselineHappiness ? 'SEEKING' : 'NOT SEEKING';
-            graphics.text(`${hasGoal} | ${seekingFlowers}`, butterfly.x, butterfly.y - 35);
+            const seekingFlowers = butterfly.seekingFlower ? 'SEEKING FLOWER' : 'NOT SEEKING';
+            const happinessStatus = `H:${Math.round(butterfly.happiness)}%`;
+            graphics.text(`${hasGoal} | ${seekingFlowers} | ${happinessStatus}`, butterfly.x, butterfly.y - 35);
         }
         
         graphics.pop();

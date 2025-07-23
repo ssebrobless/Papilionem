@@ -264,8 +264,9 @@ class GameCore {
         const startingButterflyCount = 2;
         
         for (let i = 0; i < startingButterflyCount; i++) {
-            const gridX = random(6, 12);
-            const gridY = random(6, 12);
+            // Spawn butterflies across a broader range within grid bounds
+            const gridX = random(3, this.gridManager.bounds.maxX - 3);
+            const gridY = random(3, this.gridManager.bounds.maxY - 3);
             const screenPos = this.gridManager.isoToScreen(gridX, gridY);
             const colors = random(butterflyColors);
             

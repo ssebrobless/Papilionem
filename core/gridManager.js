@@ -30,28 +30,29 @@ class GridManager {
     
     // Convert screen coordinates to isometric grid coordinates  
     screenToIso(screenX, screenY) {
-        // Use original working algorithm
         const tileWidth = this.tileWidth;
         const tileHeight = this.tileHeight;
         
-        // Adjust for tile height offset
-        screenY -= tileHeight / 2;
+        // This must be the EXACT inverse of isoToScreen()
+        // First, undo the final screen position adjustments from isoToScreen
+        screenY -= tileHeight / 2; // Undo the + tileHeight/2
         
-        // Convert from screen to isometric
-        const offsetX = screenX - gameConfig.canvas.baseWidth / 2;
-        const offsetY = screenY;
+        // Convert back to pre-canvas-center coordinates
+        const preCanvasX = screenX - gameConfig.canvas.baseWidth / 2;
         
-        // Inverse of isometric transformation
-        const isoX = (2 * offsetY + offsetX) / tileWidth;
-        const isoY = (2 * offsetY - offsetX) / tileWidth;
+        // Undo the isometric projection: (offsetX - offsetY) * tileWidth/2 = preCanvasX
+        //                                  (offsetX + offsetY) * tileHeight/2 = screenY
+        // Solve the system of equations for offsetX and offsetY:
+        const offsetX = (preCanvasX / (tileWidth/2) + screenY / (tileHeight/2)) / 2;
+        const offsetY = (screenY / (tileHeight/2) - preCanvasX / (tileWidth/2)) / 2;
         
-        // Remove grid offset (using config values)
+        // Remove grid offset to get actual grid coordinates
         const gridOffsetX = gameConfig.grid.gridOffset.x;
         const gridOffsetY = gameConfig.grid.gridOffset.y;
         
         return {
-            x: round((isoX + isoY) / 2 - gridOffsetX),
-            y: round((isoY - isoX) / 2 - gridOffsetY)
+            x: offsetX - gridOffsetX,
+            y: offsetY - gridOffsetY
         };
     }
     

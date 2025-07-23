@@ -89,11 +89,30 @@ class Flower extends Entity {
     }
     
     update(gameState) {
-        // Call parent update
-        super.update(gameState);
-        
         const { butterflies, particleSystem } = gameState;
         
+        // Immortal flowers are locked at mature stage and don't age AT ALL
+        if (this.isImmortal) {
+            // DON'T call super.update() - this prevents base Entity lifetime decrement
+            // Just update z-index manually
+            this.updateZIndex();
+            
+            // Ensure immortal flowers are always at mature stage  
+            this.stage = 'mature';
+            // Only update sway animation, no stage progression
+            this.swayAngle += this.swaySpeed;
+            this.checkButterflyVisits(butterflies, particleSystem);
+            
+            if (this.pollenTimer > 0) {
+                this.pollenTimer--;
+            }
+            return; // Skip all aging logic
+        }
+        
+        // For mortal flowers, call parent update (which decrements lifetime)
+        super.update(gameState);
+        
+        // Normal aging logic for mortal flowers
         this.stageTimer++;
         this.swayAngle += this.swaySpeed;
         

@@ -146,9 +146,9 @@ class MainColorPool {
         const spawnGridX = this.gridCenter.x + cos(spawnAngle) * spawnDistance;
         const spawnGridY = this.gridCenter.y + sin(spawnAngle) * spawnDistance;
         
-        // Clamp to grid bounds
-        const clampedGridX = constrain(spawnGridX, 1, gridManager.bounds.maxX - 1);
-        const clampedGridY = constrain(spawnGridY, 1, gridManager.bounds.maxY - 1);
+        // Clamp to grid bounds (ensure we stay within playable area)
+        const clampedGridX = constrain(spawnGridX, 2, gridManager.bounds.maxX - 2);
+        const clampedGridY = constrain(spawnGridY, 2, gridManager.bounds.maxY - 2);
         
         const spawnScreen = gridManager.isoToScreen(clampedGridX, clampedGridY);
         
