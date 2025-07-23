@@ -95,28 +95,30 @@ class Pixel {
     }
     
     checkGroundCollision() {
-        // Use legacy coordinate functions if gridManager is not available
-        let gridPos, groundLevel, isInBounds;
-        
-        if (typeof gridManager !== 'undefined' && gridManager.screenToIso) {
-            gridPos = gridManager.screenToIso(this.x, this.y);
-            isInBounds = gridManager.isInBounds(gridPos.x, gridPos.y);
-            groundLevel = isInBounds ? gridManager.getGroundY(gridPos.x, gridPos.y) : null;
-        } else {
-            // No legacy fallbacks - system should fail fast if gridManager unavailable
-            isInBounds = false;
-            groundLevel = null;
-        }
-        
-        if (isInBounds && groundLevel !== null) {
-            // Use unified physics for ground collision
-            if (!this.settled && isometricPhysics.handleGroundCollision(this, groundLevel, 0.3)) {
-                this.settled = true;
-                this.onSettled();
+        // Particles should land at their pre-calculated target ground position
+        // This ensures proper isometric perspective throughout the fall
+        if (this.targetGroundY !== undefined) {
+            // Check if particle has reached its target ground level
+            if (this.y + this.size >= this.targetGroundY) {
+                // Snap to target ground position for clean landing
+                this.y = this.targetGroundY - this.size;
+                
+                // Handle bounce physics
+                if (Math.abs(this.vy) > 0.15) {
+                    this.vy *= -this.bounce;
+                    this.vx += random(-0.3, 0.3); // Add scatter on bounce
+                } else {
+                    // Particle has settled
+                    this.settled = true;
+                    this.vx = 0;
+                    this.vy = 0;
+                    // Final position uses pre-calculated target X with small random offset
+                    this.x = this.targetGroundX + random(-2, 2);
+                    this.onSettled();
+                }
             }
         } else {
-            // Fallback: use canvas height
-            // Use unified config - no hardcoded fallbacks  
+            // Fallback for particles without target (shouldn't happen)
             const canvasHeight = gameConfig.canvas.baseHeight;
             if (this.y + this.size >= canvasHeight) {
                 this.y = canvasHeight - this.size;

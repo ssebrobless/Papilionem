@@ -276,26 +276,70 @@ class MainColorPool {
     
     // Draw glow effect based on intensity
     drawGlowEffect(graphics) {
-        if (this.glowIntensity <= 0) return;
-        
-        const glowRatio = this.glowIntensity / this.maxGlowIntensity;
+        // Always show a subtle base glow
+        const baseGlow = 0.2;
+        const glowRatio = Math.max(baseGlow, this.glowIntensity / this.maxGlowIntensity);
         const pulse = sin(this.pulseTimer) * 0.2 + 0.8;
         
-        // Multiple glow layers
-        for (let i = 3; i > 0; i--) {
-            const layerSize = (20 + glowRatio * 30) * (i / 3) * pulse;
-            const layerAlpha = (glowRatio * 60) / i;
+        // Progress indicator ring
+        const progress = this.glowIntensity / this.spawnThreshold;
+        
+        // Outer progress ring
+        if (progress > 0) {
+            graphics.push();
+            graphics.noFill();
+            graphics.strokeWeight(3);
+            // Color transitions from blue to gold as it fills
+            const r = lerp(100, 255, progress);
+            const g = lerp(150, 220, progress);
+            const b = lerp(255, 100, progress);
+            graphics.stroke(r, g, b, 150);
+            
+            // Draw arc showing progress
+            const angle = map(progress, 0, 1, 0, TWO_PI);
+            graphics.arc(0, 0, 80, 56, -HALF_PI, -HALF_PI + angle);
+            graphics.pop();
+        }
+        
+        // Multiple glow layers with enhanced visibility
+        for (let i = 4; i > 0; i--) {
+            const layerSize = (30 + glowRatio * 50) * (i / 4) * pulse;
+            const layerAlpha = (baseGlow * 40 + glowRatio * 80) / i;
             
             graphics.noStroke();
-            graphics.fill(255, 200 + glowRatio * 55, 100, layerAlpha);
+            // Magical purple-pink glow
+            graphics.fill(
+                200 + glowRatio * 55, 
+                100 + glowRatio * 100, 
+                255 - glowRatio * 100, 
+                layerAlpha
+            );
             graphics.ellipse(0, 0, layerSize, layerSize * 0.7);
         }
         
-        // Spawn readiness indicator
+        // Inner bright core
+        if (this.glowIntensity > 0) {
+            const coreSize = 15 + glowRatio * 20;
+            graphics.fill(255, 255, 255, glowRatio * 60);
+            graphics.ellipse(0, 0, coreSize, coreSize * 0.7);
+        }
+        
+        // Spawn readiness indicator - bright pulsing
         if (this.glowIntensity >= this.spawnThreshold && this.spawnCooldown === 0) {
-            const readyPulse = sin(this.pulseTimer * 3) * 0.3 + 0.7;
-            graphics.fill(255, 255, 255, 100 * readyPulse);
-            graphics.ellipse(0, 0, 40 * readyPulse, 28 * readyPulse);
+            const readyPulse = sin(this.pulseTimer * 4) * 0.4 + 0.6;
+            // Bright white burst effect
+            for (let i = 2; i > 0; i--) {
+                graphics.fill(255, 255, 255, 120 * readyPulse / i);
+                graphics.ellipse(0, 0, 60 * readyPulse * i, 42 * readyPulse * i);
+            }
+            
+            // Show "READY" text effect
+            graphics.push();
+            graphics.textAlign(CENTER, CENTER);
+            graphics.textSize(12);
+            graphics.fill(255, 255, 255, 200 * readyPulse);
+            graphics.text("✨", 0, -45);
+            graphics.pop();
         }
     }
 }

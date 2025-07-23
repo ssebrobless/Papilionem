@@ -15,8 +15,6 @@ class Butterfly extends Entity {
         this.targetGridPos = {...this.gridPos};
         this.colors = colors;
         
-        // Temporary: Verify coordinate system fix
-        console.log(`🦋 SPAWN TEST: screen(${x.toFixed(1)}, ${y.toFixed(1)}) → grid(${this.gridPos.x.toFixed(1)}, ${this.gridPos.y.toFixed(1)})`);
         
         
         this.wingAngle = 0;
@@ -51,16 +49,18 @@ class Butterfly extends Entity {
         this.happiness = 30; // All butterflies start at baseline
         this.baselineHappiness = 30;
         this.maxHappiness = 100;
-        this.happinessDecayRate = (70 / (30 * 60)); // Decay from 100% to 30% in 30 seconds
+        this.happinessDecayRate = (70 / (90 * 60)); // Decay from 100% to 30% in 90 seconds (1.5 minutes)
         this.happinessDecayTimer = 0;
         
         // Feeding system
         this.feedingTimer = 0;
-        this.maxFeedingTime = 300; // 5 seconds at 60fps
+        this.maxFeedingTime = 180; // 3 seconds at 60fps for balanced feeding
         this.targetFlower = null;
         this.feedingCooldowns = new Map(); // Track cooldowns per flower
         this.feedingCooldownDuration = 600; // 10 seconds at 60fps
         this.minFeedingHappiness = 85; // Won't feed if happiness >= 85%
+        this.postFeedingCooldown = 0; // Prevents immediate re-seeking after feeding
+        this.postFeedingCooldownDuration = 300; // 5 seconds before seeking again
         
         // Happiness-based behavior
         this.happySpeed = 0.012; // Faster movement when happy
@@ -70,16 +70,33 @@ class Butterfly extends Entity {
         this.followingCursor = false;
         this.followingTimer = 0;
         this.maxFollowingTime = 600; // 10 seconds max following
-        this.followDistance = 25; // Distance to maintain from cursor when following
-        this.interestRadius = 60; // Distance within which butterfly can become interested
-        this.patienceRequired = 120; // 2 seconds of gentle cursor presence to gain trust
+        this.followDistance = 30; // Distance to maintain from cursor when following
+        this.interestRadius = 80; // Larger distance for easier interaction
+        this.patienceRequired = 90; // 1.5 seconds of gentle cursor presence (easier)
         this.currentPatienceTimer = 0;
         this.trustLevel = 0; // 0-100, how much butterfly trusts the current cursor session
+        this.trustGlowAlpha = 0; // Visual feedback for trust building
+        this.followOffset = { x: 0, y: 0 }; // Smooth following offset
+        this.smoothFollowTarget = { x: 0, y: 0 }; // Smoothed target position
+        this.followSmoothness = 0.1; // How quickly to interpolate to cursor position
         
         // Flower seeking tracking
         this.seekingFlower = false; // Flag to indicate active flower seeking
         this.flowerSeekTimer = 0; // Timer for seeking intervals
         this.flowerSeekInterval = 600; // Re-evaluate flower goals every 10 seconds (600 frames)
+        
+        // Meandering/roaming system (for happy butterflies >30% happiness)
+        this.meanderTarget = null; // Separate from goalGridPos to avoid conflicts
+        this.lastGridDistance = 0; // Track distance traveled for lose-focus mechanic
+        this.meanderSpeed = 0.006; // Slower than normal speed for lazy roaming
+        
+        // Initialize feeding start happiness tracker
+        this.feedingStartHappiness = null;
+        
+        // Exclamation mark popup for scared state
+        this.exclamationTimer = 0;
+        this.exclamationDuration = 45; // 0.75 seconds
+        this.exclamationY = 0; // Vertical offset for animation
     }
     
     update(gameState) {
@@ -93,13 +110,36 @@ class Butterfly extends Entity {
         this.checkMovementResponse(cursorVelocity, adjustedMouseX, adjustedMouseY, particleSystem);
         
         // Handle cursor-based interactions (leading system)
-        this.handleCursorInteraction(cursorVelocity, adjustedMouseX, adjustedMouseY, particleSystem);
+        this.handleCursorInteraction(cursorVelocity, adjustedMouseX, adjustedMouseY, particleSystem, gameState);
         
         // Update happiness system
         this.updateHappiness();
         
         // Update feeding cooldowns
         this.updateFeedingCooldowns();
+        
+        // Update post-feeding cooldown
+        if (this.postFeedingCooldown > 0) {
+            this.postFeedingCooldown--;
+        }
+        
+        // Update exclamation popup timer
+        if (this.exclamationTimer > 0) {
+            this.exclamationTimer--;
+            // Animate upward and fade
+            this.exclamationY -= 0.5;
+        }
+        
+        // Update trust glow fade
+        if (this.trustGlowAlpha > 0 && this.currentPatienceTimer === 0) {
+            this.trustGlowAlpha = Math.max(0, this.trustGlowAlpha - 5);
+        }
+        
+        // Debug state transitions
+        if (this.lastState !== this.state) {
+            console.log(`🦋 STATE CHANGE: ${this.lastState || 'initial'} → ${this.state}`);
+            this.lastState = this.state;
+        }
         
         // Handle different states
         if (this.state === 'display') {
@@ -115,8 +155,8 @@ class Butterfly extends Entity {
             // Update seeking timer
             this.flowerSeekTimer++;
             
-            // Check if we should seek flowers (if happiness <= baseline)
-            if (this.happiness <= this.baselineHappiness) {
+            // Check if we should seek flowers (if happiness < baseline and not on cooldown)
+            if (this.happiness < this.baselineHappiness && this.postFeedingCooldown === 0) {
                 // Only seek a NEW flower if we don't have a current goal, or need to re-evaluate
                 if (!this.goalGridPos || (this.flowerSeekTimer >= this.flowerSeekInterval)) {
                     this.validateAndSeekFlowers(flowers);
@@ -129,12 +169,41 @@ class Butterfly extends Entity {
                     this.targetGridPos.x = this.goalGridPos.x;
                     this.targetGridPos.y = this.goalGridPos.y;
                     
+                    // Check if we've reached the target flower
+                    const distToGoal = Math.hypot(this.gridPos.x - this.goalGridPos.x, this.gridPos.y - this.goalGridPos.y);
+                    if (distToGoal < 0.5) { // Within half a grid unit
+                        // Find the flower at our goal and start feeding
+                        const targetFlower = this.findFlowerAtGoal(flowers);
+                        if (targetFlower && this.isFlowerAvailable(targetFlower)) {
+                            // Re-check if we still need to feed (happiness might have increased while traveling)
+                            if (this.happiness < this.baselineHappiness) {
+                                console.log(`🦋 REACHED FLOWER: Starting self-feeding at happiness ${Math.round(this.happiness)}%`);
+                                this.startFeeding(targetFlower);
+                            } else {
+                                console.log(`🦋 NO LONGER HUNGRY: Happiness ${Math.round(this.happiness)}% >= baseline ${this.baselineHappiness}%`);
+                                this.goalGridPos = null;
+                                this.seekingFlower = false;
+                            }
+                        } else {
+                            console.log(`🦋 FLOWER GONE: Target flower no longer available`);
+                            this.goalGridPos = null;
+                            this.seekingFlower = false;
+                        }
+                    }
                 }
             } else {
-                // Simple wandering behavior
-                this.seekingFlower = false; // Not seeking when happy
-                this.goalGridPos = null; // Clear any seeking goal
-                this.wander(flowers);
+                // Meandering behavior for happy butterflies (>= baseline) OR on cooldown
+                if (this.happiness >= this.baselineHappiness) {
+                    this.seekingFlower = false; // Not seeking when at or above baseline
+                    this.goalGridPos = null; // Clear any seeking goal
+                } else if (this.postFeedingCooldown > 0) {
+                    if (this.seekingFlower) {
+                        console.log(`🦋 COOLDOWN PREVENTS SEEKING: ${this.postFeedingCooldown} frames remaining`);
+                    }
+                    this.seekingFlower = false; // Not seeking when on cooldown
+                    this.goalGridPos = null; // Clear any seeking goal
+                }
+                this.meander();
             }
             
             // Move toward target
@@ -162,8 +231,11 @@ class Butterfly extends Entity {
         } else if (this.state === 'feeding') {
             currentSpeed = 0; // Don't move while feeding
         } else if (this.seekingFlower) {
-            // Butterflies move much faster when actively seeking flowers for visible movement
-            currentSpeed = 0.05; // Much faster than normal speed (0.008) - 6x faster for seeking
+            // Butterflies move slightly faster when seeking flowers
+            currentSpeed = 0.007; // 15-20% faster than meandering (0.006)
+        } else if (this.meanderTarget) {
+            // Slow meandering when roaming aimlessly  
+            currentSpeed = this.meanderSpeed; // Slowest speed for lazy exploration
         } else if (this.happiness > this.baselineHappiness) {
             // Happier butterflies move faster and more lively
             const happinessRatio = (this.happiness - this.baselineHappiness) / (this.maxHappiness - this.baselineHappiness);
@@ -217,9 +289,14 @@ class Butterfly extends Entity {
         this.state = 'scared';
         this.scaredTimer = 0;
         
-        // Clear any flower seeking goal when scared
+        // Trigger exclamation mark popup
+        this.exclamationTimer = this.exclamationDuration;
+        this.exclamationY = -5; // Start position above butterfly
+        
+        // Clear any flower seeking goal and meandering when scared
         this.seekingFlower = false;
         this.goalGridPos = null;
+        this.meanderTarget = null;
         
         // Set flee target away from cursor
         this.setFleeTarget(cursorX, cursorY);
@@ -335,40 +412,83 @@ class Butterfly extends Entity {
         this.wingAngle += speed;
     }
     
-    wander(flowers) {
-        this.wanderTimer--;
-        
-        // Pick initial goal if we don't have one
-        if (!this.goalGridPos) {
-            this.pickNewGoal(flowers);
+    // Meandering behavior for happy butterflies (>30% happiness)
+    meander() {
+        // If no meander target, pick one
+        if (!this.meanderTarget) {
+            this.pickMeanderTarget();
         }
         
-        if (this.wanderTimer <= 0) {
-            this.wanderTimer = random(40, 90); // Time between movement decisions
-            
-            // Calculate chance to forget current goal
-            // Starts at 0%, increases rapidly after a few moves
-            const forgetChance = this.movesSinceNewGoal === 0 ? 0 :
-                                this.movesSinceNewGoal === 1 ? 0.1 :
-                                this.movesSinceNewGoal === 2 ? 0.25 :
-                                this.movesSinceNewGoal === 3 ? 0.45 :
-                                this.movesSinceNewGoal === 4 ? 0.7 : 0.9;
-            
-            // Check if we've reached our goal or forgotten it
-            const reachedGoal = abs(this.gridPos.x - this.goalGridPos.x) < 1 && 
-                               abs(this.gridPos.y - this.goalGridPos.y) < 1;
-            
-            if (reachedGoal || random() < forgetChance) {
-                // Pick a new goal
-                this.pickNewGoal(flowers);
+        // Calculate distance to current target
+        const distToTarget = Math.hypot(
+            this.meanderTarget.x - this.gridPos.x,
+            this.meanderTarget.y - this.gridPos.y
+        );
+        
+        // Check if we've reached the target (within 0.5 grid units)
+        if (distToTarget < 0.5) {
+            this.pickMeanderTarget(); // Pick new target when reached
+            return;
+        }
+        
+        // Track progress: 33% chance to lose focus for each grid unit traveled
+        const currentDistance = Math.floor(distToTarget);
+        if (currentDistance < this.lastGridDistance) {
+            // We've made progress - check if we lose focus
+            if (random() < 0.33) {
+                this.pickMeanderTarget(); // Lose focus and pick new target
+                return;
             }
-            
-            // Move toward goal with some randomness
-            this.moveTowardGoal();
-            
-            // Track that we've made a move
-            this.movesSinceNewGoal++;
         }
+        this.lastGridDistance = currentDistance;
+        
+        // Move toward meander target with wobble
+        this.moveTowardMeanderTarget();
+    }
+    
+    // Pick a random grid coordinate for meandering
+    pickMeanderTarget() {
+        this.meanderTarget = {
+            x: random(3, gridManager.bounds.maxX - 3),
+            y: random(3, gridManager.bounds.maxY - 3)
+        };
+        this.lastGridDistance = Math.floor(Math.hypot(
+            this.meanderTarget.x - this.gridPos.x,
+            this.meanderTarget.y - this.gridPos.y
+        ));
+    }
+    
+    // Move toward meander target with wobble and randomness
+    moveTowardMeanderTarget() {
+        if (!this.meanderTarget) return;
+        
+        // Calculate direction to target
+        const dx = this.meanderTarget.x - this.gridPos.x;
+        const dy = this.meanderTarget.y - this.gridPos.y;
+        const dist = Math.max(sqrt(dx * dx + dy * dy), 0.1);
+        
+        // Normalize direction
+        let moveX = dx / dist;
+        let moveY = dy / dist;
+        
+        // Add significant wobble for lazy meandering (up to 60 degrees deviation)
+        const wobble = random(-0.6, 0.6);
+        const angle = atan2(moveY, moveX) + wobble;
+        moveX = cos(angle);
+        moveY = sin(angle);
+        
+        // Move a small random distance (more random than goal-oriented movement)
+        const moveDistance = random(0.3, 0.8);
+        this.targetGridPos.x = constrain(
+            this.gridPos.x + moveX * moveDistance,
+            2,
+            gridManager.bounds.maxX - 2
+        );
+        this.targetGridPos.y = constrain(
+            this.gridPos.y + moveY * moveDistance,
+            2,
+            gridManager.bounds.maxY - 2
+        );
     }
     
     pickNewGoal(flowers) {
@@ -461,6 +581,48 @@ class Butterfly extends Entity {
         );
     }
     
+    // Override parent's draw to add following connection
+    draw(graphics) {
+        // Draw following connection line first (behind everything)
+        if (this.state === 'following' && this.followingCursorPos) {
+            this.drawFollowingConnection(graphics);
+        }
+        
+        // Call parent draw
+        super.draw(graphics);
+    }
+    
+    // Draw connection line when following cursor
+    drawFollowingConnection(graphics) {
+        graphics.push();
+        
+        // Soft dotted line effect
+        const segments = 8;
+        const dx = this.followingCursorPos.x - this.x;
+        const dy = this.followingCursorPos.y - this.y;
+        
+        graphics.noFill();
+        for (let i = 0; i < segments; i++) {
+            const t = i / segments;
+            const x = this.x + dx * t;
+            const y = this.y + dy * t;
+            
+            // Fade effect
+            const alpha = map(i, 0, segments, 30, 10);
+            graphics.stroke(255, 255, 200, alpha);
+            graphics.strokeWeight(2);
+            
+            if (i % 2 === 0) {
+                const nextT = (i + 0.5) / segments;
+                const nextX = this.x + dx * nextT;
+                const nextY = this.y + dy * nextT;
+                graphics.line(x, y, nextX, nextY);
+            }
+        }
+        
+        graphics.pop();
+    }
+    
     // Override parent's shadow drawing for custom butterfly shadow
     drawShadow(graphics, alpha) {
         graphics.noStroke();
@@ -471,6 +633,7 @@ class Butterfly extends Entity {
     // Override parent's entity drawing
     drawEntity(graphics, alpha) {
         // Draw butterfly at current position
+        graphics.push();
         graphics.translate(this.x, this.y);
         
         // Draw happiness aura/glow behind butterfly
@@ -491,21 +654,52 @@ class Butterfly extends Entity {
         
         // Draw body on top
         this.drawBody(graphics);
+        
+        // Draw exclamation mark popup if active
+        if (this.exclamationTimer > 0) {
+            this.drawExclamation(graphics);
+        }
+        
+        // Draw trust building indicator
+        if (this.trustGlowAlpha > 0) {
+            this.drawTrustIndicator(graphics);
+        }
+        
+        graphics.pop();
     }
     
     // Draw happiness aura/glow behind butterfly
     drawHappinessAura(graphics, alpha) {
+        // Check for scared state first - red stress aura
+        if (this.state === 'scared') {
+            const stressPulse = sin(frameCount * 0.3) * 0.3 + 0.7;
+            const stressSize = 25 + stressPulse * 10;
+            
+            graphics.push();
+            graphics.noStroke();
+            // Red stress aura with pulsing
+            for (let i = 3; i > 0; i--) {
+                const layerSize = stressSize * (i / 3);
+                const layerAlpha = (60 / i) * stressPulse;
+                graphics.fill(255, 50, 50, layerAlpha);
+                graphics.ellipse(0, 0, layerSize, layerSize * 0.7);
+            }
+            graphics.pop();
+            return;
+        }
+        
         if (this.happiness <= this.baselineHappiness) {
             // No aura at or below baseline happiness
             if (this.happiness < this.baselineHappiness) {
-                // Draw subtle dark aura for unhappy butterflies
+                // Draw more obvious dark purple aura for unhappy butterflies
                 const sadnessRatio = (this.baselineHappiness - this.happiness) / this.baselineHappiness;
-                const auraSize = 20 + sadnessRatio * 10;
-                const auraAlpha = min(40 * sadnessRatio, alpha * 0.6);
+                const auraSize = 25 + sadnessRatio * 15;
+                const auraAlpha = min(60 * sadnessRatio, alpha * 0.8);
                 
                 graphics.push();
                 graphics.noStroke();
-                graphics.fill(50, 50, 80, auraAlpha);
+                // Dark purple-blue for sadness
+                graphics.fill(80, 50, 120, auraAlpha);
                 graphics.ellipse(0, 0, auraSize, auraSize * 0.7);
                 graphics.pop();
             }
@@ -516,9 +710,9 @@ class Butterfly extends Entity {
         const happinessRatio = (this.happiness - this.baselineHappiness) / (this.maxHappiness - this.baselineHappiness);
         
         // Aura grows larger and brighter with happiness
-        const maxAuraSize = 35;
-        const auraSize = 15 + happinessRatio * maxAuraSize;
-        const auraAlpha = min(30 + happinessRatio * 80, alpha * 0.8);
+        const maxAuraSize = 45;
+        const auraSize = 20 + happinessRatio * maxAuraSize;
+        const auraAlpha = min(50 + happinessRatio * 100, alpha * 0.9);
         
         // Use butterfly's colors for the aura
         const auraColor = this.colors[0]; // Use primary wing color
@@ -619,6 +813,74 @@ class Butterfly extends Entity {
         graphics.rect(1, -5, 1, 2);
     }
     
+    // Draw exclamation mark popup
+    drawExclamation(graphics) {
+        const fadeRatio = this.exclamationTimer / this.exclamationDuration;
+        const alpha = fadeRatio * 255;
+        
+        graphics.push();
+        graphics.translate(0, this.exclamationY - 20); // Position above butterfly
+        
+        // White background circle
+        graphics.noStroke();
+        graphics.fill(255, 255, 255, alpha * 0.9);
+        graphics.ellipse(0, 0, 16, 16);
+        
+        // Red exclamation mark
+        graphics.fill(255, 50, 50, alpha);
+        // Main body
+        graphics.rect(-2, -5, 4, 7);
+        // Dot
+        graphics.rect(-2, 4, 4, 3);
+        
+        graphics.pop();
+    }
+    
+    // Draw trust building indicator - soft green hearts
+    drawTrustIndicator(graphics) {
+        graphics.push();
+        
+        const pulse = sin(frameCount * 0.1) * 0.2 + 0.8;
+        const alpha = this.trustGlowAlpha * pulse;
+        
+        // Draw small hearts floating up
+        for (let i = 0; i < 3; i++) {
+            const angle = (TWO_PI / 3) * i + frameCount * 0.02;
+            const distance = 15 + sin(frameCount * 0.05 + i) * 5;
+            const x = cos(angle) * distance;
+            const y = sin(angle) * distance - 10;
+            
+            graphics.push();
+            graphics.translate(x, y);
+            graphics.scale(0.5);
+            
+            // Draw simple heart shape
+            graphics.noStroke();
+            graphics.fill(100, 255, 100, alpha);
+            graphics.beginShape();
+            graphics.vertex(0, -2);
+            graphics.bezierVertex(-3, -5, -6, -3, -6, 0);
+            graphics.bezierVertex(-6, 2, -3, 4, 0, 6);
+            graphics.bezierVertex(3, 4, 6, 2, 6, 0);
+            graphics.bezierVertex(6, -3, 3, -5, 0, -2);
+            graphics.endShape(CLOSE);
+            
+            graphics.pop();
+        }
+        
+        // Trust progress circle
+        const progress = this.currentPatienceTimer / this.patienceRequired;
+        if (progress > 0 && progress < 1) {
+            graphics.noFill();
+            graphics.strokeWeight(2);
+            graphics.stroke(100, 255, 100, alpha * 0.5);
+            const arcEnd = map(progress, 0, 1, 0, TWO_PI);
+            graphics.arc(0, 0, 30, 30, -HALF_PI, -HALF_PI + arcEnd);
+        }
+        
+        graphics.pop();
+    }
+    
     // Start wing display animation
     startDisplay() {
         if (this.state === 'normal') {
@@ -626,9 +888,10 @@ class Butterfly extends Entity {
             this.displayTimer = 0;
             this.hasBeenHovered = true;
             
-            // Clear any flower seeking goal when displaying
+            // Clear any flower seeking goal and meandering when displaying
             this.seekingFlower = false;
             this.goalGridPos = null;
+            this.meanderTarget = null;
         }
     }
     
@@ -756,8 +1019,17 @@ class Butterfly extends Entity {
     updateFeeding(flowers, particleSystem) {
         this.feedingTimer++;
         
+        // Use the target that was already calculated when feeding started
+        const targetHappiness = this.feedingStartHappiness < this.baselineHappiness ? 60 : 75;
+        
+        // Debug feeding progress every 30 frames (0.5 seconds)
+        if (this.feedingTimer % 30 === 0) {
+            console.log(`🍯 FEEDING UPDATE: Timer ${this.feedingTimer}/${this.maxFeedingTime}, happiness ${Math.round(this.happiness)}%/${targetHappiness}% (started at ${Math.round(this.feedingStartHappiness)}%)`);
+        }
+        
         // Check if target flower still exists and is nearby
         if (!this.targetFlower || !flowers.includes(this.targetFlower)) {
+            console.log(`🍯 FEEDING END: Target flower no longer exists`);
             this.endFeeding();
             return;
         }
@@ -765,43 +1037,77 @@ class Butterfly extends Entity {
         // Check if we're still close enough to the flower
         const distToFlower = Math.hypot(this.x - this.targetFlower.x, this.y - this.targetFlower.y);
         if (distToFlower > 25) { // Lost contact with flower
+            console.log(`🍯 FEEDING END: Too far from flower (distance: ${distToFlower.toFixed(1)})`);
             this.endFeeding();
             return;
         }
         
         // Increase happiness based on flower stage
+        const oldHappiness = this.happiness;
         const feedingRate = this.getFeedingRate(this.targetFlower);
         this.happiness = Math.min(this.maxHappiness, this.happiness + feedingRate);
         
-        // End feeding if max time reached or max happiness reached
-        if (this.feedingTimer >= this.maxFeedingTime || this.happiness >= this.maxHappiness) {
+        // Debug happiness changes
+        if (Math.round(oldHappiness) !== Math.round(this.happiness)) {
+            console.log(`🍯 HAPPINESS GAIN: ${Math.round(oldHappiness)}% → ${Math.round(this.happiness)}% (+${feedingRate.toFixed(3)}/frame from ${this.targetFlower.stage} flower)`);
+        }
+        
+        // End feeding if max time reached or target happiness reached
+        if (this.feedingTimer >= this.maxFeedingTime || this.happiness >= targetHappiness) {
+            const reason = this.feedingTimer >= this.maxFeedingTime ? 'time limit' : 'target happiness';
+            console.log(`🍯 FEEDING END: ${reason} (timer: ${this.feedingTimer}/${this.maxFeedingTime}, happiness: ${Math.round(this.happiness)}%/${targetHappiness}%)`);
             this.endFeeding();
         }
     }
     
-    // Get feeding rate based on flower stage
+    // Determine feeding target based on context (self-feeding vs user-led feeding)
+    // NOTE: This is called once when feeding starts, not during the feeding loop
+    getFeedingTarget() {
+        // Use the starting happiness that was already set in startFeeding()
+        // Self-feeding (started at < baseline): aim for comfortable 60%
+        // User-led feeding (started at >= baseline): aim for satisfied 75%
+        // This ensures feeding sessions have clear, achievable endpoints
+        const target = this.feedingStartHappiness < this.baselineHappiness ? 60 : 75;
+        console.log(`🍯 FEEDING TARGET: Starting happiness ${Math.round(this.feedingStartHappiness)}%, target is ${target}%`);
+        return target;
+    }
+    
+    // Get feeding rate based on flower stage (balanced for 3-second feeding sessions)
     getFeedingRate(flower) {
         switch (flower.stage) {
-            case 'bloom': return 0.2; // 20% per 5 seconds = 4% per second
-            case 'mature': return 0.4; // 40% per 5 seconds = 8% per second  
-            case 'wilting': return 0.1; // 10% per 5 seconds = 2% per second
-            case 'dissolve': return 0.05; // 5% per 5 seconds = 1% per second
-            default: return 0.2;
+            case 'bloom': return 0.125; // 22.5% over 3 seconds
+            case 'mature': return 0.167; // 30% over 3 seconds (full happiness boost)
+            case 'wilting': return 0.083; // 15% over 3 seconds  
+            case 'dissolve': return 0.042; // 7.5% over 3 seconds
+            default: return 0.125;
         }
     }
     
     // End feeding state and set cooldown
     endFeeding() {
+        console.log(`🍯 END FEEDING CALLED: state='${this.state}', timer=${this.feedingTimer}, happiness=${Math.round(this.happiness)}%`);
+        
         if (this.targetFlower) {
+            // Clear the flower's current feeder
+            if (this.targetFlower.currentFeeder === this) {
+                this.targetFlower.currentFeeder = null;
+            }
+            
             // Set feeding cooldown for this specific flower
             const flowerId = this.targetFlower.id || this.getFlowerId(this.targetFlower);
             this.feedingCooldowns.set(flowerId, this.feedingCooldownDuration);
+            console.log(`🍯 COOLDOWN SET: Flower ${flowerId} on cooldown for ${this.feedingCooldownDuration} frames`);
         }
         
+        // Reset feeding session data
+        this.feedingStartHappiness = null;
         this.state = 'normal';
         this.feedingTimer = 0;
         this.targetFlower = null;
         this.wanderTimer = random(30, 60); // Resume wandering
+        this.postFeedingCooldown = this.postFeedingCooldownDuration; // Set cooldown
+        
+        console.log(`🍯 FEEDING ENDED: Butterfly returning to normal state (post-feeding cooldown: ${this.postFeedingCooldownDuration} frames)`);
     }
     
     // Generate unique ID for flower (fallback if flower doesn't have id)
@@ -811,6 +1117,12 @@ class Butterfly extends Entity {
     
     // Validate current goal and seek new flower if needed (COMMITTED SEEKING)
     validateAndSeekFlowers(flowers) {
+        // Only log when meaningful changes happen, not every 10 seconds
+        if (this.goalGridPos !== this.lastLoggedGoal) {
+            console.log(`🦋 VALIDATE SEEK: happiness=${Math.round(this.happiness)}%, postFeedingCooldown=${this.postFeedingCooldown}`);
+            this.lastLoggedGoal = this.goalGridPos;
+        }
+        
         // First, check if we have a current goal and if it's still valid
         if (this.goalGridPos && this.seekingFlower) {
             const currentGoalFlower = this.findFlowerAtGoal(flowers);
@@ -819,6 +1131,7 @@ class Butterfly extends Entity {
                 return; // Don't change goal - butterfly stays committed!
             } else {
                 // Current goal is no longer valid
+                console.log(`🦋 GOAL INVALID: Clearing current flower goal`);
                 this.goalGridPos = null;
                 this.seekingFlower = false;
             }
@@ -846,13 +1159,14 @@ class Butterfly extends Entity {
     isFlowerAvailable(flower) {
         const flowerId = flower.id || this.getFlowerId(flower);
         const onCooldown = this.feedingCooldowns.has(flowerId);
-        return !onCooldown;
+        const beingFedFrom = flower.currentFeeder && flower.currentFeeder !== this;
+        return !onCooldown && !beingFedFrom;
     }
     
-    // Seek a completely new flower target (SELF-FEEDING ≤30%)
+    // Seek a completely new flower target (SELF-FEEDING <30%)
     seekNewFlower(flowers) {
-        // Look for available flowers (not on cooldown)
-        // Note: this function is only called when happiness ≤ 30%, so we're already in self-feeding range
+        // Look for available flowers (not on cooldown and not being fed from by another butterfly)
+        // Note: this function is only called when happiness < 30%, so butterflies are below baseline
         const availableFlowers = flowers.filter(flower => {
             return this.isFlowerAvailable(flower);
         });
@@ -861,6 +1175,8 @@ class Butterfly extends Entity {
             // Pick a random available flower (not always closest)
             const targetFlower = random(availableFlowers);
             const distToTarget = Math.hypot(this.x - targetFlower.x, this.y - targetFlower.y);
+            
+            console.log(`🦋 NEW FLOWER TARGET: ${availableFlowers.length} available, picked flower at distance ${Math.round(distToTarget)}`);
             
             // Set target to the flower (this is what debug lines will show)
             const flowerGrid = gridManager.screenToIso(targetFlower.x, targetFlower.y);
@@ -871,14 +1187,22 @@ class Butterfly extends Entity {
             // Mark that we're actively seeking (for debug info)
             this.seekingFlower = true;
             
-            console.log(`🦋 Committed to flower at (${Math.round(this.goalGridPos.x)}, ${Math.round(this.goalGridPos.y)})`);
             
             // Check if we're close enough to start feeding immediately
             if (distToTarget < 20) {
-                this.startFeeding(targetFlower);
+                // Double-check we still need to feed
+                if (this.happiness < this.baselineHappiness) {
+                    console.log(`🦋 IMMEDIATE FEEDING: Already at flower, happiness ${Math.round(this.happiness)}%`);
+                    this.startFeeding(targetFlower);
+                } else {
+                    console.log(`🦋 SKIP IMMEDIATE FEEDING: happiness ${Math.round(this.happiness)}% >= baseline`);
+                    this.seekingFlower = false;
+                    this.goalGridPos = null;
+                }
             }
         } else {
             // No available flowers, clear seeking
+            console.log(`🦋 NO FLOWERS AVAILABLE: ${flowers.length} total flowers, 0 available`);
             this.seekingFlower = false;
             this.goalGridPos = null;
         }
@@ -886,13 +1210,23 @@ class Butterfly extends Entity {
     
     // Start feeding from a flower
     startFeeding(flower) {
+        console.log(`🍯 START FEEDING CALLED: Current state='${this.state}', happiness=${Math.round(this.happiness)}%`);
+        
         this.state = 'feeding';
         this.targetFlower = flower;
         this.feedingTimer = 0;
+        this.feedingStartHappiness = this.happiness; // Store starting happiness
         
-        // Clear seeking state when starting to feed
+        // Mark flower as being fed from
+        flower.currentFeeder = this;
+        
+        // Clear seeking state and meandering when starting to feed
         this.seekingFlower = false;
         this.goalGridPos = null;
+        this.meanderTarget = null;
+        
+        const targetHappiness = this.getFeedingTarget();
+        console.log(`🍯 FEEDING START: Butterfly happiness ${Math.round(this.happiness)}% → feeding from ${flower.stage} flower (target: ${targetHappiness}%) for max ${this.maxFeedingTime} frames`);
         
         // Position butterfly close to flower for feeding
         const flowerGrid = gridManager.screenToIso(flower.x, flower.y);
@@ -908,26 +1242,37 @@ class Butterfly extends Entity {
     
     // Emit particles based on happiness level
     updateParticleEmission(particleSystem) {
-        // Only emit particles occasionally and based on happiness
-        if (frameCount % 180 === 0) { // Every 3 seconds
+        // Emit particles based on happiness level
+        if (frameCount % 90 === 0) { // Check every 1.5 seconds
             if (this.happiness > this.baselineHappiness) {
-                // Happy butterflies emit stronger pixels
+                // Happy butterflies always emit, amount based on happiness
                 const happinessRatio = (this.happiness - this.baselineHappiness) / (this.maxHappiness - this.baselineHappiness);
-                const emitChance = 0.3 + happinessRatio * 0.4; // 30-70% chance based on happiness
                 
-                if (random() < emitChance) {
+                // More happiness = more particles
+                const particleCount = Math.ceil(happinessRatio * 3); // 1-3 particles
+                
+                // Emit with some randomness in position
+                for (let i = 0; i < particleCount; i++) {
+                    const offsetX = random(-5, 5);
+                    const offsetY = random(-3, 3);
                     const color = random(this.colors);
-                    const strength = 1 + Math.floor(happinessRatio * 2); // 1-3 particles based on happiness
-                    particleSystem.emit(this.x, this.y, color, strength, 'happy');
+                    particleSystem.emit(this.x + offsetX, this.y + offsetY, color, 1, 'happy');
+                }
+                
+                // Silent emission - no console spam
+            } else if (this.happiness === this.baselineHappiness) {
+                // At baseline, very rarely emit a single pixel (maintenance)
+                if (random() < 0.1) { // 10% chance
+                    const color = random(this.colors);
+                    particleSystem.emit(this.x, this.y, color, 1, 'scale');
                 }
             }
-            // Baseline happiness butterflies emit nothing
-            // Sad/scared butterflies emit stress pixels (handled in scared state)
+            // Sad butterflies (< baseline) emit no happy pixels
         }
     }
     
     // Handle cursor-based interaction system for leading butterflies
-    handleCursorInteraction(cursorVelocity, cursorX, cursorY, particleSystem) {
+    handleCursorInteraction(cursorVelocity, cursorX, cursorY, particleSystem, gameState) {
         // Skip cursor interactions if in certain states
         if (this.state === 'scared' || this.state === 'display' || this.state === 'feeding') {
             this.resetCursorInteraction();
@@ -938,12 +1283,31 @@ class Butterfly extends Entity {
         
         // Check if cursor is within interest radius
         if (distToCursor <= this.interestRadius) {
+            // Check if another butterfly is already being interacted with
+            if (!this.canInteractWithCursor(gameState.butterflies || [])) {
+                this.resetCursorInteraction();
+                return;
+            }
+            
             // Cursor is nearby - evaluate interaction
             this.evaluateCursorPresence(cursorVelocity, cursorX, cursorY, distToCursor, particleSystem);
         } else {
             // Cursor is too far away - reset interaction state
             this.resetCursorInteraction();
         }
+    }
+    
+    // Check if this butterfly can interact with cursor (no others are)
+    canInteractWithCursor(butterflies) {
+        // Check if any OTHER butterfly is building trust or following
+        for (let butterfly of butterflies) {
+            if (butterfly !== this && 
+                (butterfly.state === 'following' || 
+                 (butterfly.currentPatienceTimer > 0 && butterfly.currentPatienceTimer > this.currentPatienceTimer))) {
+                return false;
+            }
+        }
+        return true;
     }
     
     // Evaluate cursor presence and build trust/interest
@@ -993,6 +1357,9 @@ class Butterfly extends Entity {
     buildCursorTrust(cursorX, cursorY, particleSystem) {
         this.currentPatienceTimer++;
         
+        // Update trust glow visual feedback
+        this.trustGlowAlpha = Math.min(255, (this.currentPatienceTimer / this.patienceRequired) * 255);
+        
         // If we've built enough patience and aren't already following
         if (this.currentPatienceTimer >= this.patienceRequired && this.state !== 'following') {
             this.startFollowing(cursorX, cursorY);
@@ -1017,10 +1384,23 @@ class Butterfly extends Entity {
         this.followingTimer = 0;
         this.followingCursor = true;
         
-        // Clear any flower seeking goal when following cursor
+        // Set initial follow offset (where butterfly will hover relative to cursor)
+        const angle = random(TWO_PI);
+        const dist = this.followDistance / gameConfig.grid.cellSize;
+        this.followOffset.x = cos(angle) * dist;
+        this.followOffset.y = sin(angle) * dist;
+        
+        // Initialize smooth follow target to current grid position
+        this.smoothFollowTarget.x = this.gridPos.x;
+        this.smoothFollowTarget.y = this.gridPos.y;
+        
+        // Clear any flower seeking goal and meandering when following cursor
         this.seekingFlower = false;
         this.goalGridPos = null;
+        this.meanderTarget = null;
         
+        // Clear trust glow as we're now following
+        this.trustGlowAlpha = 0;
         
         // Emit following event
         eventBus.emit('butterfly:startFollowing', {
@@ -1051,11 +1431,9 @@ class Butterfly extends Entity {
         if (this.happiness < this.minFeedingHappiness) {
             for (let flower of flowers) {
                 const distToFlower = Math.hypot(this.x - flower.x, this.y - flower.y);
-                if (distToFlower < 25) { // Close enough to feed
-                    const flowerId = flower.id || this.getFlowerId(flower);
-                    const onCooldown = this.feedingCooldowns.has(flowerId);
-                    
-                    if (!onCooldown) {
+                if (distToFlower < 10) { // Must be directly on flower
+                    if (this.isFlowerAvailable(flower)) {
+                        console.log(`🦋 USER-LED FEEDING: Starting at happiness ${Math.round(this.happiness)}%`);
                         this.startFeeding(flower);
                         return; // Start feeding, exit following
                     }
@@ -1063,27 +1441,43 @@ class Butterfly extends Entity {
             }
         }
         
-        // Follow the cursor by setting target position near it
+        // Follow the cursor smoothly using consistent offset
         const cursorGrid = gridManager.screenToIso(cursorX, cursorY);
         
-        // Calculate a position near the cursor but not too close
-        const followAngle = random(TWO_PI);
-        const followDist = this.followDistance / gameConfig.grid.cellSize; // Convert to grid units
+        // Slightly rotate the offset over time for organic movement
+        const rotationSpeed = 0.005; // Slower rotation for smoother movement
+        const newAngle = atan2(this.followOffset.y, this.followOffset.x) + rotationSpeed;
+        const dist = this.followDistance / gameConfig.grid.cellSize;
+        this.followOffset.x = cos(newAngle) * dist;
+        this.followOffset.y = sin(newAngle) * dist;
         
-        this.targetGridPos.x = cursorGrid.x + cos(followAngle) * followDist;
-        this.targetGridPos.y = cursorGrid.y + sin(followAngle) * followDist;
+        // Calculate desired position with offset
+        const desiredX = cursorGrid.x + this.followOffset.x;
+        const desiredY = cursorGrid.y + this.followOffset.y;
+        
+        // Smooth interpolation to desired position
+        this.smoothFollowTarget.x = lerp(this.smoothFollowTarget.x, desiredX, this.followSmoothness);
+        this.smoothFollowTarget.y = lerp(this.smoothFollowTarget.y, desiredY, this.followSmoothness);
+        
+        // Set target to smoothed position
+        this.targetGridPos.x = this.smoothFollowTarget.x;
+        this.targetGridPos.y = this.smoothFollowTarget.y;
         
         // Constrain to grid bounds (stay within playable area)
         this.targetGridPos.x = constrain(this.targetGridPos.x, 2, gridManager.bounds.maxX - 2);
         this.targetGridPos.y = constrain(this.targetGridPos.y, 2, gridManager.bounds.maxY - 2);
         
-        // Move toward target
+        // Move toward target at normal speed (smoothness comes from interpolation)
         this.move();
         
-        // Occasionally emit happy particles while following
-        if (this.followingTimer % 60 === 0) { // Every second
-            particleSystem.emit(this.x, this.y, random(this.colors), 1, 'joy');
+        // Emit visual feedback while following
+        if (this.followingTimer % 45 === 0) { // Every 0.75 seconds
+            // Small sparkle effect
+            particleSystem.emit(this.x, this.y, [255, 255, 200], 1, 'joy');
         }
+        
+        // Store cursor position for drawing connection line
+        this.followingCursorPos = { x: cursorX, y: cursorY };
     }
     
     // End following state
@@ -1111,6 +1505,7 @@ class Butterfly extends Entity {
     // Reset cursor interaction state
     resetCursorInteraction() {
         this.currentPatienceTimer = 0;
+        // Don't immediately clear trust glow - let it fade in update
         
         if (this.state === 'following') {
             this.endFollowing('reset');
