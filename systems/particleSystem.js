@@ -216,6 +216,139 @@ class Pixel {
         graphics.rect(-this.size/2, -this.size/2, this.size, this.size);
         graphics.pop();
     }
+    
+    // Get rendering data for batched drawing
+    getRenderData() {
+        let alpha;
+        if (this.type === 'joy') {
+            alpha = map(this.lifetime, 0, 255, 0, 255) * 0.9;
+        } else {
+            alpha = 240;
+        }
+        
+        return {
+            x: this.x + this.size/2,
+            y: this.y + this.size/2,
+            size: this.size,
+            color: this.color,
+            alpha: alpha,
+            type: this.type
+        };
+    }
+}
+
+/**
+ * Optimized particle renderer that batches particles by color and type to reduce state changes
+ */
+class ParticleBatchRenderer {
+    constructor() {
+        // Pre-calculated diamond vertices for different sizes
+        this.diamondCache = new Map();
+        this.maxCacheSize = 10; // Limit cache size for common particle sizes
+    }
+    
+    // Pre-calculate diamond vertices for a given size
+    getDiamondVertices(size) {
+        if (this.diamondCache.has(size)) {
+            return this.diamondCache.get(size);
+        }
+        
+        // Calculate diamond vertices (rotated square)
+        const halfSize = size / 2;
+        const vertices = [
+            { x: 0, y: -halfSize },      // Top
+            { x: halfSize, y: 0 },       // Right
+            { x: 0, y: halfSize },       // Bottom
+            { x: -halfSize, y: 0 }       // Left
+        ];
+        
+        // Cache the vertices if we haven't exceeded cache size
+        if (this.diamondCache.size < this.maxCacheSize) {
+            this.diamondCache.set(size, vertices);
+        }
+        
+        return vertices;
+    }
+    
+    // Create a render key for batching particles with similar properties
+    createRenderKey(renderData) {
+        const [r, g, b] = renderData.color;
+        const alpha = Math.floor(renderData.alpha);
+        return `${r}-${g}-${b}-${alpha}-${renderData.size}-${renderData.type}`;
+    }
+    
+    // Group particles by render properties for batching
+    groupParticlesByRenderKey(particles) {
+        const groups = new Map();
+        
+        for (const particle of particles) {
+            const renderData = particle.getRenderData();
+            const key = this.createRenderKey(renderData);
+            
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    renderData: renderData,
+                    positions: []
+                });
+            }
+            
+            groups.get(key).positions.push({
+                x: renderData.x,
+                y: renderData.y
+            });
+        }
+        
+        return groups;
+    }
+    
+    // Draw a batch of particles with the same properties
+    drawParticleBatch(graphics, batchData) {
+        const { renderData, positions } = batchData;
+        const { color, alpha, size } = renderData;
+        
+        // Set fill color once for the entire batch
+        graphics.noStroke();
+        graphics.fill(color[0], color[1], color[2], alpha);
+        
+        // Get pre-calculated diamond vertices
+        const vertices = this.getDiamondVertices(size);
+        
+        // Draw all particles in this batch
+        graphics.beginShape(TRIANGLES);
+        for (const pos of positions) {
+            // Create two triangles to form the diamond
+            // Triangle 1: Top-Right-Bottom
+            graphics.vertex(pos.x + vertices[0].x, pos.y + vertices[0].y); // Top
+            graphics.vertex(pos.x + vertices[1].x, pos.y + vertices[1].y); // Right
+            graphics.vertex(pos.x + vertices[2].x, pos.y + vertices[2].y); // Bottom
+            
+            // Triangle 2: Top-Bottom-Left
+            graphics.vertex(pos.x + vertices[0].x, pos.y + vertices[0].y); // Top
+            graphics.vertex(pos.x + vertices[2].x, pos.y + vertices[2].y); // Bottom
+            graphics.vertex(pos.x + vertices[3].x, pos.y + vertices[3].y); // Left
+        }
+        graphics.endShape();
+    }
+    
+    // Main batched rendering method
+    drawParticlesBatched(graphics, particles) {
+        if (particles.length === 0) return;
+        
+        // Group particles by render properties
+        const batches = this.groupParticlesByRenderKey(particles);
+        
+        // Draw each batch
+        for (const batch of batches.values()) {
+            this.drawParticleBatch(graphics, batch);
+        }
+    }
+    
+    // Fallback to individual rendering for debugging or compatibility
+    drawParticlesIndividual(graphics, particles) {
+        for (const particle of particles) {
+            particle.draw(graphics);
+        }
+    }
 }
 
 /**
@@ -298,33 +431,8 @@ class ColorPool {
             graphics.scale(pulseScale);
         }
         
-        // Draw accumulated pixels as diamonds
-        for (let pixel of this.pixels) {
-            graphics.noStroke();
-            graphics.push();
-            graphics.translate(
-                pixel.x - this.radius + gameConfig.particles.pixelSize/2, 
-                pixel.y - this.radius + gameConfig.particles.pixelSize/2
-            );
-            graphics.rotate(PI/4);
-            graphics.fill(pixel.color[0], pixel.color[1], pixel.color[2], 255);
-            const pixelSize = gameConfig.particles.pixelSize;
-            graphics.rect(-pixelSize/2, -pixelSize/2, pixelSize, pixelSize);
-            graphics.pop();
-            
-            // Add subtle highlight to some pixels (also as diamonds)
-            if (random() < 0.3) {
-                graphics.push();
-                graphics.translate(
-                    pixel.x - this.radius + gameConfig.particles.pixelSize/2, 
-                    pixel.y - this.radius + gameConfig.particles.pixelSize/2
-                );
-                graphics.rotate(PI/4);
-                graphics.fill(255, 255, 255, 100);
-                graphics.rect(-0.5, -0.5, 1, 1);
-                graphics.pop();
-            }
-        }
+        // Use batched rendering for accumulated pixels
+        this.drawPixelsBatched(graphics);
         
         // Draw pulsing ring when ready
         if (this.isPulsing) {
@@ -335,6 +443,88 @@ class ColorPool {
         }
         
         graphics.pop();
+    }
+    
+    // Optimized batched rendering for accumulated pixels
+    drawPixelsBatched(graphics) {
+        if (this.pixels.length === 0) return;
+        
+        // Group pixels by color for batching
+        const colorGroups = new Map();
+        const pixelSize = gameConfig.particles.pixelSize;
+        
+        for (const pixel of this.pixels) {
+            const colorKey = `${pixel.color[0]}-${pixel.color[1]}-${pixel.color[2]}`;
+            
+            if (!colorGroups.has(colorKey)) {
+                colorGroups.set(colorKey, {
+                    color: pixel.color,
+                    positions: [],
+                    highlights: []
+                });
+            }
+            
+            const group = colorGroups.get(colorKey);
+            const pos = {
+                x: pixel.x - this.radius + pixelSize/2,
+                y: pixel.y - this.radius + pixelSize/2
+            };
+            
+            group.positions.push(pos);
+            
+            // Add highlight positions (30% chance)
+            if (random() < 0.3) {
+                group.highlights.push(pos);
+            }
+        }
+        
+        // Pre-calculate diamond vertices
+        const halfSize = pixelSize / 2;
+        const vertices = [
+            { x: 0, y: -halfSize },      // Top
+            { x: halfSize, y: 0 },       // Right
+            { x: 0, y: halfSize },       // Bottom
+            { x: -halfSize, y: 0 }       // Left
+        ];
+        
+        graphics.noStroke();
+        
+        // Draw each color group as a batch
+        for (const group of colorGroups.values()) {
+            // Draw main pixels
+            graphics.fill(group.color[0], group.color[1], group.color[2], 255);
+            graphics.beginShape(TRIANGLES);
+            
+            for (const pos of group.positions) {
+                // Create two triangles to form the diamond
+                graphics.vertex(pos.x + vertices[0].x, pos.y + vertices[0].y); // Top
+                graphics.vertex(pos.x + vertices[1].x, pos.y + vertices[1].y); // Right
+                graphics.vertex(pos.x + vertices[2].x, pos.y + vertices[2].y); // Bottom
+                
+                graphics.vertex(pos.x + vertices[0].x, pos.y + vertices[0].y); // Top
+                graphics.vertex(pos.x + vertices[2].x, pos.y + vertices[2].y); // Bottom
+                graphics.vertex(pos.x + vertices[3].x, pos.y + vertices[3].y); // Left
+            }
+            graphics.endShape();
+            
+            // Draw highlights as a separate batch
+            if (group.highlights.length > 0) {
+                graphics.fill(255, 255, 255, 100);
+                graphics.beginShape(TRIANGLES);
+                
+                for (const pos of group.highlights) {
+                    const highlightSize = 0.5;
+                    graphics.vertex(pos.x, pos.y - highlightSize);
+                    graphics.vertex(pos.x + highlightSize, pos.y);
+                    graphics.vertex(pos.x, pos.y + highlightSize);
+                    
+                    graphics.vertex(pos.x, pos.y - highlightSize);
+                    graphics.vertex(pos.x, pos.y + highlightSize);
+                    graphics.vertex(pos.x - highlightSize, pos.y);
+                }
+                graphics.endShape();
+            }
+        }
     }
     
     getSpawnPosition() {
@@ -390,6 +580,17 @@ class ParticleSystem {
         this.particles = [];
         // Use unified config system - no drift-prone fallbacks
         this.maxParticles = gameConfig.particles.maxParticles;
+        
+        // Initialize batched renderer
+        this.batchRenderer = new ParticleBatchRenderer();
+        
+        // Performance tracking
+        this.useBatchedRendering = true; // Can be toggled for debugging
+        this.renderStats = {
+            lastBatchCount: 0,
+            lastParticleCount: 0,
+            renderTime: 0
+        };
     }
     
     emit(x, y, color, count = 1, type = 'scale') {
@@ -506,9 +707,42 @@ class ParticleSystem {
     }
     
     draw(graphics) {
-        for (let particle of this.particles) {
-            particle.draw(graphics);
+        if (this.particles.length === 0) return;
+        
+        const startTime = performance.now();
+        
+        if (this.useBatchedRendering) {
+            // Use optimized batched rendering
+            this.batchRenderer.drawParticlesBatched(graphics, this.particles);
+            
+            // Update stats for debugging
+            const batches = this.batchRenderer.groupParticlesByRenderKey(this.particles);
+            this.renderStats.lastBatchCount = batches.size;
+        } else {
+            // Fall back to individual rendering for debugging
+            this.batchRenderer.drawParticlesIndividual(graphics, this.particles);
+            this.renderStats.lastBatchCount = this.particles.length; // Each particle is its own "batch"
         }
+        
+        // Track performance
+        this.renderStats.renderTime = performance.now() - startTime;
+        this.renderStats.lastParticleCount = this.particles.length;
+    }
+    
+    // Toggle between batched and individual rendering for debugging
+    setBatchedRendering(enabled) {
+        this.useBatchedRendering = enabled;
+    }
+    
+    // Get rendering performance stats
+    getRenderStats() {
+        return {
+            ...this.renderStats,
+            particleCount: this.particles.length,
+            batchingEnabled: this.useBatchedRendering,
+            averageParticlesPerBatch: this.renderStats.lastBatchCount > 0 ? 
+                this.renderStats.lastParticleCount / this.renderStats.lastBatchCount : 0
+        };
     }
     
     clear() {
@@ -678,6 +912,7 @@ class PoolManager {
 // Export classes for global use
 if (typeof window !== 'undefined') {
     window.Pixel = Pixel;
+    window.ParticleBatchRenderer = ParticleBatchRenderer;
     window.ColorPool = ColorPool;
     window.ParticleSystem = ParticleSystem;
     window.PoolManager = PoolManager;
