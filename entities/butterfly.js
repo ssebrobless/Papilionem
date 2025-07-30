@@ -1783,15 +1783,14 @@ class Butterfly extends Entity {
         this.feeding.cooldowns.clear(); // Clear all feeding cooldowns
         this.visual.hasBeenHovered = false;
         
-        // Reset position to a safe location
-        const safeGridX = random(4, 14);
-        const safeGridY = random(4, 14);
-        const safeScreen = gridManager.isoToScreen(safeGridX, safeGridY);
-        this.x = safeScreen.x;
-        this.y = safeScreen.y - this.shadowOffset;
-        this.gridPos.x = safeGridX;
-        this.gridPos.y = safeGridY;
+        // Keep butterfly at current position - no teleportation!
+        // Only update the target position to current position to stop any movement
         this.targetGridPos = {...this.gridPos};
+        
+        // Reset movement to prevent weird glitches
+        this.movement.clearTarget();
+        this.movement.smoothFollowTarget = { x: this.gridPos.x, y: this.gridPos.y };
+        this.movement.followOffset = { x: 0, y: 0 };
         
         // Clear any ongoing goals
         this.goalGridPos = null;

@@ -131,7 +131,7 @@ class EntityManager {
             for (let flower of flowers) {
                 const dist = butterfly.distanceTo(flower.x, flower.y);
                 
-                if (dist < 20 && flower.stage === 'mature' && flower.pollenTimer === 0) {
+                if (dist < 20 && flower.stage === 'mature') {
                     this.emit('butterflyVisitedFlower', { butterfly, flower });
                 }
             }

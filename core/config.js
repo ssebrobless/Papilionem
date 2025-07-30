@@ -74,7 +74,6 @@ const gameConfig = {
                 wilting: 600,   // 10 seconds
                 dissolve: 180   // 3 seconds
             },
-            pollenCooldown: 180,
             palettes: [
                 { petals: [255, 180, 120], center: [255, 240, 180] }, // Warm orange
                 { petals: [255, 150, 200], center: [255, 255, 220] }, // Pink
@@ -102,10 +101,6 @@ const gameConfig = {
             joy: {
                 lifetime: 255,
                 fadeSpeed: 2
-            },
-            pollen: {
-                lifetime: 400,
-                fadeSpeed: 1
             },
             stress: {
                 lifetime: 180, // Shorter lifetime than joy pixels
@@ -135,7 +130,6 @@ const gameConfig = {
     interaction: {
         stillFramesRequired: 120, // 2 seconds for gentle hover
         cursorZoneRadius: 30,
-        plantingPollenRequired: 5,
         
         // Butterfly interaction zones
         butterflyZones: {

@@ -89,8 +89,6 @@ class Flower extends Entity {
         this.accentColor = palette.accent;
         this.stemColor = palette.stemColor || [34, 139, 34]; // Default green if not specified
         
-        this.pollenTimer = 0;
-        this.pollenCooldown = 180;
         this.lastVisitor = null;
         
         // Unified animation state
@@ -113,11 +111,6 @@ class Flower extends Entity {
         
         // Update animation regardless of mortality
         this.animation.swayAngle += this.animation.swaySpeed;
-        
-        // Update pollen timer
-        if (this.pollenTimer > 0) {
-            this.pollenTimer--;
-        }
         
         // Immortal flowers have special handling
         if (this.isImmortal) {
@@ -158,15 +151,12 @@ class Flower extends Entity {
             
             if (dist < 20 && 
                 butterfly.state === 'feeding' && 
-                butterfly !== this.lastVisitor &&
-                this.pollenTimer === 0) {
+                butterfly !== this.lastVisitor) {
                 
                 // Special interactions based on butterfly personality
                 this.handleSpecialInteraction(butterfly, particleSystem);
                 
-                this.generatePollen(particleSystem);
                 this.lastVisitor = butterfly;
-                this.pollenTimer = this.pollenCooldown;
             }
         }
     }
@@ -222,8 +212,8 @@ class Flower extends Entity {
                 break;
                 
             case 'wise':
-                // Wise butterflies make flowers produce more pollen
-                this.generatePollen(particleSystem); // Extra pollen
+                // Wise butterflies create sparkles around flowers
+                particleSystem.emitBurst(this.x, this.y - this.stemHeight, [255, 255, 255], 5);
                 break;
                 
             case 'golden':
@@ -233,63 +223,26 @@ class Flower extends Entity {
                 break;
                 
             case 'mystic':
-                // Mystic butterflies create rainbow pollen
+                // Mystic butterflies create rainbow particles
                 const rainbowColors = [
                     [255, 0, 0], [255, 127, 0], [255, 255, 0],
                     [0, 255, 0], [0, 0, 255], [75, 0, 130], [148, 0, 211]
                 ];
-                for (let i = 0; i < 3; i++) {
-                    particleSystem.emit(this.x, this.y - this.size, random(rainbowColors), 1, 'pollen');
+                for (let i = 0; i < 7; i++) {
+                    const angle = (TWO_PI / 7) * i;
+                    const dist = 15;
+                    particleSystem.emit(
+                        this.x + cos(angle) * dist, 
+                        this.y - this.stemHeight + sin(angle) * dist, 
+                        rainbowColors[i], 
+                        1, 
+                        'joy'
+                    );
                 }
                 break;
         }
     }
     
-    generatePollen(particleSystem) {
-        const pollenColor = [250, 250, 250];
-        // Use emit for pollen generation - the particle system will handle physics
-        particleSystem.emit(this.x, this.y - this.size, pollenColor, 3, 'pollen');
-    }
-    
-    // Check if planting is possible at this location
-    static canPlantAt(x, y, flowers, particleSystem) {
-        // Check pollen availability
-        const pollenCount = particleSystem.getPollenCount();
-        if (pollenCount < 5) return false;
-        
-        // Only allow planting within the isometric playable area
-        if (!isWithinPlayableArea(x, y)) return false;
-        
-        // Check distance from magic pool (2 tile radius exclusion)
-        const gridPos = gridManager.screenToIso(x, y);
-        const poolCenter = { x: 8.5, y: 7 }; // Magic pool center - matches background
-        const distToPool = Math.hypot(gridPos.x - poolCenter.x, gridPos.y - poolCenter.y);
-        if (distToPool < 2.5) { // 2 tile radius plus small buffer
-            return false;
-        }
-        
-        // Check distance from existing flowers
-        for (let flower of flowers) {
-            if (!flower.canPlantNear(x, y)) {
-                return false;
-            }
-        }
-        
-        return true;
-    }
-    
-    // Consume pollen for planting
-    static consumePollenForPlanting(particleSystem) {
-        let pollenConsumed = 0;
-        particleSystem.removePixels(p => {
-            if (p.type === 'pollen' && pollenConsumed < 5) {
-                pollenConsumed++;
-                return true;
-            }
-            return false;
-        });
-        return pollenConsumed === 5;
-    }
     
     // Override parent's shadow drawing for soft layered shadow
     drawShadow(graphics, alpha) {
@@ -450,9 +403,6 @@ class Flower extends Entity {
         
         // Draw center using common method
         this.drawFlowerCenter(graphics, alpha);
-        
-        // Draw pollen glow using common method
-        this.drawPollenGlow(graphics, alpha);
     }
     
     drawSimpleTulip(graphics, alpha) {
@@ -492,12 +442,6 @@ class Flower extends Entity {
         graphics.fill(this.centerColor[0] * 0.3, this.centerColor[1] * 0.3, this.centerColor[2] * 0.3, alpha);
         graphics.ellipse(0, 0, 6, 6);
         
-        // Pollen ready glow
-        if (this.stage === 'mature' && this.pollenTimer === 0) {
-            graphics.noStroke();
-            graphics.fill(255, 240, 100, alpha * 0.5);
-            graphics.ellipse(0, 0, petalSize + 4, petalSize + 4);
-        }
     }
     
     drawBushClusters(graphics, alpha) {
@@ -527,8 +471,6 @@ class Flower extends Entity {
             graphics.pop();
         }
         
-        // Pollen ready glow for whole cluster
-        this.drawPollenGlow(graphics, alpha * 0.15, sway * 4, -this.stemHeight, this.size * 1.5);
     }
     
     drawLavenderClusters(graphics, alpha) {
@@ -554,12 +496,6 @@ class Flower extends Entity {
             graphics.pop();
         }
         
-        // Pollen ready effect
-        if (this.stage === 'mature' && this.pollenTimer === 0) {
-            const avgSway = sinSway(this.animation.swayAngle) * this.animation.swayAmount * 2;
-            graphics.fill(255, 220, 255, 50);
-            graphics.ellipse(avgSway, -this.stemHeight - 2, this.size * 1.5, this.size * 0.8);
-        }
     }
     
     drawTinySprout(graphics, alpha) {
@@ -572,8 +508,6 @@ class Flower extends Entity {
         // Draw tiny center
         this.drawFlowerCenter(graphics, alpha, 3);
         
-        // Draw subtle pollen glow
-        this.drawPollenGlow(graphics, alpha * 0.15, 0, 0, 6);
     }
     
     
@@ -592,17 +526,6 @@ class Flower extends Entity {
         return baseSize;
     }
     
-    // Common drawing patterns
-    drawPollenGlow(graphics, baseAlpha, x = 0, y = 0, size = null) {
-        if (this.stage === 'mature' && this.pollenTimer === 0) {
-            graphics.noStroke();
-            // Handle both raw alpha (0-1) and p5 alpha (0-255)
-            const alpha = baseAlpha > 1 ? baseAlpha : baseAlpha * 255;
-            graphics.fill(255, 255, 100, alpha * 0.4);
-            const glowSize = size || this.size + 5;
-            graphics.ellipse(x, y, glowSize, glowSize);
-        }
-    }
     
     drawFlowerCenter(graphics, alpha, size = 8) {
         // Main center
@@ -714,7 +637,7 @@ class Flower extends Entity {
 
 class FlowerManager {
     constructor() {
-        // No need to track pollen count here anymore
+        // Simple flower manager for updates only
     }
     
     update(flowers, butterflies, particleSystem) {
@@ -738,43 +661,6 @@ class FlowerManager {
                 }
                 flowers.splice(i, 1);
             }
-        }
-    }
-    
-    canPlant(x, y, flowers, particleSystem) {
-        return Flower.canPlantAt(x, y, flowers, particleSystem);
-    }
-    
-    plantFlower(x, y, flowers, particleSystem) {
-        if (this.canPlant(x, y, flowers, particleSystem) && flowers.length < 6) {  // Original limit
-            // Consume pollen first
-            if (Flower.consumePollenForPlanting(particleSystem)) {
-                flowers.push(new Flower(x, y));
-                particleSystem.emitBurst(x, y, [255, 255, 255], 8);
-                return true;
-            }
-        }
-        return false;
-    }
-    
-    drawPlantingHint(graphics, x, y, flowers, particleSystem) {
-        if (this.canPlant(x, y, flowers, particleSystem)) {
-            graphics.push();
-            graphics.translate(x, y);
-            
-            const alpha = (sinFrame(frameCount, 0.1) + 1) * 0.5 * 50 + 50;
-            graphics.noFill();
-            graphics.stroke(255, 255, 255, alpha);
-            graphics.strokeWeight(1);
-            
-            for (let i = 0; i < 5; i++) {
-                const angle = (TWO_PI / 5) * i + frameCount * 0.02;
-                const px = cos(angle) * 8;
-                const py = sin(angle) * 8;
-                graphics.rect(px - 1, py - 1, 2, 2);
-            }
-            
-            graphics.pop();
         }
     }
 }

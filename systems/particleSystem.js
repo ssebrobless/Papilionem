@@ -766,6 +766,7 @@ class ParticleSystem {
     
     emit(x, y, color, count = 1, type = 'scale') {
         let lastPixel = null;
+        let actualCount = 0;
         for (let i = 0; i < count; i++) {
             if (this.particles.length < this.maxParticles) {
                 const offsetX = random(-5, 5);
@@ -773,14 +774,16 @@ class ParticleSystem {
                 const pixel = this.particlePool.getParticle(x + offsetX, y + offsetY, color, type);
                 if (pixel) {
                     lastPixel = pixel;
+                    actualCount++;
                 }
             }
         }
         
+        
         // Emit spawning event
         if (typeof eventBus !== 'undefined' && typeof GameEvents !== 'undefined') {
             eventBus.emit(GameEvents.PIXELS_SPAWNED, { 
-                count, 
+                count: actualCount, 
                 type, 
                 position: { x, y }, 
                 color 
@@ -862,9 +865,6 @@ class ParticleSystem {
         return this.particles.filter(p => p.settled && p.type === 'scale');
     }
     
-    getPollenCount() {
-        return this.particles.filter(p => p.type === 'pollen' && !p.settled).length;
-    }
     
     removePixels(predicate) {
         this.particlePool.removeParticlesWhere(predicate);

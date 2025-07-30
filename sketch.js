@@ -1,8 +1,13 @@
 // Minimal p5.js sketch - delegates to GameCore for all game logic
 let backgroundImage;
+let titleImage;
+let showTitleScreen = true;
+let titleFadeAlpha = 255;
+let titleFading = false;
 
 function preload() {
     backgroundImage = loadImage('background2.png');
+    titleImage = loadImage('title.png');
 }
 
 function setup() {
@@ -32,9 +37,36 @@ function setup() {
 }
 
 function draw() {
-    // Delegate to GameCore
-    gameCore.update();
+    // Update game only if title screen is not showing or is fading
+    if (!showTitleScreen || titleFading) {
+        gameCore.update();
+    }
+    
+    // Always draw the game for cross-fade effect
     gameCore.draw();
+    
+    // Draw title screen on top if active
+    if (showTitleScreen) {
+        // Draw title image centered
+        if (titleImage) {
+            push();
+            imageMode(CENTER);
+            tint(255, titleFadeAlpha);
+            
+            // Draw image to fill entire canvas
+            image(titleImage, width/2, height/2, width, height);
+            pop();
+        }
+        
+        // Handle fade out
+        if (titleFading) {
+            titleFadeAlpha -= 3; // Slower fade for smooth cross-fade
+            if (titleFadeAlpha <= 0) {
+                showTitleScreen = false;
+                titleFading = false;
+            }
+        }
+    }
 }
 
 function windowResized() {
@@ -47,20 +79,38 @@ function windowResized() {
 }
 
 function mousePressed() {
-    // Check debug UI god mode buttons first
-    if (typeof debugUI !== 'undefined' && debugUI.enabled) {
-        if (debugUI.handleMouseClick(mouseX, mouseY)) {
-            return; // Button handled the click
-        }
+    // Handle title screen click
+    if (showTitleScreen && !titleFading) {
+        titleFading = true;
+        return;
     }
     
-    // Handle normal game mouse input
-    gameCore.handleMousePressed();
+    // Only process game input if title screen is not showing
+    if (!showTitleScreen) {
+        // Check debug UI god mode buttons first
+        if (typeof debugUI !== 'undefined' && debugUI.enabled) {
+            if (debugUI.handleMouseClick(mouseX, mouseY)) {
+                return; // Button handled the click
+            }
+        }
+        
+        // Handle normal game mouse input
+        gameCore.handleMousePressed();
+    }
 }
 
 function keyPressed() {
-    // Delegate to GameCore
-    gameCore.handleKeyPressed(key, keyCode);
+    // Handle title screen - any key starts the fade
+    if (showTitleScreen && !titleFading) {
+        titleFading = true;
+        return;
+    }
+    
+    // Only process key input if title screen is not showing
+    if (!showTitleScreen) {
+        // Delegate to GameCore
+        gameCore.handleKeyPressed(key, keyCode);
+    }
 }
 
 // Global helper function to check if screen coordinates are within the playable area

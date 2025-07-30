@@ -25,13 +25,6 @@ class InteractionSystem {
         // Pre-allocated cursor position object to avoid frequent allocation
         this.cursorPositionCache = { x: 0, y: 0 };
         
-        // Pre-allocated color arrays for particle effects
-        this.plantingFailColors = [
-            [255, 100, 100],
-            [100, 255, 100],
-            [100, 100, 255],
-            [255, 200, 100]
-        ];
         
         // Listen for cursor state events from butterflies
         this.setupCursorStateListeners();
@@ -82,26 +75,6 @@ class InteractionSystem {
         return entities.filter(entity => this.isNearEntity(entity, radius));
     }
     
-    // Handle plant attempt
-    handlePlantAttempt(flowerManager, flowers, particleSystem) {
-        if (!flowerManager.plantFlower(
-            this.adjustedMouseX, 
-            this.adjustedMouseY, 
-            flowers, 
-            particleSystem
-        )) {
-            // Show feedback particles if planting failed using pre-allocated colors
-            const color = random(this.plantingFailColors);
-            particleSystem.emitBurst(this.adjustedMouseX, this.adjustedMouseY, color, 8);
-        }
-        
-        // Emit event for plant attempt
-        eventBus.emit(GameEvents.PLANT_ATTEMPTED, {
-            x: this.adjustedMouseX,
-            y: this.adjustedMouseY,
-            success: false
-        });
-    }
     
     // Draw interaction UI elements
     drawInteractionHints(graphics) {

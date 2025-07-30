@@ -135,12 +135,10 @@ const GameEvents = {
     FLOWER_MATURED: 'flower:matured',
     FLOWER_WILTED: 'flower:wilted',
     FLOWER_DIED: 'flower:died',
-    FLOWER_PRODUCED_POLLEN: 'flower:producedPollen',
     
     // Pixel/Particle events
     PIXELS_SPAWNED: 'pixels:spawned',
     PIXELS_SETTLED: 'pixels:settled',
-    POLLEN_COLLECTED: 'pollen:collected',
     
     // Pool events
     POOL_CREATED: 'pool:created',
@@ -165,12 +163,10 @@ const eventBus = new EventBus();
 
 // Helper function to set up ecosystem event chains
 function setupEcosystemEvents() {
-    // When butterfly visits flower, produce pollen
+    // When butterfly visits flower, trigger special effects
     eventBus.on(GameEvents.BUTTERFLY_VISITED_FLOWER, (data) => {
         const { flower, butterfly } = data;
-        if (flower.stage === 'mature' && flower.pollenTimer === 0) {
-            eventBus.emit(GameEvents.FLOWER_PRODUCED_POLLEN, { flower, butterfly });
-        }
+        // Flower handles special interactions directly now
     });
     
     // When pixels settle, check for pool creation

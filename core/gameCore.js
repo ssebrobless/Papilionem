@@ -397,59 +397,62 @@ class GameCore {
         }
     }
     
-    // Dynamic flower spawning mechanism (3-6 flowers total)
+    // Simplified time-based flower spawning (3-5 flowers total)
     updateFlowerSpawning() {
         const totalFlowers = this.gameState.flowers.length;
         const immortalFlowers = this.gameState.flowers.filter(f => f.isImmortal).length;
         const ephemeralFlowers = totalFlowers - immortalFlowers;
         
-        // Target: 3-6 total flowers (2 immortal + 1-4 ephemeral)
+        // Target: 3-5 total flowers (2 immortal + 1-3 ephemeral)
         const minTotal = 3;
-        const maxTotal = 6;
+        const maxTotal = 5;
         const minEphemeral = minTotal - immortalFlowers;
         const maxEphemeral = maxTotal - immortalFlowers;
         
-        // Check every 8 seconds (480 frames) for more dynamic spawning
-        if (frameCount % 480 !== 0) return;
+        // Check every 10-15 seconds for spawning (varies to feel more organic)
+        const checkInterval = 600 + Math.floor(sin(frameCount * 0.001) * 300); // 10-15 seconds
+        if (frameCount % checkInterval !== 0) return;
         
-        // Dynamic spawning probability based on current count
-        let spawnChance = 0;
+        console.log(`🌸 Flower spawning check at frame ${frameCount}:`);
+        console.log(`   - Total flowers: ${totalFlowers} (${immortalFlowers} immortal, ${ephemeralFlowers} ephemeral)`);
+        console.log(`   - Target range: ${minTotal}-${maxTotal} total (${minEphemeral}-${maxEphemeral} ephemeral)`);
+        
+        // Simple spawning logic
         if (ephemeralFlowers < minEphemeral) {
-            spawnChance = 0.8; // High chance if below minimum
+            // Always spawn if below minimum
+            this.spawnEphemeralFlower();
         } else if (ephemeralFlowers < maxEphemeral) {
-            // Decreasing chance as we approach maximum
-            const ratio = (ephemeralFlowers - minEphemeral) / (maxEphemeral - minEphemeral);
-            spawnChance = 0.4 * (1 - ratio); // 40% at min, 0% at max
-        }
-        
-        // Require ecosystem conditions: butterflies and pollen
-        const pollenCount = this.particleSystem.getPollenCount();
-        const hasEcosystemConditions = pollenCount >= 8 && this.gameState.butterflies.length >= 2;
-        
-        if (spawnChance > 0 && hasEcosystemConditions && random() < spawnChance) {
-            const validPosition = this.findValidFlowerPosition();
-            
-            if (validPosition) {
-                // Create ephemeral flower with full lifecycle
-                const newFlower = new Flower(validPosition.x, validPosition.y, false);
-                this.gameState.flowers.push(newFlower);
-                this.entityManager.addEntity('flowers', newFlower);
-                
-                // Consume pollen for spawning
-                let pollenConsumed = 0;
-                this.particleSystem.removePixels(p => {
-                    if (p.type === 'pollen' && pollenConsumed < 6) {
-                        pollenConsumed++;
-                        return true;
-                    }
-                    return false;
-                });
-                
-                // Magical appearance effect
-                this.particleSystem.emitBurst(validPosition.x, validPosition.y, [255, 255, 200], 12);
-                
-                console.log(`🌺 Ephemeral flower spawned (${ephemeralFlowers + 1}/${maxEphemeral} ephemeral, ${totalFlowers + 1} total)`);
+            // 30% chance to spawn when in range
+            if (random() < 0.3) {
+                this.spawnEphemeralFlower();
+            } else {
+                console.log(`   ❌ No spawn: Random chance failed (30%)`);
             }
+        } else {
+            console.log(`   ❌ No spawn: At maximum ephemeral flowers (${ephemeralFlowers}/${maxEphemeral})`);
+        }
+    }
+    
+    // Helper method to spawn an ephemeral flower
+    spawnEphemeralFlower() {
+        const validPosition = this.findValidFlowerPosition();
+        
+        if (validPosition) {
+            console.log(`   ✅ Spawning flower at (${validPosition.x.toFixed(0)}, ${validPosition.y.toFixed(0)})`);
+            
+            // Create ephemeral flower with full lifecycle
+            const newFlower = new Flower(validPosition.x, validPosition.y, false);
+            this.gameState.flowers.push(newFlower);
+            this.entityManager.addEntity('flowers', newFlower);
+            
+            // Magical appearance effect
+            this.particleSystem.emitBurst(validPosition.x, validPosition.y, [255, 255, 200], 12);
+            
+            const totalFlowers = this.gameState.flowers.length;
+            const ephemeralFlowers = this.gameState.flowers.filter(f => !f.isImmortal).length;
+            console.log(`🌺 Ephemeral flower spawned! Total: ${totalFlowers} (${ephemeralFlowers} ephemeral)`);
+        } else {
+            console.log(`   ❌ Could not find valid position for flower`);
         }
     }
     
@@ -464,36 +467,37 @@ class GameCore {
             const gridY = random(2, this.gridManager.bounds.maxY - 2);
             const screenPos = this.gridManager.isoToScreen(gridX, gridY);
             
-            // Check basic validity (flower manager constraints)
-            if (!this.flowerManager.canPlant(screenPos.x, screenPos.y, this.gameState.flowers, this.particleSystem)) {
-                continue;
-            }
-            
             // Check magic pool exclusion (2.5 grid radius)
-            const poolCenter = { x: 8.5, y: 7 }; // Magic pool center
+            const poolCenter = { x: 8.5, y: 7 }; // Magic pool center - matches background
             const distToPool = Math.hypot(gridX - poolCenter.x, gridY - poolCenter.y);
             if (distToPool < 2.5) {
                 continue;
             }
             
-            // Score position based on distance from existing flowers (preference for spacing)
+            // Check minimum distance from existing flowers (40 pixels spacing)
             let minDistToFlower = Infinity;
+            let tooClose = false;
             for (let flower of this.gameState.flowers) {
-                const flowerGrid = this.gridManager.screenToIso(flower.x, flower.y);
-                const dist = Math.hypot(gridX - flowerGrid.x, gridY - flowerGrid.y);
+                const dist = Math.hypot(screenPos.x - flower.x, screenPos.y - flower.y);
+                if (dist < 40) {
+                    tooClose = true;
+                    break;
+                }
                 minDistToFlower = Math.min(minDistToFlower, dist);
             }
             
+            if (tooClose) continue;
+            
             // Score: prefer positions with good spacing (not too close, not too far)
             let score = 0;
-            if (minDistToFlower > 4) {
+            if (minDistToFlower > 100) {
                 score = 1.0; // Good spacing
-            } else if (minDistToFlower > 2.5) {
+            } else if (minDistToFlower > 70) {
                 score = 0.7; // Acceptable spacing
-            } else if (minDistToFlower > 1.5) {
+            } else if (minDistToFlower > 50) {
                 score = 0.3; // Close but usable
             } else {
-                score = 0; // Too close
+                score = 0.1; // Minimum acceptable
             }
             
             // Add some randomness to prevent clustering
@@ -517,9 +521,6 @@ class GameCore {
         
         // Use render manager for all drawing
         this.renderManager.render();
-        
-        // Draw info panel (outside of render manager for now)
-        this.drawInfoPanel();
     }
     
     drawLoadingScreen() {
@@ -557,26 +558,7 @@ class GameCore {
             return;
         }
         
-        push();
-        noStroke();
-        fill(150);
-        textAlign(LEFT);
-        
-        const info = [
-            `Cursor velocity: ${this.gameState.cursorVelocity.toFixed(2)}`,
-            `Still frames: ${this.gameState.framesSinceMovement}`,
-            `Pollen: ${this.flowerManager ? this.flowerManager.pollenCount : 0}/5`,
-            `Butterflies: ${this.gameState.butterflies.length}`,
-            `Flowers: ${this.gameState.flowers.length}`,
-            `FPS: ${frameRate().toFixed(0)}`,
-            'Press D for Debug Mode'
-        ];
-        
-        for (let i = 0; i < info.length; i++) {
-            text(info[i], 10, 20 + i * 15);
-        }
-        
-        pop();
+        // Info panel has been removed - now displays only completion screen when needed
     }
     
     drawCompletionScreen() {
@@ -639,29 +621,21 @@ class GameCore {
     handleMousePressed() {
         if (this.debugMode.enabled) return false;
         
-        const cursorPos = this.interactionSystem.getCursorPosition();
-        
-        if (cursorPos.x >= 0 && cursorPos.x <= gameConfig.canvas.baseWidth &&
-            cursorPos.y >= 0 && cursorPos.y <= gameConfig.canvas.baseHeight) {
-            
-            this.interactionSystem.handlePlantAttempt(
-                this.flowerManager,
-                this.gameState.flowers,
-                this.particleSystem
-            );
-            return true;
+        // Check if gameUI wants to handle the click first (for butterfly collection navigation)
+        if (typeof gameUI !== 'undefined' && gameUI.initialized && gameUI.butterflyCollection) {
+            if (gameUI.butterflyCollection.handleMousePressed(mouseX, mouseY)) {
+                return true;
+            }
         }
+        
+        // No other mouse interaction needed
         return false;
     }
     
     handleKeyPressed(key, keyCode) {
-        console.log(`GameCore: handleKeyPressed called with key='${key}', keyCode=${keyCode}`);
-        
         // Let gameUI handle keys first (for non-debug UI controls)
         if (typeof gameUI !== 'undefined' && gameUI.initialized) {
-            console.log('GameCore: Forwarding key to gameUI');
             if (gameUI.handleKeyPress(key, keyCode)) {
-                console.log('GameCore: gameUI consumed the key');
                 return true;
             }
         }

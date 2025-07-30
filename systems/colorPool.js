@@ -16,7 +16,7 @@ class MainColorPool {
         this.absorbedPixels = [];
         this.glowIntensity = 0;
         this.maxGlowIntensity = 100;
-        this.spawnThreshold = 50; // Glow intensity needed to spawn butterfly
+        this.spawnThreshold = 35; // Glow intensity needed to spawn butterfly (reduced from 50 for easier spawning)
         this.spawnCooldown = 0;
         this.spawnCooldownDuration = 300; // 5 seconds between spawns
         
@@ -51,6 +51,11 @@ class MainColorPool {
         if (this.spawnCooldown > 0) {
             this.spawnCooldown--;
         }
+        
+        // Passive gain: 1% per 5 seconds (1 point per 5 seconds since max is 100)
+        // At 60 fps, this is 1/300 per frame (60 fps * 5 seconds = 300 frames)
+        const passiveGainPerFrame = 1 / 300;
+        this.glowIntensity = Math.min(this.maxGlowIntensity, this.glowIntensity + passiveGainPerFrame);
         
         // Check for butterfly spawning
         if (this.glowIntensity >= this.spawnThreshold && 
@@ -170,12 +175,12 @@ class MainColorPool {
             y: particle.y - this.y
         });
         
-        // Increase glow intensity based on particle type
-        let glowIncrease = 1; // Default for 'scale' particles
+        // Increase glow intensity based on particle type (increased by 30% for easier spawning)
+        let glowIncrease = 1.3; // Default for 'scale' particles (was 1)
         if (particle.type === 'happy') {
-            glowIncrease = 2; // Full value for happiness particles
+            glowIncrease = 2.6; // Full value for happiness particles (was 2)
         } else if (particle.type === 'happy_visual') {
-            glowIncrease = 0.5; // 1/4 value for visual particles (2 * 0.5 = 1, same as scale)
+            glowIncrease = 0.65; // Visual particles (was 0.5)
         }
         this.glowIntensity = Math.min(this.maxGlowIntensity, this.glowIntensity + glowIncrease);
         

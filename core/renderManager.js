@@ -380,7 +380,6 @@ class RenderManager {
         const info = [
             `Cursor velocity: ${gameState.cursorVelocity.toFixed(2)}`,
             `Still frames: ${gameState.framesSinceMovement}`,
-            `Pollen: ${gameState.flowerManager ? gameState.flowerManager.pollenCount : 0}/5`,
             `FPS: ${frameRate().toFixed(0)}`
         ];
         
