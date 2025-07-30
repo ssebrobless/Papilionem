@@ -30,12 +30,19 @@ class GameUI {
             { dist: 100, color: [255, 150, 100, 30], label: "Hard" },
             { dist: 150, color: [255, 100, 100, 20], label: "Max" }
         ];
+        
+        // Butterfly collection UI
+        this.butterflyCollection = null;
     }
     
     // Initialize the UI system with references to other systems
     initialize(flowerManager, config) {
         this.flowerManager = flowerManager;
         this.stillFramesRequired = config?.stillFramesRequired || 60;
+        
+        // Initialize butterfly collection UI
+        this.butterflyCollection = new ButterflyCollectionUI();
+        
         this.initialized = true;
     }
     
@@ -54,12 +61,13 @@ class GameUI {
             const adjustedMouseY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
             
             // Draw ghost flower preview when enough pollen is available
-            if (this.flowerManager.pollenCount >= 5) {
+            const pollenCount = gameState.particleSystem ? gameState.particleSystem.getPollenCount() : 0;
+            if (pollenCount >= 5) {
                 this.drawGhostFlowerPreview(graphics, adjustedMouseX, adjustedMouseY, gameState.flowers);
             }
             
             // Draw original planting hint particles
-            this.flowerManager.drawPlantingHint(graphics, adjustedMouseX, adjustedMouseY, gameState.flowers);
+            this.flowerManager.drawPlantingHint(graphics, adjustedMouseX, adjustedMouseY, gameState.flowers, gameState.particleSystem);
         }
         
         // Draw pollen cluster visualization
@@ -68,6 +76,12 @@ class GameUI {
         // Draw boundary zones if requested
         if (this.showBoundaryZones) {
             this.drawBoundaryZones(graphics);
+        }
+        
+        // Update and draw butterfly collection UI
+        if (this.butterflyCollection) {
+            this.butterflyCollection.update();
+            this.butterflyCollection.draw(graphics);
         }
         
         graphics.pop();
@@ -101,8 +115,8 @@ class GameUI {
         y += lineHeight;
         
         // Enhanced pollen count display
-        if (this.flowerManager) {
-            const pollenCount = this.flowerManager.pollenCount;
+        if (gameState.particleSystem) {
+            const pollenCount = gameState.particleSystem.getPollenCount();
             
             // Change color and size based on pollen count
             push();
@@ -136,6 +150,8 @@ class GameUI {
         text(`Press D for Debug Mode`, x, y);
         y += lineHeight;
         text(`Hold B to see boundary zones`, x, y);
+        y += lineHeight;
+        text(`Press C for Butterfly Collection`, x, y);
         
         pop();
     }
@@ -146,6 +162,12 @@ class GameUI {
         if (key === 'B' || key === 'b') {
             // This is handled as keyIsDown in the main draw loop
             return false;
+        }
+        
+        // Handle butterfly collection toggle (C key)
+        if (key === 'C' || key === 'c') {
+            this.toggleButterflyCollection();
+            return true;
         }
         
         return false; // No key consumed
@@ -222,7 +244,7 @@ class GameUI {
         // First check if we're within the playable area using the same logic as FlowerManager
         if (!this.isWithinPlayableArea(x, y)) return;
         
-        if (!this.flowerManager.canPlant(x, y, flowers)) return;
+        if (!this.flowerManager.canPlant(x, y, flowers, gameState.particleSystem)) return;
         
         graphics.push();
         graphics.translate(x, y);
@@ -340,6 +362,13 @@ class GameUI {
         }
         
         graphics.pop();
+    }
+    
+    // Toggle butterfly collection display
+    toggleButterflyCollection() {
+        if (this.butterflyCollection) {
+            this.butterflyCollection.toggle();
+        }
     }
     
     // Clean shutdown

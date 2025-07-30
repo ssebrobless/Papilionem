@@ -269,15 +269,16 @@ class MainColorPool {
         // Don't spawn if already spawned
         if (state.goldenButterflySpawned) return false;
         
-        // Check if at least the common butterfly types have been encountered
-        const requiredTypes = ['friendly']; // Only require common types first
+        // Check if player has collected all non-golden butterflies
+        const requiredTypes = ['friendly', 'cautious', 'energetic', 'skittish', 'wise', 'mystic'];
         for (let type of requiredTypes) {
-            if (!state.encounteredButterflies.has(type)) {
+            if (!state.collectedButterflies.has(type)) {
                 return false;
             }
         }
         
-        // All types encountered, spawn golden butterfly!
+        // All butterflies collected! Time for the golden butterfly!
+        console.log('🌟 All butterflies collected! Golden butterfly can now spawn!');
         return true;
     }
     

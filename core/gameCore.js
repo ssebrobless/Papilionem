@@ -19,11 +19,14 @@ class GameCore {
             initialized: false,
             paused: false,
             encounteredButterflies: new Set(),
-            goldenButterflySpawned: false,
+            collectedButterflies: new Set(), // Butterflies successfully led (passed trust test)
             butterflySpawnCounts: {}, // Track spawn count per personality type
+            butterflyCollectionStats: {}, // Detailed stats per butterfly type
+            goldenButterflySpawned: false,
             feedingCombo: 0, // Sequential feeding combo
             lastFeedingTime: 0, // For combo tracking
-            maxCombo: 0 // Track best combo
+            maxCombo: 0, // Track best combo
+            showButterflyCollection: false // Toggle for collection UI
         };
         
         // Debug mode state
@@ -462,7 +465,7 @@ class GameCore {
             const screenPos = this.gridManager.isoToScreen(gridX, gridY);
             
             // Check basic validity (flower manager constraints)
-            if (!this.flowerManager.canPlant(screenPos.x, screenPos.y, this.gameState.flowers)) {
+            if (!this.flowerManager.canPlant(screenPos.x, screenPos.y, this.gameState.flowers, this.particleSystem)) {
                 continue;
             }
             
@@ -652,6 +655,17 @@ class GameCore {
     }
     
     handleKeyPressed(key, keyCode) {
+        console.log(`GameCore: handleKeyPressed called with key='${key}', keyCode=${keyCode}`);
+        
+        // Let gameUI handle keys first (for non-debug UI controls)
+        if (typeof gameUI !== 'undefined' && gameUI.initialized) {
+            console.log('GameCore: Forwarding key to gameUI');
+            if (gameUI.handleKeyPress(key, keyCode)) {
+                console.log('GameCore: gameUI consumed the key');
+                return true;
+            }
+        }
+        
         // Toggle debug mode
         if (key === 'D' || key === 'd') {
             this.debugMode.enabled = !this.debugMode.enabled;

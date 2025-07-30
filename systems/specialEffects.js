@@ -24,6 +24,10 @@ class SpecialEffectsSystem {
         eventBus.on('combo:achieved', (data) => {
             this.addComboEffect(data.x, data.y, data.combo);
         });
+        
+        eventBus.on('butterfly:collected', (data) => {
+            this.addCollectionEffect(data.butterfly);
+        });
     }
     
     // Add a speed zone visual effect
@@ -119,6 +123,55 @@ class SpecialEffectsSystem {
         }
     }
     
+    // Add butterfly collection celebration effect
+    addCollectionEffect(butterfly) {
+        const x = butterfly.x;
+        const y = butterfly.y;
+        
+        // Create a starburst effect
+        this.activeEffects.push({
+            type: 'collection',
+            x: x,
+            y: y,
+            radius: 10,
+            maxRadius: 100,
+            lifetime: 120,
+            maxLifetime: 120,
+            color: butterfly.colors[0],
+            text: 'NEW COLLECTION!',
+            butterfly: butterfly
+        });
+        
+        // Create multiple star particles
+        const starCount = 12;
+        for (let i = 0; i < starCount; i++) {
+            const angle = (TWO_PI / starCount) * i;
+            this.activeEffects.push({
+                type: 'collectionstar',
+                x: x,
+                y: y,
+                vx: cos(angle) * 3,
+                vy: sin(angle) * 3,
+                lifetime: 60,
+                maxLifetime: 60,
+                color: [255, 255, 100],
+                size: 6
+            });
+        }
+        
+        // Create rising text
+        this.activeEffects.push({
+            type: 'collectiontext',
+            x: x,
+            y: y - 30,
+            text: butterfly.personalityType.toUpperCase() + ' COLLECTED!',
+            lifetime: 150,
+            maxLifetime: 150,
+            size: 20,
+            color: [255, 255, 255]
+        });
+    }
+    
     // Update all active effects
     update() {
         // Update effects and remove expired ones
@@ -151,6 +204,22 @@ class SpecialEffectsSystem {
                     effect.y += effect.vy;
                     effect.vx *= 0.95;
                     effect.vy *= 0.95;
+                    break;
+                    
+                case 'collection':
+                    const collectionProgress = 1 - (effect.lifetime / effect.maxLifetime);
+                    effect.radius = effect.maxRadius * collectionProgress;
+                    break;
+                    
+                case 'collectionstar':
+                    effect.x += effect.vx;
+                    effect.y += effect.vy;
+                    effect.vx *= 0.92;
+                    effect.vy *= 0.92;
+                    break;
+                    
+                case 'collectiontext':
+                    effect.y -= 0.8; // Rise faster than combo text
                     break;
             }
             
@@ -350,6 +419,59 @@ class SpecialEffectsSystem {
         }
         graphics.endShape(CLOSE);
         
+        graphics.pop();
+    }
+    
+    // Draw collection effect (expanding ring)
+    drawCollectionEffect(graphics, effect, alpha) {
+        graphics.push();
+        
+        // Expanding ring
+        graphics.noFill();
+        graphics.stroke(effect.color[0], effect.color[1], effect.color[2], alpha * 100);
+        graphics.strokeWeight(3);
+        graphics.ellipse(effect.x, effect.y, effect.radius * 2);
+        
+        // Pulsing center
+        const pulse = sin(frameCount * 0.2) * 0.3 + 0.7;
+        graphics.fill(255, 255, 255, alpha * 150 * pulse);
+        graphics.noStroke();
+        graphics.ellipse(effect.x, effect.y, 20 * pulse);
+        
+        graphics.pop();
+    }
+    
+    // Draw collection star
+    drawCollectionStar(graphics, effect, alpha) {
+        graphics.push();
+        graphics.translate(effect.x, effect.y);
+        graphics.rotate(frameCount * 0.1);
+        graphics.noStroke();
+        graphics.fill(effect.color[0], effect.color[1], effect.color[2], alpha * 255);
+        
+        // Simple 4-point star
+        const s = effect.size;
+        graphics.beginShape();
+        graphics.vertex(0, -s);
+        graphics.vertex(s/3, -s/3);
+        graphics.vertex(s, 0);
+        graphics.vertex(s/3, s/3);
+        graphics.vertex(0, s);
+        graphics.vertex(-s/3, s/3);
+        graphics.vertex(-s, 0);
+        graphics.vertex(-s/3, -s/3);
+        graphics.endShape(CLOSE);
+        
+        graphics.pop();
+    }
+    
+    // Draw collection text
+    drawCollectionText(graphics, effect, alpha) {
+        graphics.push();
+        graphics.textAlign(CENTER, CENTER);
+        graphics.textSize(effect.size);
+        graphics.fill(effect.color[0], effect.color[1], effect.color[2], alpha * 255);
+        graphics.text(effect.text, effect.x, effect.y);
         graphics.pop();
     }
 }

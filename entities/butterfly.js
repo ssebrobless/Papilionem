@@ -543,6 +543,33 @@ class Butterfly extends Entity {
                 this.movement.smoothFollowTarget.y = this.gridPos.y;
                 this.movement.clearTarget();
                 this.cursor.trustGlowAlpha = 0;
+                
+                // Mark this butterfly type as collected!
+                if (typeof gameCore !== 'undefined' && gameCore.gameState) {
+                    const wasCollected = gameCore.gameState.collectedButterflies.has(this.personalityType);
+                    gameCore.gameState.collectedButterflies.add(this.personalityType);
+                    
+                    // Initialize collection stats if needed
+                    if (!gameCore.gameState.butterflyCollectionStats[this.personalityType]) {
+                        gameCore.gameState.butterflyCollectionStats[this.personalityType] = {
+                            firstCollectedTime: frameCount,
+                            timesCollected: 0,
+                            timesFed: 0
+                        };
+                    }
+                    
+                    gameCore.gameState.butterflyCollectionStats[this.personalityType].timesCollected++;
+                    
+                    // Emit collection event if this is the first time
+                    if (!wasCollected) {
+                        console.log(`🏆 NEW BUTTERFLY COLLECTED: ${this.personalityType}!`);
+                        eventBus.emit('butterfly:collected', {
+                            butterfly: this,
+                            type: this.personalityType,
+                            totalCollected: gameCore.gameState.collectedButterflies.size
+                        });
+                    }
+                }
                 break;
         }
     }
@@ -1107,6 +1134,14 @@ class Butterfly extends Entity {
         if (this.traits.special === 'cascade' && this.feeding.targetFlower) {
             const butterflies = gameCore ? gameCore.gameState.butterflies : [];
             this.createTrustCascade(butterflies);
+        }
+        
+        // Update collection statistics if this butterfly type has been collected
+        if (typeof gameCore !== 'undefined' && gameCore.gameState) {
+            if (gameCore.gameState.collectedButterflies.has(this.personalityType) &&
+                gameCore.gameState.butterflyCollectionStats[this.personalityType]) {
+                gameCore.gameState.butterflyCollectionStats[this.personalityType].timesFed++;
+            }
         }
         
         // Emit feeding event
@@ -1745,8 +1780,8 @@ class Butterfly extends Entity {
         this.lifetime = 10000; // Reset to full lifetime
         this.happiness = this.baselineHappiness; // Reset to baseline happiness
         this.state = 'normal';
-        this.feedingCooldowns.clear(); // Clear all feeding cooldowns
-        this.hasBeenHovered = false;
+        this.feeding.cooldowns.clear(); // Clear all feeding cooldowns
+        this.visual.hasBeenHovered = false;
         
         // Reset position to a safe location
         const safeGridX = random(4, 14);
@@ -1761,7 +1796,7 @@ class Butterfly extends Entity {
         // Clear any ongoing goals
         this.goalGridPos = null;
         this.targetFlower = null;
-        this.wanderTimer = random(30, 60);
+        this.timers.wander.current = 0; // Reset wander timer
         
         // Emit rebirth event
         eventBus.emit(GameEvents.BUTTERFLY_SPAWNED, { 

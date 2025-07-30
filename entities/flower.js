@@ -2,9 +2,17 @@ class Flower extends Entity {
     constructor(x, y, isImmortal = false) {
         super(x, y);
         
-        // Override base properties
-        this.lifetime = 2580; // Sum of all stage durations
-        this.fadeStartLifetime = 0; // We handle fading in dissolve stage
+        // Unified lifecycle configuration
+        this.stageDurations = {
+            bloom: 600,     // 10 seconds at 60fps
+            mature: 1200,   // 20 seconds
+            wilting: 600,   // 10 seconds
+            dissolve: 180   // 3 seconds
+        };
+        
+        // Override base properties to match stage durations
+        this.lifetime = Object.values(this.stageDurations).reduce((a, b) => a + b, 0); // 2580
+        this.fadeStartLifetime = this.stageDurations.dissolve; // Fade during dissolve stage
         this.shadowOffset = 2; // Flowers sit on ground
         
         // Unique ID for tracking feeding cooldowns
@@ -16,51 +24,56 @@ class Flower extends Entity {
         // Flower lifecycle stages
         this.stage = 'bloom';
         this.stageTimer = 0;
-        this.stageDurations = {
-            bloom: 600,     // 10 seconds at 60fps
-            mature: 1200,   // 20 seconds
-            wilting: 600,   // 10 seconds
-            dissolve: 180   // 3 seconds
+        
+        // Flower type configuration
+        const flowerConfigs = {
+            daisy: {
+                size: 14,
+                stemHeight: 16,
+                petalCount: 8,
+                petalStyle: 'simple'
+            },
+            tulip: {
+                size: 15,
+                stemHeight: 18,
+                petalCount: 6,
+                petalStyle: 'cup'
+            },
+            bush: {
+                size: 12,
+                stemHeight: 6,
+                petalCount: 6,
+                petalStyle: 'cluster',
+                clusterCount: () => 3 + floor(random(3)) // 3-5 flower heads
+            },
+            lavender: {
+                size: 8,
+                stemHeight: 16, // Using default height
+                petalStyle: 'vertical',
+                stemCount: () => 3 + floor(random(3)) // 3-5 stems
+            },
+            sprout: {
+                size: 10,
+                stemHeight: 5,
+                petalCount: 5,
+                petalStyle: 'tiny'
+            }
         };
         
-        // Pick a random flower type with new varieties
-        const flowerTypes = ['daisy', 'tulip', 'bush', 'lavender', 'sprout'];
+        // Pick a random flower type and apply its configuration
+        const flowerTypes = Object.keys(flowerConfigs);
         this.flowerType = random(flowerTypes);
+        const config = flowerConfigs[this.flowerType];
         
-        // Set properties based on flower type - larger and more visible
-        switch(this.flowerType) {
-            case 'daisy':
-                this.size = 14; // Increased from 10
-                this.stemHeight = 16; // Increased from 12
-                this.petalCount = 8; // More petals
-                this.petalStyle = 'simple';
-                break;
-            case 'tulip':
-                this.size = 15; // Increased from 11
-                this.stemHeight = 18; // Increased from 14
-                this.petalCount = 6;
-                this.petalStyle = 'cup';
-                break;
-            case 'bush':
-                this.size = 12; // Increased from 8
-                this.stemHeight = 6; // Slightly taller
-                this.clusterCount = 3 + floor(random(3)); // 3-5 flower heads
-                this.petalCount = 6; // More petals
-                this.petalStyle = 'cluster';
-                break;
-            case 'lavender':
-                this.size = 8; // Increased from 6
-                this.stemHeight = gameConfig.entities.flower.stemHeight;
-                this.stemCount = 3 + floor(random(3)); // 3-5 stems
-                this.petalStyle = 'vertical';
-                break;
-            case 'sprout':
-                this.size = 10; // Increased from 6
-                this.stemHeight = 5; // Slightly taller
-                this.petalCount = 5; // More petals
-                this.petalStyle = 'tiny';
-                break;
-        }
+        // Apply base configuration
+        this.size = config.size;
+        this.stemHeight = config.stemHeight;
+        this.petalCount = config.petalCount || 0;
+        this.petalStyle = config.petalStyle;
+        
+        // Apply dynamic properties
+        if (config.clusterCount) this.clusterCount = config.clusterCount();
+        if (config.stemCount) this.stemCount = config.stemCount();
         
         // Vibrant colors with strong contrast against the background
         const flowerPalettes = [
@@ -76,22 +89,18 @@ class Flower extends Entity {
         this.accentColor = palette.accent;
         this.stemColor = palette.stemColor || [34, 139, 34]; // Default green if not specified
         
-        // Ensure stemColor is always defined
-        if (!this.stemColor) {
-            this.stemColor = [34, 139, 34];
-        }
-        
         this.pollenTimer = 0;
         this.pollenCooldown = 180;
         this.lastVisitor = null;
         
-        this.swayAngle = random(TWO_PI);
-        this.swaySpeed = 0.02 + random(0.01);
-        this.swayAmount = 0.08; // Reduced sway
-        
-        // Individual petal animation
-        this.petalPhase = random(TWO_PI);
-        this.petalWaveSpeed = 0.02; // Slower, subtler animation
+        // Unified animation state
+        this.animation = {
+            swayAngle: random(TWO_PI),
+            swaySpeed: 0.02 + random(0.01),
+            swayAmount: 0.08, // Reduced sway
+            petalPhase: random(TWO_PI),
+            petalWaveSpeed: 0.02 // Slower, subtler animation
+        };
     }
     
     update(gameState) {
@@ -102,42 +111,34 @@ class Flower extends Entity {
             this.goldenBlessing--;
         }
         
-        // Immortal flowers are locked at mature stage and don't age AT ALL
-        if (this.isImmortal) {
-            // DON'T call super.update() - this prevents base Entity lifetime decrement
-            // Just update z-index manually
-            this.updateZIndex();
-            
-            // Ensure immortal flowers are always at mature stage  
-            this.stage = 'mature';
-            // Only update sway animation, no stage progression
-            this.swayAngle += this.swaySpeed;
-            this.checkButterflyVisits(butterflies, particleSystem);
-            
-            if (this.pollenTimer > 0) {
-                this.pollenTimer--;
-            }
-            return; // Skip all aging logic
-        }
+        // Update animation regardless of mortality
+        this.animation.swayAngle += this.animation.swaySpeed;
         
-        // For mortal flowers, call parent update (which decrements lifetime)
-        super.update(gameState);
-        
-        // Normal aging logic for mortal flowers
-        this.stageTimer++;
-        this.swayAngle += this.swaySpeed;
-        
-        const currentDuration = this.stageDurations[this.stage];
-        if (this.stageTimer >= currentDuration) {
-            this.nextStage();
-        }
-        
-        if (this.stage === 'mature') {
-            this.checkButterflyVisits(butterflies, particleSystem);
-        }
-        
+        // Update pollen timer
         if (this.pollenTimer > 0) {
             this.pollenTimer--;
+        }
+        
+        // Immortal flowers have special handling
+        if (this.isImmortal) {
+            // Only update z-index, skip lifetime decrement
+            this.updateZIndex();
+            // Lock at mature stage
+            this.stage = 'mature';
+        } else {
+            // Normal flowers age
+            super.update(gameState);
+            this.stageTimer++;
+            
+            const currentDuration = this.stageDurations[this.stage];
+            if (this.stageTimer >= currentDuration) {
+                this.nextStage();
+            }
+        }
+        
+        // Check butterfly visits when mature
+        if (this.stage === 'mature') {
+            this.checkButterflyVisits(butterflies, particleSystem);
         }
     }
     
@@ -250,6 +251,46 @@ class Flower extends Entity {
         particleSystem.emit(this.x, this.y - this.size, pollenColor, 3, 'pollen');
     }
     
+    // Check if planting is possible at this location
+    static canPlantAt(x, y, flowers, particleSystem) {
+        // Check pollen availability
+        const pollenCount = particleSystem.getPollenCount();
+        if (pollenCount < 5) return false;
+        
+        // Only allow planting within the isometric playable area
+        if (!isWithinPlayableArea(x, y)) return false;
+        
+        // Check distance from magic pool (2 tile radius exclusion)
+        const gridPos = gridManager.screenToIso(x, y);
+        const poolCenter = { x: 8.5, y: 7 }; // Magic pool center - matches background
+        const distToPool = Math.hypot(gridPos.x - poolCenter.x, gridPos.y - poolCenter.y);
+        if (distToPool < 2.5) { // 2 tile radius plus small buffer
+            return false;
+        }
+        
+        // Check distance from existing flowers
+        for (let flower of flowers) {
+            if (!flower.canPlantNear(x, y)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    // Consume pollen for planting
+    static consumePollenForPlanting(particleSystem) {
+        let pollenConsumed = 0;
+        particleSystem.removePixels(p => {
+            if (p.type === 'pollen' && pollenConsumed < 5) {
+                pollenConsumed++;
+                return true;
+            }
+            return false;
+        });
+        return pollenConsumed === 5;
+    }
+    
     // Override parent's shadow drawing for soft layered shadow
     drawShadow(graphics, alpha) {
         graphics.noStroke();
@@ -262,8 +303,8 @@ class Flower extends Entity {
     
     // Override parent's entity drawing
     drawEntity(graphics, alpha) {
-        // Handle flower-specific alpha during dissolve (but not for immortal flowers)
-        if (this.stage === 'dissolve' && !this.isImmortal) {
+        // Handle flower-specific alpha during dissolve
+        if (this.stage === 'dissolve') {
             alpha = map(this.stageTimer, 0, this.stageDurations.dissolve, 255, 0);
         }
         
@@ -331,7 +372,7 @@ class Flower extends Entity {
             // Only slight curve near the top (no sway at base)
             const bendFactor = (y / this.stemHeight);
             const bendAmount = bendFactor * bendFactor; // Quadratic curve
-            const stemX = sinSway(this.swayAngle) * bendAmount * 3 * this.swayAmount;
+            const stemX = sinSway(this.animation.swayAngle) * bendAmount * 3 * this.animation.swayAmount;
             const stemWidth = map(y, 0, this.stemHeight, 3, 1.5);
             
             // Use vibrant stem color
@@ -354,7 +395,7 @@ class Flower extends Entity {
             // Thin vertical stem with vibrant color
             for (let y = 0; y < this.stemHeight; y += 2) {
                 const bendFactor = (y / this.stemHeight);
-                const x = sin(this.swayAngle + i * 0.3) * bendFactor * bendFactor * 2 * this.swayAmount;
+                const x = sin(this.animation.swayAngle + i * 0.3) * bendFactor * bendFactor * 2 * this.animation.swayAmount;
                 graphics.fill(this.stemColor[0], this.stemColor[1], this.stemColor[2], alpha);
                 graphics.rect(x - 1, -y - 2, 2, 2);
             }
@@ -364,7 +405,7 @@ class Flower extends Entity {
     }
     
     drawFlowerHead(graphics, alpha) {
-        const sway = sinSway(this.swayAngle) * this.swayAmount;
+        const sway = sinSway(this.animation.swayAngle) * this.animation.swayAmount;
         
         switch(this.flowerType) {
             case 'daisy':
@@ -400,48 +441,18 @@ class Flower extends Entity {
     }
     
     drawSimpleDaisy(graphics, alpha) {
-        const petalSize = this.getPetalSize();
-        
         // Dark outline for contrast
         graphics.strokeWeight(2);
         graphics.stroke(0, 0, 0, alpha * 0.3);
         
-        // Enhanced petals with better shape
-        for (let i = 0; i < this.petalCount; i++) {
-            const angle = (TWO_PI / this.petalCount) * i + this.petalPhase;
-            const petalWave = sin(frameCount * this.petalWaveSpeed + i) * 0.1 + 1;
-            
-            graphics.push();
-            graphics.rotate(angle);
-            
-            // Petal with gradient effect
-            graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
-            graphics.ellipse(petalSize * 0.5, 0, petalSize * 0.8 * petalWave, petalSize * 0.4);
-            
-            // Petal highlight
-            graphics.fill(255, 255, 255, alpha * 0.3);
-            graphics.ellipse(petalSize * 0.6, 0, petalSize * 0.3, petalSize * 0.2);
-            
-            graphics.pop();
-        }
+        // Draw petals using common method
+        this.drawPetals(graphics, alpha);
         
-        // Prominent center
-        graphics.fill(this.centerColor[0], this.centerColor[1], this.centerColor[2], alpha);
-        graphics.ellipse(0, 0, 8, 8);
+        // Draw center using common method
+        this.drawFlowerCenter(graphics, alpha);
         
-        // Center detail
-        graphics.fill(0, 0, 0, alpha * 0.2);
-        for (let i = 0; i < 5; i++) {
-            const angle = (TWO_PI / 5) * i;
-            graphics.ellipse(cos(angle) * 2, sin(angle) * 2, 2, 2);
-        }
-        
-        // Pollen ready glow
-        if (this.stage === 'mature' && this.pollenTimer === 0) {
-            graphics.noStroke();
-            graphics.fill(255, 255, 100, alpha * 0.4);
-            graphics.ellipse(0, 0, 15, 15);
-        }
+        // Draw pollen glow using common method
+        this.drawPollenGlow(graphics, alpha);
     }
     
     drawSimpleTulip(graphics, alpha) {
@@ -454,7 +465,7 @@ class Flower extends Entity {
         // Tulip cup with petals
         for (let i = 0; i < this.petalCount; i++) {
             const angle = (TWO_PI / this.petalCount) * i;
-            const petalWave = sin(frameCount * this.petalWaveSpeed * 0.5 + i) * 0.05 + 1;
+            const petalWave = sin(frameCount * this.animation.petalWaveSpeed * 0.5 + i) * 0.05 + 1;
             
             graphics.push();
             graphics.rotate(angle);
@@ -490,7 +501,7 @@ class Flower extends Entity {
     }
     
     drawBushClusters(graphics, alpha) {
-        const sway = sinSway(this.swayAngle) * this.swayAmount;
+        const sway = sinSway(this.animation.swayAngle) * this.animation.swayAmount;
         
         // Multiple small flower heads in a cluster
         for (let i = 0; i < this.clusterCount; i++) {
@@ -506,35 +517,25 @@ class Flower extends Entity {
             // Enhanced small flower with outline
             graphics.strokeWeight(1);
             graphics.stroke(0, 0, 0, alpha * 0.3);
-            graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
             
-            // Small petals
-            for (let j = 0; j < this.petalCount; j++) {
-                const petalAngle = (TWO_PI / this.petalCount) * j;
-                const px = cos(petalAngle) * 4;
-                const py = sin(petalAngle) * 4;
-                graphics.ellipse(px, py, 6, 4);
-            }
+            // Draw small petals
+            this.drawPetals(graphics, alpha, { style: 'small', size: 10, wave: false });
             
-            // Bright center
-            graphics.fill(this.centerColor[0], this.centerColor[1], this.centerColor[2], alpha);
-            graphics.ellipse(0, 0, 2, 2);
+            // Tiny center
+            this.drawFlowerCenter(graphics, alpha, 2);
             
             graphics.pop();
         }
         
         // Pollen ready glow for whole cluster
-        if (this.stage === 'mature' && this.pollenTimer === 0) {
-            graphics.fill(255, 255, 220, 40);
-            graphics.ellipse(sway * 4, -this.stemHeight, this.size * 1.5, this.size * 0.8);
-        }
+        this.drawPollenGlow(graphics, alpha * 0.15, sway * 4, -this.stemHeight, this.size * 1.5);
     }
     
     drawLavenderClusters(graphics, alpha) {
         // Draw simplified purple clusters on each stem
         for (let i = 0; i < this.stemCount; i++) {
             const stemOffset = (i - this.stemCount/2) * 4;
-            const stemSway = sin(this.swayAngle + i * 0.3) * this.swayAmount;
+            const stemSway = sin(this.animation.swayAngle + i * 0.3) * this.animation.swayAmount;
             
             graphics.push();
             graphics.translate(stemOffset + stemSway * 4, -this.stemHeight);
@@ -555,7 +556,7 @@ class Flower extends Entity {
         
         // Pollen ready effect
         if (this.stage === 'mature' && this.pollenTimer === 0) {
-            const avgSway = sinSway(this.swayAngle) * this.swayAmount * 2;
+            const avgSway = sinSway(this.animation.swayAngle) * this.animation.swayAmount * 2;
             graphics.fill(255, 220, 255, 50);
             graphics.ellipse(avgSway, -this.stemHeight - 2, this.size * 1.5, this.size * 0.8);
         }
@@ -565,24 +566,14 @@ class Flower extends Entity {
         // Very simple tiny flower close to ground
         graphics.noStroke();
         
-        // Tiny petals
-        for (let i = 0; i < this.petalCount; i++) {
-            const angle = (TWO_PI / this.petalCount) * i;
-            graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
-            const px = cos(angle) * 3;
-            const py = sin(angle) * 3;
-            graphics.ellipse(px, py, 4, 4);
-        }
+        // Draw tiny petals
+        this.drawPetals(graphics, alpha, { size: 6, style: 'small', wave: false });
         
-        // Tiny center
-        graphics.fill(this.centerColor[0], this.centerColor[1], this.centerColor[2], alpha);
-        graphics.ellipse(0, 0, 3, 3);
+        // Draw tiny center
+        this.drawFlowerCenter(graphics, alpha, 3);
         
-        // Subtle pollen ready
-        if (this.stage === 'mature' && this.pollenTimer === 0) {
-            graphics.fill(255, 255, 200, 60);
-            graphics.ellipse(0, 0, 6, 6);
-        }
+        // Draw subtle pollen glow
+        this.drawPollenGlow(graphics, alpha * 0.15, 0, 0, 6);
     }
     
     
@@ -590,7 +581,7 @@ class Flower extends Entity {
         let baseSize = this.size;
         
         // Subtle size variation
-        baseSize += sin(frameCount * 0.02 + this.petalPhase) * 0.5;
+        baseSize += sin(frameCount * 0.02 + this.animation.petalPhase) * 0.5;
         
         if (this.stage === 'bloom') {
             return map(this.stageTimer, 0, this.stageDurations.bloom, 2, baseSize);
@@ -601,31 +592,75 @@ class Flower extends Entity {
         return baseSize;
     }
     
+    // Common drawing patterns
+    drawPollenGlow(graphics, baseAlpha, x = 0, y = 0, size = null) {
+        if (this.stage === 'mature' && this.pollenTimer === 0) {
+            graphics.noStroke();
+            // Handle both raw alpha (0-1) and p5 alpha (0-255)
+            const alpha = baseAlpha > 1 ? baseAlpha : baseAlpha * 255;
+            graphics.fill(255, 255, 100, alpha * 0.4);
+            const glowSize = size || this.size + 5;
+            graphics.ellipse(x, y, glowSize, glowSize);
+        }
+    }
+    
+    drawFlowerCenter(graphics, alpha, size = 8) {
+        // Main center
+        graphics.fill(this.centerColor[0], this.centerColor[1], this.centerColor[2], alpha);
+        graphics.ellipse(0, 0, size, size);
+        
+        // Center detail dots
+        graphics.fill(0, 0, 0, alpha * 0.2);
+        const dotCount = Math.min(5, Math.floor(size / 2));
+        for (let i = 0; i < dotCount; i++) {
+            const angle = (TWO_PI / dotCount) * i;
+            const radius = size * 0.25;
+            graphics.ellipse(cos(angle) * radius, sin(angle) * radius, 2, 2);
+        }
+    }
+    
+    drawPetals(graphics, alpha, config = {}) {
+        const {
+            count = this.petalCount,
+            size = this.getPetalSize(),
+            style = 'ellipse',
+            wave = true
+        } = config;
+        
+        for (let i = 0; i < count; i++) {
+            const angle = (TWO_PI / count) * i + this.animation.petalPhase;
+            const petalWave = wave ? sin(frameCount * this.animation.petalWaveSpeed + i) * 0.1 + 1 : 1;
+            
+            graphics.push();
+            graphics.rotate(angle);
+            
+            graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
+            
+            if (style === 'ellipse') {
+                graphics.ellipse(size * 0.5, 0, size * 0.8 * petalWave, size * 0.4);
+                // Petal highlight
+                graphics.fill(255, 255, 255, alpha * 0.3);
+                graphics.ellipse(size * 0.6, 0, size * 0.3, size * 0.2);
+            } else if (style === 'small') {
+                const px = size * 0.4;
+                graphics.ellipse(px, 0, 6, 4);
+            }
+            
+            graphics.pop();
+        }
+    }
+    
     
     // Override isDead to check stage instead of lifetime
     isDead() {
-        const shouldDie = this.stage === 'dissolve' && 
-                         this.stageTimer >= this.stageDurations.dissolve;
+        // Immortal flowers never die
+        if (this.isImmortal) return false;
         
-        // Immortal flowers restart their lifecycle instead of dying
-        if (shouldDie && this.isImmortal) {
-            this.restartLifecycle();
-            return false;
-        }
-        
-        return shouldDie;
+        // Normal flowers die after dissolve stage completes
+        return this.stage === 'dissolve' && 
+               this.stageTimer >= this.stageDurations.dissolve;
     }
     
-    // Restart lifecycle for immortal flowers
-    restartLifecycle() {
-        this.stage = 'bloom';
-        this.stageTimer = 0;
-        this.pollenTimer = 0;
-        this.lastVisitor = null;
-        
-        // Emit rebirth event
-        eventBus.emit(GameEvents.FLOWER_BLOOMED, { flower: this });
-    }
     
     canPlantNear(x, y) {
         const dist = Math.hypot(this.x - x, this.y - y);
@@ -679,12 +714,10 @@ class Flower extends Entity {
 
 class FlowerManager {
     constructor() {
-        this.pollenCount = 5;
+        // No need to track pollen count here anymore
     }
     
     update(flowers, butterflies, particleSystem) {
-        this.pollenCount = particleSystem.getPollenCount();
-        
         // Create a gameState object for flowers
         const gameState = { butterflies, particleSystem };
         
@@ -693,6 +726,7 @@ class FlowerManager {
             flower.update(gameState);
             
             if (flower.isDead()) {
+                // Emit petal particles when flower dies
                 for (let j = 0; j < 5; j++) {
                     particleSystem.emit(
                         flower.x + random(-10, 10),
@@ -707,52 +741,24 @@ class FlowerManager {
         }
     }
     
-    canPlant(x, y, flowers) {
-        if (this.pollenCount < 5) return false;
-        
-        // Only allow planting within the isometric playable area
-        if (!isWithinPlayableArea(x, y)) return false;
-        
-        // Check distance from magic pool (2 tile radius exclusion)
-        const gridPos = gridManager.screenToIso(x, y);
-        const poolCenter = { x: 8.5, y: 7 }; // Magic pool center
-        const distToPool = Math.hypot(gridPos.x - poolCenter.x, gridPos.y - poolCenter.y);
-        if (distToPool < 2.5) { // 2 tile radius plus small buffer
-            return false;
-        }
-        
-        for (let flower of flowers) {
-            if (!flower.canPlantNear(x, y)) {
-                return false;
-            }
-        }
-        
-        return true;
+    canPlant(x, y, flowers, particleSystem) {
+        return Flower.canPlantAt(x, y, flowers, particleSystem);
     }
     
     plantFlower(x, y, flowers, particleSystem) {
-        if (this.canPlant(x, y, flowers) && flowers.length < 6) {  // Original limit
-            flowers.push(new Flower(x, y));
-            
-            // Remove pollen particles for planting (up to 5)
-            let pollenConsumed = 0;
-            particleSystem.removePixels(p => {
-                if (p.type === 'pollen' && pollenConsumed < 5) {
-                    pollenConsumed++;
-                    return true;
-                }
-                return false;
-            });
-            
-            particleSystem.emitBurst(x, y, [255, 255, 255], 8);
-            
-            return true;
+        if (this.canPlant(x, y, flowers, particleSystem) && flowers.length < 6) {  // Original limit
+            // Consume pollen first
+            if (Flower.consumePollenForPlanting(particleSystem)) {
+                flowers.push(new Flower(x, y));
+                particleSystem.emitBurst(x, y, [255, 255, 255], 8);
+                return true;
+            }
         }
         return false;
     }
     
-    drawPlantingHint(graphics, x, y, flowers) {
-        if (this.canPlant(x, y, flowers)) {
+    drawPlantingHint(graphics, x, y, flowers, particleSystem) {
+        if (this.canPlant(x, y, flowers, particleSystem)) {
             graphics.push();
             graphics.translate(x, y);
             

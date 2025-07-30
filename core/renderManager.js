@@ -260,7 +260,7 @@ class RenderManager {
                 if (flowerManager && flowerManager.drawPlantingHint) {
                     const adjustedMouseX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
                     const adjustedMouseY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
-                    flowerManager.drawPlantingHint(layer, adjustedMouseX, adjustedMouseY, flowers);
+                    flowerManager.drawPlantingHint(layer, adjustedMouseX, adjustedMouseY, flowers, particleSystem);
                 }
             }
         }
