@@ -1,0 +1,26 @@
+{
+  "name": "ephemera-baghdad",
+  "version": "1.0.0",
+  "description": "An interactive digital art piece exploring fragility through pixel butterflies in a painted garden",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "keywords": [
+    "game",
+    "art",
+    "interactive",
+    "p5js",
+    "butterflies",
+    "digital-garden"
+  ],
+  "author": "viathebrink",
+  "license": "MIT"
+}
