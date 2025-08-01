@@ -62,7 +62,7 @@ function serveDynamicHTML(res) {
         let html = fs.readFileSync(htmlPath, 'utf8');
         
         // Replace placeholder URLs with actual BASE_URL
-        html = html.replace(/https:\/\/ephemera-baghdad\.up\.railway\.app\//g, BASE_URL + '/');
+        html = html.replace(/https:\/\/ephemera-baghdad\.up\.railway\.app/g, BASE_URL);
         
         res.setHeader('Content-Type', 'text/html');
         res.send(html);
