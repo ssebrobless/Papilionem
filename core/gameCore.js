@@ -400,14 +400,17 @@ class GameCore {
         }
     }
     
-    // Simplified time-based flower spawning (3-5 flowers total)
+    // Dynamic flower spawning based on butterfly population
     updateFlowerSpawning() {
         const totalFlowers = this.gameState.flowers.length;
         const immortalFlowers = this.gameState.flowers.filter(f => f.isImmortal).length;
         const ephemeralFlowers = totalFlowers - immortalFlowers;
+        const butterflyCount = this.gameState.butterflies.length;
         
-        // Target: 3-5 total flowers (2 immortal + 1-3 ephemeral)
-        const minTotal = 3;
+        // Dynamic minimum based on butterfly population
+        // Base: 3 total flowers (2 immortal + 1 ephemeral)
+        // 5+ butterflies: 4 total flowers (2 immortal + 2 ephemeral)
+        const minTotal = butterflyCount >= 5 ? 4 : 3;
         const maxTotal = 5;
         const minEphemeral = minTotal - immortalFlowers;
         const maxEphemeral = maxTotal - immortalFlowers;
@@ -418,6 +421,7 @@ class GameCore {
         
         console.log(`🌸 Flower spawning check at frame ${frameCount}:`);
         console.log(`   - Total flowers: ${totalFlowers} (${immortalFlowers} immortal, ${ephemeralFlowers} ephemeral)`);
+        console.log(`   - Butterflies: ${butterflyCount} (${butterflyCount >= 5 ? 'High population - more flowers needed' : 'Normal population'})`);
         console.log(`   - Target range: ${minTotal}-${maxTotal} total (${minEphemeral}-${maxEphemeral} ephemeral)`);
         
         // Simple spawning logic
@@ -941,6 +945,57 @@ class GameCore {
             total: this.initializationSteps.length,
             percentage: (this.completedSteps.size / this.initializationSteps.length) * 100
         };
+    }
+    
+    // Reset game to initial state for replay
+    resetGame() {
+        console.log('🔄 GameCore: Resetting game state...');
+        
+        // Clear all entities
+        this.gameState.butterflies = [];
+        this.gameState.flowers = [];
+        
+        // Reset collection and encounter tracking
+        this.gameState.encounteredButterflies.clear();
+        this.gameState.collectedButterflies.clear();
+        this.gameState.butterflySpawnCounts = {};
+        this.gameState.butterflyCollectionStats = {};
+        this.gameState.goldenButterflySpawned = false;
+        
+        // Reset gameplay stats
+        this.gameState.feedingCombo = 0;
+        this.gameState.lastFeedingTime = 0;
+        this.gameState.maxCombo = 0;
+        this.gameState.showButterflyCollection = false;
+        
+        // Clear entity manager
+        if (this.entityManager) {
+            this.entityManager.clear();
+        }
+        
+        // Reset particle system
+        if (this.particleSystem) {
+            this.particleSystem.particles = [];
+        }
+        
+        // Reset color pool
+        if (this.mainColorPool) {
+            this.mainColorPool.absorbedPixels = [];
+            this.mainColorPool.glowIntensity = 0;
+            this.mainColorPool.spawnCooldown = 0;
+        }
+        
+        // Reset pool manager pools
+        if (this.poolManager) {
+            this.poolManager.pools = [];
+        }
+        
+        // Reinitialize starting entities
+        this.initializeStartingEntities().then(() => {
+            console.log('✨ GameCore: Game reset complete');
+        }).catch(error => {
+            console.error('❌ GameCore: Error resetting game:', error);
+        });
     }
 }
 

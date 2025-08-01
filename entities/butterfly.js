@@ -151,8 +151,8 @@ function getRandomPersonality() {
     for (let [type, baseWeight] of Object.entries(BUTTERFLY_SPAWN_WEIGHTS)) {
         const count = spawnCounts[type] || 0;
         
-        if (count >= 3) {
-            // Halve the weight for types spawned 3+ times
+        if (count >= 2) {
+            // Halve the weight for types spawned 2+ times
             const halfWeight = baseWeight / 2;
             adjustedWeights[type] = halfWeight;
             reducedWeight += (baseWeight - halfWeight);
@@ -163,9 +163,9 @@ function getRandomPersonality() {
         }
     }
     
-    // Count types that haven't reached the 3 spawn limit
+    // Count types that haven't reached the 2 spawn limit
     const typesUnderLimit = Object.entries(BUTTERFLY_SPAWN_WEIGHTS)
-        .filter(([type, _]) => (spawnCounts[type] || 0) < 3).length;
+        .filter(([type, _]) => (spawnCounts[type] || 0) < 2).length;
     
     // Second pass: redistribute reduced weight to types under limit
     if (reducedWeight > 0 && typesUnderLimit > 0) {
@@ -173,7 +173,7 @@ function getRandomPersonality() {
         
         for (let [type, weight] of Object.entries(adjustedWeights)) {
             const count = spawnCounts[type] || 0;
-            if (count < 3) {
+            if (count < 2) {
                 adjustedWeights[type] += redistributionPerType;
                 totalWeight += redistributionPerType;
             }

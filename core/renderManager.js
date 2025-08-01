@@ -25,12 +25,15 @@ class RenderManager {
         
         for (let layerName in this.layers) {
             this.layers[layerName] = createGraphics(baseWidth, baseHeight);
-            this.layers[layerName].pixelDensity(displayDensity());
+            this.layers[layerName].pixelDensity(2);
         }
         
-        // Keep pixel art aesthetic for entity and particle layers
+        // Keep pixel art aesthetic for entity and particle layers only
         this.layers.entities.noSmooth();
         this.layers.particles.noSmooth();
+        
+        // Enable smooth rendering for UI layer to improve text quality
+        // this.layers.ui.smooth(); // This is the default, no need to call explicitly
         
         this.initialized = true;
     }
@@ -369,38 +372,39 @@ class RenderManager {
         }
     }
     
-    // Draw FPS counter in top left corner
+    // Draw collection progress in top left corner
     drawFPSCounter(layer) {
         layer.push();
         layer.noStroke();
         
-        // Gather performance stats
-        let particleCount = 0;
-        let butterflyCount = 0;
-        let poolPixelCount = 0;
+        // Enable smooth text rendering for better quality
+        layer.smooth();
+        
+        // Get collection stats
+        let collectedCount = 0;
+        const totalButterflies = 7;
         
         if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
             const state = gameCore.getGameState();
-            particleCount = gameCore.particleSystem?.particles?.length || 0;
-            butterflyCount = state.butterflies?.length || 0;
-        }
-        
-        if (typeof mainColorPool !== 'undefined') {
-            poolPixelCount = mainColorPool.absorbedPixels?.length || 0;
+            collectedCount = state.collectedButterflies?.size || 0;
         }
         
         // Draw semi-transparent background for better readability
-        layer.fill(0, 0, 0, 100);
-        layer.rect(10, 10, 120, 70, 5); // Larger rounded rectangle
+        layer.fill(0, 0, 0, 120);
+        layer.rect(10, 10, 140, 50, 8); // Rounded rectangle
         
-        // Draw FPS and stats
-        layer.fill(255, 255, 255, 230);
+        // Draw collection progress with high contrast
+        layer.fill(255, 255, 200, 255); // Warm white/yellow for collection
         layer.textAlign(LEFT, TOP);
+        layer.textSize(16); // Larger for better visibility
+        layer.textStyle(BOLD);
+        layer.text(`${collectedCount}/${totalButterflies} Collected`, 18, 18);
+        layer.textStyle(NORMAL);
+        
+        // Draw helpful tooltip
+        layer.fill(220, 220, 220, 230); // Slightly gray for secondary text
         layer.textSize(12);
-        layer.text(`FPS: ${frameRate().toFixed(0)}`, 15, 15);
-        layer.text(`Particles: ${particleCount}`, 15, 30);
-        layer.text(`Butterflies: ${butterflyCount}`, 15, 45);
-        layer.text(`Pool pixels: ${poolPixelCount}`, 15, 60);
+        layer.text('Press C to view journal', 18, 38);
         
         layer.pop();
     }

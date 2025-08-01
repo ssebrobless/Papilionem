@@ -173,15 +173,18 @@ class ButterflyCollectionUI {
         
         graphics.push();
         
+        // Enable smooth text rendering for better quality
+        graphics.smooth();
+        
         // Simple background panel
         graphics.fill(20, 20, 30, this.fadeAlpha * 0.9);
         graphics.stroke(255, 255, 255, this.fadeAlpha * 0.3);
         graphics.strokeWeight(2);
         graphics.rect(this.x, this.y, this.width, this.height, 10);
         
-        // Title
+        // Title - crisp and clear
         graphics.noStroke();
-        graphics.fill(255, 255, 255, this.fadeAlpha);
+        graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha * 1.2));
         graphics.textAlign(CENTER, TOP);
         graphics.textSize(24 * this.scale);
         graphics.text('Butterfly Collection', this.x + this.width/2, this.y + 15 * this.scale);
@@ -193,18 +196,18 @@ class ButterflyCollectionUI {
         // Draw navigation arrows
         this.drawNavigationArrows(graphics);
         
-        // Collection progress at bottom
+        // Collection progress at bottom - crisp and clear
         const collected = gameCore.gameState.collectedButterflies.size;
         const total = this.butterflyOrder.length;
         graphics.textAlign(CENTER, BOTTOM);
         graphics.textSize(16 * this.scale);
-        graphics.fill(255, 255, 200, this.fadeAlpha * 0.8);
+        graphics.fill(255, 255, 200, Math.min(255, this.fadeAlpha * 1.0));
         graphics.text(`${collected}/${total} Collected`, this.x + this.width/2, this.y + this.height - 12 * this.scale);
         
-        // Page counter
+        // Page counter - improved readability
         graphics.textAlign(CENTER, BOTTOM);
         graphics.textSize(12 * this.scale);
-        graphics.fill(200, 200, 200, this.fadeAlpha * 0.6);
+        graphics.fill(200, 200, 200, Math.min(255, this.fadeAlpha * 0.8));
         graphics.text(`${this.currentIndex + 1} of ${this.butterflyOrder.length}`, this.x + this.width/2, this.y + this.height - 30 * this.scale);
         
         graphics.pop();
@@ -241,17 +244,17 @@ class ButterflyCollectionUI {
             graphics.text('?', this.x + this.width/2, butterflyY);
         }
         
-        // Butterfly name and type - BIGGER
+        // Butterfly name and type - BIGGER and crisper
         graphics.textAlign(CENTER, TOP);
         graphics.textSize(20 * this.scale);
         const displayName = type.charAt(0).toUpperCase() + type.slice(1);
         
         if (isCollected) {
-            graphics.fill(100, 255, 100, this.fadeAlpha);
+            graphics.fill(100, 255, 100, Math.min(255, this.fadeAlpha * 1.1));
         } else if (isEncountered) {
-            graphics.fill(255, 255, 255, this.fadeAlpha * 0.8);
+            graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha * 1.1));
         } else {
-            graphics.fill(150, 150, 150, this.fadeAlpha * 0.5);
+            graphics.fill(150, 150, 150, Math.min(255, this.fadeAlpha * 0.8));
         }
         graphics.text(displayName, this.x + this.width/2, butterflyY + 50 * this.scale);
         
@@ -264,22 +267,22 @@ class ButterflyCollectionUI {
             epic: [200, 100, 255]         // Purple
         };
         const rarityColor = rarityColors[personality.rarity] || [200, 200, 200];
-        graphics.fill(rarityColor[0], rarityColor[1], rarityColor[2], this.fadeAlpha * 0.8);
+        graphics.fill(rarityColor[0], rarityColor[1], rarityColor[2], Math.min(255, this.fadeAlpha * 1.0));
         graphics.text(personality.rarity.toUpperCase(), this.x + this.width/2, butterflyY + 75 * this.scale);
         
-        // Status - BIGGER
+        // Status - BIGGER and clearer
         graphics.textSize(18 * this.scale);
         if (isCollected) {
-            graphics.fill(100, 255, 100, this.fadeAlpha);
+            graphics.fill(100, 255, 100, Math.min(255, this.fadeAlpha * 1.1));
             graphics.text('✓ Befriended', this.x + this.width/2, butterflyY + 100 * this.scale);
         } else if (type === 'golden' && !isEncountered) {
-            graphics.fill(255, 215, 0, this.fadeAlpha * 0.8);
+            graphics.fill(255, 215, 0, Math.min(255, this.fadeAlpha * 1.0));
             graphics.text('Befriend all others first', this.x + this.width/2, butterflyY + 100 * this.scale);
         } else if (isEncountered) {
-            graphics.fill(255, 255, 100, this.fadeAlpha * 0.6);
+            graphics.fill(255, 255, 100, Math.min(255, this.fadeAlpha * 0.9));
             graphics.text('Lead to befriend', this.x + this.width/2, butterflyY + 100 * this.scale);
         } else {
-            graphics.fill(100, 100, 100, this.fadeAlpha * 0.5);
+            graphics.fill(100, 100, 100, Math.min(255, this.fadeAlpha * 0.7));
             graphics.text('Not encountered', this.x + this.width/2, butterflyY + 100 * this.scale);
         }
         
@@ -289,14 +292,14 @@ class ButterflyCollectionUI {
             
             // Title - bold and prominent (no quotes, no italic)
             graphics.textSize(18 * this.scale);
-            graphics.fill(255, 255, 255, this.fadeAlpha * 0.9);
+            graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha * 1.1));
             graphics.textStyle(BOLD);
             graphics.text(journalEntry.title, this.x + this.width/2, butterflyY + 135 * this.scale);
             graphics.textStyle(NORMAL);
             
             // Quote - italicized and in quotes
             graphics.textSize(15 * this.scale);
-            graphics.fill(255, 255, 200, this.fadeAlpha * 0.8);
+            graphics.fill(255, 255, 200, Math.min(255, this.fadeAlpha * 1.0));
             
             // Word wrap the quote
             const quoteText = `"${journalEntry.quote}"`;
@@ -325,7 +328,7 @@ class ButterflyCollectionUI {
             // Description - compact at the bottom
             y += 35 * this.scale;
             graphics.textSize(12 * this.scale);
-            graphics.fill(180, 180, 180, this.fadeAlpha * 0.6);
+            graphics.fill(180, 180, 180, Math.min(255, this.fadeAlpha * 0.8));
             
             // Word wrap the description
             const descWords = journalEntry.description.split(' ');
@@ -406,10 +409,10 @@ class ButterflyCollectionUI {
     }
     
     drawNavigationArrows(graphics) {
-        // Left arrow
+        // Left arrow - improved visibility
         if (this.canNavigateLeft()) {
             const hover = this.isMouseOverLeftArrow();
-            const arrowAlpha = hover ? this.fadeAlpha : this.fadeAlpha * 0.5;
+            const arrowAlpha = hover ? Math.min(255, this.fadeAlpha * 1.2) : Math.min(255, this.fadeAlpha * 0.7);
             
             graphics.fill(255, 255, 255, arrowAlpha);
             graphics.noStroke();
@@ -418,10 +421,10 @@ class ButterflyCollectionUI {
             graphics.text('<', this.leftArrow.x + this.leftArrow.width/2, this.leftArrow.y);
         }
         
-        // Right arrow
+        // Right arrow - improved visibility
         if (this.canNavigateRight()) {
             const hover = this.isMouseOverRightArrow();
-            const arrowAlpha = hover ? this.fadeAlpha : this.fadeAlpha * 0.5;
+            const arrowAlpha = hover ? Math.min(255, this.fadeAlpha * 1.2) : Math.min(255, this.fadeAlpha * 0.7);
             
             graphics.fill(255, 255, 255, arrowAlpha);
             graphics.noStroke();

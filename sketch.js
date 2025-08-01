@@ -5,6 +5,13 @@ let showTitleScreen = true;
 let titleFadeAlpha = 255;
 let titleFading = false;
 
+// End game sequence variables
+let endGameTriggered = false;
+let endGamePhase = 'none'; // 'fadeOut', 'black', 'fadeIn'
+let endGameTimer = 0;
+let endGameFadeAlpha = 0;
+let endGameMessage = "The garden is complete...";
+
 function preload() {
     backgroundImage = loadImage('background2.png');
     titleImage = loadImage('title.png');
@@ -12,6 +19,10 @@ function preload() {
 
 function setup() {
     const container = select('#canvas-container');
+    
+    // Enable antialiasing for better text quality
+    setAttributes({ antialias: true });
+    
     const canvas = createCanvas(gameConfig.canvas.targetWidth, gameConfig.canvas.targetHeight);
     canvas.parent(container);
     
@@ -20,10 +31,11 @@ function setup() {
     
     // Use pixel density of 1 for better performance
     // (displayDensity() can be 2 on retina displays, causing 4x pixel rendering)
-    pixelDensity(1);
+    pixelDensity(2);
     
-    // Keep pixel art aesthetic with nearest neighbor scaling
-    noSmooth();
+    // Keep pixel art aesthetic with nearest neighbor scaling for sprites only
+    // Don't apply noSmooth() globally to allow better text rendering
+    // Individual elements will apply noSmooth() as needed
     
     // Initialize game systems
     gameCore.initialize(backgroundImage).then(() => {
@@ -35,12 +47,66 @@ function setup() {
                 windowResized();
             }
         }, 10);
+        
+        // Set up end game listener
+        setupEndGameListener();
     }).catch(error => {
         console.error('Game initialization failed:', error);
     });
 }
 
+// Set up listener for golden butterfly collection
+function setupEndGameListener() {
+    if (typeof eventBus !== 'undefined') {
+        eventBus.on('butterfly:collected', (data) => {
+            if (data.type === 'golden' && !endGameTriggered) {
+                console.log('🌟 GOLDEN BUTTERFLY COLLECTED! Starting end game sequence...');
+                triggerEndGame();
+            }
+        });
+    }
+}
+
+// Start the end game sequence
+function triggerEndGame() {
+    endGameTriggered = true;
+    endGamePhase = 'fadeOut';
+    endGameTimer = 0;
+    endGameFadeAlpha = 0;
+    console.log('🎭 End game sequence initiated');
+}
+
+// Reset the game to initial state
+function resetGame() {
+    console.log('🔄 Resetting game state...');
+    
+    // Reset end game variables
+    endGameTriggered = false;
+    endGamePhase = 'none';
+    endGameTimer = 0;
+    endGameFadeAlpha = 0;
+    
+    // Reset title screen variables
+    showTitleScreen = true;
+    titleFadeAlpha = 255;
+    titleFading = false;
+    
+    // Reset game core if it exists
+    if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
+        gameCore.resetGame();
+    }
+    
+    console.log('✨ Game reset complete');
+}
+
 function draw() {
+    // Handle end game sequence
+    if (endGameTriggered) {
+        updateEndGameSequence();
+        drawEndGameSequence();
+        return;
+    }
+    
     // Update game only if title screen is not showing or is fading
     if (!showTitleScreen || titleFading) {
         gameCore.update();
@@ -70,6 +136,70 @@ function draw() {
                 titleFading = false;
             }
         }
+    }
+}
+
+// Update end game sequence logic
+function updateEndGameSequence() {
+    endGameTimer++;
+    
+    switch (endGamePhase) {
+        case 'fadeOut':
+            // Fade to black over 3 seconds (180 frames at 60fps)
+            endGameFadeAlpha = map(endGameTimer, 0, 180, 0, 255);
+            if (endGameTimer >= 180) {
+                endGamePhase = 'black';
+                endGameTimer = 0;
+                endGameFadeAlpha = 255;
+            }
+            break;
+            
+        case 'black':
+            // Stay black for 2 seconds (120 frames)
+            if (endGameTimer >= 120) {
+                endGamePhase = 'fadeIn';
+                endGameTimer = 0;
+            }
+            break;
+            
+        case 'fadeIn':
+            // Fade back to title screen over 3 seconds
+            endGameFadeAlpha = map(endGameTimer, 0, 180, 255, 0);
+            if (endGameTimer >= 180) {
+                // End game sequence complete - reset everything
+                resetGame();
+            }
+            break;
+    }
+}
+
+// Draw end game sequence
+function drawEndGameSequence() {
+    // Continue drawing the game underneath
+    if (endGamePhase === 'fadeOut') {
+        gameCore.draw();
+    } else if (endGamePhase === 'fadeIn') {
+        // Draw title screen underneath for fade in
+        if (titleImage) {
+            push();
+            imageMode(CENTER);
+            image(titleImage, width/2, height/2, width, height);
+            pop();
+        }
+    }
+    
+    // Draw end game message during black phase
+    if (endGamePhase === 'black') {
+        fill(255);
+        textAlign(CENTER, CENTER);
+        textSize(24);
+        text(endGameMessage, width/2, height/2);
+    }
+    
+    // Draw fade overlay
+    if (endGameFadeAlpha > 0) {
+        fill(0, 0, 0, endGameFadeAlpha);
+        rect(0, 0, width, height);
     }
 }
 
