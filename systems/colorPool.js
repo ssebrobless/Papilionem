@@ -67,8 +67,10 @@ class MainColorPool {
         // Decay glow intensity only when there are more than 2 butterflies
         // This makes spawning progressively harder as population grows
         if (butterflies.length > 2 && this.glowIntensity > 0) {
-            // Decay rate scales with butterfly count
-            const decayRate = 0.05 + (butterflies.length - 3) * 0.02; // 0.05 base + 0.02 per butterfly over 3
+            // Decay rate scales with butterfly count but is much gentler
+            // Base decay: 0.002 (less than passive gain of 0.00333)
+            // Additional decay: 0.001 per butterfly over 3
+            const decayRate = 0.002 + (butterflies.length - 3) * 0.001;
             this.glowIntensity = Math.max(0, this.glowIntensity - decayRate);
         }
     }
@@ -175,6 +177,11 @@ class MainColorPool {
             y: particle.y - this.y
         });
         
+        // Clean up old absorbed pixels (keep only last 100)
+        if (this.absorbedPixels.length > 100) {
+            this.absorbedPixels = this.absorbedPixels.slice(-100);
+        }
+        
         // Increase glow intensity based on particle type (increased by 30% for easier spawning)
         let glowIncrease = 1.3; // Default for 'scale' particles (was 1)
         if (particle.type === 'happy') {
@@ -211,8 +218,10 @@ class MainColorPool {
         
         // Check if we should spawn the golden butterfly
         let personalityType = null;
+        let isGoldenButterfly = false;
         if (this.shouldSpawnGoldenButterfly()) {
             personalityType = 'golden';
+            isGoldenButterfly = true;
             console.log('🌟 GOLDEN BUTTERFLY SPAWNING!');
         }
         
@@ -227,6 +236,10 @@ class MainColorPool {
             personalityType // Golden if conditions met, otherwise random
         );
         
+        // Mark butterfly as newly spawned for special effects
+        newButterfly.spawnTimer = isGoldenButterfly ? 300 : 180; // 5 seconds for golden, 3 for others
+        newButterfly.spawnGlowIntensity = 1.0;
+        
         // Add butterfly to game
         butterflies.push(newButterfly);
         
@@ -238,13 +251,23 @@ class MainColorPool {
             }
         }
         
-        // Create spawn animation effect
+        // Create spawn animation effect at pool
         particleSystem.emitBurst(this.x, this.y, [255, 255, 255], 12);
+        
+        // Create magical trail from pool to butterfly
+        this.createMagicalTrail(particleSystem, this.x, this.y, spawnScreen.x, spawnScreen.y - gameConfig.entities.heightOffset.butterfly);
+        
+        // Create arrival burst at butterfly location (enhanced for golden butterfly)
+        if (isGoldenButterfly) {
+            this.createGoldenArrivalBurst(particleSystem, spawnScreen.x, spawnScreen.y - gameConfig.entities.heightOffset.butterfly);
+        } else {
+            this.createArrivalBurst(particleSystem, spawnScreen.x, spawnScreen.y - gameConfig.entities.heightOffset.butterfly, newButterfly.colors);
+        }
         
         // Reduce glow intensity by spawn threshold but don't go below 0
         this.glowIntensity = Math.max(0, this.glowIntensity - this.spawnThreshold);
         
-        // Create magical explosion effect
+        // Create magical explosion effect at pool
         this.createSpawnExplosion(particleSystem, this.x, this.y);
         
         // Set spawn cooldown
@@ -382,6 +405,12 @@ class MainColorPool {
     drawAbsorbedPixels(graphics) {
         graphics.noStroke();
         
+        // Clean up very old pixels while drawing
+        this.absorbedPixels = this.absorbedPixels.filter(pixel => {
+            const age = frameCount - pixel.absorbedTime;
+            return age < 300; // Remove pixels older than 5 seconds
+        });
+        
         for (let pixel of this.absorbedPixels) {
             // Fade effect based on absorption time
             const age = frameCount - pixel.absorbedTime;
@@ -438,6 +467,161 @@ class MainColorPool {
         setTimeout(() => {
             particleSystem.emitSpiral(x, y, [255, 255, 255], 16);
         }, 100);
+    }
+    
+    // Create magical trail from pool to butterfly spawn location
+    createMagicalTrail(particleSystem, startX, startY, endX, endY) {
+        const distance = dist(startX, startY, endX, endY);
+        const steps = Math.floor(distance / 15); // One particle every 15 pixels
+        
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            const x = lerp(startX, endX, t);
+            const y = lerp(startY, endY, t);
+            
+            // Delay particles to create trailing effect
+            setTimeout(() => {
+                // Create golden trail particles
+                const pixel = particleSystem.emit(
+                    x + random(-5, 5), 
+                    y + random(-5, 5), 
+                    [255, 215, 0], // Golden color
+                    1, 
+                    'joy'
+                );
+                if (pixel) {
+                    pixel.lifetime = 200; // Shorter lifetime for trail
+                    pixel.size = gameConfig.particles.pixelSize * 0.8;
+                    // Add slight upward drift
+                    pixel.vy -= 0.5;
+                }
+                
+                // Add sparkle particles
+                if (i % 2 === 0) {
+                    const sparkle = particleSystem.emit(
+                        x + random(-8, 8),
+                        y + random(-8, 8),
+                        [255, 255, 255], // White sparkles
+                        1,
+                        'joy'
+                    );
+                    if (sparkle) {
+                        sparkle.lifetime = 150;
+                        sparkle.size = gameConfig.particles.pixelSize * 0.6;
+                    }
+                }
+            }, i * 20); // 20ms delay between each particle
+        }
+    }
+    
+    // Create arrival burst at butterfly spawn location
+    createArrivalBurst(particleSystem, x, y, butterflyColors) {
+        // Delay the arrival burst to sync with trail
+        const trailDuration = 300; // Based on trail animation time
+        
+        setTimeout(() => {
+            // Main starburst effect
+            const numRays = 16;
+            for (let i = 0; i < numRays; i++) {
+                const angle = (TWO_PI / numRays) * i;
+                const speed = random(3, 5);
+                
+                // Use butterfly's colors for the burst
+                const color = i % 2 === 0 ? butterflyColors[0] : butterflyColors[1];
+                
+                const pixel = particleSystem.emit(x, y, color, 1, 'joy');
+                if (pixel) {
+                    pixel.vx = cos(angle) * speed;
+                    pixel.vy = sin(angle) * speed - 1;
+                    pixel.lifetime = 300;
+                    pixel.size = gameConfig.particles.pixelSize * 1.2;
+                }
+            }
+            
+            // Central bright flash
+            particleSystem.emitBurst(x, y, [255, 255, 255], 20);
+            
+            // Ring of sparkles
+            for (let i = 0; i < 12; i++) {
+                const angle = (TWO_PI / 12) * i;
+                const ringRadius = 20;
+                const px = x + cos(angle) * ringRadius;
+                const py = y + sin(angle) * ringRadius;
+                
+                particleSystem.emit(px, py, [255, 255, 200], 1, 'joy');
+            }
+            
+            // Vertical fountain effect
+            particleSystem.emitFountain(x, y, butterflyColors[0], 15, 3);
+        }, trailDuration);
+    }
+    
+    // Create special arrival burst for golden butterfly
+    createGoldenArrivalBurst(particleSystem, x, y) {
+        // Delay the arrival burst to sync with trail
+        const trailDuration = 300;
+        
+        setTimeout(() => {
+            // Create massive golden explosion
+            const numRays = 32; // Double the rays
+            for (let i = 0; i < numRays; i++) {
+                const angle = (TWO_PI / numRays) * i;
+                const speed = random(4, 7);
+                
+                // Alternating gold and white rays
+                const color = i % 2 === 0 ? [255, 215, 0] : [255, 255, 255];
+                
+                const pixel = particleSystem.emit(x, y, color, 1, 'joy');
+                if (pixel) {
+                    pixel.vx = cos(angle) * speed;
+                    pixel.vy = sin(angle) * speed - 1.5;
+                    pixel.lifetime = 500; // Longer lasting
+                    pixel.size = gameConfig.particles.pixelSize * 1.5;
+                }
+            }
+            
+            // Multiple ring explosions
+            for (let ring = 0; ring < 3; ring++) {
+                setTimeout(() => {
+                    const ringRadius = 30 + ring * 20;
+                    const numParticles = 16 + ring * 8;
+                    
+                    for (let i = 0; i < numParticles; i++) {
+                        const angle = (TWO_PI / numParticles) * i;
+                        const px = x + cos(angle) * ringRadius;
+                        const py = y + sin(angle) * ringRadius * 0.7;
+                        
+                        particleSystem.emit(px, py, [255, 215, 0], 1, 'joy');
+                    }
+                }, ring * 100);
+            }
+            
+            // Central massive burst
+            particleSystem.emitBurst(x, y, [255, 255, 255], 40);
+            
+            // Golden fountain cascade
+            particleSystem.emitFountain(x, y, [255, 215, 0], 30, 5);
+            
+            // Delayed golden spiral
+            setTimeout(() => {
+                particleSystem.emitSpiral(x, y, [255, 215, 0], 24);
+            }, 200);
+            
+            // Create lingering sparkle field
+            for (let i = 0; i < 20; i++) {
+                setTimeout(() => {
+                    const sparkleX = x + random(-40, 40);
+                    const sparkleY = y + random(-40, 40);
+                    particleSystem.emit(sparkleX, sparkleY, [255, 255, 100], 1, 'joy');
+                }, i * 50);
+            }
+            
+            // Special effects event for UI/sound
+            eventBus.emit('golden:spawned', {
+                x: x,
+                y: y
+            });
+        }, trailDuration);
     }
     
     // Draw glow effect based on intensity

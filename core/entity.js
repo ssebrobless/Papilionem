@@ -5,9 +5,11 @@ class Entity {
         this.y = y;
         this.gridPos = gridManager.screenToIso(x, y);
         
-        // Lifecycle
-        this.lifetime = 1000;
-        this.fadeStartLifetime = 200;
+        // Lifecycle - engagement based
+        this.engagementTimer = 7200; // 2 minutes at 60 fps
+        this.maxEngagementTimer = 7200;
+        this.criticalEngagementThreshold = 1800; // 30 seconds - warning phase
+        this.fadeStartThreshold = 600; // 10 seconds - start fading
         this.isDying = false;
         
         // Visual properties
@@ -22,8 +24,21 @@ class Entity {
     
     // Update method to be overridden by subclasses
     update(gameState) {
-        this.lifetime--;
+        // Decrease engagement timer (death by neglect)
+        if (this.engagementTimer > 0) {
+            this.engagementTimer--;
+        }
         this.updateZIndex();
+    }
+    
+    // Reset engagement timer (called when entity is interacted with)
+    // Only resets if butterfly count is below threshold
+    resetEngagement(butterflyCount = 0) {
+        // Only reset engagement timer if there are fewer than 4 butterflies
+        if (butterflyCount < 4) {
+            this.engagementTimer = this.maxEngagementTimer;
+            this.isDying = false;
+        }
     }
     
     // Calculate z-index for proper depth sorting
@@ -48,14 +63,14 @@ class Entity {
     
     // Base draw method - handles shadows and common effects
     draw(graphics) {
-        if (this.lifetime <= 0) return;
+        if (this.engagementTimer <= 0) return;
         
         graphics.push();
         
         // Calculate alpha for fading
         let alpha = 255;
-        if (this.isDying || this.lifetime < this.fadeStartLifetime) {
-            alpha = map(this.lifetime, 0, this.fadeStartLifetime, 0, 255);
+        if (this.isDying || this.engagementTimer < this.fadeStartThreshold) {
+            alpha = map(this.engagementTimer, 0, this.fadeStartThreshold, 0, 255);
         }
         
         // Draw shadow if entity has one
@@ -87,7 +102,12 @@ class Entity {
     
     // Check if entity is dead
     isDead() {
-        return this.lifetime <= 0;
+        return this.engagementTimer <= 0;
+    }
+    
+    // Check if entity needs attention (warning phase)
+    needsAttention() {
+        return this.engagementTimer < this.criticalEngagementThreshold;
     }
     
     // Get distance to a point

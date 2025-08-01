@@ -1023,6 +1023,11 @@ class PoolManager {
                 const newButterfly = new Butterfly(spawn.x, spawn.y, null);
                 butterflies.push(newButterfly);
                 
+                // Mark as encountered
+                if (typeof gameCore !== 'undefined' && gameCore.gameState) {
+                    gameCore.gameState.encounteredButterflies.add(newButterfly.personalityType);
+                }
+                
                 // Create spawn effect using pre-allocated white color
                 particleSystem.emitBurst(spawn.x, spawn.y, particleSystem.whiteColor, 12);
                 

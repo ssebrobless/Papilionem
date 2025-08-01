@@ -213,6 +213,11 @@ class RenderManager {
         const debugEnabled = (typeof gameCore !== 'undefined' && gameCore.getDebugMode().enabled) || 
                            (typeof debugMode !== 'undefined' && debugMode.enabled);
         
+        // Always draw FPS counter in top left (unless in debug mode)
+        if (!debugEnabled) {
+            this.drawFPSCounter(layer);
+        }
+        
         // Use gameUI system if available
         if (typeof gameUI !== 'undefined' && gameUI.initialized) {
             // Get game state
@@ -362,6 +367,42 @@ class RenderManager {
         if (debugEnabled) {
             image(this.layers.debug, 0, 0, targetWidth, targetHeight);
         }
+    }
+    
+    // Draw FPS counter in top left corner
+    drawFPSCounter(layer) {
+        layer.push();
+        layer.noStroke();
+        
+        // Gather performance stats
+        let particleCount = 0;
+        let butterflyCount = 0;
+        let poolPixelCount = 0;
+        
+        if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
+            const state = gameCore.getGameState();
+            particleCount = gameCore.particleSystem?.particles?.length || 0;
+            butterflyCount = state.butterflies?.length || 0;
+        }
+        
+        if (typeof mainColorPool !== 'undefined') {
+            poolPixelCount = mainColorPool.absorbedPixels?.length || 0;
+        }
+        
+        // Draw semi-transparent background for better readability
+        layer.fill(0, 0, 0, 100);
+        layer.rect(10, 10, 120, 70, 5); // Larger rounded rectangle
+        
+        // Draw FPS and stats
+        layer.fill(255, 255, 255, 230);
+        layer.textAlign(LEFT, TOP);
+        layer.textSize(12);
+        layer.text(`FPS: ${frameRate().toFixed(0)}`, 15, 15);
+        layer.text(`Particles: ${particleCount}`, 15, 30);
+        layer.text(`Butterflies: ${butterflyCount}`, 15, 45);
+        layer.text(`Pool pixels: ${poolPixelCount}`, 15, 60);
+        
+        layer.pop();
     }
     
     // Draw info panel (non-debug)

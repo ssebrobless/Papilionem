@@ -128,47 +128,17 @@ class SpecialEffectsSystem {
         const x = butterfly.x;
         const y = butterfly.y;
         
-        // Create a starburst effect
-        this.activeEffects.push({
-            type: 'collection',
-            x: x,
-            y: y,
-            radius: 10,
-            maxRadius: 100,
-            lifetime: 120,
-            maxLifetime: 120,
-            color: butterfly.colors[0],
-            text: 'NEW COLLECTION!',
-            butterfly: butterfly
-        });
-        
-        // Create multiple star particles
-        const starCount = 12;
-        for (let i = 0; i < starCount; i++) {
-            const angle = (TWO_PI / starCount) * i;
-            this.activeEffects.push({
-                type: 'collectionstar',
-                x: x,
-                y: y,
-                vx: cos(angle) * 3,
-                vy: sin(angle) * 3,
-                lifetime: 60,
-                maxLifetime: 60,
-                color: [255, 255, 100],
-                size: 6
-            });
-        }
-        
-        // Create rising text
+        // Just create the rising text with collection count
+        const collectedCount = gameCore.gameState.collectedButterflies.size;
         this.activeEffects.push({
             type: 'collectiontext',
             x: x,
             y: y - 30,
-            text: butterfly.personalityType.toUpperCase() + ' COLLECTED!',
+            text: `${collectedCount}/7 COLLECTED!`,
             lifetime: 150,
             maxLifetime: 150,
-            size: 20,
-            color: [255, 255, 255]
+            size: 24,
+            color: [255, 215, 0] // Golden color for collection
         });
     }
     
@@ -258,6 +228,18 @@ class SpecialEffectsSystem {
                     
                 case 'combostar':
                     this.drawComboStar(graphics, effect, alpha);
+                    break;
+                    
+                case 'collection':
+                    this.drawCollectionEffect(graphics, effect, alpha);
+                    break;
+                    
+                case 'collectionstar':
+                    this.drawCollectionStar(graphics, effect, alpha);
+                    break;
+                    
+                case 'collectiontext':
+                    this.drawCollectionText(graphics, effect, alpha);
                     break;
             }
         }
@@ -472,6 +454,25 @@ class SpecialEffectsSystem {
         graphics.textSize(effect.size);
         graphics.fill(effect.color[0], effect.color[1], effect.color[2], alpha * 255);
         graphics.text(effect.text, effect.x, effect.y);
+        graphics.pop();
+    }
+    
+    // Draw collection text effect (similar to combo text but golden)
+    drawCollectionText(graphics, effect, alpha) {
+        graphics.push();
+        graphics.textAlign(CENTER, CENTER);
+        graphics.textSize(effect.size);
+        graphics.textStyle(BOLD);
+        
+        // Draw shadow
+        graphics.fill(0, 0, 0, alpha * 0.5);
+        graphics.text(effect.text, effect.x + 2, effect.y + 2);
+        
+        // Draw main text with golden color
+        graphics.fill(effect.color[0], effect.color[1], effect.color[2], alpha);
+        graphics.text(effect.text, effect.x, effect.y);
+        
+        graphics.textStyle(NORMAL);
         graphics.pop();
     }
 }

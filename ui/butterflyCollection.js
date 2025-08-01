@@ -32,73 +32,38 @@ class ButterflyCollectionUI {
         this.journalEntries = {
             friendly: {
                 title: "The Warm Welcome",
-                notes: [
-                    "Bright orange & gold wings catch the morning sun",
-                    "Approaches without fear - curious about everything!",
-                    "Often the first to greet visitors to the garden",
-                    "Trusts quickly, loves to share flower discoveries"
-                ],
-                sketch: "Wings like autumn leaves, always dancing"
+                quote: "Will land on your finger if you hold very, very still.",
+                description: "Orange wings like autumn leaves, trusts quickly and loves to share discoveries."
             },
             cautious: {
                 title: "The Delicate Pink",
-                notes: [
-                    "Soft pink petals for wings, spotted with deeper hues",
-                    "Moves slowly, thoughtfully - each flight deliberate",
-                    "When happy, leaves a trail of sparkling dust",
-                    "Rewards patient observers with beautiful displays"
-                ],
-                sketch: "Like cherry blossoms on the breeze"
+                quote: "Takes the scenic route everywhere, even to breakfast.",
+                description: "Soft pink wings spotted with deeper hues, rewards patience with sparkling trails."
             },
             energetic: {
                 title: "The Electric Violet",
-                notes: [
-                    "Purple wings shimmer with lightning patterns",
-                    "Never stops moving - zippy, erratic flight paths",
-                    "Creates mysterious speed zones in its wake",
-                    "Burns bright but shares energy generously"
-                ],
-                sketch: "A living spark of purple electricity"
+                quote: "Probably had too much nectar this morning.",
+                description: "Purple lightning wings, creates speed zones and shares energy generously."
             },
             skittish: {
                 title: "The Nervous Jewel",
-                notes: [
-                    "Spring green meets turquoise in jagged patterns",
-                    "Extremely jumpy - the slightest movement sends it flying",
-                    "But oh! When it trusts, others follow its lead",
-                    "Creates beautiful trust cascades in the garden"
-                ],
-                sketch: "Quick as thought, precious as jade"
+                quote: "Jumps at its own shadow, but somehow makes it look graceful.",
+                description: "Jade and turquoise wings, extremely jumpy but creates trust cascades when befriended."
             },
             wise: {
                 title: "The Ancient Scholar",
-                notes: [
-                    "Deep blue wings carry the weight of knowledge",
-                    "Moves with purpose, unruffled by chaos",
-                    "Other butterflies learn from watching it feed",
-                    "Doubles the joy found at blessed flowers"
-                ],
-                sketch: "Midnight blue sage of the garden"
+                quote: "Knows all the best flowers, keeps a mental map.",
+                description: "Deep blue wings, teaches others and doubles the joy at blessed flowers."
             },
             mystic: {
                 title: "The Twilight Dancer",
-                notes: [
-                    "Wings shift between deep purple and shadows",
-                    "Appears when the garden's magic is strongest",
-                    "Phases through normal space - can't be caught",
-                    "Enhances nearby flowers with ethereal energy"
-                ],
-                sketch: "Not quite here, not quite there"
+                quote: "Sometimes appears to be in two places at once.",
+                description: "Phases between purple and shadow, appears when magic is strongest."
             },
             golden: {
                 title: "The Legendary One",
-                notes: [
-                    "Pure golden wings that shimmer like liquid sunlight",
-                    "Appears only when all others have been befriended",
-                    "The ultimate symbol of a thriving garden",
-                    "Brings completion to the ephemeral cycle"
-                ],
-                sketch: "The crown jewel of the butterfly realm"
+                quote: "The friend you made along the way.",
+                description: "Pure golden wings of liquid sunlight, the crown jewel of the garden."
             }
         };
         
@@ -124,13 +89,8 @@ class ButterflyCollectionUI {
     toggle() {
         this.visible = !this.visible;
         if (this.visible) {
-            // Start at first encountered butterfly
+            // Always start at the first butterfly (friendly)
             this.currentIndex = 0;
-            const encountered = this.getEncounteredButterflies();
-            if (encountered.length > 0) {
-                const firstEncountered = encountered[0];
-                this.currentIndex = this.butterflyOrder.indexOf(firstEncountered);
-            }
         }
     }
     
@@ -154,49 +114,25 @@ class ButterflyCollectionUI {
     }
     
     navigateLeft() {
-        const encountered = this.getEncounteredButterflies();
-        if (encountered.length === 0) return;
-        
-        // Find previous encountered butterfly
-        for (let i = this.currentIndex - 1; i >= 0; i--) {
-            if (encountered.includes(this.butterflyOrder[i])) {
-                this.currentIndex = i;
-                break;
-            }
+        // Navigate through all butterflies, not just encountered ones
+        if (this.currentIndex > 0) {
+            this.currentIndex--;
         }
     }
     
     navigateRight() {
-        const encountered = this.getEncounteredButterflies();
-        if (encountered.length === 0) return;
-        
-        // Find next encountered butterfly
-        for (let i = this.currentIndex + 1; i < this.butterflyOrder.length; i++) {
-            if (encountered.includes(this.butterflyOrder[i])) {
-                this.currentIndex = i;
-                break;
-            }
+        // Navigate through all butterflies, not just encountered ones
+        if (this.currentIndex < this.butterflyOrder.length - 1) {
+            this.currentIndex++;
         }
     }
     
     canNavigateLeft() {
-        const encountered = this.getEncounteredButterflies();
-        for (let i = this.currentIndex - 1; i >= 0; i--) {
-            if (encountered.includes(this.butterflyOrder[i])) {
-                return true;
-            }
-        }
-        return false;
+        return this.currentIndex > 0;
     }
     
     canNavigateRight() {
-        const encountered = this.getEncounteredButterflies();
-        for (let i = this.currentIndex + 1; i < this.butterflyOrder.length; i++) {
-            if (encountered.includes(this.butterflyOrder[i])) {
-                return true;
-            }
-        }
-        return false;
+        return this.currentIndex < this.butterflyOrder.length - 1;
     }
     
     handleMousePressed(mouseX, mouseY) {
@@ -247,7 +183,7 @@ class ButterflyCollectionUI {
         graphics.noStroke();
         graphics.fill(255, 255, 255, this.fadeAlpha);
         graphics.textAlign(CENTER, TOP);
-        graphics.textSize(20 * this.scale);
+        graphics.textSize(24 * this.scale);
         graphics.text('Butterfly Collection', this.x + this.width/2, this.y + 15 * this.scale);
         
         // Page content
@@ -261,15 +197,15 @@ class ButterflyCollectionUI {
         const collected = gameCore.gameState.collectedButterflies.size;
         const total = this.butterflyOrder.length;
         graphics.textAlign(CENTER, BOTTOM);
-        graphics.textSize(12 * this.scale);
+        graphics.textSize(16 * this.scale);
         graphics.fill(255, 255, 200, this.fadeAlpha * 0.8);
         graphics.text(`${collected}/${total} Collected`, this.x + this.width/2, this.y + this.height - 12 * this.scale);
         
         // Page counter
         graphics.textAlign(CENTER, BOTTOM);
-        graphics.textSize(10 * this.scale);
+        graphics.textSize(12 * this.scale);
         graphics.fill(200, 200, 200, this.fadeAlpha * 0.6);
-        graphics.text(`${this.currentIndex + 1} of ${encountered.length}`, this.x + this.width/2, this.y + this.height - 28 * this.scale);
+        graphics.text(`${this.currentIndex + 1} of ${this.butterflyOrder.length}`, this.x + this.width/2, this.y + this.height - 30 * this.scale);
         
         graphics.pop();
     }
@@ -280,21 +216,34 @@ class ButterflyCollectionUI {
         const isEncountered = gameCore.gameState.encounteredButterflies.has(type);
         const journalEntry = this.journalEntries[type];
         
-        // Draw butterfly
+        // Draw butterfly with background lighting
         const butterflyY = this.y + 80 * this.scale;
-        if (isEncountered || type === 'golden') {
+        
+        // Add subtle background glow for visibility
+        graphics.push();
+        graphics.noStroke();
+        const glowSize = 80 * this.scale;
+        for (let i = 3; i > 0; i--) {
+            const alpha = (this.fadeAlpha * 0.15) / i;
+            graphics.fill(255, 255, 255, alpha);
+            graphics.ellipse(this.x + this.width/2, butterflyY, glowSize * i, glowSize * i * 0.8);
+        }
+        graphics.pop();
+        
+        // Show butterfly if encountered OR collected (collected should always mean encountered, but let's be safe)
+        if (isEncountered || isCollected || type === 'golden') {
             this.drawSimpleButterfly(graphics, this.x + this.width/2, butterflyY, personality, isCollected, type);
         } else {
             // Mystery silhouette
             graphics.textAlign(CENTER, CENTER);
-            graphics.textSize(36 * this.scale);
+            graphics.textSize(48 * this.scale);
             graphics.fill(100, 100, 100, this.fadeAlpha * 0.5);
             graphics.text('?', this.x + this.width/2, butterflyY);
         }
         
-        // Butterfly name and type
+        // Butterfly name and type - BIGGER
         graphics.textAlign(CENTER, TOP);
-        graphics.textSize(16 * this.scale);
+        graphics.textSize(20 * this.scale);
         const displayName = type.charAt(0).toUpperCase() + type.slice(1);
         
         if (isCollected) {
@@ -304,57 +253,90 @@ class ButterflyCollectionUI {
         } else {
             graphics.fill(150, 150, 150, this.fadeAlpha * 0.5);
         }
-        graphics.text(displayName, this.x + this.width/2, butterflyY + 45 * this.scale);
+        graphics.text(displayName, this.x + this.width/2, butterflyY + 50 * this.scale);
         
-        // Rarity
-        if (isEncountered || type === 'golden') {
-            graphics.textSize(12 * this.scale);
-            graphics.fill(200, 200, 200, this.fadeAlpha * 0.6);
-            graphics.text(personality.rarity, this.x + this.width/2, butterflyY + 65 * this.scale);
-        }
+        // Rarity - BIGGER with color coding
+        graphics.textSize(16 * this.scale);
+        const rarityColors = {
+            common: [200, 200, 200],      // White/Gray
+            uncommon: [100, 255, 100],    // Green
+            rare: [100, 150, 255],        // Blue
+            epic: [200, 100, 255]         // Purple
+        };
+        const rarityColor = rarityColors[personality.rarity] || [200, 200, 200];
+        graphics.fill(rarityColor[0], rarityColor[1], rarityColor[2], this.fadeAlpha * 0.8);
+        graphics.text(personality.rarity.toUpperCase(), this.x + this.width/2, butterflyY + 75 * this.scale);
         
-        // Status
-        graphics.textSize(14 * this.scale);
+        // Status - BIGGER
+        graphics.textSize(18 * this.scale);
         if (isCollected) {
             graphics.fill(100, 255, 100, this.fadeAlpha);
-            graphics.text('✓ Befriended', this.x + this.width/2, butterflyY + 85 * this.scale);
+            graphics.text('✓ Befriended', this.x + this.width/2, butterflyY + 100 * this.scale);
         } else if (type === 'golden' && !isEncountered) {
             graphics.fill(255, 215, 0, this.fadeAlpha * 0.8);
-            graphics.text('Befriend all others first', this.x + this.width/2, butterflyY + 85 * this.scale);
+            graphics.text('Befriend all others first', this.x + this.width/2, butterflyY + 100 * this.scale);
         } else if (isEncountered) {
             graphics.fill(255, 255, 100, this.fadeAlpha * 0.6);
-            graphics.text('Lead to befriend', this.x + this.width/2, butterflyY + 85 * this.scale);
+            graphics.text('Lead to befriend', this.x + this.width/2, butterflyY + 100 * this.scale);
+        } else {
+            graphics.fill(100, 100, 100, this.fadeAlpha * 0.5);
+            graphics.text('Not encountered', this.x + this.width/2, butterflyY + 100 * this.scale);
         }
         
-        // Simple description
-        if ((isEncountered || type === 'golden') && journalEntry) {
+        // Display journal entry with quote - show if encountered OR collected
+        if ((isEncountered || isCollected || type === 'golden') && journalEntry) {
             graphics.textAlign(CENTER, TOP);
-            graphics.textSize(12 * this.scale);
-            graphics.fill(220, 220, 220, this.fadeAlpha * 0.8);
             
-            // Title
-            graphics.textStyle(ITALIC);
-            graphics.text(`"${journalEntry.title}"`, this.x + this.width/2, butterflyY + 115 * this.scale);
+            // Title - bold and prominent (no quotes, no italic)
+            graphics.textSize(18 * this.scale);
+            graphics.fill(255, 255, 255, this.fadeAlpha * 0.9);
+            graphics.textStyle(BOLD);
+            graphics.text(journalEntry.title, this.x + this.width/2, butterflyY + 135 * this.scale);
             graphics.textStyle(NORMAL);
             
-            // Brief description (first note only for simplicity)
-            graphics.textSize(10 * this.scale);
-            graphics.fill(180, 180, 180, this.fadeAlpha * 0.7);
-            const note = journalEntry.notes[0];
+            // Quote - italicized and in quotes
+            graphics.textSize(15 * this.scale);
+            graphics.fill(255, 255, 200, this.fadeAlpha * 0.8);
             
-            // Word wrap the note
-            const words = note.split(' ');
-            const maxWidth = this.width - 60 * this.scale;
+            // Word wrap the quote
+            const quoteText = `"${journalEntry.quote}"`;
+            const quoteWords = quoteText.split(' ');
+            const maxWidth = this.width - 70 * this.scale;
             let line = '';
-            let y = butterflyY + 140 * this.scale;
+            let y = butterflyY + 165 * this.scale;
             
-            for (let word of words) {
+            graphics.textStyle(ITALIC);
+            for (let word of quoteWords) {
                 const testLine = line + word + ' ';
                 const testWidth = graphics.textWidth(testLine);
                 if (testWidth > maxWidth && line !== '') {
                     graphics.text(line, this.x + this.width/2, y);
                     line = word + ' ';
-                    y += 14 * this.scale;
+                    y += 20 * this.scale;
+                } else {
+                    line = testLine;
+                }
+            }
+            if (line !== '') {
+                graphics.text(line, this.x + this.width/2, y);
+            }
+            graphics.textStyle(NORMAL);
+            
+            // Description - compact at the bottom
+            y += 35 * this.scale;
+            graphics.textSize(12 * this.scale);
+            graphics.fill(180, 180, 180, this.fadeAlpha * 0.6);
+            
+            // Word wrap the description
+            const descWords = journalEntry.description.split(' ');
+            line = '';
+            for (let word of descWords) {
+                const testLine = line + word + ' ';
+                const testWidth = graphics.textWidth(testLine);
+                if (testWidth > maxWidth && line !== '') {
+                    graphics.text(line, this.x + this.width/2, y);
+                    line = word + ' ';
+                    y += 16 * this.scale;
                 } else {
                     line = testLine;
                 }
@@ -467,5 +449,19 @@ class ButterflyCollectionUI {
                adjustedX <= this.rightArrow.x + this.rightArrow.width &&
                adjustedY >= this.rightArrow.y - this.rightArrow.height/2 && 
                adjustedY <= this.rightArrow.y + this.rightArrow.height/2;
+    }
+    
+    isClickInside(mouseX, mouseY) {
+        if (!this.visible || this.fadeAlpha < 200) return false;
+        
+        // Adjust for canvas scaling
+        const adjustedX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
+        const adjustedY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
+        
+        // Check if click is within the collection panel bounds
+        return adjustedX >= this.x && 
+               adjustedX <= this.x + this.width &&
+               adjustedY >= this.y && 
+               adjustedY <= this.y + this.height;
     }
 }

@@ -302,6 +302,9 @@ class GameCore {
             this.gameState.butterflies.push(butterfly);
             this.entityManager.addEntity('butterflies', butterfly);
             
+            // Mark as encountered
+            this.gameState.encounteredButterflies.add(butterfly.personalityType);
+            
             if (isImmortal) {
                 console.log('🦋 Created immortal butterfly to prevent ecosystem collapse');
             }
@@ -623,8 +626,16 @@ class GameCore {
         
         // Check if gameUI wants to handle the click first (for butterfly collection navigation)
         if (typeof gameUI !== 'undefined' && gameUI.initialized && gameUI.butterflyCollection) {
-            if (gameUI.butterflyCollection.handleMousePressed(mouseX, mouseY)) {
-                return true;
+            // If collection is visible, check if click is inside or outside
+            if (gameUI.butterflyCollection.visible) {
+                if (gameUI.butterflyCollection.isClickInside(mouseX, mouseY)) {
+                    // Click is inside - handle navigation buttons
+                    return gameUI.butterflyCollection.handleMousePressed(mouseX, mouseY);
+                } else {
+                    // Click is outside - close the collection
+                    gameUI.butterflyCollection.toggle();
+                    return true;
+                }
             }
         }
         
@@ -717,6 +728,9 @@ class GameCore {
             this.gameState.butterflies.push(butterfly);
             this.entityManager.addEntity('butterflies', butterfly);
             
+            // Mark as encountered
+            this.gameState.encounteredButterflies.add(butterfly.personalityType);
+            
         } else if (this.debugMode.selectedTool === 'flower') {
             const flower = new Flower(screenPos.x, screenPos.y);
             this.gameState.flowers.push(flower);
@@ -787,6 +801,9 @@ class GameCore {
             const isFirstButterfly = this.gameState.butterflies.length === 0;
             const butterfly = new Butterfly(x, y, colors || null, isFirstButterfly); // Allow custom colors or use personality
             this.gameState.butterflies.push(butterfly);
+            
+            // Mark as encountered
+            this.gameState.encounteredButterflies.add(butterfly.personalityType);
             
             // Spawn burst effect
             this.particleSystem.emitBurst(x, y, [255, 255, 255], 8);

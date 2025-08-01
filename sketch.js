@@ -15,8 +15,12 @@ function setup() {
     const canvas = createCanvas(gameConfig.canvas.targetWidth, gameConfig.canvas.targetHeight);
     canvas.parent(container);
     
-    // Use display's native pixel density for crisp rendering
-    pixelDensity(displayDensity());
+    // Set target frame rate to 60 FPS
+    frameRate(60);
+    
+    // Use pixel density of 1 for better performance
+    // (displayDensity() can be 2 on retina displays, causing 4x pixel rendering)
+    pixelDensity(1);
     
     // Keep pixel art aesthetic with nearest neighbor scaling
     noSmooth();

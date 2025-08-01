@@ -236,6 +236,12 @@ class EntityManager {
         
         const butterfly = new Butterfly(x, y, colors || null); // Allow custom colors or use personality
         this.addEntity('butterflies', butterfly);
+        
+        // Mark as encountered
+        if (typeof gameCore !== 'undefined' && gameCore.gameState) {
+            gameCore.gameState.encounteredButterflies.add(butterfly.personalityType);
+        }
+        
         return butterfly;
     }
     

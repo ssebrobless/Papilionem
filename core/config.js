@@ -69,10 +69,10 @@ const gameConfig = {
             types: ['daisy', 'tulip', 'rose', 'sunflower', 'lily'],
             stemHeight: 16,
             stageDurations: {
-                bloom: 600,     // 10 seconds at 60fps
-                mature: 1200,   // 20 seconds
-                wilting: 600,   // 10 seconds
-                dissolve: 180   // 3 seconds
+                bloom: 1200,    // 20 seconds at 60fps (doubled for gameplay)
+                mature: 2400,   // 40 seconds (doubled for gameplay)
+                wilting: 1200,  // 20 seconds (doubled for gameplay)
+                dissolve: 360   // 6 seconds (doubled for gameplay)
             },
             palettes: [
                 { petals: [255, 180, 120], center: [255, 240, 180] }, // Warm orange

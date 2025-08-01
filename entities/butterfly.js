@@ -111,11 +111,11 @@ const BUTTERFLY_PERSONALITIES = {
     golden: {
         rarity: 'legendary',
         traits: {
-            speed: 0.8,
-            jitteriness: 0.5,
-            trustPropensity: 0.3,  // Very hard to befriend
-            trustSpeed: 0.4,       // Extremely slow
-            scareThreshold: 2.5,   // Moderately jumpy
+            speed: 2.5,            // Much faster than any other butterfly
+            jitteriness: 3.0,      // Extremely erratic movement
+            trustPropensity: 0.1,  // Extremely hard to befriend
+            trustSpeed: 0.0667,    // 15 seconds at 60fps (900 frames / 60 = 15 seconds)
+            scareThreshold: 999,   // Cannot be scared - requires persistence
             happinessBonus: 5.0,   // Massive happiness bonus
             special: 'golden'      // Special trust symbols
         },
@@ -126,15 +126,14 @@ const BUTTERFLY_PERSONALITIES = {
     }
 };
 
-// Original spawn percentages
+// Original spawn percentages (golden removed - it's special unlock only)
 const BUTTERFLY_SPAWN_WEIGHTS = {
     friendly: 40,
     cautious: 15,
     energetic: 15,
     skittish: 10,
     wise: 10,
-    mystic: 8,
-    golden: 2
+    mystic: 10  // Increased from 8 to account for golden's 2% removal
 };
 
 // Get a random personality based on rarity weights with spawn limits
@@ -143,16 +142,48 @@ function getRandomPersonality() {
     const spawnCounts = (typeof gameCore !== 'undefined' && gameCore.gameState) ? 
         gameCore.gameState.butterflySpawnCounts : {};
     
-    // Filter out types that have spawned 3+ times
-    const availableTypes = {};
+    // Calculate adjusted weights based on spawn counts
+    const adjustedWeights = {};
     let totalWeight = 0;
+    let reducedWeight = 0;
     
-    for (let [type, weight] of Object.entries(BUTTERFLY_SPAWN_WEIGHTS)) {
+    // First pass: calculate weights and track reductions
+    for (let [type, baseWeight] of Object.entries(BUTTERFLY_SPAWN_WEIGHTS)) {
         const count = spawnCounts[type] || 0;
-        if (count < 3) {
-            availableTypes[type] = weight;
-            totalWeight += weight;
+        
+        if (count >= 3) {
+            // Halve the weight for types spawned 3+ times
+            const halfWeight = baseWeight / 2;
+            adjustedWeights[type] = halfWeight;
+            reducedWeight += (baseWeight - halfWeight);
+            totalWeight += halfWeight;
+        } else {
+            adjustedWeights[type] = baseWeight;
+            totalWeight += baseWeight;
         }
+    }
+    
+    // Count types that haven't reached the 3 spawn limit
+    const typesUnderLimit = Object.entries(BUTTERFLY_SPAWN_WEIGHTS)
+        .filter(([type, _]) => (spawnCounts[type] || 0) < 3).length;
+    
+    // Second pass: redistribute reduced weight to types under limit
+    if (reducedWeight > 0 && typesUnderLimit > 0) {
+        const redistributionPerType = reducedWeight / typesUnderLimit;
+        
+        for (let [type, weight] of Object.entries(adjustedWeights)) {
+            const count = spawnCounts[type] || 0;
+            if (count < 3) {
+                adjustedWeights[type] += redistributionPerType;
+                totalWeight += redistributionPerType;
+            }
+        }
+    }
+    
+    // Log current spawn distribution for debugging
+    if (frameCount % 600 === 0) { // Log every 10 seconds
+        console.log('🦋 Butterfly spawn weights:', adjustedWeights);
+        console.log('🦋 Spawn counts:', spawnCounts);
     }
     
     // If no types available (shouldn't happen), return friendly
@@ -165,12 +196,13 @@ function getRandomPersonality() {
     const roll = random(totalWeight);
     let cumulative = 0;
     
-    for (let [type, weight] of Object.entries(availableTypes)) {
+    for (let [type, weight] of Object.entries(adjustedWeights)) {
         cumulative += weight;
         if (roll < cumulative) {
             // Track the spawn
             if (typeof gameCore !== 'undefined' && gameCore.gameState) {
                 gameCore.gameState.butterflySpawnCounts[type] = (spawnCounts[type] || 0) + 1;
+                console.log(`🦋 Spawning ${type} butterfly (count: ${(spawnCounts[type] || 0) + 1})`);
             }
             return type;
         }
@@ -191,8 +223,13 @@ class Butterfly extends Entity {
         
         // Override base properties with personality-based values
         this.size = this.personality.size || 12; // Personality-based size
-        this.lifetime = 10000; // Long lifetime
-        this.fadeStartLifetime = 2000;
+        
+        // Engagement-based lifecycle (overrides Entity defaults)
+        this.engagementTimer = 10800; // 3 minutes at 60 fps
+        this.maxEngagementTimer = 10800;
+        this.criticalEngagementThreshold = 3600; // 1 minute - warning phase
+        this.fadeStartThreshold = 1200; // 20 seconds - start fading
+        
         this.shadowOffset = gameConfig.entities.heightOffset.butterfly;
         
         // Immortality flag for first butterfly to prevent ecosystem collapse
@@ -254,7 +291,7 @@ class Butterfly extends Entity {
             postFeedingDash: 0,
             
             // Intervals (count up and reset)
-            wander: { current: 0, duration: random(60, 120) / this.traits.jitteriness },
+            wander: { current: 0, duration: random(300, 600) / this.traits.jitteriness }, // 5-10 seconds for more frequent movement
             flowerSeek: { current: 0, duration: 600 },
             particle: { current: 0, duration: 90 },
             
@@ -316,7 +353,11 @@ class Butterfly extends Entity {
         
         // === CURSOR INTERACTION ===
         this.cursor = {
-            interestRadius: 80 * this.traits.trustPropensity,
+            // Normalize interest radius to be more fair across personalities
+            // Golden butterflies get a larger interaction zone to compensate for their speed
+            interestRadius: this.personalityType === 'golden' ? 
+                90 : // Larger zone for golden butterfly
+                60 + (20 * Math.min(1.2, this.traits.trustPropensity)),
             patienceRequired: 90 / this.traits.trustSpeed,
             currentPatience: 0,
             trustLevel: 0,
@@ -343,7 +384,7 @@ class Butterfly extends Entity {
             flee: 0.025 * this.traits.speed,
             dash: 0.02,
             happy: 0.012,
-            meander: 0.006,
+            meander: 0.015 * this.traits.speed, // Increased for more noticeable movement
             seeking: 0.007
         };
         
@@ -366,6 +407,13 @@ class Butterfly extends Entity {
             teachingPulseTimer: 0,
             trustCascadeCache: [] // Pre-allocated for skittish
         };
+        
+        // === SPAWN EFFECTS ===
+        this.spawnTimer = 0; // Set by color pool when spawned
+        this.spawnGlowIntensity = 0; // Glow effect for newly spawned butterflies
+        
+        // Start with a wander target for immediate movement
+        this.pickNewWanderTarget();
     }
     
     update(gameState) {
@@ -374,6 +422,11 @@ class Butterfly extends Entity {
         
         // Extract what we need from gameState
         const { flowers, particleSystem, cursorVelocity, adjustedMouseX, adjustedMouseY } = gameState;
+        
+        // 0. Failsafe: Ensure butterflies in normal state always have a movement target
+        if (this.state === 'normal' && (!this.movement.target || !this.movement.targetType)) {
+            this.pickNewWanderTarget();
+        }
         
         // 1. Update timers first
         const timerSignals = this.timers.update();
@@ -408,8 +461,36 @@ class Butterfly extends Entity {
         this.updateWings();
         this.updateSpecialAbilities(gameState);
         
-        // 10. Handle timer signals
-        if (timerSignals.includes('wander')) this.pickNewWanderTarget();
+        // 10. Update spawn effects
+        if (this.spawnTimer > 0) {
+            this.spawnTimer--;
+            // Fade out spawn glow (golden butterflies have longer timer)
+            const maxSpawnTimer = this.personalityType === 'golden' ? 300 : 180;
+            this.spawnGlowIntensity = this.spawnTimer / maxSpawnTimer;
+            
+            // Emit sparkles while spawning
+            if (this.spawnTimer % 10 === 0) {
+                const sparkleColor = this.personalityType === 'golden' ? 
+                    [255, 215, 0] : // Pure gold for golden butterfly
+                    [255, 255, 200]; // Light golden for others
+                    
+                particleSystem.emit(
+                    this.x + random(-10, 10),
+                    this.y + random(-10, 10),
+                    sparkleColor,
+                    1,
+                    'joy'
+                );
+            }
+        }
+        
+        // 11. Handle timer signals
+        if (timerSignals.includes('wander') && this.state === 'normal') {
+            // Pick new wander target if we don't have one or if we're already meandering
+            if (!this.movement.target || !this.movement.targetType || this.movement.targetType === 'meander') {
+                this.pickNewWanderTarget();
+            }
+        }
         if (timerSignals.includes('particle')) this.checkParticleEmission(particleSystem);
         if (timerSignals.includes('flowerSeek') && this.state === 'normal') {
             this.checkFlowerSeeking(flowers);
@@ -549,6 +630,9 @@ class Butterfly extends Entity {
                     const wasCollected = gameCore.gameState.collectedButterflies.has(this.personalityType);
                     gameCore.gameState.collectedButterflies.add(this.personalityType);
                     
+                    // Also ensure it's marked as encountered (should already be, but let's be safe)
+                    gameCore.gameState.encounteredButterflies.add(this.personalityType);
+                    
                     // Initialize collection stats if needed
                     if (!gameCore.gameState.butterflyCollectionStats[this.personalityType]) {
                         gameCore.gameState.butterflyCollectionStats[this.personalityType] = {
@@ -595,6 +679,8 @@ class Butterfly extends Entity {
                 this.timers.postFeedingCooldown = this.feeding.postFeedingCooldownDuration;
                 this.timers.postFeedingLeadCooldown = this.feeding.postFeedingLeadCooldownDuration;
                 this.setPostFeedingDestination();
+                // Reset wander timer to ensure butterfly picks new targets after feeding
+                this.timers.wander.current = 0;
                 break;
             case 'following':
                 this.cursor.currentPatience = 0;
@@ -633,7 +719,20 @@ class Butterfly extends Entity {
         const dy = this.movement.target.y - this.gridPos.y;
         const distToTarget = sqrt(dx * dx + dy * dy);
         
-        if (distToTarget < 0.1) return; // Close enough
+        if (distToTarget < 0.1) {
+            // We've reached the target - clear it
+            const wasImmediate = this.movement.targetType === 'immediate';
+            const wasGoal = this.movement.targetType === 'goal';
+            this.movement.clearTarget();
+            
+            // If we're in normal state, always pick a new wander target
+            if (this.state === 'normal') {
+                // Reset wander timer to ensure immediate new target selection
+                this.timers.wander.current = 0;
+                this.pickNewWanderTarget();
+            }
+            return;
+        }
         
         // Normalize direction
         let moveX = dx / distToTarget;
@@ -665,6 +764,12 @@ class Butterfly extends Entity {
     executeNormalBehavior(gameState) {
         const { flowers } = gameState;
         
+        // Always ensure we have a movement target
+        if (!this.movement.target || !this.movement.targetType) {
+            this.pickNewWanderTarget();
+            // Don't return early - continue with behavior logic
+        }
+        
         // Check if we should seek flowers
         if (this.happiness < this.baselineHappiness && this.timers.postFeedingCooldown === 0) {
             if (this.movement.targetType === 'goal') {
@@ -678,15 +783,19 @@ class Butterfly extends Entity {
                             this.changeState('feeding', { flower: targetFlower });
                         } else {
                             this.movement.clearTarget('goal');
+                            this.pickNewWanderTarget(); // Immediately pick new target
                         }
                     } else {
                         this.movement.clearTarget('goal');
+                        this.pickNewWanderTarget(); // Immediately pick new target
                     }
                 }
             }
         } else {
-            // Happy or on cooldown - meander
-            if (this.movement.targetType !== 'meander') {
+            // Happy or on cooldown - ensure we're always moving
+            if (!this.movement.target || (!this.movement.targetType || 
+                (this.movement.targetType !== 'meander' && this.movement.targetType !== 'immediate'))) {
+                // Pick a new wander target if we don't have one or if we're not already wandering/dashing
                 this.pickNewWanderTarget();
             }
         }
@@ -711,6 +820,7 @@ class Butterfly extends Entity {
         if (this.timers.scared === 0) {
             this.changeState('normal');
             this.timers.wander.current = 0; // Reset wander to pick new target
+            this.pickNewWanderTarget(); // Immediately pick a destination
         }
     }
     
@@ -735,6 +845,7 @@ class Butterfly extends Entity {
         // End display when timer expires
         if (this.timers.display === 0) {
             this.changeState('normal');
+            this.pickNewWanderTarget(); // Start moving again
         }
     }
     
@@ -766,6 +877,11 @@ class Butterfly extends Entity {
             particleSystem.emit(this.x, this.y, [255, 215, 0], 1, 'happy');
         }
         
+        // Emit regular happiness particles while feeding (increased contribution)
+        if (frameCount % 15 === 0) {
+            particleSystem.emit(this.x, this.y, random(this.colors), 1, 'happy');
+        }
+        
         // Determine target happiness
         const targetHappiness = this.feeding.startHappiness < this.baselineHappiness ? 60 : 75;
         
@@ -773,6 +889,7 @@ class Butterfly extends Entity {
         if (this.timers.feeding >= this.feeding.maxDuration || this.happiness >= targetHappiness) {
             this.endFeeding(particleSystem);
             this.changeState('normal');
+            // Note: setPostFeedingDestination is already called in exitState
         }
     }
     
@@ -788,6 +905,7 @@ class Butterfly extends Entity {
         
         if (dx*dx + dy*dy > maxDist * maxDist || this.timers.following >= this.cursor.maxFollowTime) {
             this.changeState('normal');
+            this.pickNewWanderTarget(); // Start wandering when done following
             return;
         }
         
@@ -798,6 +916,23 @@ class Butterfly extends Entity {
                 const fy = this.y - flower.y;
                 if (fx*fx + fy*fy < 100 && this.isFlowerAvailable(flower)) {
                     this.changeState('feeding', { flower: flower });
+                    
+                    // Add 20% magic pool bonus for successfully leading butterfly to flower
+                    if (typeof mainColorPool !== 'undefined') {
+                        const bonusAmount = mainColorPool.spawnThreshold * 0.2; // 20% of spawn threshold
+                        mainColorPool.glowIntensity = Math.min(
+                            mainColorPool.maxGlowIntensity, 
+                            mainColorPool.glowIntensity + bonusAmount
+                        );
+                        
+                        // Visual feedback for the bonus
+                        if (particleSystem) {
+                            particleSystem.emitBurst(this.x, this.y, [255, 215, 0], 10);
+                        }
+                        
+                        console.log(`✨ Magic pool bonus! +${bonusAmount.toFixed(1)}% (${mainColorPool.glowIntensity.toFixed(1)}/${mainColorPool.spawnThreshold})`);
+                    }
+                    
                     return;
                 }
             }
@@ -943,8 +1078,8 @@ class Butterfly extends Entity {
             const happinessRatio = (this.happiness - this.baselineHappiness) / 
                                   (this.maxHappiness - this.baselineHappiness);
             
-            // Base particles for pool contribution
-            const baseCount = Math.ceil(happinessRatio * 8);
+            // Base particles for pool contribution (increased for better ambient contribution)
+            const baseCount = Math.ceil(happinessRatio * 12); // Increased from 8 to 12 (50% increase)
             this.emitParticles('happy', baseCount / 8, particleSystem);
             
             // Additional visual particles
@@ -986,28 +1121,59 @@ class Butterfly extends Entity {
     }
     
     pickNewWanderTarget() {
-        const targetX = random(3, gridManager.bounds.maxX - 3);
-        const targetY = random(3, gridManager.bounds.maxY - 3);
-        
-        this.movement.setTarget(targetX, targetY, 'meander', 1, 0.6); // High wobble
-        this.timers.wander.duration = random(60, 120) / this.traits.jitteriness;
+        // Golden butterflies move much more erratically and frequently
+        if (this.personalityType === 'golden') {
+            // Much shorter distance targets for frantic movement
+            const angle = random(TWO_PI);
+            const distance = random(2, 4); // Shorter hops
+            const targetX = this.gridPos.x + cos(angle) * distance;
+            const targetY = this.gridPos.y + sin(angle) * distance;
+            
+            this.movement.setTarget(
+                constrain(targetX, 2, gridManager.bounds.maxX - 2),
+                constrain(targetY, 2, gridManager.bounds.maxY - 2),
+                'meander',
+                1,
+                0.3 // More wobble for erratic movement
+            );
+            this.timers.wander.duration = random(20, 40); // Change direction every 0.3-0.7 seconds
+        } else {
+            // Normal butterflies - pick a random destination anywhere on the map
+            const targetX = random(3, gridManager.bounds.maxX - 3);
+            const targetY = random(3, gridManager.bounds.maxY - 3);
+            
+            this.movement.setTarget(targetX, targetY, 'meander', 1, 0.1); // Minimal wobble for cleaner movement
+            this.timers.wander.duration = random(300, 600) / this.traits.jitteriness; // 5-10 seconds for more activity
+        }
     }
     
     setPostFeedingDestination() {
         const angle = random(TWO_PI);
-        const distance = random(6, 10);
+        const distance = random(4, 8); // Reduced distance to avoid getting stuck at boundaries
         
         const targetX = this.gridPos.x + cos(angle) * distance;
         const targetY = this.gridPos.y + sin(angle) * distance;
         
+        // Ensure target is well within bounds
+        const safeTargetX = constrain(targetX, 3, gridManager.bounds.maxX - 3);
+        const safeTargetY = constrain(targetY, 3, gridManager.bounds.maxY - 3);
+        
         this.movement.setTarget(
-            constrain(targetX, 2, gridManager.bounds.maxX - 2),
-            constrain(targetY, 2, gridManager.bounds.maxY - 2),
+            safeTargetX,
+            safeTargetY,
             'immediate',
-            8
+            8,
+            0.1 // Very low wobble for direct movement
         );
         
         this.timers.postFeedingDash = this.constants.dashDuration;
+        
+        // If the post-feeding destination is too close (butterfly at edge), pick a wander target instead
+        const dx = safeTargetX - this.gridPos.x;
+        const dy = safeTargetY - this.gridPos.y;
+        if (dx*dx + dy*dy < 4) { // If destination is less than 2 grid units away
+            this.pickNewWanderTarget(); // Just wander instead
+        }
     }
     
     checkFlowerSeeking(flowers) {
@@ -1077,6 +1243,16 @@ class Butterfly extends Entity {
             } else {
                 this.feeding.cooldowns.delete(flowerId);
             }
+        }
+        
+        // Limit cooldowns size to prevent memory buildup (keep only 10 most recent)
+        if (this.feeding.cooldowns.size > 10) {
+            const entries = Array.from(this.feeding.cooldowns.entries());
+            this.feeding.cooldowns.clear();
+            // Keep the 10 most recent (highest cooldown values)
+            entries.sort((a, b) => b[1] - a[1]).slice(0, 10).forEach(([id, time]) => {
+                this.feeding.cooldowns.set(id, time);
+            });
         }
     }
     
@@ -1161,6 +1337,10 @@ class Butterfly extends Entity {
                 });
             }
         }
+        
+        // Reset engagement timer on successful feeding (only if fewer than 4 butterflies)
+        const butterflyCount = gameCore?.gameState?.butterflies?.length || 0;
+        this.resetEngagement(butterflyCount);
     }
     
     // === CURSOR INTERACTION SYSTEM ===
@@ -1185,12 +1365,60 @@ class Butterfly extends Entity {
     }
     
     canInteractWithCursor(butterflies) {
+        // Golden butterflies always have priority
+        if (this.personalityType === 'golden') {
+            // Check if another golden butterfly is already following
+            for (let butterfly of butterflies) {
+                if (butterfly !== this && butterfly.state === 'following' && butterfly.personalityType === 'golden') {
+                    return false;
+                }
+            }
+            return true; // Golden always wins over non-golden
+        }
+        
+        // If another butterfly is already following, respect that
         for (let butterfly of butterflies) {
-            if (butterfly !== this && 
-                (butterfly.state === 'following' || 
-                 (butterfly.cursor.currentPatience > 0 && 
-                  butterfly.cursor.currentPatience > this.cursor.currentPatience))) {
+            if (butterfly !== this && butterfly.state === 'following') {
                 return false;
+            }
+        }
+        
+        // Non-golden butterflies cannot interact if a golden butterfly is building patience
+        for (let butterfly of butterflies) {
+            if (butterfly !== this && butterfly.personalityType === 'golden' && butterfly.cursor.currentPatience > 0) {
+                return false; // Golden butterfly takes priority
+            }
+        }
+        
+        // For butterflies building patience, use distance-based priority
+        const cursorX = gameCore?.gameState?.adjustedMouseX || 0;
+        const cursorY = gameCore?.gameState?.adjustedMouseY || 0;
+        const myDistance = Math.hypot(this.x - cursorX, this.y - cursorY);
+        
+        for (let butterfly of butterflies) {
+            if (butterfly !== this && butterfly.cursor.currentPatience > 0) {
+                const theirDistance = Math.hypot(butterfly.x - cursorX, butterfly.y - cursorY);
+                
+                // Distance threshold - if they're significantly closer, they win
+                const distanceAdvantage = 20; // pixels
+                if (theirDistance < myDistance - distanceAdvantage) {
+                    // Log when distance priority kicks in (only occasionally to avoid spam)
+                    if (frameCount % 60 === 0) {
+                        console.log(`🦋 ${butterfly.personalityType} (${theirDistance.toFixed(0)}px) has priority over ${this.personalityType} (${myDistance.toFixed(0)}px)`);
+                    }
+                    return false;
+                }
+                
+                // If distances are similar, use patience as tiebreaker
+                if (Math.abs(theirDistance - myDistance) <= distanceAdvantage) {
+                    // Add small personality-based modifier to prevent friendly butterflies always winning
+                    const myPriority = this.cursor.currentPatience + (this.traits.trustPropensity * 0.1);
+                    const theirPriority = butterfly.cursor.currentPatience + (butterfly.traits.trustPropensity * 0.1);
+                    
+                    if (theirPriority > myPriority) {
+                        return false;
+                    }
+                }
             }
         }
         return true;
@@ -1199,10 +1427,20 @@ class Butterfly extends Entity {
     evaluateCursorPresence(cursorVelocity, cursorX, cursorY, distance, particleSystem) {
         let cursorState = 'neutral';
         
-        if (cursorVelocity > this.constants.scareThreshold) {
-            cursorState = 'scaring';
-        } else if (cursorVelocity < 0.5 && distance < this.cursor.interestRadius * 0.7) {
-            cursorState = 'attracting';
+        // Golden butterflies have special interaction zones
+        if (this.personalityType === 'golden') {
+            // Golden butterflies ignore cursor velocity completely - only distance matters
+            if (distance < this.cursor.interestRadius * 0.9) {
+                cursorState = 'attracting';
+            }
+            // Golden butterflies cannot be scared by any cursor velocity - they're persistent
+        } else {
+            // Normal butterfly interaction
+            if (cursorVelocity > this.constants.scareThreshold) {
+                cursorState = 'scaring';
+            } else if (cursorVelocity < 0.5 && distance < this.cursor.interestRadius * 0.7) {
+                cursorState = 'attracting';
+            }
         }
         
         switch (cursorState) {
@@ -1214,7 +1452,9 @@ class Butterfly extends Entity {
                 break;
             case 'neutral':
                 if (this.cursor.currentPatience > 0) {
-                    this.cursor.currentPatience = Math.max(0, this.cursor.currentPatience - 0.5);
+                    // Golden butterflies lose patience more slowly
+                    const patienceLoss = this.personalityType === 'golden' ? 0.2 : 0.5;
+                    this.cursor.currentPatience = Math.max(0, this.cursor.currentPatience - patienceLoss);
                 }
                 break;
         }
@@ -1235,6 +1475,10 @@ class Butterfly extends Entity {
         if (this.cursor.currentPatience >= this.cursor.patienceRequired && this.state !== 'following') {
             this.changeState('following', { cursorX: cursorX, cursorY: cursorY });
             this.cursor.trustLevel = Math.min(100, this.cursor.trustLevel + 10);
+            
+            // Reset engagement timer when butterfly starts following (only if fewer than 4 butterflies)
+            const butterflyCount = gameCore?.gameState?.butterflies?.length || 0;
+            this.resetEngagement(butterflyCount);
             
             eventBus.emit(GameEvents.BUTTERFLY_DISPLAY, {
                 butterfly: this,
@@ -1336,6 +1580,16 @@ class Butterfly extends Entity {
         // Draw butterfly at current position
         graphics.push();
         graphics.translate(this.x, this.y);
+        
+        // Draw warning effect if butterfly needs attention
+        if (this.needsAttention() && !this.isImmortal) {
+            this.drawWarningEffect(graphics, alpha);
+        }
+        
+        // Draw spawn glow effect if newly spawned
+        if (this.spawnGlowIntensity > 0) {
+            this.drawSpawnGlow(graphics, alpha);
+        }
         
         // Draw happiness aura/glow behind butterfly
         this.drawHappinessAura(graphics, alpha);
@@ -1683,7 +1937,8 @@ class Butterfly extends Entity {
         graphics.push();
         
         const pulse = sinFrame(frameCount, 0.1) * 0.2 + 0.8;
-        const alpha = this.cursor.trustGlowAlpha * pulse;
+        // Golden butterflies get full opacity indicators for easier tracking
+        const alpha = this.personalityType === 'golden' ? 255 * pulse : this.cursor.trustGlowAlpha * pulse;
         
         // Use special symbols for golden butterfly
         const isGolden = this.personalityType === 'golden';
@@ -1702,7 +1957,7 @@ class Butterfly extends Entity {
             graphics.noStroke();
             
             if (isGolden) {
-                // Draw golden star for legendary butterfly
+                // Draw golden star for legendary butterfly - enhanced visibility
                 graphics.fill(255, 215, 0, alpha);
                 graphics.push();
                 graphics.rotate(frameCount * 0.05);
@@ -1738,10 +1993,138 @@ class Butterfly extends Entity {
         const progress = this.cursor.currentPatience / this.cursor.patienceRequired;
         if (progress > 0 && progress < 1) {
             graphics.noFill();
-            graphics.strokeWeight(2);
-            graphics.stroke(100, 255, 100, alpha * 0.5);
-            const arcEnd = map(progress, 0, 1, 0, TWO_PI);
-            graphics.arc(0, 0, 30, 30, -HALF_PI, -HALF_PI + arcEnd);
+            
+            if (isGolden) {
+                // Golden butterfly progress bar - much more visible
+                graphics.strokeWeight(4); // Thicker
+                graphics.stroke(255, 215, 0, 220); // Brighter gold, nearly opaque
+                
+                // Background circle for context
+                graphics.stroke(255, 215, 0, 100);
+                graphics.strokeWeight(2);
+                graphics.arc(0, 0, 35, 35, 0, TWO_PI);
+                
+                // Progress arc
+                graphics.stroke(255, 215, 0, 255); // Full opacity
+                graphics.strokeWeight(4);
+                const arcEnd = map(progress, 0, 1, 0, TWO_PI);
+                graphics.arc(0, 0, 35, 35, -HALF_PI, -HALF_PI + arcEnd);
+                
+                // Add pulsing outer ring for dramatic effect
+                const outerPulse = sin(frameCount * 0.15) * 0.3 + 0.7;
+                graphics.stroke(255, 255, 100, 150 * outerPulse);
+                graphics.strokeWeight(2);
+                graphics.arc(0, 0, 45, 45, -HALF_PI, -HALF_PI + arcEnd);
+            } else {
+                // Normal butterfly progress bar
+                graphics.strokeWeight(2);
+                graphics.stroke(100, 255, 100, alpha * 0.5);
+                const arcEnd = map(progress, 0, 1, 0, TWO_PI);
+                graphics.arc(0, 0, 30, 30, -HALF_PI, -HALF_PI + arcEnd);
+            }
+        }
+        
+        graphics.pop();
+    }
+    
+    // Draw spawn glow effect for newly spawned butterflies
+    drawSpawnGlow(graphics, alpha) {
+        graphics.push();
+        graphics.noStroke();
+        
+        // Multi-layered magical glow
+        const glowIntensity = this.spawnGlowIntensity;
+        const pulse = sin(frameCount * 0.2) * 0.2 + 0.8;
+        
+        // Outer soft glow - largest and most transparent
+        const outerSize = 60 + pulse * 10;
+        const outerAlpha = glowIntensity * 30 * (alpha / 255);
+        graphics.fill(255, 240, 200, outerAlpha);
+        graphics.ellipse(0, 0, outerSize, outerSize * 0.7);
+        
+        // Middle bright glow
+        const middleSize = 40 + pulse * 8;
+        const middleAlpha = glowIntensity * 50 * (alpha / 255);
+        graphics.fill(255, 230, 150, middleAlpha);
+        graphics.ellipse(0, 0, middleSize, middleSize * 0.7);
+        
+        // Inner intense core
+        const innerSize = 25 + pulse * 5;
+        const innerAlpha = glowIntensity * 80 * (alpha / 255);
+        graphics.fill(255, 255, 220, innerAlpha);
+        graphics.ellipse(0, 0, innerSize, innerSize * 0.7);
+        
+        // Radiating light rays
+        if (glowIntensity > 0.5) {
+            const numRays = 8;
+            for (let i = 0; i < numRays; i++) {
+                const angle = (TWO_PI / numRays) * i + frameCount * 0.02;
+                const rayLength = 30 + sin(frameCount * 0.1 + i) * 10;
+                const rayAlpha = glowIntensity * 40 * (alpha / 255) * pulse;
+                
+                graphics.push();
+                graphics.rotate(angle);
+                graphics.fill(255, 255, 200, rayAlpha);
+                graphics.beginShape();
+                graphics.vertex(0, 0);
+                graphics.vertex(rayLength * 0.3, -2);
+                graphics.vertex(rayLength, 0);
+                graphics.vertex(rayLength * 0.3, 2);
+                graphics.endShape(CLOSE);
+                graphics.pop();
+            }
+        }
+        
+        // Sparkle ring that rotates
+        const sparkleRadius = 35;
+        const numSparkles = 6;
+        for (let i = 0; i < numSparkles; i++) {
+            const sparkleAngle = (TWO_PI / numSparkles) * i + frameCount * 0.03;
+            const sx = cos(sparkleAngle) * sparkleRadius;
+            const sy = sin(sparkleAngle) * sparkleRadius * 0.7; // Isometric compression
+            const sparkleSize = 3 + sin(frameCount * 0.2 + i) * 2;
+            const sparkleAlpha = glowIntensity * 150 * (alpha / 255);
+            
+            graphics.fill(255, 255, 255, sparkleAlpha);
+            graphics.noStroke();
+            graphics.ellipse(sx, sy, sparkleSize, sparkleSize);
+        }
+        
+        graphics.pop();
+    }
+    
+    // Draw warning effect when butterfly needs attention
+    drawWarningEffect(graphics, alpha) {
+        // Similar to stress effect but with different colors and patterns
+        const criticalRatio = 1 - (this.engagementTimer / this.criticalEngagementThreshold);
+        const warningIntensity = criticalRatio; // Gets stronger as time runs out
+        
+        // Pulsing dark aura
+        const pulse = sin(frameCount * 0.15) * 0.3 + 0.7; // Faster pulse when critical
+        const auraSize = 25 + warningIntensity * 15;
+        const auraAlpha = (40 + warningIntensity * 60) * pulse * (alpha / 255);
+        
+        graphics.push();
+        graphics.noStroke();
+        
+        // Dark purple warning aura
+        graphics.fill(100, 50, 150, auraAlpha);
+        graphics.ellipse(0, 0, auraSize, auraSize * 0.7);
+        
+        // Add flickering effect when very critical
+        if (this.engagementTimer < this.fadeStartThreshold) {
+            const flicker = random() > 0.3 ? 1 : 0.5;
+            graphics.fill(150, 50, 100, auraAlpha * flicker);
+            graphics.ellipse(0, 0, auraSize * 0.8, auraSize * 0.6);
+        }
+        
+        // Warning particles emitted occasionally
+        if (frameCount % 30 === 0 && random() < warningIntensity) {
+            // Emit a warning particle (handled by particle system in update)
+            if (typeof gameCore !== 'undefined' && gameCore.particleSystem) {
+                const particleColor = [100 + random(50), 50, 150 + random(50)];
+                gameCore.particleSystem.emit(this.x, this.y, particleColor, 1, 'stress');
+            }
         }
         
         graphics.pop();
@@ -1765,9 +2148,9 @@ class Butterfly extends Entity {
     isDead() {
         const shouldDie = super.isDead(); // Call parent's isDead logic
         
-        // Immortal butterflies restart instead of dying
-        if (shouldDie && this.isImmortal) {
-            console.log(`🦋 Immortal butterfly restarting lifecycle`);
+        // Immortal butterflies and golden butterflies restart instead of dying
+        if (shouldDie && (this.isImmortal || this.personalityType === 'golden')) {
+            console.log(`🦋 ${this.personalityType === 'golden' ? 'Golden' : 'Immortal'} butterfly restarting lifecycle`);
             this.restartLifecycle();
             return false;
         }
@@ -1777,19 +2160,17 @@ class Butterfly extends Entity {
     
     // Restart lifecycle for immortal butterflies
     restartLifecycle() {
-        this.lifetime = 10000; // Reset to full lifetime
+        this.engagementTimer = this.maxEngagementTimer; // Reset engagement timer
         this.happiness = this.baselineHappiness; // Reset to baseline happiness
         this.state = 'normal';
         this.feeding.cooldowns.clear(); // Clear all feeding cooldowns
         this.visual.hasBeenHovered = false;
         
-        // Keep butterfly at current position - no teleportation!
-        // Only update the target position to current position to stop any movement
-        this.targetGridPos = {...this.gridPos};
-        
         // Reset movement to prevent weird glitches
-        this.movement.clearTarget();
         this.movement.smoothFollowTarget = { x: this.gridPos.x, y: this.gridPos.y };
+        
+        // Pick a new wander target for active movement
+        this.pickNewWanderTarget();
         this.movement.followOffset = { x: 0, y: 0 };
         
         // Clear any ongoing goals

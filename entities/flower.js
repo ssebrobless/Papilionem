@@ -2,16 +2,16 @@ class Flower extends Entity {
     constructor(x, y, isImmortal = false) {
         super(x, y);
         
-        // Unified lifecycle configuration
+        // Unified lifecycle configuration - doubled for better gameplay
         this.stageDurations = {
-            bloom: 600,     // 10 seconds at 60fps
-            mature: 1200,   // 20 seconds
-            wilting: 600,   // 10 seconds
-            dissolve: 180   // 3 seconds
+            bloom: 1200,    // 20 seconds at 60fps (was 10)
+            mature: 2400,   // 40 seconds (was 20)
+            wilting: 1200,  // 20 seconds (was 10)
+            dissolve: 360   // 6 seconds (was 3)
         };
         
         // Override base properties to match stage durations
-        this.lifetime = Object.values(this.stageDurations).reduce((a, b) => a + b, 0); // 2580
+        this.lifetime = Object.values(this.stageDurations).reduce((a, b) => a + b, 0); // 5160 frames (~86 seconds)
         this.fadeStartLifetime = this.stageDurations.dissolve; // Fade during dissolve stage
         this.shadowOffset = 2; // Flowers sit on ground
         
