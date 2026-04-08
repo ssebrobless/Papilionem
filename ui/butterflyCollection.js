@@ -215,6 +215,7 @@ class ButterflyCollectionUI {
     
     drawButterflyInfo(graphics, type) {
         const personality = BUTTERFLY_PERSONALITIES[type];
+        const debugEnabled = typeof debugUI !== 'undefined' && debugUI.enabled;
         const isCollected = gameCore.gameState.collectedButterflies.has(type);
         const isEncountered = gameCore.gameState.encounteredButterflies.has(type);
         const journalEntry = this.journalEntries[type];
@@ -233,8 +234,8 @@ class ButterflyCollectionUI {
         }
         graphics.pop();
         
-        // Show butterfly if encountered OR collected (collected should always mean encountered, but let's be safe)
-        if (isEncountered || isCollected || type === 'golden') {
+        // Show butterfly if encountered OR collected (debug mode shows all)
+        if (debugEnabled || isEncountered || isCollected || type === 'golden') {
             this.drawSimpleButterfly(graphics, this.x + this.width/2, butterflyY, personality, isCollected, type);
         } else {
             // Mystery silhouette
@@ -286,8 +287,8 @@ class ButterflyCollectionUI {
             graphics.text('Not encountered', this.x + this.width/2, butterflyY + 100 * this.scale);
         }
         
-        // Display journal entry with quote - show if encountered OR collected
-        if ((isEncountered || isCollected || type === 'golden') && journalEntry) {
+        // Display journal entry with quote - show if encountered OR collected (debug shows all)
+        if ((debugEnabled || isEncountered || isCollected || type === 'golden') && journalEntry) {
             graphics.textAlign(CENTER, TOP);
             
             // Title - bold and prominent (no quotes, no italic)
@@ -353,58 +354,137 @@ class ButterflyCollectionUI {
     drawSimpleButterfly(graphics, x, y, personality, isCollected, type) {
         graphics.push();
         graphics.translate(x, y);
-        
+
         const alpha = this.fadeAlpha;
-        const scale = 1.2 * this.scale;
-        
-        // Wing flutter animation
-        const flutter = sin(frameCount * 0.1) * 0.03;
-        
-        graphics.noStroke();
-        
-        // Draw both wing colors if available
-        const colors = personality.colors;
-        const wingColor = colors[0];
-        
-        // Left wing
-        graphics.push();
-        graphics.scale(scale);
-        graphics.rotate(-flutter);
-        
-        if (type === 'golden' && !gameCore.gameState.encounteredButterflies.has('golden')) {
-            graphics.fill(100, 100, 100, alpha);
+        const useSprites = gameConfig.rendering.useSprites
+            && spriteManager.loaded
+            && spriteManager.hasWings(type);
+
+        if (useSprites) {
+            // Draw actual sprites in the collection preview
+            const previewScale = 0.06 * this.scale; // Scale down from 1080px source to ~65px preview
+            const flutter = sin(frameCount * 0.1) * 0.15;
+            const wingSpread = map(sin(frameCount * 0.08), -1, 1, 0.6, 1);
+            const hindSpread = map(sin(frameCount * 0.08 - 0.6), -1, 1, 0.55, 0.95);
+
+            const debugOn = typeof debugUI !== 'undefined' && debugUI.enabled;
+            const isGoldenHidden = type === 'golden' && !debugOn && !gameCore.gameState.encounteredButterflies.has('golden');
+
+            graphics.smooth();
+            if (isGoldenHidden) {
+                graphics.tint(80, alpha);
+            } else {
+                graphics.tint(255, alpha);
+            }
+
+            // Body
+            if (spriteManager.body) {
+                const bodyW = spriteManager.body.width * previewScale;
+                const bodyH = spriteManager.body.height * previewScale;
+                graphics.image(spriteManager.body, -bodyW / 2, -bodyH / 2, bodyW, bodyH);
+            }
+
+            // Antenna
+            if (spriteManager.antenna) {
+                const anchors = spriteManager.anchors;
+                const s = previewScale;
+                const bodyCenter = anchors.body;
+
+                // Left antenna
+                const lOnBody = anchors.antenna.left.onBody;
+                const lOnAnt = anchors.antenna.left.onAntenna;
+                const lbx = (lOnBody.x - bodyCenter.centerX) * s;
+                const lby = (lOnBody.y - bodyCenter.centerY) * s;
+                const antW = spriteManager.antenna.width * s;
+                const antH = spriteManager.antenna.height * s;
+                const lax = lbx - lOnAnt.x * s;
+                const lay = lby - lOnAnt.y * s;
+                graphics.image(spriteManager.antenna, lax, lay, antW, antH);
+            }
+
+            // Wings
+            const wings = spriteManager.wings[type];
+            if (wings) {
+                const anchors = spriteManager.anchors;
+                const bodyCenter = anchors.body;
+                const s = previewScale;
+                const ws = s * 1.45; // Match game wing size boost
+
+                graphics.push();
+                graphics.rotate(flutter * 0.3);
+
+                // Draw each wing piece
+                const wingKeys = ['hindLeft', 'hindRight', 'foreLeft', 'foreRight'];
+                for (const wingKey of wingKeys) {
+                    const piece = wings[wingKey];
+                    const anchor = anchors.wings[wingKey];
+                    const relAnchor = anchors.wingsRelative[wingKey];
+                    const isHind = wingKey.startsWith('hind');
+                    const spread = isHind ? hindSpread : wingSpread;
+
+                    const bodyConnX = (anchor.onBody.x - bodyCenter.centerX) * s;
+                    let bodyConnY = (anchor.onBody.y - bodyCenter.centerY) * s;
+                    if (isHind) bodyConnY -= 5 * s;
+
+                    const pieceW = piece.width * ws;
+                    const pieceH = piece.height * ws;
+                    const drawX = bodyConnX - (relAnchor.x * ws);
+                    const drawY = bodyConnY - (relAnchor.y * ws);
+
+                    graphics.push();
+                    graphics.translate(bodyConnX, bodyConnY);
+                    graphics.scale(spread, 1);
+                    graphics.translate(-bodyConnX, -bodyConnY);
+                    graphics.image(piece, drawX, drawY, pieceW, pieceH);
+                    graphics.pop();
+                }
+
+                graphics.pop();
+            }
+
+            graphics.noTint();
+            graphics.noSmooth();
         } else {
+            // Fallback: procedural bezier wings
+            const scale = 1.2 * this.scale;
+            const flutter = sin(frameCount * 0.1) * 0.03;
+            const colors = personality.colors;
+            const wingColor = colors[0];
+
+            graphics.noStroke();
+
+            graphics.push();
+            graphics.scale(scale);
+            graphics.rotate(-flutter);
+            if (type === 'golden' && !gameCore.gameState.encounteredButterflies.has('golden')) {
+                graphics.fill(100, 100, 100, alpha);
+            } else {
+                graphics.fill(wingColor[0], wingColor[1], wingColor[2], alpha);
+            }
+            graphics.beginShape();
+            graphics.vertex(-15, -5);
+            graphics.bezierVertex(-20, -15, -25, -10, -20, 0);
+            graphics.bezierVertex(-25, 10, -20, 15, -15, 5);
+            graphics.vertex(-5, 0);
+            graphics.endShape(CLOSE);
+            graphics.pop();
+
+            graphics.push();
+            graphics.scale(scale);
+            graphics.rotate(flutter);
             graphics.fill(wingColor[0], wingColor[1], wingColor[2], alpha);
+            graphics.beginShape();
+            graphics.vertex(15, -5);
+            graphics.bezierVertex(20, -15, 25, -10, 20, 0);
+            graphics.bezierVertex(25, 10, 20, 15, 15, 5);
+            graphics.vertex(5, 0);
+            graphics.endShape(CLOSE);
+            graphics.pop();
+
+            graphics.fill(40, 30, 20, alpha);
+            graphics.rect(-3 * scale, -8 * scale, 6 * scale, 16 * scale);
         }
-        
-        graphics.beginShape();
-        graphics.vertex(-15, -5);
-        graphics.bezierVertex(-20, -15, -25, -10, -20, 0);
-        graphics.bezierVertex(-25, 10, -20, 15, -15, 5);
-        graphics.vertex(-5, 0);
-        graphics.endShape(CLOSE);
-        
-        graphics.pop();
-        
-        // Right wing
-        graphics.push();
-        graphics.scale(scale);
-        graphics.rotate(flutter);
-        
-        graphics.fill(wingColor[0], wingColor[1], wingColor[2], alpha);
-        graphics.beginShape();
-        graphics.vertex(15, -5);
-        graphics.bezierVertex(20, -15, 25, -10, 20, 0);
-        graphics.bezierVertex(25, 10, 20, 15, 15, 5);
-        graphics.vertex(5, 0);
-        graphics.endShape(CLOSE);
-        
-        graphics.pop();
-        
-        // Body
-        graphics.fill(40, 30, 20, alpha);
-        graphics.rect(-3 * scale, -8 * scale, 6 * scale, 16 * scale);
-        
+
         graphics.pop();
     }
     
