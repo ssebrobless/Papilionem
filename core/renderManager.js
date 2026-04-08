@@ -494,6 +494,13 @@ class RenderManager {
         }
     }
 
+    // Draw pool base (ring, spiral, glow) directly to main canvas
+    drawPoolBase() {
+        if (typeof gameCore !== 'undefined' && gameCore.isInitialized() && gameCore.mainColorPool) {
+            gameCore.mainColorPool.drawBase();
+        }
+    }
+
     // Composite all layers to main canvas
     compositeLayers() {
         const { targetWidth, targetHeight } = gameConfig.canvas;
@@ -501,6 +508,7 @@ class RenderManager {
         // Draw each layer — ground wave below everything, spawning butterflies behind archways
         image(this.layers.background, 0, 0, targetWidth, targetHeight);
         this.drawGroundWaveOverlay();
+        this.drawPoolBase();
         image(this.layers.entitiesBehind, 0, 0, targetWidth, targetHeight);
         this.drawSpawnCover();
         image(this.layers.entities, 0, 0, targetWidth, targetHeight);

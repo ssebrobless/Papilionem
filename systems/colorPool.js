@@ -354,26 +354,92 @@ class MainColorPool {
         return [color1, color2];
     }
     
-    // Draw the color pool
+    // Draw pool base layer (below entities) — ring, spiral, glow, absorbed pixels
+    drawBase() {
+        push();
+        translate(this.x, this.y);
+
+        if (typeof debugUI !== 'undefined' && debugUI.enabled) {
+            this.drawPoolBoundary_main();
+            this.drawExclusionZone_main();
+        }
+
+        this.drawAbsorbedPixels_main();
+        this.drawBaseGlow();
+
+        pop();
+    }
+
+    // Draw pool top layer (above entities) — spawn readiness only
     draw(graphics) {
+        if (this.glowIntensity < this.spawnThreshold || this.spawnCooldown > 0) return;
+
         graphics.push();
         graphics.translate(this.x, this.y);
-        
-        // Draw pool boundary and exclusion zone (for debug/visibility)
-        if (typeof debugUI !== 'undefined' && debugUI.enabled) {
-            this.drawPoolBoundary(graphics);
-            this.drawExclusionZone(graphics);
+
+        const readyPulse = sin(this.pulseTimer * 4) * 0.4 + 0.6;
+        graphics.noStroke();
+        for (let i = 2; i > 0; i--) {
+            graphics.fill(255, 255, 255, 120 * readyPulse / i);
+            graphics.ellipse(0, 0, 60 * readyPulse * i, 42 * readyPulse * i);
         }
-        
-        // Draw absorbed pixels as a glowing mass
-        this.drawAbsorbedPixels(graphics);
-        
-        // Draw glow effect
-        this.drawGlowEffect(graphics);
-        
+
+        graphics.push();
+        graphics.textAlign(CENTER, CENTER);
+        graphics.textSize(12);
+        graphics.fill(255, 255, 255, 200 * readyPulse);
+        graphics.text("✨", 0, -45);
+        graphics.pop();
+
         graphics.pop();
     }
     
+    // Draw pool boundary on main canvas (for drawBase)
+    drawPoolBoundary_main() {
+        noFill();
+        stroke(255, 255, 255, 100);
+        strokeWeight(1);
+        const screenRadiusX = this.gridRadius * gameConfig.grid.cellSize;
+        const screenRadiusY = this.gridRadius * gameConfig.grid.cellSize * 0.5;
+        ellipse(0, 0, screenRadiusX * 2, screenRadiusY * 2);
+    }
+
+    // Draw exclusion zone on main canvas (for drawBase)
+    drawExclusionZone_main() {
+        noFill();
+        stroke(255, 100, 100, 80);
+        strokeWeight(1);
+        const exclusionRadius = 2.5 * gameConfig.grid.cellSize;
+        const screenRadiusX = exclusionRadius;
+        const screenRadiusY = exclusionRadius * 0.5;
+        const segments = 32;
+        for (let i = 0; i < segments; i += 2) {
+            const angle1 = (TWO_PI / segments) * i;
+            const angle2 = (TWO_PI / segments) * (i + 1);
+            line(cos(angle1) * screenRadiusX, sin(angle1) * screenRadiusY,
+                 cos(angle2) * screenRadiusX, sin(angle2) * screenRadiusY);
+        }
+    }
+
+    // Draw absorbed pixels on main canvas (for drawBase)
+    drawAbsorbedPixels_main() {
+        noStroke();
+        this.absorbedPixels = this.absorbedPixels.filter(pixel => {
+            const age = frameCount - pixel.absorbedTime;
+            return age < 300;
+        });
+        for (let pixel of this.absorbedPixels) {
+            const age = frameCount - pixel.absorbedTime;
+            const fadeAlpha = Math.max(50, 200 - age * 2);
+            fill(pixel.color[0], pixel.color[1], pixel.color[2], fadeAlpha);
+            push();
+            translate(pixel.x, pixel.y);
+            rotate(PI/4);
+            rect(-2, -2, 4, 4);
+            pop();
+        }
+    }
+
     // Draw pool boundary for debug mode
     drawPoolBoundary(graphics) {
         graphics.noFill();
@@ -683,106 +749,102 @@ class MainColorPool {
         graphics.pop();
     }
 
-    // Draw glow effect based on intensity
-    drawGlowEffect(graphics) {
-        // Always show a subtle base glow that increases with intensity
+    // Draw base glow on main canvas (ring, spiral, ambient glow — below entities)
+    drawBaseGlow() {
         const baseGlow = 0.25 + (this.glowIntensity / this.maxGlowIntensity) * 0.3;
         const glowRatio = Math.max(baseGlow, this.glowIntensity / this.maxGlowIntensity);
-        const pulse = sin(this.pulseTimer) * 0.15 + 0.85;
-        
-        // Progress indicator ring - much more prominent and always visible
+        const pulseval = sin(this.pulseTimer) * 0.15 + 0.85;
         const progress = this.glowIntensity / this.spawnThreshold;
-        
-        // Always show progress ring (even at 0%) for clear feedback
-        graphics.push();
-        graphics.translate(5, 10); // Offset position as requested
-        
-        // Draw larger, more visible background ring - properly isometric (2:1 ratio)
-        graphics.strokeWeight(8);
-        graphics.stroke(255, 255, 255, 60); // More opaque background
-        graphics.noFill();
-        graphics.ellipse(0, 0, 110, 55); // True isometric proportions (width, height * 0.5)
-        
-        // Draw progress ring with much more visibility - properly isometric
+
+        // Progress ring
+        push();
+        translate(5, 10);
+        strokeWeight(8);
+        stroke(255, 255, 255, 60);
+        noFill();
+        ellipse(0, 0, 110, 55);
+
         if (progress > 0) {
-            graphics.strokeWeight(7);
-            // Enhanced color transitions from deep purple to bright gold
+            strokeWeight(7);
             const r = lerp(150, 255, Math.min(progress, 1));
             const g = lerp(100, 230, Math.min(progress, 1));
             const b = lerp(255, 50, Math.min(progress, 1));
-            graphics.stroke(r, g, b, 220 + pulse * 35); // Very opaque
-            
-            // Draw arc showing progress with proper isometric ellipse
-            const angle = map(Math.min(progress, 1), 0, 1, 0, TWO_PI);
-            graphics.arc(0, 0, 110, 55, -HALF_PI, -HALF_PI + angle);
+            stroke(r, g, b, 220 + pulseval * 35);
+            const ang = map(Math.min(progress, 1), 0, 1, 0, TWO_PI);
+            arc(0, 0, 110, 55, -HALF_PI, -HALF_PI + ang);
         }
-        
-        graphics.pop();
-        
-        // Show numerical progress as text with background bubble - keep this separate for better readability
-        graphics.push();
-        graphics.translate(1, 1); // Same offset for consistency
-        graphics.textAlign(CENTER, CENTER);
-        
-        // Draw background bubble for contrast
-        graphics.noStroke();
-        graphics.fill(0, 0, 0, 120); // Semi-transparent dark background
-        graphics.ellipse(0, -60, 35, 18); // Background bubble
-        
-        // Draw text with high contrast
-        graphics.textSize(11); // Slightly larger
-        graphics.fill(255, 255, 255, 250); // Very high contrast, almost opaque
-        graphics.stroke(0, 0, 0, 150); // Stronger outline for better readability
-        graphics.strokeWeight(0.8);
-        const percentText = Math.round(Math.min(progress * 100, 100)) + "%";
-        graphics.text(percentText, 0, -60);
-        graphics.pop();
-        
-        // Logarithmic spiral vortex effect
-        this.drawSpiralVortex(graphics, glowRatio, pulse);
+        pop();
 
-        // Progressive ambient glow that builds with intensity
+        // Percentage text
+        push();
+        translate(1, 1);
+        textAlign(CENTER, CENTER);
+        noStroke();
+        fill(0, 0, 0, 120);
+        ellipse(0, -60, 35, 18);
+        textSize(11);
+        fill(255, 255, 255, 250);
+        stroke(0, 0, 0, 150);
+        strokeWeight(0.8);
+        text(Math.round(Math.min(progress * 100, 100)) + "%", 0, -60);
+        pop();
+
+        // Spiral vortex — draw to main canvas
+        this.drawSpiralVortex_main(glowRatio, pulseval);
+
+        // Ambient glow layers
         const numLayers = 5 + Math.floor(glowRatio * 3);
+        noStroke();
         for (let i = numLayers; i > 0; i--) {
-            const layerSize = (35 + glowRatio * 60) * (i / numLayers) * pulse;
+            const layerSize = (35 + glowRatio * 60) * (i / numLayers) * pulseval;
             const layerAlpha = (baseGlow * 50 + glowRatio * 100) / (i * 0.7);
-            
-            graphics.noStroke();
-            // Enhanced magical glow with more vibrant colors
-            const glowProgress = glowRatio;
-            graphics.fill(
-                200 + glowProgress * 55, 
-                120 + glowProgress * 100, 
-                255 - glowProgress * 150, 
+            fill(
+                200 + glowRatio * 55,
+                120 + glowRatio * 100,
+                255 - glowRatio * 150,
                 Math.min(layerAlpha, 150)
             );
-            graphics.ellipse(0, 0, layerSize, layerSize * 0.7);
+            ellipse(0, 0, layerSize, layerSize * 0.7);
         }
-        
-        // Inner bright core
+
+        // Inner core
         if (this.glowIntensity > 0) {
             const coreSize = 15 + glowRatio * 20;
-            graphics.fill(255, 255, 255, glowRatio * 60);
-            graphics.ellipse(0, 0, coreSize, coreSize * 0.7);
+            fill(255, 255, 255, glowRatio * 60);
+            ellipse(0, 0, coreSize, coreSize * 0.7);
         }
-        
-        // Spawn readiness indicator - bright pulsing
-        if (this.glowIntensity >= this.spawnThreshold && this.spawnCooldown === 0) {
-            const readyPulse = sin(this.pulseTimer * 4) * 0.4 + 0.6;
-            // Bright white burst effect
-            for (let i = 2; i > 0; i--) {
-                graphics.fill(255, 255, 255, 120 * readyPulse / i);
-                graphics.ellipse(0, 0, 60 * readyPulse * i, 42 * readyPulse * i);
+    }
+
+    // Spiral vortex drawing to main canvas
+    drawSpiralVortex_main(glowRatio, pulse) {
+        const numArms = 3;
+        const t = this.pulseTimer * 0.8;
+        const maxRadius = 40 + glowRatio * 20;
+        const dotsPerArm = 30;
+        const b = 0.15;
+        const a = 2.5;
+
+        push();
+        noStroke();
+        for (let arm = 0; arm < numArms; arm++) {
+            const armOffset = (TWO_PI / numArms) * arm;
+            for (let j = 0; j < dotsPerArm; j++) {
+                const progress = j / dotsPerArm;
+                const theta = progress * TWO_PI * 2.5 + armOffset + t;
+                const r = a * Math.exp(b * (progress * TWO_PI * 2.5));
+                if (r > maxRadius) continue;
+                const px = cos(theta) * r;
+                const py = sin(theta) * r * 0.5;
+                const dotAlpha = (1 - progress) * glowRatio * 120 * pulse;
+                const dotR = lerp(255, 200 + glowRatio * 55, progress);
+                const dotG = lerp(255, 120 + glowRatio * 100, progress);
+                const dotB = lerp(255, 255 - glowRatio * 150, progress);
+                const dotSize = (1 - progress * 0.6) * 3 * pulse;
+                fill(dotR, dotG, dotB, dotAlpha);
+                ellipse(px, py, dotSize, dotSize);
             }
-            
-            // Show "READY" text effect
-            graphics.push();
-            graphics.textAlign(CENTER, CENTER);
-            graphics.textSize(12);
-            graphics.fill(255, 255, 255, 200 * readyPulse);
-            graphics.text("✨", 0, -45);
-            graphics.pop();
         }
+        pop();
     }
 }
 
