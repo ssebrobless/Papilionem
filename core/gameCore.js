@@ -626,24 +626,20 @@ class GameCore {
     
     // Event handlers
     handleMousePressed() {
-        if (this.debugMode.enabled) return false;
-        
-        // Check if gameUI wants to handle the click first (for butterfly collection navigation)
+        // Always allow butterfly collection interaction, even in debug mode
         if (typeof gameUI !== 'undefined' && gameUI.initialized && gameUI.butterflyCollection) {
-            // If collection is visible, check if click is inside or outside
             if (gameUI.butterflyCollection.visible) {
                 if (gameUI.butterflyCollection.isClickInside(mouseX, mouseY)) {
-                    // Click is inside - handle navigation buttons
                     return gameUI.butterflyCollection.handleMousePressed(mouseX, mouseY);
                 } else {
-                    // Click is outside - close the collection
                     gameUI.butterflyCollection.toggle();
                     return true;
                 }
             }
         }
-        
-        // No other mouse interaction needed
+
+        if (this.debugMode.enabled) return false;
+
         return false;
     }
     

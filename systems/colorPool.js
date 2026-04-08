@@ -702,53 +702,6 @@ class MainColorPool {
         }, trailDuration);
     }
     
-    // Draw rotating logarithmic spiral arms
-    drawSpiralVortex(graphics, glowRatio, pulse) {
-        const numArms = 3;
-        const t = this.pulseTimer * 0.8; // Rotation speed
-        const maxRadius = 40 + glowRatio * 20;
-        const dotsPerArm = 30;
-
-        // Logarithmic spiral: r = a * e^(b*theta)
-        // b controls how tightly wound the spiral is
-        const b = 0.15;
-        const a = 2.5;
-
-        graphics.push();
-        graphics.noStroke();
-
-        for (let arm = 0; arm < numArms; arm++) {
-            const armOffset = (TWO_PI / numArms) * arm;
-
-            for (let j = 0; j < dotsPerArm; j++) {
-                const progress = j / dotsPerArm;
-                // Theta increases along the arm, rotation shifts over time
-                const theta = progress * TWO_PI * 2.5 + armOffset + t;
-                const r = a * Math.exp(b * (progress * TWO_PI * 2.5));
-
-                // Clamp to max radius
-                if (r > maxRadius) continue;
-
-                // Isometric compression (y * 0.5)
-                const px = cos(theta) * r;
-                const py = sin(theta) * r * 0.5;
-
-                // Fade: outer dots more transparent, inner brighter
-                const dotAlpha = (1 - progress) * glowRatio * 120 * pulse;
-                // Color shifts from white at center to purple/gold based on glow
-                const dotR = lerp(255, 200 + glowRatio * 55, progress);
-                const dotG = lerp(255, 120 + glowRatio * 100, progress);
-                const dotB = lerp(255, 255 - glowRatio * 150, progress);
-
-                const dotSize = (1 - progress * 0.6) * 3 * pulse;
-                graphics.fill(dotR, dotG, dotB, dotAlpha);
-                graphics.ellipse(px, py, dotSize, dotSize);
-            }
-        }
-
-        graphics.pop();
-    }
-
     // Draw base glow on main canvas (ring, spiral, ambient glow — below entities)
     drawBaseGlow() {
         const baseGlow = 0.25 + (this.glowIntensity / this.maxGlowIntensity) * 0.3;
@@ -762,7 +715,7 @@ class MainColorPool {
         strokeWeight(8);
         stroke(255, 255, 255, 60);
         noFill();
-        ellipse(0, 0, 110, 55);
+        ellipse(0, 0, 114.4, 57.2);
 
         if (progress > 0) {
             strokeWeight(7);
@@ -771,7 +724,7 @@ class MainColorPool {
             const b = lerp(255, 50, Math.min(progress, 1));
             stroke(r, g, b, 220 + pulseval * 35);
             const ang = map(Math.min(progress, 1), 0, 1, 0, TWO_PI);
-            arc(0, 0, 110, 55, -HALF_PI, -HALF_PI + ang);
+            arc(0, 0, 114.4, 57.2, -HALF_PI, -HALF_PI + ang);
         }
         pop();
 
@@ -789,8 +742,12 @@ class MainColorPool {
         text(Math.round(Math.min(progress * 100, 100)) + "%", 0, -60);
         pop();
 
-        // Spiral vortex — draw to main canvas
-        this.drawSpiralVortex_main(glowRatio, pulseval);
+        // Spiral vortex — draw to main canvas (offset down to align with pool color)
+        push();
+        translate(0, 6);
+        this.drawSpiralVortex_main(glowRatio, pulseval, 0, null);
+        this.drawSpiralVortex_main(glowRatio, pulseval, 0.2 * 60 * this.pulseSpeed, 'cyan');
+        pop();
 
         // Ambient glow layers
         const numLayers = 5 + Math.floor(glowRatio * 3);
@@ -815,33 +772,49 @@ class MainColorPool {
         }
     }
 
-    // Spiral vortex drawing to main canvas
-    drawSpiralVortex_main(glowRatio, pulse) {
-        const numArms = 3;
-        const t = this.pulseTimer * 0.8;
-        const maxRadius = 40 + glowRatio * 20;
-        const dotsPerArm = 30;
-        const b = 0.15;
-        const a = 2.5;
+    // Bold Archimedean spiral vortex on main canvas
+    drawSpiralVortex_main(glowRatio, pulse, timeOffset = 0, colorMode = null) {
+        const numArms = 5;
+        const t = this.pulseTimer * 0.6 - timeOffset;
+        const maxRadius = 55 + glowRatio * 20;
+        const dotsPerArm = 40;
+
+        // Archimedean spiral: r = a + b * theta (uniform ring spacing)
+        const a = 3;
+        const b = 2.2;
 
         push();
         noStroke();
         for (let arm = 0; arm < numArms; arm++) {
             const armOffset = (TWO_PI / numArms) * arm;
+
             for (let j = 0; j < dotsPerArm; j++) {
                 const progress = j / dotsPerArm;
-                const theta = progress * TWO_PI * 2.5 + armOffset + t;
-                const r = a * Math.exp(b * (progress * TWO_PI * 2.5));
+                const theta = progress * TWO_PI * 3 + armOffset + t;
+                const r = a + b * (progress * TWO_PI * 3);
+
                 if (r > maxRadius) continue;
+
                 const px = cos(theta) * r;
                 const py = sin(theta) * r * 0.5;
-                const dotAlpha = (1 - progress) * glowRatio * 120 * pulse;
-                const dotR = lerp(255, 200 + glowRatio * 55, progress);
-                const dotG = lerp(255, 120 + glowRatio * 100, progress);
-                const dotB = lerp(255, 255 - glowRatio * 150, progress);
-                const dotSize = (1 - progress * 0.6) * 3 * pulse;
+
+                const baseAlpha = 40 + glowRatio * 80;
+                const dotAlpha = (1 - progress * 0.7) * baseAlpha * pulse;
+
+                let dotR, dotG, dotB;
+                if (colorMode === 'cyan') {
+                    dotR = lerp(255, 0, progress);
+                    dotG = lerp(255, 220 + glowRatio * 35, progress);
+                    dotB = lerp(255, 255, progress);
+                } else {
+                    dotR = lerp(255, 200 + glowRatio * 55, progress);
+                    dotG = lerp(255, 120 + glowRatio * 100, progress);
+                    dotB = lerp(255, 255 - glowRatio * 150, progress);
+                }
+
+                const dotSize = (1 - progress * 0.5) * 5 * pulse;
                 fill(dotR, dotG, dotB, dotAlpha);
-                ellipse(px, py, dotSize, dotSize);
+                ellipse(px, py, dotSize, dotSize * 0.7);
             }
         }
         pop();

@@ -497,7 +497,12 @@ class RenderManager {
     // Draw pool base (ring, spiral, glow) directly to main canvas
     drawPoolBase() {
         if (typeof gameCore !== 'undefined' && gameCore.isInitialized() && gameCore.mainColorPool) {
+            // Scale from base coordinates to current canvas size
+            const { baseWidth, baseHeight, targetWidth, targetHeight } = gameConfig.canvas;
+            push();
+            scale(targetWidth / baseWidth, targetHeight / baseHeight);
             gameCore.mainColorPool.drawBase();
+            pop();
         }
     }
 

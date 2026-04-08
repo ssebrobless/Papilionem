@@ -96,7 +96,7 @@ class Flower extends Entity {
             swayAngle: random(TWO_PI),
             swaySpeed: 0.02 + random(0.01),
             swayAmount: 0.06,       // Base sway for flower heads
-            shearAmount: 0.08,      // Top-heavy lean intensity
+            shearAmount: 0.14,      // Top-heavy lean intensity
             petalPhase: random(TWO_PI),
             petalWaveSpeed: 0.02
         };
@@ -262,14 +262,22 @@ class Flower extends Entity {
             alpha = map(this.stageTimer, 0, this.stageDurations.dissolve, 255, 0);
         }
         
+        // Sway afterimage — ghost copy trailing behind the current shear
+        const shear = sin(this.animation.swayAngle) * this.animation.shearAmount;
+        const ghostShear = sin(this.animation.swayAngle - 1.0) * this.animation.shearAmount;
+        graphics.push();
+        graphics.translate(this.x, this.y);
+        graphics.shearX(ghostShear);
+        this.drawFlowerHead(graphics, alpha * 0.273);
+        graphics.pop();
+
         // Base position anchored to ground
         graphics.push();
         graphics.translate(this.x, this.y);
 
         // Top-heavy sway: base stays anchored, top leans left/right
-        const shear = sin(this.animation.swayAngle) * this.animation.shearAmount;
         graphics.shearX(shear);
-        
+
         // Draw golden blessing effect
         if (this.goldenBlessing > 0) {
             this.drawGoldenBlessing(graphics);
