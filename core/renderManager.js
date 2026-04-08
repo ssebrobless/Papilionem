@@ -3,20 +3,28 @@ class RenderManager {
     constructor() {
         this.layers = {
             background: null,
+            entitiesBehind: null,  // For spawning butterflies (below archways)
             entities: null,
             particles: null,
             ui: null,
             debug: null
         };
-        
+
         this.initialized = false;
         this.backgroundImage = null;
+        this.spawnCoverImage = null;
         
         // Entity sorting cache with pre-allocated arrays
         this.sortedEntities = [];
         this.entitiesDirty = true;
         this.lastEntityCount = 0;
         this.entitySortingCache = []; // Pre-allocated array for sorting to avoid slice() allocation
+
+        // Foliage overlay (leaf rustling effect)
+        this.foliageQuadrants = null; // Array of 4 p5.Image quadrants
+
+        // Ground wave overlay (grass/ground waving effect)
+        this.groundWaveQuadrants = null; // Array of 4 p5.Image quadrants
     }
     
     // Initialize all render layers
@@ -29,6 +37,7 @@ class RenderManager {
         }
         
         // Keep pixel art aesthetic for entity and particle layers only
+        this.layers.entitiesBehind.noSmooth();
         this.layers.entities.noSmooth();
         this.layers.particles.noSmooth();
         
@@ -79,6 +88,7 @@ class RenderManager {
     
     // Clear dynamic layers
     clearDynamicLayers() {
+        this.layers.entitiesBehind.clear();
         this.layers.entities.clear();
         this.layers.particles.clear();
         this.layers.ui.clear();
@@ -167,9 +177,14 @@ class RenderManager {
             this.lastEntityCount = allEntities.length;
         }
         
-        // Draw sorted entities
+        // Draw sorted entities — route spawning butterflies to behind layer
+        const behindLayer = this.layers.entitiesBehind;
         for (let entity of this.sortedEntities) {
-            entity.draw(layer);
+            if (entity.isSpawning) {
+                entity.draw(behindLayer);
+            } else {
+                entity.draw(layer);
+            }
         }
         
         layer.pop();
@@ -353,14 +368,144 @@ class RenderManager {
         layer.text('X: Export zones', 15, 145);
     }
     
+    // Set spawn cover image (stone archways)
+    setSpawnCoverImage(img) {
+        this.spawnCoverImage = img;
+    }
+
+    // Draw spawn cover overlay (archways)
+    drawSpawnCover() {
+        if (!this.spawnCoverImage) return;
+        const { targetWidth, targetHeight } = gameConfig.canvas;
+        image(this.spawnCoverImage, 0, 0, targetWidth, targetHeight);
+    }
+
+    // Initialize ground wave overlay — slice into 4 quadrants for waving effect
+    setGroundWaveImage(img) {
+        if (!img) return;
+        const halfW = Math.floor(img.width / 2);
+        const halfH = Math.floor(img.height / 2);
+
+        this.groundWaveQuadrants = [
+            img.get(0, 0, halfW, halfH),
+            img.get(halfW, 0, img.width - halfW, halfH),
+            img.get(0, halfH, halfW, img.height - halfH),
+            img.get(halfW, halfH, img.width - halfW, img.height - halfH)
+        ];
+        console.log('RenderManager: Ground wave overlay loaded — 4 quadrants');
+    }
+
+    // Draw ground wave overlay with two opposite-direction layers
+    drawGroundWaveOverlay() {
+        if (!this.groundWaveQuadrants) return;
+
+        const { targetWidth, targetHeight } = gameConfig.canvas;
+        const halfW = targetWidth / 2;
+        const halfH = targetHeight / 2;
+        const t = frameCount;
+
+        // Layer 1
+        const offsets = [
+            { x: sin(t * 0.02) * 6.5,          y: cos(t * 0.015) * 6.0 },
+            { x: sin(t * 0.018 + 1.0) * 6.5,   y: cos(t * 0.022 + 0.5) * 6.0 },
+            { x: sin(t * 0.025 + 2.0) * 6.0,   y: cos(t * 0.017 + 1.5) * 5.5 },
+            { x: sin(t * 0.015 + 0.7) * 6.0,   y: cos(t * 0.02 + 2.0) * 5.5 },
+        ];
+
+        for (let i = 0; i < 4; i++) {
+            const qx = (i % 2) * halfW;
+            const qy = Math.floor(i / 2) * halfH;
+            image(this.groundWaveQuadrants[i],
+                  qx + offsets[i].x, qy + offsets[i].y,
+                  halfW, halfH);
+        }
+
+        // Layer 2: reversed direction + different phase offsets
+        const offsets2 = [
+            { x: sin(-t * 0.02 + 3.5) * 6.5,   y: cos(-t * 0.015 + 2.8) * 6.0 },
+            { x: sin(-t * 0.018 + 4.2) * 6.5,   y: cos(-t * 0.022 + 3.3) * 6.0 },
+            { x: sin(-t * 0.025 + 5.0) * 6.0,   y: cos(-t * 0.017 + 4.5) * 5.5 },
+            { x: sin(-t * 0.015 + 3.9) * 6.0,   y: cos(-t * 0.02 + 5.2) * 5.5 },
+        ];
+
+        for (let i = 0; i < 4; i++) {
+            const qx = (i % 2) * halfW;
+            const qy = Math.floor(i / 2) * halfH;
+            image(this.groundWaveQuadrants[i],
+                  qx + offsets2[i].x, qy + offsets2[i].y,
+                  halfW, halfH);
+        }
+    }
+
+    // Initialize foliage overlay — slice into 4 quadrants for rustling effect
+    setFoliageImage(img) {
+        if (!img) return;
+        const halfW = Math.floor(img.width / 2);
+        const halfH = Math.floor(img.height / 2);
+
+        this.foliageQuadrants = [
+            img.get(0, 0, halfW, halfH),           // top-left
+            img.get(halfW, 0, img.width - halfW, halfH),  // top-right
+            img.get(0, halfH, halfW, img.height - halfH), // bottom-left
+            img.get(halfW, halfH, img.width - halfW, img.height - halfH) // bottom-right
+        ];
+        console.log('RenderManager: Foliage overlay loaded — 4 quadrants');
+    }
+
+    // Draw foliage overlay with per-quadrant rustling animation
+    drawFoliageOverlay() {
+        if (!this.foliageQuadrants) return;
+
+        const { targetWidth, targetHeight } = gameConfig.canvas;
+        const halfW = targetWidth / 2;
+        const halfH = targetHeight / 2;
+        const t = frameCount;
+
+        // Layer 1: each quadrant drifts independently
+        const offsets = [
+            { x: sin(t * 0.02) * 6.5,          y: cos(t * 0.015) * 6.0 },
+            { x: sin(t * 0.018 + 1.0) * 6.5,   y: cos(t * 0.022 + 0.5) * 6.0 },
+            { x: sin(t * 0.025 + 2.0) * 6.0,   y: cos(t * 0.017 + 1.5) * 5.5 },
+            { x: sin(t * 0.015 + 0.7) * 6.0,   y: cos(t * 0.02 + 2.0) * 5.5 },
+        ];
+
+        for (let i = 0; i < 4; i++) {
+            const qx = (i % 2) * halfW;
+            const qy = Math.floor(i / 2) * halfH;
+            image(this.foliageQuadrants[i],
+                  qx + offsets[i].x, qy + offsets[i].y,
+                  halfW, halfH);
+        }
+
+        // Layer 2: same quadrants, reversed drift direction + different phase so layers never align
+        const offsets2 = [
+            { x: sin(-t * 0.02 + 3.5) * 6.5,          y: cos(-t * 0.015 + 2.8) * 6.0 },
+            { x: sin(-t * 0.018 + 4.2) * 6.5,          y: cos(-t * 0.022 + 3.3) * 6.0 },
+            { x: sin(-t * 0.025 + 5.0) * 6.0,          y: cos(-t * 0.017 + 4.5) * 5.5 },
+            { x: sin(-t * 0.015 + 3.9) * 6.0,          y: cos(-t * 0.02 + 5.2) * 5.5 },
+        ];
+
+        for (let i = 0; i < 4; i++) {
+            const qx = (i % 2) * halfW;
+            const qy = Math.floor(i / 2) * halfH;
+            image(this.foliageQuadrants[i],
+                  qx + offsets2[i].x, qy + offsets2[i].y,
+                  halfW, halfH);
+        }
+    }
+
     // Composite all layers to main canvas
     compositeLayers() {
         const { targetWidth, targetHeight } = gameConfig.canvas;
         
-        // Draw each layer
+        // Draw each layer — ground wave below everything, spawning butterflies behind archways
         image(this.layers.background, 0, 0, targetWidth, targetHeight);
+        this.drawGroundWaveOverlay();
+        image(this.layers.entitiesBehind, 0, 0, targetWidth, targetHeight);
+        this.drawSpawnCover();
         image(this.layers.entities, 0, 0, targetWidth, targetHeight);
         image(this.layers.particles, 0, 0, targetWidth, targetHeight);
+        this.drawFoliageOverlay();
         image(this.layers.ui, 0, 0, targetWidth, targetHeight);
         
         // Get debug mode state from gameCore or fallback

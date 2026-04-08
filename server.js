@@ -73,7 +73,7 @@ function serveDynamicHTML(res) {
 }
 
 app.listen(PORT, () => {
-    console.log(`🦋 Ephemera: Digital Garden is blooming on port ${PORT}`);
+    console.log(`🦋 Papilionem: Digital Garden is blooming on port ${PORT}`);
     console.log(`✨ Visit your butterfly garden at ${BASE_URL}`);
     console.log(`📱 Social media previews will use: ${BASE_URL}/preview.png`);
 });

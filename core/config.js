@@ -1,5 +1,11 @@
 // Centralized game configuration
 const gameConfig = {
+    // Rendering settings
+    rendering: {
+        useSprites: true,           // Set to false to revert to procedural butterfly rendering
+        butterflyVisualScale: 1.6   // 60% larger visual rendering (interaction radii unchanged)
+    },
+
     // Canvas settings
     canvas: {
         baseWidth: 800,

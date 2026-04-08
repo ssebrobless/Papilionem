@@ -535,7 +535,7 @@ class GameCore {
         fill(0);
         textAlign(CENTER, CENTER);
         textSize(24);
-        text('Loading Ephemera...', width/2, height/2);
+        text('Loading Papilionem...', width/2, height/2);
         
         // Show initialization progress
         const progress = this.completedSteps.size / this.initializationSteps.length;
@@ -591,7 +591,7 @@ class GameCore {
         // Main text
         fill(255, 255, 255);
         textSize(48);
-        text("🦋 Ephemera Complete 🦋", width/2, height/2 - 100);
+        text("🦋 Papilionem Complete 🦋", width/2, height/2 - 100);
         
         textSize(24);
         fill(255, 215, 0);

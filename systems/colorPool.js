@@ -203,18 +203,12 @@ class MainColorPool {
     
     // Spawn a new butterfly from the pool
     spawnButterfly(butterflies, particleSystem) {
-        // Calculate spawn position at least 5 grid spaces away
-        const spawnDistance = 5 + random(3); // 5-8 grid spaces away
-        const spawnAngle = random(TWO_PI);
-        
-        const spawnGridX = this.gridCenter.x + cos(spawnAngle) * spawnDistance;
-        const spawnGridY = this.gridCenter.y + sin(spawnAngle) * spawnDistance;
-        
-        // Clamp to grid bounds (ensure we stay within playable area)
-        const clampedGridX = constrain(spawnGridX, 2, gridManager.bounds.maxX - 2);
-        const clampedGridY = constrain(spawnGridY, 2, gridManager.bounds.maxY - 2);
-        
-        const spawnScreen = gridManager.isoToScreen(clampedGridX, clampedGridY);
+        // Pick archway spawn point (50/50 chance)
+        const archways = [
+            { x: 232, y: 139 },  // Left archway
+            { x: 589, y: 103 },  // Right archway
+        ];
+        const archway = archways[Math.floor(random(2))];
         
         // Check if we should spawn the golden butterfly
         let personalityType = null;
@@ -225,21 +219,39 @@ class MainColorPool {
             console.log('🌟 GOLDEN BUTTERFLY SPAWNING!');
         }
         
-        // Create new butterfly - let personality determine colors
-        // If this would be the first butterfly, make it immortal
+        // Create new butterfly at archway position
         const isFirstButterfly = butterflies.length === 0;
+        const spawnX = archway.x;
+        const spawnY = archway.y;
         const newButterfly = new Butterfly(
-            spawnScreen.x, 
-            spawnScreen.y - gameConfig.entities.heightOffset.butterfly, 
+            spawnX,
+            spawnY,
             null, // Let personality determine colors
             isFirstButterfly,
             personalityType // Golden if conditions met, otherwise random
         );
-        
+
+        // Calculate target in main area (diagonal inward from archway)
+        const targetX = archway === archways[0]
+            ? 320 + random(-30, 30)   // Left archway → fly toward center-right
+            : 480 + random(-30, 30);  // Right archway → fly toward center-left
+        const targetY = 250 + random(-30, 30);
+
+        // Set up spawn flight
+        newButterfly.isSpawning = true;
+        newButterfly.spawnFlight = {
+            originX: spawnX,
+            originY: spawnY,
+            targetX: targetX,
+            targetY: targetY,
+            progress: 0,
+            duration: 120
+        };
+
         // Mark butterfly as newly spawned for special effects
-        newButterfly.spawnTimer = isGoldenButterfly ? 300 : 180; // 5 seconds for golden, 3 for others
+        newButterfly.spawnTimer = isGoldenButterfly ? 300 : 180;
         newButterfly.spawnGlowIntensity = 1.0;
-        
+
         // Add butterfly to game
         butterflies.push(newButterfly);
         
@@ -253,15 +265,15 @@ class MainColorPool {
         
         // Create spawn animation effect at pool
         particleSystem.emitBurst(this.x, this.y, [255, 255, 255], 12);
-        
-        // Create magical trail from pool to butterfly
-        this.createMagicalTrail(particleSystem, this.x, this.y, spawnScreen.x, spawnScreen.y - gameConfig.entities.heightOffset.butterfly);
-        
-        // Create arrival burst at butterfly location (enhanced for golden butterfly)
+
+        // Create magical trail from pool to archway
+        this.createMagicalTrail(particleSystem, this.x, this.y, spawnX, spawnY);
+
+        // Create arrival burst at archway (enhanced for golden butterfly)
         if (isGoldenButterfly) {
-            this.createGoldenArrivalBurst(particleSystem, spawnScreen.x, spawnScreen.y - gameConfig.entities.heightOffset.butterfly);
+            this.createGoldenArrivalBurst(particleSystem, spawnX, spawnY);
         } else {
-            this.createArrivalBurst(particleSystem, spawnScreen.x, spawnScreen.y - gameConfig.entities.heightOffset.butterfly, newButterfly.colors);
+            this.createArrivalBurst(particleSystem, spawnX, spawnY, newButterfly.colors);
         }
         
         // Reduce glow intensity by spawn threshold but don't go below 0
@@ -274,10 +286,10 @@ class MainColorPool {
         this.spawnCooldown = this.spawnCooldownDuration;
         
         // Emit events
-        eventBus.emit(GameEvents.POOL_SPAWNING, { 
-            pool: this, 
+        eventBus.emit(GameEvents.POOL_SPAWNING, {
+            pool: this,
             butterfly: newButterfly,
-            spawnLocation: { x: spawnScreen.x, y: spawnScreen.y }
+            spawnLocation: { x: spawnX, y: spawnY }
         });
         
         eventBus.emit(GameEvents.BUTTERFLY_SPAWNED, { 
@@ -624,6 +636,53 @@ class MainColorPool {
         }, trailDuration);
     }
     
+    // Draw rotating logarithmic spiral arms
+    drawSpiralVortex(graphics, glowRatio, pulse) {
+        const numArms = 3;
+        const t = this.pulseTimer * 0.8; // Rotation speed
+        const maxRadius = 40 + glowRatio * 20;
+        const dotsPerArm = 30;
+
+        // Logarithmic spiral: r = a * e^(b*theta)
+        // b controls how tightly wound the spiral is
+        const b = 0.15;
+        const a = 2.5;
+
+        graphics.push();
+        graphics.noStroke();
+
+        for (let arm = 0; arm < numArms; arm++) {
+            const armOffset = (TWO_PI / numArms) * arm;
+
+            for (let j = 0; j < dotsPerArm; j++) {
+                const progress = j / dotsPerArm;
+                // Theta increases along the arm, rotation shifts over time
+                const theta = progress * TWO_PI * 2.5 + armOffset + t;
+                const r = a * Math.exp(b * (progress * TWO_PI * 2.5));
+
+                // Clamp to max radius
+                if (r > maxRadius) continue;
+
+                // Isometric compression (y * 0.5)
+                const px = cos(theta) * r;
+                const py = sin(theta) * r * 0.5;
+
+                // Fade: outer dots more transparent, inner brighter
+                const dotAlpha = (1 - progress) * glowRatio * 120 * pulse;
+                // Color shifts from white at center to purple/gold based on glow
+                const dotR = lerp(255, 200 + glowRatio * 55, progress);
+                const dotG = lerp(255, 120 + glowRatio * 100, progress);
+                const dotB = lerp(255, 255 - glowRatio * 150, progress);
+
+                const dotSize = (1 - progress * 0.6) * 3 * pulse;
+                graphics.fill(dotR, dotG, dotB, dotAlpha);
+                graphics.ellipse(px, py, dotSize, dotSize);
+            }
+        }
+
+        graphics.pop();
+    }
+
     // Draw glow effect based on intensity
     drawGlowEffect(graphics) {
         // Always show a subtle base glow that increases with intensity
@@ -679,6 +738,9 @@ class MainColorPool {
         graphics.text(percentText, 0, -60);
         graphics.pop();
         
+        // Logarithmic spiral vortex effect
+        this.drawSpiralVortex(graphics, glowRatio, pulse);
+
         // Progressive ambient glow that builds with intensity
         const numLayers = 5 + Math.floor(glowRatio * 3);
         for (let i = numLayers; i > 0; i--) {

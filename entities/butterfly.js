@@ -411,12 +411,32 @@ class Butterfly extends Entity {
         // === SPAWN EFFECTS ===
         this.spawnTimer = 0; // Set by color pool when spawned
         this.spawnGlowIntensity = 0; // Glow effect for newly spawned butterflies
+
+        // === AFTERIMAGE TRAIL ===
+        this.afterimages = [];        // Rolling buffer of { x, y, wingAngle } snapshots
+        this.afterimageInterval = 4;  // Record a snapshot every 4 frames
+        this.afterimageMax = 20;      // Keep up to 20 ghost positions
+
+        // === SPAWN FLIGHT (archway entry) ===
+        this.isSpawning = false;
+        this.spawnFlight = {
+            originX: 0, originY: 0,
+            targetX: 0, targetY: 0,
+            progress: 0,
+            duration: 120  // ~2 seconds at 60fps
+        };
         
         // Start with a wander target for immediate movement
         this.pickNewWanderTarget();
     }
     
     update(gameState) {
+        // During spawn flight, skip all normal logic
+        if (this.isSpawning) {
+            this.updateSpawnFlight(gameState);
+            return;
+        }
+
         // Call parent update
         super.update(gameState);
         
@@ -460,6 +480,14 @@ class Butterfly extends Entity {
         // 9. Update visuals
         this.updateWings();
         this.updateSpecialAbilities(gameState);
+
+        // 9.5 Record afterimage snapshot
+        if (frameCount % this.afterimageInterval === 0) {
+            this.afterimages.push({ x: this.x, y: this.y, wingAngle: this.visual.wingAngle });
+            if (this.afterimages.length > this.afterimageMax) {
+                this.afterimages.shift();
+            }
+        }
         
         // 10. Update spawn effects
         if (this.spawnTimer > 0) {
@@ -1496,6 +1524,53 @@ class Butterfly extends Entity {
         }
     }
     
+    // === SPAWN FLIGHT ===
+    updateSpawnFlight(gameState) {
+        const sf = this.spawnFlight;
+        sf.progress += 1 / sf.duration;
+
+        if (sf.progress >= 1.0) {
+            // Arrived in main area
+            sf.progress = 1.0;
+            this.x = sf.targetX;
+            this.y = sf.targetY;
+            this.isSpawning = false;
+
+            // Sync grid position from screen position
+            this.gridPos = gridManager.screenToIso(this.x, this.y + this.shadowOffset);
+
+            // Start normal behavior with a fresh wander target
+            this.pickNewWanderTarget();
+            return;
+        }
+
+        // Smooth ease-out lerp for natural deceleration on arrival
+        const t = 1 - Math.pow(1 - sf.progress, 2);
+        this.x = sf.originX + (sf.targetX - sf.originX) * t;
+        this.y = sf.originY + (sf.targetY - sf.originY) * t;
+
+        // Still update wings so they animate during flight
+        this.updateWings();
+
+        // Record afterimage snapshot during flight too
+        if (frameCount % this.afterimageInterval === 0) {
+            this.afterimages.push({ x: this.x, y: this.y, wingAngle: this.visual.wingAngle });
+            if (this.afterimages.length > this.afterimageMax) {
+                this.afterimages.shift();
+            }
+        }
+
+        // Still update spawn glow effects
+        if (this.spawnTimer > 0) {
+            this.spawnTimer--;
+            const maxSpawnTimer = this.personalityType === 'golden' ? 300 : 180;
+            this.spawnGlowIntensity = this.spawnTimer / maxSpawnTimer;
+        }
+
+        // Manually decrement engagement timer (skip super.update to avoid updateZIndex with out-of-bounds gridPos)
+        if (this.engagementTimer > 0) this.engagementTimer--;
+    }
+
     // === VISUAL UPDATES ===
     updateWings() {
         // Calculate wing speed based on state and happiness
@@ -1570,16 +1645,79 @@ class Butterfly extends Entity {
     
     // Override parent's shadow drawing for custom butterfly shadow
     drawShadow(graphics, alpha) {
+        const vs = gameConfig.rendering.butterflyVisualScale;
         graphics.noStroke();
         graphics.fill(0, 0, 0, min(50, alpha * 0.2));
-        graphics.ellipse(this.x, this.y + this.shadowOffset, this.size * 0.8, this.size * 0.4);
+        graphics.ellipse(this.x, this.y + this.shadowOffset, this.size * 0.8 * vs, this.size * 0.4 * vs);
     }
     
     // Override parent's entity drawing
+    drawAfterimages(graphics) {
+        if (this.afterimages.length === 0) return;
+
+        const useSprites = gameConfig.rendering.useSprites
+            && spriteManager.loaded
+            && spriteManager.hasWings(this.personalityType);
+
+        for (let i = 0; i < this.afterimages.length; i++) {
+            const ghost = this.afterimages[i];
+            const ghostAlpha = map(i, 0, this.afterimages.length, 20, 60);
+
+            graphics.push();
+            graphics.translate(ghost.x, ghost.y);
+            graphics.scale(gameConfig.rendering.butterflyVisualScale);
+
+            const wingFlap = sinWing(ghost.wingAngle);
+            const wingSpread = map(wingFlap, -1, 1, 0.4, 1);
+            const wingTilt = map(wingFlap, -1, 1, -0.2, 0.1);
+
+            graphics.noStroke();
+
+            if (useSprites) {
+                graphics.smooth();
+                graphics.tint(255, ghostAlpha);
+
+                this.drawSpriteBody(graphics);
+                this.drawSpriteAntennae(graphics);
+
+                graphics.push();
+                graphics.rotate(wingTilt);
+
+                const hindFlap = sinWing(ghost.wingAngle - 0.6);
+                const hindSpread = map(hindFlap, -1, 1, 0.35, 0.95);
+                this.drawSpriteWing(graphics, 'hindLeft', hindSpread);
+                this.drawSpriteWing(graphics, 'hindRight', hindSpread);
+                this.drawSpriteWing(graphics, 'foreLeft', wingSpread);
+                this.drawSpriteWing(graphics, 'foreRight', wingSpread);
+
+                graphics.pop();
+                graphics.noTint();
+                graphics.noSmooth();
+            } else {
+                graphics.push();
+                graphics.rotate(wingTilt);
+                const c = this.colors[0];
+                graphics.fill(c[0], c[1], c[2], ghostAlpha);
+                this.drawStardewWing(graphics, -1, wingSpread);
+                this.drawStardewWing(graphics, 1, wingSpread);
+                graphics.pop();
+
+                graphics.fill(this.colors[1][0], this.colors[1][1], this.colors[1][2], ghostAlpha);
+                graphics.ellipse(0, 0, this.size * 0.3, this.size * 0.5);
+            }
+
+            graphics.pop();
+        }
+    }
+
     drawEntity(graphics, alpha) {
+        // Draw afterimage trail behind the main butterfly
+        this.drawAfterimages(graphics);
+
         // Draw butterfly at current position
         graphics.push();
         graphics.translate(this.x, this.y);
+        graphics.scale(gameConfig.rendering.butterflyVisualScale);
         
         // Draw warning effect if butterfly needs attention
         if (this.needsAttention() && !this.isImmortal) {
@@ -1627,16 +1765,59 @@ class Butterfly extends Entity {
         const wingTilt = map(wingFlap, -1, 1, -0.2, 0.1);
         
         graphics.noStroke();
-        
-        // Draw wings with Stardew Valley style - attached to body
-        graphics.push();
-        graphics.rotate(wingTilt);
-        this.drawStardewWing(graphics, -1, wingSpread); // Left wing
-        this.drawStardewWing(graphics, 1, wingSpread);  // Right wing
-        graphics.pop();
-        
-        // Draw body on top
-        this.drawBody(graphics);
+
+        // Choose sprite or procedural rendering
+        const useSprites = gameConfig.rendering.useSprites
+            && spriteManager.loaded
+            && spriteManager.hasWings(this.personalityType);
+
+        if (useSprites) {
+            // Enable smooth scaling for sprite downscaling quality
+            graphics.smooth();
+
+            // Apply alpha for fading butterflies
+            if (alpha < 255) {
+                graphics.tint(255, alpha);
+            }
+
+            // --- BODY (bottom layer — behind wings) ---
+            this.drawSpriteBody(graphics);
+
+            // --- ANTENNAE (middle layer — between body and wings) ---
+            this.drawSpriteAntennae(graphics);
+
+            // --- WINGS (top layer, inside wingTilt rotation) ---
+            graphics.push();
+            graphics.rotate(wingTilt);
+
+            // Hindwings first (behind forewings) with 0.6 rad phase lag (~0.2s at normal speed)
+            const hindFlap = sinWing(this.visual.wingAngle - 0.6);
+            const hindSpread = map(hindFlap, -1, 1, 0.35, 0.95);
+            this.drawSpriteWing(graphics, 'hindLeft', hindSpread);
+            this.drawSpriteWing(graphics, 'hindRight', hindSpread);
+
+            // Forewings on top with primary timing
+            this.drawSpriteWing(graphics, 'foreLeft', wingSpread);
+            this.drawSpriteWing(graphics, 'foreRight', wingSpread);
+
+            graphics.pop();
+
+            // Remove tint and restore pixel-art rendering
+            if (alpha < 255) {
+                graphics.noTint();
+            }
+            graphics.noSmooth();
+        } else {
+            // Fallback: original procedural rendering
+            graphics.push();
+            graphics.rotate(wingTilt);
+            this.drawStardewWing(graphics, -1, wingSpread); // Left wing
+            this.drawStardewWing(graphics, 1, wingSpread);  // Right wing
+            graphics.pop();
+
+            // Draw body on top
+            this.drawBody(graphics);
+        }
         
         // Draw exclamation mark popup if active
         if (this.timers.exclamation > 0) {
@@ -1749,6 +1930,97 @@ class Butterfly extends Entity {
         graphics.pop();
     }
     
+    // Sprite-based wing rendering using anchor-point positioning
+    // wingKey: 'foreLeft', 'foreRight', 'hindLeft', 'hindRight'
+    drawSpriteWing(graphics, wingKey, spread) {
+        const wings = spriteManager.wings[this.personalityType];
+        if (!wings || !wings[wingKey]) return;
+
+        const piece = wings[wingKey];
+        const anchor = spriteManager.anchors.wings[wingKey];
+        const relAnchor = spriteManager.anchors.wingsRelative[wingKey];
+        const bodyCenter = spriteManager.anchors.body;
+
+        // Unified scale: maps source pixels to game pixels
+        const s = (this.size * spriteManager.SPRITE_SCALE) / 1080;
+
+        // Wing scale boost (45% larger wings)
+        const ws = s * 1.45;
+
+        // Body connection point in game-space (relative to butterfly center)
+        const bodyConnX = (anchor.onBody.x - bodyCenter.centerX) * s;
+        let bodyConnY = (anchor.onBody.y - bodyCenter.centerY) * s;
+
+        // Scoot hindwings up 5 pixels
+        const isHind = wingKey === 'hindLeft' || wingKey === 'hindRight';
+        if (isHind) {
+            bodyConnY -= 5 * s;
+        }
+
+        // Wing piece dimensions in game-space (using wing scale)
+        const pieceW = piece.width * ws;
+        const pieceH = piece.height * ws;
+
+        // Position so the wing's anchor pixel aligns with the body connection
+        const drawX = bodyConnX - (relAnchor.x * ws);
+        const drawY = bodyConnY - (relAnchor.y * ws);
+
+        graphics.push();
+        graphics.scale(spread, 1); // 3D flap: X-axis compression toward body center
+        graphics.image(piece, drawX, drawY, pieceW, pieceH);
+        graphics.pop();
+    }
+
+    // Sprite-based body rendering — drawn centered using unified scale
+    drawSpriteBody(graphics) {
+        if (!spriteManager.hasBody()) {
+            return this.drawBody(graphics);
+        }
+
+        const s = (this.size * spriteManager.SPRITE_SCALE) / 1080;
+        const bodyW = spriteManager.body.width * s;
+        const bodyH = spriteManager.body.height * s;
+        graphics.image(spriteManager.body, -bodyW / 2, -bodyH / 2, bodyW, bodyH);
+    }
+
+    // Sprite-based antenna rendering with anchor-point positioning and sway
+    drawSpriteAntennae(graphics) {
+        if (!spriteManager.hasAntenna()) return;
+
+        const s = (this.size * spriteManager.SPRITE_SCALE) / 1080;
+        const bodyCenter = spriteManager.anchors.body;
+        const antennaImg = spriteManager.antenna;
+        const antennaW = antennaImg.width * s;
+        const antennaH = antennaImg.height * s;
+
+        // Subtle sway animation
+        const baseSway = sin(frameCount * 0.08) * 0.05;
+        const scaredSway = (this.state === 'scared') ? sin(frameCount * 0.2) * 0.1 : 0;
+        const sway = baseSway + scaredSway;
+
+        // Draw each antenna separately using anchor points
+        const antennaAnchors = spriteManager.anchors.antenna;
+        for (const side of ['left', 'right']) {
+            const anchor = antennaAnchors[side];
+
+            // Body connection point in game-space
+            const bodyConnX = (anchor.onBody.x - bodyCenter.centerX) * s;
+            const bodyConnY = (anchor.onBody.y - bodyCenter.centerY) * s;
+
+            // Position antenna so its anchor aligns with body connection
+            const drawX = bodyConnX - (anchor.onAntenna.x * s);
+            const drawY = bodyConnY - (anchor.onAntenna.y * s);
+
+            graphics.push();
+            // Rotate around the body connection point for natural sway
+            graphics.translate(bodyConnX, bodyConnY);
+            graphics.rotate(side === 'left' ? sway : -sway);
+            graphics.translate(-bodyConnX, -bodyConnY);
+            graphics.image(antennaImg, drawX, drawY, antennaW, antennaH);
+            graphics.pop();
+        }
+    }
+
     drawStardewWing(graphics, direction, spread) {
         graphics.push();
         graphics.scale(spread, 1);

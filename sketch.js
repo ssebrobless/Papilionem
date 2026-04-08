@@ -1,6 +1,9 @@
 // Minimal p5.js sketch - delegates to GameCore for all game logic
 let backgroundImage;
 let titleImage;
+let foliageImage;
+let groundWaveImage;
+let spawnCoverImage;
 let showTitleScreen = true;
 let titleFadeAlpha = 255;
 let titleFading = false;
@@ -14,7 +17,11 @@ let endGameMessage = "The garden is complete...";
 
 function preload() {
     backgroundImage = loadImage('background2.png');
-    titleImage = loadImage('title.png');
+    titleImage = loadImage('assets/newtitle.png');
+    foliageImage = loadImage('assets/ephemera-background-moving-leaves-effect.png');
+    groundWaveImage = loadImage('assets/ephemera-background-waving-effect.png');
+    spawnCoverImage = loadImage('assets/ephemera-background-spawn covers.png');
+    spriteManager.preloadAssets();
 }
 
 function setup() {
@@ -37,6 +44,24 @@ function setup() {
     // Don't apply noSmooth() globally to allow better text rendering
     // Individual elements will apply noSmooth() as needed
     
+    // Initialize sprite assets (wing slicing + transparency processing)
+    spriteManager.initialize();
+
+    // Initialize foliage overlay (leaf rustling effect)
+    if (foliageImage) {
+        renderManager.setFoliageImage(foliageImage);
+    }
+
+    // Initialize ground wave overlay (grass waving effect)
+    if (groundWaveImage) {
+        renderManager.setGroundWaveImage(groundWaveImage);
+    }
+
+    // Initialize spawn cover overlay (stone archways)
+    if (spawnCoverImage) {
+        renderManager.setSpawnCoverImage(spawnCoverImage);
+    }
+
     // Initialize game systems
     gameCore.initialize(backgroundImage).then(() => {
         console.log('Game fully initialized');
