@@ -15,6 +15,7 @@ class GameCore {
         // Game state
         this.gameState = {
             butterflies: [],
+            caterpillars: [],
             flowers: [],
             initialized: false,
             paused: false,
@@ -26,7 +27,10 @@ class GameCore {
             feedingCombo: 0, // Sequential feeding combo
             lastFeedingTime: 0, // For combo tracking
             maxCombo: 0, // Track best combo
-            showButterflyCollection: false // Toggle for collection UI
+            showButterflyCollection: false, // Toggle for collection UI
+            hybridJournal: [],
+            nextHybridId: 1,
+            pendingOffspringReservations: 0
         };
         
         // Debug mode state
@@ -122,6 +126,9 @@ class GameCore {
     async initializeConfig() {
         if (typeof gameConfig === 'undefined') {
             throw new Error('gameConfig not found - ensure core/config.js is loaded');
+        }
+        if (typeof progressionManager !== 'undefined') {
+            progressionManager.applyToGameState(this.gameState);
         }
         this.completedSteps.add('config');
         console.log('✓ Config initialized');
@@ -267,6 +274,29 @@ class GameCore {
         eventBus.on('debug:spawnFlower', (data) => {
             this.godSpawnFlower(data.x, data.y);
         });
+
+        eventBus.on('debug:refreshPheromones', () => {
+            breedingSystem.refreshMaleCooldowns(this.gameState);
+        });
+
+        eventBus.on('debug:hatchEggs', () => {
+            breedingSystem.hatchAllEggs(this.gameState);
+        });
+
+        eventBus.on('debug:hatchCocoons', () => {
+            breedingSystem.hatchAllCocoons(this.gameState);
+        });
+
+        eventBus.on('debug:flowersForCaterpillars', () => {
+            breedingSystem.spawnFlowersAtCaterpillars(this.gameState);
+        });
+
+        eventBus.on('debug:resetProgression', () => {
+            if (confirm('Reset all saved Papilionem progression?')) {
+                progressionManager.resetAll(this.gameState);
+                this.resetGame(true);
+            }
+        });
         
         eventBus.on(GameEvents.POOL_READY, (data) => {
             this.handlePoolReady(data.pool);
@@ -342,6 +372,10 @@ class GameCore {
             this.entityManager.addEntity('flowers', flower);
         }
         
+        if (typeof progressionManager !== 'undefined') {
+            progressionManager.save(this.gameState);
+        }
+
         this.completedSteps.add('initialEntities');
         console.log('✓ Starting entities created');
     }
@@ -364,6 +398,7 @@ class GameCore {
         
         // Update all game systems
         this.updateEntities();
+        this.updateCaterpillars();
         this.particleSystem.update();
         
         // Update special effects
@@ -376,9 +411,7 @@ class GameCore {
         this.poolManager.update(this.particleSystem, this.gameState.butterflies);
         this.mainColorPool.update(this.gameState.butterflies, this.particleSystem);
         this.flowerManager.update(this.gameState.flowers, this.gameState.butterflies, this.particleSystem);
-        
-        // Update entity manager (handles interactions and lifecycle)
-        this.entityManager.update(this.gameState);
+        breedingSystem.update(this.gameState, this.particleSystem);
         
         // Check for butterfly interactions
         this.interactionSystem.checkButterflyInteractions(this.gameState.butterflies);
@@ -396,6 +429,19 @@ class GameCore {
             if (butterfly.isDead()) {
                 this.handleButterflyDeath(butterfly);
                 this.gameState.butterflies.splice(i, 1);
+            }
+        }
+    }
+
+    updateCaterpillars() {
+        for (let i = this.gameState.caterpillars.length - 1; i >= 0; i--) {
+            const caterpillar = this.gameState.caterpillars[i];
+            caterpillar.update(this.gameState);
+            if (caterpillar.isDead()) {
+                if (caterpillar.failReason === 'starved' && caterpillar.lifecycleData?.reservationActive) {
+                    this.gameState.pendingOffspringReservations = Math.max(0, this.gameState.pendingOffspringReservations - 1);
+                }
+                this.gameState.caterpillars.splice(i, 1);
             }
         }
     }
@@ -558,70 +604,6 @@ class GameCore {
     
     drawInfoPanel() {
         if (this.debugMode.enabled) return;
-        
-        // Draw game completion message if complete
-        if (this.gameState.gameComplete) {
-            this.drawCompletionScreen();
-            return;
-        }
-        
-        // Info panel has been removed - now displays only completion screen when needed
-    }
-    
-    drawCompletionScreen() {
-        push();
-        
-        // Semi-transparent overlay
-        fill(0, 0, 0, 150);
-        rect(0, 0, width, height);
-        
-        // Completion message
-        textAlign(CENTER, CENTER);
-        
-        // Golden glow effect
-        const glowTime = frameCount * 0.05;
-        for (let i = 3; i > 0; i--) {
-            const alpha = 100 / i;
-            const size = 300 + sin(glowTime) * 50 * i;
-            noStroke();
-            fill(255, 215, 0, alpha);
-            ellipse(width/2, height/2 - 50, size, size * 0.7);
-        }
-        
-        // Main text
-        fill(255, 255, 255);
-        textSize(48);
-        text("🦋 Papilionem Complete 🦋", width/2, height/2 - 100);
-        
-        textSize(24);
-        fill(255, 215, 0);
-        text("You've befriended the legendary Golden Butterfly!", width/2, height/2 - 40);
-        
-        textSize(16);
-        fill(255);
-        text("All butterfly species discovered", width/2, height/2 + 20);
-        
-        // Show encountered butterflies
-        const encountered = Array.from(this.gameState.encounteredButterflies);
-        textSize(14);
-        text(`Butterflies encountered: ${encountered.length}`, width/2, height/2 + 60);
-        
-        textSize(12);
-        fill(200);
-        const typeList = encountered.join(', ');
-        text(typeList, width/2, height/2 + 90);
-        
-        // Sparkle effects
-        for (let i = 0; i < 20; i++) {
-            const sparkleX = width/2 + cos(glowTime + i) * 200;
-            const sparkleY = height/2 + sin(glowTime + i) * 150 - 50;
-            const sparkleSize = 2 + sin(glowTime * 2 + i) * 2;
-            fill(255, 255, 100, 200);
-            noStroke();
-            ellipse(sparkleX, sparkleY, sparkleSize, sparkleSize);
-        }
-        
-        pop();
     }
     
     // Event handlers
@@ -654,6 +636,14 @@ class GameCore {
         // Toggle debug mode
         if (key === 'D' || key === 'd') {
             this.debugMode.enabled = !this.debugMode.enabled;
+            if (typeof debugUI !== 'undefined') {
+                debugUI.enabled = this.debugMode.enabled;
+                if (!this.debugMode.enabled) {
+                    debugUI.showSexLabels = false;
+                    const sexButton = debugUI.godModeButtons?.find(button => button.id === 'toggleSexLabels');
+                    if (sexButton) sexButton.text = 'Sex Labels: Off';
+                }
+            }
             if (this.debugMode.enabled) {
                 const bounds = gameConfig.isometric.bounds;
                 this.debugMode.cursorX = Math.floor(bounds.maxX / 2);
@@ -720,6 +710,10 @@ class GameCore {
         const screenPos = this.gridManager.isoToScreen(gridX, gridY);
         
         if (this.debugMode.selectedTool === 'butterfly') {
+            if (this.gameState.butterflies.length >= (typeof breedingSystem !== 'undefined' ? breedingSystem.adultHardCap : Infinity)) {
+                return;
+            }
+
             const butterfly = new Butterfly(
                 screenPos.x, 
                 screenPos.y - gameConfig.entities.heightOffset.butterfly, 
@@ -730,6 +724,9 @@ class GameCore {
             
             // Mark as encountered
             this.gameState.encounteredButterflies.add(butterfly.personalityType);
+            if (typeof progressionManager !== 'undefined') {
+                progressionManager.save(this.gameState);
+            }
             
         } else if (this.debugMode.selectedTool === 'flower') {
             const flower = new Flower(screenPos.x, screenPos.y);
@@ -796,14 +793,18 @@ class GameCore {
     
     // God mode spawn methods
     godSpawnButterfly(x, y, colors) {
-        if (this.gameState.butterflies.length < gameConfig.entities.maxButterflies) {
+        if (this.getWildButterflyCount() < gameConfig.entities.maxButterflies &&
+            this.gameState.butterflies.length < (typeof breedingSystem !== 'undefined' ? breedingSystem.adultHardCap : Infinity)) {
             // If this is the first butterfly and none exist, make it immortal
-            const isFirstButterfly = this.gameState.butterflies.length === 0;
+            const isFirstButterfly = this.getWildButterflyCount() === 0;
             const butterfly = new Butterfly(x, y, colors || null, isFirstButterfly); // Allow custom colors or use personality
             this.gameState.butterflies.push(butterfly);
             
             // Mark as encountered
             this.gameState.encounteredButterflies.add(butterfly.personalityType);
+            if (typeof progressionManager !== 'undefined') {
+                progressionManager.save(this.gameState);
+            }
             
             // Spawn burst effect
             this.particleSystem.emitBurst(x, y, [255, 255, 255], 8);
@@ -851,7 +852,7 @@ class GameCore {
     
     handlePoolReady(pool) {
         // Handle pool ready state - maybe spawn new butterfly
-        if (this.gameState.butterflies.length < gameConfig.entities.maxButterflies) {
+        if (this.getWildButterflyCount() < gameConfig.entities.maxButterflies) {
             // Consider spawning a new butterfly
             eventBus.emit(GameEvents.POOL_SPAWNING, { pool });
         }
@@ -944,18 +945,24 @@ class GameCore {
     }
     
     // Reset game to initial state for replay
-    resetGame() {
+    resetGame(resetProgression = false) {
         console.log('🔄 GameCore: Resetting game state...');
         
         // Clear all entities
         this.gameState.butterflies = [];
+        this.gameState.caterpillars = [];
         this.gameState.flowers = [];
         
-        // Reset collection and encounter tracking
-        this.gameState.encounteredButterflies.clear();
-        this.gameState.collectedButterflies.clear();
+        if (resetProgression) {
+            this.gameState.encounteredButterflies.clear();
+            this.gameState.collectedButterflies.clear();
+            this.gameState.butterflyCollectionStats = {};
+            this.gameState.hybridJournal = [];
+            this.gameState.nextHybridId = 1;
+        }
+
+        // Reset runtime tracking
         this.gameState.butterflySpawnCounts = {};
-        this.gameState.butterflyCollectionStats = {};
         this.gameState.goldenButterflySpawned = false;
         
         // Reset gameplay stats
@@ -963,6 +970,7 @@ class GameCore {
         this.gameState.lastFeedingTime = 0;
         this.gameState.maxCombo = 0;
         this.gameState.showButterflyCollection = false;
+        this.gameState.pendingOffspringReservations = 0;
         
         // Clear entity manager
         if (this.entityManager) {
@@ -988,12 +996,18 @@ class GameCore {
         
         // Reinitialize starting entities
         this.initializeStartingEntities().then(() => {
+            progressionManager.save(this.gameState);
             console.log('✨ GameCore: Game reset complete');
         }).catch(error => {
             console.error('❌ GameCore: Error resetting game:', error);
         });
     }
+
+    getWildButterflyCount() {
+        return this.gameState.butterflies.filter(butterfly => butterfly.birthSource !== 'bred').length;
+    }
 }
 
 // Create global instance
 const gameCore = new GameCore();
+

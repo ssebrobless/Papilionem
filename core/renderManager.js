@@ -143,6 +143,7 @@ class RenderManager {
         if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
             const state = gameCore.getGameState();
             allEntities.push(...state.flowers);
+            allEntities.push(...(state.caterpillars || []));
             allEntities.push(...state.butterflies);
         } else if (entityManager) {
             allEntities.push(...entityManager.getEntities('flowers'));
@@ -150,6 +151,7 @@ class RenderManager {
         } else if (typeof gameState !== 'undefined') {
             // Fallback to legacy gameState
             if (gameState.flowers) allEntities.push(...gameState.flowers);
+            if (gameState.caterpillars) allEntities.push(...gameState.caterpillars);
             if (gameState.butterflies) allEntities.push(...gameState.butterflies);
         }
         
@@ -300,18 +302,17 @@ class RenderManager {
     drawDebugLayer() {
         const layer = this.layers.debug;
         layer.push();
-        
-        // Draw grid
-        if (gridManager) {
-            gridManager.drawGrid(layer);
-            gridManager.drawZones(layer);
+
+        if (typeof debugUI !== 'undefined' && debugUI.enabled) {
+            debugUI.draw(layer);
+        } else {
+            if (gridManager) {
+                gridManager.drawGrid(layer);
+                gridManager.drawZones(layer);
+            }
+            this.drawDebugCursor(layer);
+            this.drawDebugUI(layer);
         }
-        
-        // Draw debug cursor
-        this.drawDebugCursor(layer);
-        
-        // Draw debug UI panel
-        this.drawDebugUI(layer);
         
         layer.pop();
     }

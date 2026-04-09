@@ -26,8 +26,7 @@ const BUTTERFLY_PERSONALITIES = {
             trustPropensity: 0.7, // Low - harder to befriend
             trustSpeed: 0.8,     // Slow trust building
             scareThreshold: 3.0, // Low - easily scared
-            happinessBonus: 1.2, // Slightly higher happiness when fed
-            special: 'sparkle'   // Leaves sparkle trail when happy
+            happinessBonus: 1.2  // Slightly higher happiness when fed
         },
         colors: [[255, 182, 193], [255, 20, 147]],   // Light pink and deep pink - cautious but beautiful
         size: 10,    // Slightly smaller - more delicate
@@ -44,8 +43,7 @@ const BUTTERFLY_PERSONALITIES = {
             trustPropensity: 1.0, // Normal
             trustSpeed: 1.5,     // Fast but requires stillness
             scareThreshold: 3.5, // Medium
-            happinessBonus: 0.8, // Lower happiness (burns energy)
-            special: 'speedzone' // Creates speed boost zones
+            happinessBonus: 0.8  // Lower happiness (burns energy)
         },
         colors: [[138, 43, 226], [75, 0, 130]],      // Blue violet and indigo - electric energy
         size: 13,    // Slightly larger - more presence
@@ -62,8 +60,7 @@ const BUTTERFLY_PERSONALITIES = {
             trustPropensity: 0.5, // Very low
             trustSpeed: 0.5,     // Very slow
             scareThreshold: 2.0, // Very low - super jumpy
-            happinessBonus: 1.5, // High reward if you manage to feed
-            special: 'cascade'   // Trust cascade effect
+            happinessBonus: 1.5  // High reward if you manage to feed
         },
         colors: [[0, 255, 127], [32, 178, 170]],     // Spring green and dark turquoise - quick and fleeting
         size: 11,    // Slightly smaller - nervous energy
@@ -80,8 +77,7 @@ const BUTTERFLY_PERSONALITIES = {
             trustPropensity: 0.8, // Medium-low
             trustSpeed: 1.0,     // Normal but requires patience
             scareThreshold: 5.0, // Very high - nearly unflappable
-            happinessBonus: 2.0, // Double happiness - wise feeding
-            special: 'teacher'   // Teaches nearby butterflies
+            happinessBonus: 2.0  // Double happiness - wise feeding
         },
         colors: [[72, 61, 139], [106, 90, 205]],     // Dark slate blue and slate blue - deep wisdom
         size: 14,    // Larger - commanding presence
@@ -98,8 +94,7 @@ const BUTTERFLY_PERSONALITIES = {
             trustPropensity: 0.6,
             trustSpeed: 0.7,
             scareThreshold: 3.5,
-            happinessBonus: 2.5,  // Very high happiness
-            special: 'shimmer'    // Visual effect
+            happinessBonus: 2.5   // Very high happiness
         },
         colors: [[218, 112, 214], [0, 255, 255]],    // Orchid and cyan - magical shimmer
         size: 13,    // Elegant size
@@ -116,14 +111,23 @@ const BUTTERFLY_PERSONALITIES = {
             trustPropensity: 0.1,  // Extremely hard to befriend
             trustSpeed: 0.0667,    // 15 seconds at 60fps (900 frames / 60 = 15 seconds)
             scareThreshold: 999,   // Cannot be scared - requires persistence
-            happinessBonus: 5.0,   // Massive happiness bonus
-            special: 'golden'      // Special trust symbols
+            happinessBonus: 5.0    // Massive happiness bonus
         },
         colors: [[255, 215, 0], [255, 255, 100]],  // Gold/bright yellow
         size: 16,    // Largest - truly magnificent
         wingPattern: 'golden',
         description: "The legendary golden butterfly - divine golden magnificence"
     }
+};
+
+const BUTTERFLY_VARIANT_ABILITIES = {
+    friendly: null,
+    cautious: 'sparkle',
+    energetic: 'speedzone',
+    skittish: 'cascade',
+    wise: 'teacher',
+    mystic: 'shimmer',
+    golden: 'golden'
 };
 
 // Original spawn percentages (golden removed - it's special unlock only)
@@ -213,13 +217,54 @@ function getRandomPersonality() {
 }
 
 class Butterfly extends Entity {
-    constructor(x, y, colors, isImmortal = false, personalityType = null) {
+    constructor(x, y, colors, isImmortal = false, personalityType = null, options = {}) {
         super(x, y);
+        this.id = generateEntityId('butterfly');
         
         // Personality system (must be set first to get size)
         this.personalityType = personalityType || getRandomPersonality();
-        this.personality = BUTTERFLY_PERSONALITIES[this.personalityType];
-        this.traits = this.personality.traits;
+        this.sex = options.sex || (random() < 0.5 ? 'M' : 'F');
+        this.birthSource = options.birthSource || 'wild';
+        this.hybridGenome = options.hybridGenome || null;
+        this.isHybrid = !!options.isHybrid || !!this.hybridGenome || this.personalityType === 'hybrid';
+        this.displayName = options.displayName || null;
+        this.hybridEntryId = options.hybridEntryId || null;
+        this.pheromoneCooldownUntil = options.pheromoneCooldownUntil || 0;
+        this.fertilityUsesRemaining = options.fertilityUsesRemaining ?? (this.birthSource === 'bred' ? 1 : Infinity);
+        this.breeding = {
+            partnerId: null,
+            matingTimer: 0,
+            matingResolved: false,
+            attractedMaleId: null,
+            attractionStrength: 0
+        };
+        this.pregnancy = options.pregnancy || null;
+
+        if (this.isHybrid) {
+            this.personality = {
+                rarity: 'hybrid',
+                traits: options.customTraits || {
+                    speed: 1,
+                    jitteriness: 1,
+                    trustPropensity: 1,
+                    trustSpeed: 1,
+                    scareThreshold: 4,
+                    happinessBonus: 1,
+                    special: options.customAbility || null
+                },
+                size: 13,
+                wingPattern: 'hybrid',
+                description: 'A hybrid butterfly born from the garden.'
+            };
+        } else {
+            this.personality = BUTTERFLY_PERSONALITIES[this.personalityType];
+        }
+        this.traits = { ...this.personality.traits };
+        const defaultAbility = this.isHybrid
+            ? null
+            : (BUTTERFLY_VARIANT_ABILITIES[this.personalityType] || null);
+        this.specialAbility = options.specialAbility ?? options.customAbility ?? options.customTraits?.special ?? defaultAbility;
+        this.traits.special = this.specialAbility;
         
         // Override base properties with personality-based values
         this.size = this.personality.size || 12; // Personality-based size
@@ -236,7 +281,7 @@ class Butterfly extends Entity {
         this.isImmortal = isImmortal;
         
         // Butterfly specific properties
-        this.colors = colors || this.personality.colors;
+        this.colors = colors || this.personality.colors || [[255, 255, 255], [200, 200, 200]];
         this.wingPattern = this.personality.wingPattern || 'solid';
         
         // Log butterfly spawn for learning
@@ -281,6 +326,7 @@ class Butterfly extends Entity {
             scared: 0,
             feeding: 0,
             following: 0,
+            mating: 0,
             postFeedingCooldown: 0,
             postFeedingLeadCooldown: 0,
             scareImmunity: 0,
@@ -300,7 +346,7 @@ class Butterfly extends Entity {
                 const signals = [];
                 
                 // Count down active timers
-                const activeTimers = ['display', 'scared', 'feeding', 'following', 
+                const activeTimers = ['display', 'scared', 'feeding', 'following', 'mating',
                     'postFeedingCooldown', 'postFeedingLeadCooldown', 'scareImmunity',
                     'speedBoost', 'teachingBoost', 'trustBoost', 'exclamation', 'postFeedingDash'];
                 
@@ -532,7 +578,9 @@ class Butterfly extends Entity {
         
         // State-based modifiers (in priority order)
         if (this.state === 'feeding') return 0;
+        if (this.state === 'mating') return 0;
         if (this.state === 'scared') return this.speeds.flee;
+        if (this.state === 'pregnant-travel') return this.speeds.seeking * 1.15;
         if (this.timers.postFeedingDash > 0) return this.speeds.dash;
         
         // Activity modifiers
@@ -574,7 +622,9 @@ class Butterfly extends Entity {
         
         // Check for cursor interaction (leading system)
         if (this.state !== 'scared' && this.state !== 'display' && 
-            this.state !== 'feeding' && this.timers.postFeedingLeadCooldown === 0) {
+            this.state !== 'feeding' && this.state !== 'mating' &&
+            this.state !== 'pregnant-travel' &&
+            this.timers.postFeedingLeadCooldown === 0) {
             this.handleCursorInteraction(cursorVelocity, adjustedMouseX, adjustedMouseY, particleSystem, gameState);
         }
     }
@@ -654,7 +704,7 @@ class Butterfly extends Entity {
                 this.cursor.trustGlowAlpha = 0;
                 
                 // Mark this butterfly type as collected!
-                if (typeof gameCore !== 'undefined' && gameCore.gameState) {
+                if (!this.isHybrid && typeof gameCore !== 'undefined' && gameCore.gameState) {
                     const wasCollected = gameCore.gameState.collectedButterflies.has(this.personalityType);
                     gameCore.gameState.collectedButterflies.add(this.personalityType);
                     
@@ -681,6 +731,19 @@ class Butterfly extends Entity {
                             totalCollected: gameCore.gameState.collectedButterflies.size
                         });
                     }
+                    progressionManager.save(gameCore.gameState);
+                }
+                break;
+
+            case 'mating':
+                this.timers.mating = this.breeding.matingTimer || 120;
+                this.movement.clearTarget();
+                break;
+
+            case 'pregnant-travel':
+                if (data.flower) {
+                    const flowerGrid = gridManager.screenToIso(data.flower.x, data.flower.y);
+                    this.movement.setTarget(flowerGrid.x, flowerGrid.y, 'pregnant', 11, 0);
                 }
                 break;
         }
@@ -715,6 +778,10 @@ class Butterfly extends Entity {
                 this.cursor.trustLevel = Math.max(0, this.cursor.trustLevel - 5);
                 this.timers.wander.current = 0;
                 break;
+            case 'mating':
+                this.timers.mating = 0;
+                this.breeding.matingResolved = false;
+                break;
         }
     }
     
@@ -734,6 +801,12 @@ class Butterfly extends Entity {
                 break;
             case 'following':
                 this.executeFollowingBehavior(gameState);
+                break;
+            case 'mating':
+                this.executeMatingBehavior(gameState);
+                break;
+            case 'pregnant-travel':
+                this.executePregnantTravelBehavior(gameState);
                 break;
         }
     }
@@ -822,7 +895,9 @@ class Butterfly extends Entity {
         } else {
             // Happy or on cooldown - ensure we're always moving
             if (!this.movement.target || (!this.movement.targetType || 
-                (this.movement.targetType !== 'meander' && this.movement.targetType !== 'immediate'))) {
+                (this.movement.targetType !== 'meander' &&
+                 this.movement.targetType !== 'immediate' &&
+                 this.movement.targetType !== 'pheromone'))) {
                 // Pick a new wander target if we don't have one or if we're not already wandering/dashing
                 this.pickNewWanderTarget();
             }
@@ -994,6 +1069,32 @@ class Butterfly extends Entity {
         }
         
         this.cursor.followingPos = { x: adjustedMouseX, y: adjustedMouseY };
+    }
+
+    executeMatingBehavior(gameState) {
+        const partner = (gameState.butterflies || []).find(item => item.id === this.breeding.partnerId);
+        if (!partner) {
+            this.changeState('normal');
+            return;
+        }
+
+        this.timers.mating = Math.max(0, this.breeding.matingTimer || 0);
+        const midpointX = (this.x + partner.x) / 2;
+        const midpointY = (this.y + partner.y) / 2;
+        const offsetX = this.sex === 'M' ? -4 : 4;
+        const targetGrid = gridManager.screenToIso(midpointX + offsetX, midpointY);
+        this.movement.setTarget(targetGrid.x, targetGrid.y, 'mating', 12, 0);
+    }
+
+    executePregnantTravelBehavior(gameState) {
+        const flower = this.pregnancy?.targetFlower || this.stateData.flower;
+        if (!flower || !(gameState.flowers || []).includes(flower)) {
+            this.movement.clearTarget('pregnant');
+            return;
+        }
+
+        const flowerGrid = gridManager.screenToIso(flower.x, flower.y);
+        this.movement.setTarget(flowerGrid.x, flowerGrid.y, 'pregnant', 11, 0);
     }
     
     // === UNIFIED PARTICLE EMISSION ===
@@ -1247,7 +1348,10 @@ class Butterfly extends Entity {
         const flowerId = flower.id || this.getFlowerId(flower);
         const onCooldown = this.feeding.cooldowns.has(flowerId);
         const beingFedFrom = flower.currentFeeder && flower.currentFeeder !== this;
-        return !onCooldown && !beingFedFrom;
+        const lifecycleAllowed = typeof flower.canAcceptButterfly === 'function'
+            ? flower.canAcceptButterfly(this)
+            : true;
+        return !onCooldown && !beingFedFrom && lifecycleAllowed;
     }
     
     getFlowerId(flower) {
@@ -1335,17 +1439,21 @@ class Butterfly extends Entity {
         }
         
         // Trigger special abilities
-        if (this.traits.special === 'cascade' && this.feeding.targetFlower) {
+        if (this.getSpecialAbility() === 'cascade' && this.feeding.targetFlower) {
             const butterflies = gameCore ? gameCore.gameState.butterflies : [];
             this.createTrustCascade(butterflies);
         }
         
         // Update collection statistics if this butterfly type has been collected
-        if (typeof gameCore !== 'undefined' && gameCore.gameState) {
+        if (!this.isHybrid && typeof gameCore !== 'undefined' && gameCore.gameState) {
             if (gameCore.gameState.collectedButterflies.has(this.personalityType) &&
                 gameCore.gameState.butterflyCollectionStats[this.personalityType]) {
                 gameCore.gameState.butterflyCollectionStats[this.personalityType].timesFed++;
             }
+        }
+
+        if (this.feeding.targetFlower && typeof this.feeding.targetFlower.afterButterflyFeed === 'function') {
+            this.feeding.targetFlower.afterButterflyFeed(this);
         }
         
         // Emit feeding event
@@ -1354,21 +1462,13 @@ class Butterfly extends Entity {
             flower: this.feeding.targetFlower
         });
         
-        // Check for golden butterfly endgame
-        if (this.personalityType === 'golden') {
-            console.log('🌟 GOLDEN BUTTERFLY FED! GAME COMPLETE!');
-            if (typeof gameCore !== 'undefined' && gameCore.gameState) {
-                gameCore.gameState.gameComplete = true;
-                eventBus.emit('game:complete', {
-                    butterfly: this,
-                    flower: this.feeding.targetFlower
-                });
-            }
-        }
-        
         // Reset engagement timer on successful feeding (only if fewer than 4 butterflies)
         const butterflyCount = gameCore?.gameState?.butterflies?.length || 0;
         this.resetEngagement(butterflyCount);
+
+        if (typeof gameCore !== 'undefined' && gameCore.gameState) {
+            progressionManager.save(gameCore.gameState);
+        }
     }
     
     // === CURSOR INTERACTION SYSTEM ===
@@ -1601,6 +1701,68 @@ class Butterfly extends Entity {
     
     
     
+    getRenderSpec() {
+        return {
+            personalityType: this.personalityType,
+            baseType: this.personalityType,
+            sex: this.sex,
+            isHybrid: this.isHybrid,
+            hybridGenome: this.hybridGenome
+        };
+    }
+
+    getCollectionRenderSpec() {
+        return {
+            personalityType: this.personalityType,
+            baseType: this.personalityType,
+            sex: this.sex,
+            isHybrid: this.isHybrid,
+            hybridGenome: this.hybridGenome
+        };
+    }
+
+    getFlattenedWingSource(wingKey) {
+        if (this.hybridGenome?.wingDonors?.[wingKey]) {
+            return this.hybridGenome.wingDonors[wingKey];
+        }
+
+        return {
+            personalityType: this.personalityType === 'hybrid' ? 'friendly' : this.personalityType,
+            sex: this.sex
+        };
+    }
+
+    getSpecialAbility() {
+        return this.specialAbility ?? this.traits.special ?? null;
+    }
+
+    setSpecialAbility(ability) {
+        this.specialAbility = ability || null;
+        this.traits.special = this.specialAbility;
+    }
+
+    getFlowerInteractionType() {
+        return this.getSpecialAbility() || this.personalityType;
+    }
+
+    getBodySpriteScale() {
+        return this.sex === 'M' ? 0.8 : 1.0;
+    }
+
+    getWingSpriteScale() {
+        return this.sex === 'F' ? 1.2 : 1.0;
+    }
+
+    hasRenderableWings() {
+        return gameConfig.rendering.useSprites
+            && spriteManager.loaded
+            && spriteManager.hasRenderableSpec(this.getRenderSpec());
+    }
+
+    getDisplayName() {
+        return this.displayName || (this.isHybrid ? 'Hybrid' : this.personalityType);
+    }
+
     // Override parent's draw to add following connection
     draw(graphics) {
         // Draw following connection line first (behind everything)
@@ -1655,9 +1817,7 @@ class Butterfly extends Entity {
     drawAfterimages(graphics) {
         if (this.afterimages.length === 0) return;
 
-        const useSprites = gameConfig.rendering.useSprites
-            && spriteManager.loaded
-            && spriteManager.hasWings(this.personalityType);
+        const useSprites = this.hasRenderableWings();
 
         for (let i = 0; i < this.afterimages.length; i++) {
             const ghost = this.afterimages[i];
@@ -1767,9 +1927,7 @@ class Butterfly extends Entity {
         graphics.noStroke();
 
         // Choose sprite or procedural rendering
-        const useSprites = gameConfig.rendering.useSprites
-            && spriteManager.loaded
-            && spriteManager.hasWings(this.personalityType);
+        const useSprites = this.hasRenderableWings();
 
         if (useSprites) {
             // Enable smooth scaling for sprite downscaling quality
@@ -1933,19 +2091,17 @@ class Butterfly extends Entity {
     // Sprite-based wing rendering using anchor-point positioning
     // wingKey: 'foreLeft', 'foreRight', 'hindLeft', 'hindRight'
     drawSpriteWing(graphics, wingKey, spread) {
-        const wings = spriteManager.wings[this.personalityType];
-        if (!wings || !wings[wingKey]) return;
+        const piece = spriteManager.getWingPieceForSpec(this.getRenderSpec(), wingKey);
+        if (!piece) return;
 
-        const piece = wings[wingKey];
         const anchor = spriteManager.anchors.wings[wingKey];
         const relAnchor = spriteManager.anchors.wingsRelative[wingKey];
         const bodyCenter = spriteManager.anchors.body;
 
-        // Unified scale: maps source pixels to game pixels
-        const s = (this.size * spriteManager.SPRITE_SCALE) / 1080;
-
-        // Wing scale boost (45% larger wings)
-        const ws = s * 1.45;
+        const bodyScale = this.getBodySpriteScale();
+        const wingScale = this.getWingSpriteScale();
+        const s = ((this.size * spriteManager.SPRITE_SCALE) / 1080) * bodyScale;
+        const ws = ((this.size * spriteManager.SPRITE_SCALE) / 1080) * wingScale * 1.45;
 
         // Body connection point in game-space (relative to butterfly center)
         const bodyConnX = (anchor.onBody.x - bodyCenter.centerX) * s;
@@ -1977,7 +2133,7 @@ class Butterfly extends Entity {
             return this.drawBody(graphics);
         }
 
-        const s = (this.size * spriteManager.SPRITE_SCALE) / 1080;
+        const s = ((this.size * spriteManager.SPRITE_SCALE) / 1080) * this.getBodySpriteScale();
         const bodyW = spriteManager.body.width * s;
         const bodyH = spriteManager.body.height * s;
         graphics.image(spriteManager.body, -bodyW / 2, -bodyH / 2, bodyW, bodyH);
@@ -1987,7 +2143,7 @@ class Butterfly extends Entity {
     drawSpriteAntennae(graphics) {
         if (!spriteManager.hasAntenna()) return;
 
-        const s = (this.size * spriteManager.SPRITE_SCALE) / 1080;
+        const s = ((this.size * spriteManager.SPRITE_SCALE) / 1080) * this.getBodySpriteScale();
         const bodyCenter = spriteManager.anchors.body;
         const antennaImg = spriteManager.antenna;
         const antennaW = antennaImg.width * s;
@@ -2420,8 +2576,8 @@ class Butterfly extends Entity {
     isDead() {
         const shouldDie = super.isDead(); // Call parent's isDead logic
         
-        // Immortal butterflies and golden butterflies restart instead of dying
-        if (shouldDie && (this.isImmortal || this.personalityType === 'golden')) {
+        // Immortal, golden, and bred butterflies restart instead of dying
+        if (shouldDie && (this.isImmortal || this.personalityType === 'golden' || this.birthSource === 'bred')) {
             console.log(`🦋 ${this.personalityType === 'golden' ? 'Golden' : 'Immortal'} butterfly restarting lifecycle`);
             this.restartLifecycle();
             return false;
@@ -2436,6 +2592,7 @@ class Butterfly extends Entity {
         this.happiness = this.baselineHappiness; // Reset to baseline happiness
         this.state = 'normal';
         this.feeding.cooldowns.clear(); // Clear all feeding cooldowns
+        this.pregnancy = null;
         this.visual.hasBeenHovered = false;
         
         // Reset movement to prevent weird glitches
@@ -2466,11 +2623,12 @@ class Butterfly extends Entity {
     
     // Update special abilities based on personality
     updateSpecialAbilities(gameState) {
-        if (!this.traits.special) return;
+        const ability = this.getSpecialAbility();
+        if (!ability) return;
         
         const { butterflies, particleSystem } = gameState;
         
-        switch (this.traits.special) {
+        switch (ability) {
             case 'sparkle':
                 this.updateSparkleTrail(particleSystem);
                 break;
@@ -2647,3 +2805,4 @@ class Butterfly extends Entity {
     
     
 }
+

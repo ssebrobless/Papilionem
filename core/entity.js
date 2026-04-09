@@ -1,6 +1,14 @@
 // Base class for all game entities (butterflies, flowers, etc)
+let __entityIdCounter = 0;
+
+function generateEntityId(prefix = 'entity') {
+    __entityIdCounter++;
+    return `${prefix}_${Date.now()}_${__entityIdCounter}`;
+}
+
 class Entity {
     constructor(x, y) {
+        this.id = generateEntityId('entity');
         this.x = x;
         this.y = y;
         this.gridPos = gridManager.screenToIso(x, y);

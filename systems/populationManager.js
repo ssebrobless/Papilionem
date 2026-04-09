@@ -230,7 +230,8 @@ class EntityManager {
     
     // Spawn helpers
     spawnButterfly(x, y, colors) {
-        if (this.getCount('butterflies') >= this.entityLimits.butterflies) {
+        if (this.getCount('butterflies') >= this.entityLimits.butterflies ||
+            this.getCount('butterflies') >= ((typeof breedingSystem !== 'undefined') ? breedingSystem.adultHardCap : Infinity)) {
             return null;
         }
         
@@ -240,6 +241,9 @@ class EntityManager {
         // Mark as encountered
         if (typeof gameCore !== 'undefined' && gameCore.gameState) {
             gameCore.gameState.encounteredButterflies.add(butterfly.personalityType);
+            if (typeof progressionManager !== 'undefined') {
+                progressionManager.save(gameCore.gameState);
+            }
         }
         
         return butterfly;

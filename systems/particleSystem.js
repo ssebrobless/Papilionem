@@ -1014,9 +1014,11 @@ class PoolManager {
     
     processSpawnRequests(spawnRequests, butterflies, particleSystem) {
         const maxButterflies = gameConfig.entities.maxButterflies;
+        const hardAdultCap = (typeof breedingSystem !== 'undefined') ? breedingSystem.adultHardCap : Infinity;
         
         for (let pool of spawnRequests) {
-            if (butterflies.length < maxButterflies && pool.consumeForSpawn()) {
+            const wildButterflyCount = butterflies.filter(butterfly => butterfly.birthSource !== 'bred').length;
+            if (wildButterflyCount < maxButterflies && butterflies.length < hardAdultCap && pool.consumeForSpawn()) {
                 const spawn = pool.getSpawnPosition();
                 
                 // Create new butterfly - let personality determine colors
@@ -1026,6 +1028,9 @@ class PoolManager {
                 // Mark as encountered
                 if (typeof gameCore !== 'undefined' && gameCore.gameState) {
                     gameCore.gameState.encounteredButterflies.add(newButterfly.personalityType);
+                    if (typeof progressionManager !== 'undefined') {
+                        progressionManager.save(gameCore.gameState);
+                    }
                 }
                 
                 // Create spawn effect using pre-allocated white color

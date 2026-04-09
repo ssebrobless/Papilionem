@@ -48,7 +48,7 @@ class GameUI {
     
     // Main draw method for game UI (non-debug mode)
     draw(graphics, gameState, debugMode) {
-        if (!this.initialized || debugMode.enabled) return;
+        if (!this.initialized) return;
         
         graphics.push();
         
@@ -56,7 +56,7 @@ class GameUI {
         
         
         // Draw boundary zones if requested
-        if (this.showBoundaryZones) {
+        if (this.showBoundaryZones && !debugMode.enabled) {
             this.drawBoundaryZones(graphics);
         }
         
@@ -123,6 +123,12 @@ class GameUI {
             } else if (keyCode === RIGHT_ARROW) {
                 if (this.butterflyCollection.canNavigateRight()) {
                     this.butterflyCollection.navigateRight();
+                    return true;
+                }
+            }
+
+            if (key === 'R' || key === 'r') {
+                if (this.butterflyCollection.promptRenameCurrentHybrid()) {
                     return true;
                 }
             }

@@ -90,6 +90,8 @@ class Flower extends Entity {
         this.stemColor = palette.stemColor || [34, 139, 34]; // Default green if not specified
         
         this.lastVisitor = null;
+        this.currentFeeder = null;
+        this.ensureLifecycleData();
         
         // Unified animation state
         this.animation = {
@@ -101,9 +103,18 @@ class Flower extends Entity {
             petalWaveSpeed: 0.02
         };
     }
+
+    ensureLifecycleData() {
+        this.occupancyState = this.occupancyState || 'normal';
+        this.allowedButterflyId = this.allowedButterflyId || null;
+        this.eggData = this.eggData || null;
+        this.chrysalisData = this.chrysalisData || null;
+        this.postHatchFadeTimer = this.postHatchFadeTimer || 0;
+    }
     
     update(gameState) {
         const { butterflies, particleSystem } = gameState;
+        this.ensureLifecycleData();
         
         // Update golden blessing timer
         if (this.goldenBlessing > 0) {
@@ -120,13 +131,25 @@ class Flower extends Entity {
             // Lock at mature stage
             this.stage = 'mature';
         } else {
-            // Normal flowers age
-            super.update(gameState);
-            this.stageTimer++;
-            
-            const currentDuration = this.stageDurations[this.stage];
-            if (this.stageTimer >= currentDuration) {
-                this.nextStage();
+            // Occupied flowers pause their normal fade/lifecycle until the lifecycle completes
+            if (this.occupancyState === 'normal' || this.postHatchFadeTimer > 0) {
+                super.update(gameState);
+                this.stageTimer++;
+                
+                const currentDuration = this.stageDurations[this.stage];
+                if (this.stageTimer >= currentDuration) {
+                    this.nextStage();
+                }
+            }
+        }
+
+        if (this.postHatchFadeTimer > 0) {
+            this.postHatchFadeTimer--;
+            if (this.postHatchFadeTimer === 0) {
+                this.occupancyState = 'normal';
+                this.chrysalisData = null;
+                this.stage = 'dissolve';
+                this.stageTimer = 0;
             }
         }
         
@@ -162,11 +185,14 @@ class Flower extends Entity {
         }
     }
     
-    // Handle special interactions based on butterfly personality
+    // Handle special interactions based on the butterfly's assigned ability profile
     handleSpecialInteraction(butterfly, particleSystem) {
-        if (!butterfly.personalityType) return;
+        const interactionType = typeof butterfly.getFlowerInteractionType === 'function'
+            ? butterfly.getFlowerInteractionType()
+            : butterfly.personalityType;
+        if (!interactionType) return;
         
-        switch (butterfly.personalityType) {
+        switch (interactionType) {
             case 'friendly':
                 // Friendly butterflies make flowers bloom more vibrantly
                 if (this.stage === 'mature' && frameCount % 60 === 0) {
@@ -183,6 +209,7 @@ class Flower extends Entity {
                 break;
                 
             case 'cautious':
+            case 'sparkle':
                 // Cautious butterflies make flowers last longer
                 if (this.stage === 'mature' && !this.isImmortal) {
                     this.stageTimer = Math.max(0, this.stageTimer - 1); // Slow aging
@@ -190,6 +217,7 @@ class Flower extends Entity {
                 break;
                 
             case 'energetic':
+            case 'speedzone':
                 // Energetic butterflies make flowers bloom faster
                 if (this.stage === 'bloom') {
                     this.stageTimer += 60; // Speed up blooming
@@ -198,6 +226,7 @@ class Flower extends Entity {
                 break;
                 
             case 'skittish':
+            case 'cascade':
                 // Skittish butterflies create pollen explosions from excitement
                 if (random() < 0.3) {
                     for (let i = 0; i < 5; i++) {
@@ -213,6 +242,7 @@ class Flower extends Entity {
                 break;
                 
             case 'wise':
+            case 'teacher':
                 // Wise butterflies create sparkles around flowers
                 particleSystem.emitBurst(this.x, this.y - this.stemHeight, [255, 255, 255], 5);
                 break;
@@ -224,6 +254,7 @@ class Flower extends Entity {
                 break;
                 
             case 'mystic':
+            case 'shimmer':
                 // Mystic butterflies create rainbow particles
                 const rainbowColors = [
                     [255, 0, 0], [255, 127, 0], [255, 255, 0],
@@ -297,8 +328,41 @@ class Flower extends Entity {
         
         // Draw flower head(s)
         this.drawFlowerHead(graphics, alpha);
+        this.drawLifecycleAttachment(graphics, alpha);
         
         graphics.pop();
+    }
+
+    drawLifecycleAttachment(graphics, alpha) {
+        if (this.occupancyState === 'egg') {
+            graphics.push();
+            graphics.translate(0, -this.stemHeight);
+            graphics.stroke(0, 0, 0, alpha);
+            graphics.strokeWeight(1.5);
+            graphics.fill(255, 255, 255, alpha);
+            graphics.ellipse(8, -2, 8, 8);
+            graphics.pop();
+            return;
+        }
+
+        if (this.occupancyState === 'chrysalis') {
+            const sprite = this.chrysalisData?.hasHatched ? spriteManager.cocoonSprites.hatched : spriteManager.cocoonSprites.unhatched;
+            if (!sprite) return;
+
+            graphics.push();
+            graphics.translate(0, -this.stemHeight + 6);
+            const scale = 0.02;
+            const w = sprite.width * scale;
+            const h = sprite.height * scale;
+            if (alpha < 255) {
+                graphics.tint(255, alpha);
+            }
+            graphics.image(sprite, -w / 2, -h / 2, w, h);
+            if (alpha < 255) {
+                graphics.noTint();
+            }
+            graphics.pop();
+        }
     }
     
     // Draw golden blessing effect
@@ -591,6 +655,7 @@ class Flower extends Entity {
     isDead() {
         // Immortal flowers never die
         if (this.isImmortal) return false;
+        if (this.occupancyState === 'egg' || this.occupancyState === 'chrysalis') return false;
         
         // Normal flowers die after dissolve stage completes
         return this.stage === 'dissolve' && 
@@ -602,6 +667,68 @@ class Flower extends Entity {
         const dist = Math.hypot(this.x - x, this.y - y);
         // Smaller spacing for smaller flowers
         return dist > 40;
+    }
+
+    canAcceptButterfly(butterfly) {
+        this.ensureLifecycleData();
+        if (this.occupancyState === 'normal') return true;
+        if (this.occupancyState === 'egg') {
+            return this.allowedButterflyId === butterfly.id;
+        }
+        return false;
+    }
+
+    canReceiveEggFrom(butterfly) {
+        this.ensureLifecycleData();
+        return this.occupancyState === 'normal' && this.stage !== 'dissolve' && (!this.currentFeeder || this.currentFeeder === butterfly);
+    }
+
+    attachEgg(eggData) {
+        this.ensureLifecycleData();
+        this.occupancyState = 'egg';
+        this.allowedButterflyId = eggData.motherId;
+        this.eggData = eggData;
+        this.currentFeeder = null;
+    }
+
+    afterButterflyFeed(butterfly) {
+        if (this.occupancyState === 'egg' && this.allowedButterflyId === butterfly.id) {
+            this.allowedButterflyId = null;
+        }
+    }
+
+    canHostCaterpillar(phase) {
+        this.ensureLifecycleData();
+        if (this.stage === 'dissolve') return false;
+        return this.occupancyState === 'normal';
+    }
+
+    consumeByCaterpillar(particleSystem) {
+        this.occupancyState = 'normal';
+        this.eggData = null;
+        this.chrysalisData = null;
+        this.stage = 'dissolve';
+        this.stageTimer = this.stageDurations.dissolve;
+
+        if (particleSystem) {
+            particleSystem.emitBurst(this.x, this.y - this.stemHeight, this.petalColor, 10);
+        }
+    }
+
+    becomeChrysalisFlower(lifecycleData) {
+        this.ensureLifecycleData();
+        this.occupancyState = 'chrysalis';
+        this.chrysalisData = {
+            lifecycleData,
+            hatchFrame: frameCount + Math.floor(random(60 * 420, 60 * 600)),
+            hasHatched: false,
+            hatchedAt: 0
+        };
+        this.currentFeeder = null;
+    }
+
+    startPostHatchFade() {
+        this.postHatchFadeTimer = 90;
     }
     
     // Check if we should show the leading guide aura
@@ -616,7 +743,7 @@ class Flower extends Entity {
             hasLedButterfly = gameCore.gameState.butterflies.some(b => b.state === 'following');
         }
         
-        return hasLedButterfly && this.stage !== 'dissolve' && !this.currentFeeder;
+        return hasLedButterfly && this.stage !== 'dissolve' && !this.currentFeeder && this.occupancyState === 'normal';
     }
     
     // Draw pulsing aura to guide players when leading butterflies

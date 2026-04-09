@@ -42,6 +42,8 @@ class MainColorPool {
     
     // Update pool state and handle spawning
     update(butterflies, particleSystem) {
+        const wildButterflyCount = butterflies.filter(butterfly => butterfly.birthSource !== 'bred').length;
+        const totalAdultCount = butterflies.length;
         this.pulseTimer += this.pulseSpeed;
         
         // Apply gravity to all particles
@@ -60,17 +62,18 @@ class MainColorPool {
         // Check for butterfly spawning
         if (this.glowIntensity >= this.spawnThreshold && 
             this.spawnCooldown === 0 && 
-            butterflies.length < gameConfig.entities.maxButterflies) {
+            wildButterflyCount < gameConfig.entities.maxButterflies &&
+            totalAdultCount < (typeof breedingSystem !== 'undefined' ? breedingSystem.adultHardCap : Infinity)) {
             this.spawnButterfly(butterflies, particleSystem);
         }
         
         // Decay glow intensity only when there are more than 2 butterflies
         // This makes spawning progressively harder as population grows
-        if (butterflies.length > 2 && this.glowIntensity > 0) {
+        if (wildButterflyCount > 2 && this.glowIntensity > 0) {
             // Decay rate scales with butterfly count but is much gentler
             // Base decay: 0.002 (less than passive gain of 0.00333)
             // Additional decay: 0.001 per butterfly over 3
-            const decayRate = 0.002 + (butterflies.length - 3) * 0.001;
+            const decayRate = 0.002 + (wildButterflyCount - 3) * 0.001;
             this.glowIntensity = Math.max(0, this.glowIntensity - decayRate);
         }
     }
@@ -220,7 +223,7 @@ class MainColorPool {
         }
         
         // Create new butterfly at archway position
-        const isFirstButterfly = butterflies.length === 0;
+        const isFirstButterfly = butterflies.filter(butterfly => butterfly.birthSource !== 'bred').length === 0;
         const spawnX = archway.x;
         const spawnY = archway.y;
         const newButterfly = new Butterfly(
@@ -260,6 +263,9 @@ class MainColorPool {
             gameCore.gameState.encounteredButterflies.add(newButterfly.personalityType);
             if (newButterfly.personalityType === 'golden') {
                 gameCore.gameState.goldenButterflySpawned = true;
+            }
+            if (typeof progressionManager !== 'undefined') {
+                progressionManager.save(gameCore.gameState);
             }
         }
         

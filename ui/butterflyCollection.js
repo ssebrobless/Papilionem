@@ -1,23 +1,19 @@
-// Butterfly Collection UI - A field notebook for butterfly observations
+// Butterfly Collection UI - notebook pages for base butterflies and bred hybrids
 class ButterflyCollectionUI {
     constructor() {
-        // Scale UI based on canvas size
         const scale = Math.min(gameConfig.canvas.baseWidth / 800, gameConfig.canvas.baseHeight / 600);
-        this.width = Math.min(360 * scale, gameConfig.canvas.baseWidth * 0.8);
-        this.height = Math.min(440 * scale, gameConfig.canvas.baseHeight * 0.85);
-        
-        // Center in screen with margin
+        this.width = Math.min(390 * scale, gameConfig.canvas.baseWidth * 0.86);
+        this.height = Math.min(470 * scale, gameConfig.canvas.baseHeight * 0.88);
         this.x = (gameConfig.canvas.baseWidth - this.width) / 2;
         this.y = (gameConfig.canvas.baseHeight - this.height) / 2;
         this.padding = 20 * scale;
+        this.scale = scale;
         this.visible = false;
         this.fadeAlpha = 0;
         this.fadeSpeed = 10;
-        
-        // Current page/butterfly being viewed
         this.currentIndex = 0;
-        
-        // Butterfly display order (common to rare)
+        this.hybridOnly = false;
+
         this.butterflyOrder = [
             'friendly',
             'cautious',
@@ -27,8 +23,7 @@ class ButterflyCollectionUI {
             'mystic',
             'golden'
         ];
-        
-        // Journal entries for each butterfly type
+
         this.journalEntries = {
             friendly: {
                 title: "The Warm Welcome",
@@ -66,485 +61,455 @@ class ButterflyCollectionUI {
                 description: "Pure golden wings of liquid sunlight, the crown jewel of the garden."
             }
         };
-        
-        // UI scale for responsive sizing
-        this.scale = scale;
-        
-        // Arrow button positions
+
         this.leftArrow = {
             x: this.x + 20,
             y: this.y + this.height / 2,
             width: 30,
             height: 40
         };
-        
+
         this.rightArrow = {
             x: this.x + this.width - 50,
             y: this.y + this.height / 2,
             width: 30,
             height: 40
         };
+
+        this.filterButton = {
+            x: this.x + this.width - 145,
+            y: this.y + 18,
+            width: 120,
+            height: 26
+        };
     }
-    
+
     toggle() {
         this.visible = !this.visible;
         if (this.visible) {
-            // Always start at the first butterfly (friendly)
             this.currentIndex = 0;
         }
     }
-    
+
     update() {
-        // Smooth fade in/out
         if (this.visible && this.fadeAlpha < 255) {
             this.fadeAlpha = Math.min(255, this.fadeAlpha + this.fadeSpeed);
         } else if (!this.visible && this.fadeAlpha > 0) {
             this.fadeAlpha = Math.max(0, this.fadeAlpha - this.fadeSpeed);
         }
     }
-    
-    getEncounteredButterflies() {
+
+    getPages() {
         if (!gameCore || !gameCore.gameState) return [];
-        
-        // Show butterflies that have been encountered
-        return this.butterflyOrder.filter(type => {
-            return gameCore.gameState.encounteredButterflies.has(type) || 
-                   type === 'golden'; // Always show golden as a goal
-        });
+
+        const basePages = this.butterflyOrder.map(type => ({ kind: 'base', type }));
+        const hybridPages = (gameCore.gameState.hybridJournal || []).map(entry => ({ kind: 'hybrid', entry }));
+        return this.hybridOnly ? hybridPages : [...basePages, ...hybridPages];
     }
-    
+
+    getCurrentPage() {
+        const pages = this.getPages();
+        if (pages.length === 0) return null;
+        this.currentIndex = constrain(this.currentIndex, 0, pages.length - 1);
+        return pages[this.currentIndex];
+    }
+
     navigateLeft() {
-        // Navigate through all butterflies, not just encountered ones
         if (this.currentIndex > 0) {
             this.currentIndex--;
         }
     }
-    
+
     navigateRight() {
-        // Navigate through all butterflies, not just encountered ones
-        if (this.currentIndex < this.butterflyOrder.length - 1) {
+        const pages = this.getPages();
+        if (this.currentIndex < pages.length - 1) {
             this.currentIndex++;
         }
     }
-    
+
     canNavigateLeft() {
         return this.currentIndex > 0;
     }
-    
+
     canNavigateRight() {
-        return this.currentIndex < this.butterflyOrder.length - 1;
+        return this.currentIndex < this.getPages().length - 1;
     }
-    
+
+    promptRenameCurrentHybrid() {
+        const page = this.getCurrentPage();
+        if (!page || page.kind !== 'hybrid') return false;
+
+        const nextName = prompt('Rename this hybrid butterfly:', page.entry.name);
+        if (nextName == null) return true;
+
+        const trimmed = nextName.trim();
+        if (!trimmed) return true;
+
+        if (progressionManager.renameHybrid(gameCore.gameState, page.entry.id, trimmed)) {
+            page.entry.name = trimmed;
+            const liveButterfly = (gameCore.gameState.butterflies || []).find(item => item.hybridEntryId === page.entry.id);
+            if (liveButterfly) {
+                liveButterfly.displayName = trimmed;
+            }
+        }
+
+        return true;
+    }
+
     handleMousePressed(mouseX, mouseY) {
         if (!this.visible || this.fadeAlpha < 200) return false;
-        
-        // Adjust for canvas scaling
+
         const adjustedX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
         const adjustedY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
-        
-        // Check left arrow
-        if (this.canNavigateLeft() && 
-            adjustedX >= this.leftArrow.x && 
+
+        if (this.isInsideRect(adjustedX, adjustedY, this.filterButton)) {
+            this.hybridOnly = !this.hybridOnly;
+            this.currentIndex = 0;
+            return true;
+        }
+
+        if (this.canNavigateLeft() &&
+            adjustedX >= this.leftArrow.x &&
             adjustedX <= this.leftArrow.x + this.leftArrow.width &&
-            adjustedY >= this.leftArrow.y - this.leftArrow.height/2 && 
-            adjustedY <= this.leftArrow.y + this.leftArrow.height/2) {
+            adjustedY >= this.leftArrow.y - this.leftArrow.height / 2 &&
+            adjustedY <= this.leftArrow.y + this.leftArrow.height / 2) {
             this.navigateLeft();
             return true;
         }
-        
-        // Check right arrow
-        if (this.canNavigateRight() && 
-            adjustedX >= this.rightArrow.x && 
+
+        if (this.canNavigateRight() &&
+            adjustedX >= this.rightArrow.x &&
             adjustedX <= this.rightArrow.x + this.rightArrow.width &&
-            adjustedY >= this.rightArrow.y - this.rightArrow.height/2 && 
-            adjustedY <= this.rightArrow.y + this.rightArrow.height/2) {
+            adjustedY >= this.rightArrow.y - this.rightArrow.height / 2 &&
+            adjustedY <= this.rightArrow.y + this.rightArrow.height / 2) {
             this.navigateRight();
             return true;
         }
-        
+
         return false;
     }
-    
+
     draw(graphics) {
         if (this.fadeAlpha <= 0) return;
-        
-        const encountered = this.getEncounteredButterflies();
-        if (encountered.length === 0) return;
-        
+
+        const pages = this.getPages();
+        if (pages.length === 0) return;
+
         graphics.push();
-        
-        // Enable smooth text rendering for better quality
         graphics.smooth();
-        
-        // Simple background panel
-        graphics.fill(20, 20, 30, this.fadeAlpha * 0.9);
+        graphics.fill(20, 20, 30, this.fadeAlpha * 0.94);
         graphics.stroke(255, 255, 255, this.fadeAlpha * 0.3);
         graphics.strokeWeight(2);
         graphics.rect(this.x, this.y, this.width, this.height, 10);
-        
-        // Title - crisp and clear
+
         graphics.noStroke();
         graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha * 1.2));
         graphics.textAlign(CENTER, TOP);
         graphics.textSize(24 * this.scale);
-        graphics.text('Butterfly Collection', this.x + this.width/2, this.y + 15 * this.scale);
-        
-        // Page content
-        const currentType = this.butterflyOrder[this.currentIndex];
-        this.drawButterflyInfo(graphics, currentType);
-        
-        // Draw navigation arrows
+        graphics.text('Butterfly Collection', this.x + this.width / 2, this.y + 15 * this.scale);
+
+        this.drawFilterButton(graphics);
+
+        const page = this.getCurrentPage();
+        if (page?.kind === 'base') {
+            this.drawBasePage(graphics, page.type);
+        } else if (page?.kind === 'hybrid') {
+            this.drawHybridPage(graphics, page.entry);
+        }
+
         this.drawNavigationArrows(graphics);
-        
-        // Collection progress at bottom - crisp and clear
+
         const collected = gameCore.gameState.collectedButterflies.size;
-        const total = this.butterflyOrder.length;
+        const hybridCount = (gameCore.gameState.hybridJournal || []).length;
         graphics.textAlign(CENTER, BOTTOM);
-        graphics.textSize(16 * this.scale);
-        graphics.fill(255, 255, 200, Math.min(255, this.fadeAlpha * 1.0));
-        graphics.text(`${collected}/${total} Collected`, this.x + this.width/2, this.y + this.height - 12 * this.scale);
-        
-        // Page counter - improved readability
-        graphics.textAlign(CENTER, BOTTOM);
+        graphics.textSize(15 * this.scale);
+        graphics.fill(255, 255, 200, Math.min(255, this.fadeAlpha));
+        graphics.text(`${collected}/7 Base Collected • ${hybridCount} Hybrids`, this.x + this.width / 2, this.y + this.height - 12 * this.scale);
+
         graphics.textSize(12 * this.scale);
-        graphics.fill(200, 200, 200, Math.min(255, this.fadeAlpha * 0.8));
-        graphics.text(`${this.currentIndex + 1} of ${this.butterflyOrder.length}`, this.x + this.width/2, this.y + this.height - 30 * this.scale);
-        
+        graphics.fill(200, 200, 200, Math.min(255, this.fadeAlpha * 0.85));
+        graphics.text(`${this.currentIndex + 1} of ${pages.length}`, this.x + this.width / 2, this.y + this.height - 30 * this.scale);
+
         graphics.pop();
     }
-    
-    drawButterflyInfo(graphics, type) {
+
+    drawFilterButton(graphics) {
+        graphics.push();
+        graphics.fill(this.hybridOnly ? 75 : 40, this.hybridOnly ? 115 : 40, this.hybridOnly ? 85 : 55, Math.min(255, this.fadeAlpha));
+        graphics.stroke(255, 255, 255, this.fadeAlpha * 0.25);
+        graphics.rect(this.filterButton.x, this.filterButton.y, this.filterButton.width, this.filterButton.height, 6);
+        graphics.noStroke();
+        graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha));
+        graphics.textAlign(CENTER, CENTER);
+        graphics.textSize(11 * this.scale);
+        graphics.text(this.hybridOnly ? 'Show All Pages' : 'Hybrids Only', this.filterButton.x + this.filterButton.width / 2, this.filterButton.y + this.filterButton.height / 2 + 1);
+        graphics.pop();
+    }
+
+    drawBasePage(graphics, type) {
         const personality = BUTTERFLY_PERSONALITIES[type];
         const debugEnabled = typeof debugUI !== 'undefined' && debugUI.enabled;
         const isCollected = gameCore.gameState.collectedButterflies.has(type);
         const isEncountered = gameCore.gameState.encounteredButterflies.has(type);
         const journalEntry = this.journalEntries[type];
-        
-        // Draw butterfly with background lighting
-        const butterflyY = this.y + 80 * this.scale;
-        
-        // Add subtle background glow for visibility
-        graphics.push();
-        graphics.noStroke();
-        const glowSize = 80 * this.scale;
-        for (let i = 3; i > 0; i--) {
-            const alpha = (this.fadeAlpha * 0.15) / i;
-            graphics.fill(255, 255, 255, alpha);
-            graphics.ellipse(this.x + this.width/2, butterflyY, glowSize * i, glowSize * i * 0.8);
-        }
-        graphics.pop();
-        
-        // Show butterfly if encountered OR collected (debug mode shows all)
+        const butterflyY = this.y + 92 * this.scale;
+
+        this.drawPreviewGlow(graphics, butterflyY);
+
         if (debugEnabled || isEncountered || isCollected || type === 'golden') {
-            this.drawSimpleButterfly(graphics, this.x + this.width/2, butterflyY, personality, isCollected, type);
+            this.drawSpritePreview(graphics, this.x + this.width / 2, butterflyY, {
+                personalityType: type,
+                sex: 'F'
+            }, 0.06 * this.scale, this.fadeAlpha);
         } else {
-            // Mystery silhouette
             graphics.textAlign(CENTER, CENTER);
             graphics.textSize(48 * this.scale);
             graphics.fill(100, 100, 100, this.fadeAlpha * 0.5);
-            graphics.text('?', this.x + this.width/2, butterflyY);
+            graphics.text('?', this.x + this.width / 2, butterflyY);
         }
-        
-        // Butterfly name and type - BIGGER and crisper
+
         graphics.textAlign(CENTER, TOP);
         graphics.textSize(20 * this.scale);
-        const displayName = type.charAt(0).toUpperCase() + type.slice(1);
-        
-        if (isCollected) {
-            graphics.fill(100, 255, 100, Math.min(255, this.fadeAlpha * 1.1));
-        } else if (isEncountered) {
-            graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha * 1.1));
-        } else {
-            graphics.fill(150, 150, 150, Math.min(255, this.fadeAlpha * 0.8));
-        }
-        graphics.text(displayName, this.x + this.width/2, butterflyY + 50 * this.scale);
-        
-        // Rarity - BIGGER with color coding
-        graphics.textSize(16 * this.scale);
+        const nameColor = isCollected ? [100, 255, 100] : isEncountered ? [255, 255, 255] : [150, 150, 150];
+        graphics.fill(nameColor[0], nameColor[1], nameColor[2], Math.min(255, this.fadeAlpha * 1.1));
+        graphics.text(type.charAt(0).toUpperCase() + type.slice(1), this.x + this.width / 2, butterflyY + 54 * this.scale);
+
         const rarityColors = {
-            common: [200, 200, 200],      // White/Gray
-            uncommon: [100, 255, 100],    // Green
-            rare: [100, 150, 255],        // Blue
-            epic: [200, 100, 255]         // Purple
+            common: [200, 200, 200],
+            uncommon: [100, 255, 100],
+            rare: [100, 150, 255],
+            epic: [200, 100, 255],
+            legendary: [255, 215, 0]
         };
         const rarityColor = rarityColors[personality.rarity] || [200, 200, 200];
-        graphics.fill(rarityColor[0], rarityColor[1], rarityColor[2], Math.min(255, this.fadeAlpha * 1.0));
-        graphics.text(personality.rarity.toUpperCase(), this.x + this.width/2, butterflyY + 75 * this.scale);
-        
-        // Status - BIGGER and clearer
+        graphics.textSize(16 * this.scale);
+        graphics.fill(rarityColor[0], rarityColor[1], rarityColor[2], Math.min(255, this.fadeAlpha));
+        graphics.text(personality.rarity.toUpperCase(), this.x + this.width / 2, butterflyY + 80 * this.scale);
+
         graphics.textSize(18 * this.scale);
         if (isCollected) {
-            graphics.fill(100, 255, 100, Math.min(255, this.fadeAlpha * 1.1));
-            graphics.text('✓ Befriended', this.x + this.width/2, butterflyY + 100 * this.scale);
+            graphics.fill(100, 255, 100, Math.min(255, this.fadeAlpha));
+            graphics.text('Befriended', this.x + this.width / 2, butterflyY + 104 * this.scale);
         } else if (type === 'golden' && !isEncountered) {
-            graphics.fill(255, 215, 0, Math.min(255, this.fadeAlpha * 1.0));
-            graphics.text('Befriend all others first', this.x + this.width/2, butterflyY + 100 * this.scale);
+            graphics.fill(255, 215, 0, Math.min(255, this.fadeAlpha));
+            graphics.text('Befriend all others first', this.x + this.width / 2, butterflyY + 104 * this.scale);
         } else if (isEncountered) {
-            graphics.fill(255, 255, 100, Math.min(255, this.fadeAlpha * 0.9));
-            graphics.text('Lead to befriend', this.x + this.width/2, butterflyY + 100 * this.scale);
+            graphics.fill(255, 255, 100, Math.min(255, this.fadeAlpha));
+            graphics.text('Lead to befriend', this.x + this.width / 2, butterflyY + 104 * this.scale);
         } else {
-            graphics.fill(100, 100, 100, Math.min(255, this.fadeAlpha * 0.7));
-            graphics.text('Not encountered', this.x + this.width/2, butterflyY + 100 * this.scale);
+            graphics.fill(120, 120, 120, Math.min(255, this.fadeAlpha));
+            graphics.text('Not encountered', this.x + this.width / 2, butterflyY + 104 * this.scale);
         }
-        
-        // Display journal entry with quote - show if encountered OR collected (debug shows all)
+
         if ((debugEnabled || isEncountered || isCollected || type === 'golden') && journalEntry) {
             graphics.textAlign(CENTER, TOP);
-            
-            // Title - bold and prominent (no quotes, no italic)
             graphics.textSize(18 * this.scale);
-            graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha * 1.1));
+            graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha));
             graphics.textStyle(BOLD);
-            graphics.text(journalEntry.title, this.x + this.width/2, butterflyY + 135 * this.scale);
+            graphics.text(journalEntry.title, this.x + this.width / 2, butterflyY + 140 * this.scale);
             graphics.textStyle(NORMAL);
-            
-            // Quote - italicized and in quotes
-            graphics.textSize(15 * this.scale);
-            graphics.fill(255, 255, 200, Math.min(255, this.fadeAlpha * 1.0));
-            
-            // Word wrap the quote
-            const quoteText = `"${journalEntry.quote}"`;
-            const quoteWords = quoteText.split(' ');
-            const maxWidth = this.width - 70 * this.scale;
-            let line = '';
-            let y = butterflyY + 165 * this.scale;
-            
-            graphics.textStyle(ITALIC);
-            for (let word of quoteWords) {
-                const testLine = line + word + ' ';
-                const testWidth = graphics.textWidth(testLine);
-                if (testWidth > maxWidth && line !== '') {
-                    graphics.text(line, this.x + this.width/2, y);
-                    line = word + ' ';
-                    y += 20 * this.scale;
-                } else {
-                    line = testLine;
-                }
-            }
-            if (line !== '') {
-                graphics.text(line, this.x + this.width/2, y);
-            }
-            graphics.textStyle(NORMAL);
-            
-            // Description - compact at the bottom
-            y += 35 * this.scale;
-            graphics.textSize(12 * this.scale);
-            graphics.fill(180, 180, 180, Math.min(255, this.fadeAlpha * 0.8));
-            
-            // Word wrap the description
-            const descWords = journalEntry.description.split(' ');
-            line = '';
-            for (let word of descWords) {
-                const testLine = line + word + ' ';
-                const testWidth = graphics.textWidth(testLine);
-                if (testWidth > maxWidth && line !== '') {
-                    graphics.text(line, this.x + this.width/2, y);
-                    line = word + ' ';
-                    y += 16 * this.scale;
-                } else {
-                    line = testLine;
-                }
-            }
-            if (line !== '') {
-                graphics.text(line, this.x + this.width/2, y);
-            }
+            this.drawWrappedText(graphics, `"${journalEntry.quote}"`, this.x + this.width / 2, butterflyY + 170 * this.scale, this.width - 70 * this.scale, 15 * this.scale, [255, 255, 200], true);
+            this.drawWrappedText(graphics, journalEntry.description, this.x + this.width / 2, butterflyY + 245 * this.scale, this.width - 70 * this.scale, 12 * this.scale, [180, 180, 180], false);
         }
     }
-    
-    drawSimpleButterfly(graphics, x, y, personality, isCollected, type) {
+
+    drawHybridPage(graphics, entry) {
+        const butterflyY = this.y + 86 * this.scale;
+
+        this.drawPreviewGlow(graphics, butterflyY);
+        this.drawSpritePreview(graphics, this.x + this.width / 2, butterflyY, entry.renderSpec, 0.07 * this.scale, this.fadeAlpha);
+
+        graphics.textAlign(CENTER, TOP);
+        graphics.textSize(20 * this.scale);
+        graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha));
+        graphics.text(entry.name, this.x + this.width / 2, butterflyY + 58 * this.scale);
+
+        graphics.textSize(16 * this.scale);
+        graphics.fill(120, 255, 180, Math.min(255, this.fadeAlpha));
+        graphics.text('HYBRID', this.x + this.width / 2, butterflyY + 84 * this.scale);
+
+        graphics.textSize(13 * this.scale);
+        graphics.fill(220, 220, 220, Math.min(255, this.fadeAlpha));
+        graphics.text(`Sex: ${entry.sex}`, this.x + this.width / 2, butterflyY + 107 * this.scale);
+
+        this.drawParentStrip(graphics, entry, butterflyY + 150 * this.scale);
+
+        const bornAt = new Date(entry.bornAt);
+        graphics.textSize(12 * this.scale);
+        graphics.fill(255, 240, 180, Math.min(255, this.fadeAlpha));
+        graphics.text('Press R to rename', this.x + this.width / 2, this.y + this.height - 72 * this.scale);
+
+        graphics.fill(180, 180, 180, Math.min(255, this.fadeAlpha));
+        graphics.text(`Born: ${bornAt.toLocaleString()}`, this.x + this.width / 2, this.y + this.height - 45 * this.scale);
+    }
+
+    drawParentStrip(graphics, entry, y) {
+        const leftX = this.x + this.width / 2 - 70 * this.scale;
+        const rightX = this.x + this.width / 2 + 70 * this.scale;
+
+        graphics.textAlign(CENTER, CENTER);
+        graphics.textSize(22 * this.scale);
+        graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha));
+        graphics.text('+', this.x + this.width / 2, y + 8 * this.scale);
+
+        this.drawSpritePreview(graphics, leftX, y, entry.parentA, 0.04 * this.scale, this.fadeAlpha);
+        this.drawSpritePreview(graphics, rightX, y, entry.parentB, 0.04 * this.scale, this.fadeAlpha);
+
+        graphics.textSize(11 * this.scale);
+        graphics.fill(200, 200, 200, Math.min(255, this.fadeAlpha));
+        graphics.text(entry.parentA?.personalityType?.toUpperCase() || '?', leftX, y + 36 * this.scale);
+        graphics.text(entry.parentB?.personalityType?.toUpperCase() || '?', rightX, y + 36 * this.scale);
+    }
+
+    drawPreviewGlow(graphics, butterflyY) {
+        graphics.push();
+        graphics.noStroke();
+        const glowSize = 85 * this.scale;
+        for (let i = 3; i > 0; i--) {
+            const alpha = (this.fadeAlpha * 0.12) / i;
+            graphics.fill(255, 255, 255, alpha);
+            graphics.ellipse(this.x + this.width / 2, butterflyY, glowSize * i, glowSize * i * 0.8);
+        }
+        graphics.pop();
+    }
+
+    drawWrappedText(graphics, textValue, centerX, startY, maxWidth, fontSize, color, italic) {
+        const words = textValue.split(' ');
+        let line = '';
+        let y = startY;
+        graphics.textSize(fontSize);
+        graphics.fill(color[0], color[1], color[2], Math.min(255, this.fadeAlpha));
+        graphics.textStyle(italic ? ITALIC : NORMAL);
+
+        for (const word of words) {
+            const testLine = line + word + ' ';
+            if (graphics.textWidth(testLine) > maxWidth && line !== '') {
+                graphics.text(line, centerX, y);
+                line = word + ' ';
+                y += fontSize + 5 * this.scale;
+            } else {
+                line = testLine;
+            }
+        }
+        if (line !== '') {
+            graphics.text(line, centerX, y);
+        }
+        graphics.textStyle(NORMAL);
+    }
+
+    drawSpritePreview(graphics, x, y, spec, previewScale, alpha) {
+        if (!spec) return;
+
         graphics.push();
         graphics.translate(x, y);
 
-        const alpha = this.fadeAlpha;
-        const useSprites = gameConfig.rendering.useSprites
-            && spriteManager.loaded
-            && spriteManager.hasWings(type);
+        const wingSpread = map(sin(frameCount * 0.08), -1, 1, 0.6, 1);
+        const hindSpread = map(sin(frameCount * 0.08 - 0.6), -1, 1, 0.55, 0.95);
+        const flutter = sin(frameCount * 0.1) * 0.15;
 
-        if (useSprites) {
-            // Draw actual sprites in the collection preview
-            const previewScale = 0.06 * this.scale; // Scale down from 1080px source to ~65px preview
-            const flutter = sin(frameCount * 0.1) * 0.15;
-            const wingSpread = map(sin(frameCount * 0.08), -1, 1, 0.6, 1);
-            const hindSpread = map(sin(frameCount * 0.08 - 0.6), -1, 1, 0.55, 0.95);
-
-            const debugOn = typeof debugUI !== 'undefined' && debugUI.enabled;
-            const isGoldenHidden = type === 'golden' && !debugOn && !gameCore.gameState.encounteredButterflies.has('golden');
+        if (spriteManager.loaded && spriteManager.hasRenderableSpec(spec)) {
+            const bodyScale = spec.sex === 'M' ? 0.8 : 1.0;
+            const wingScale = spec.sex === 'F' ? 1.2 : 1.0;
+            const bodyCenter = spriteManager.anchors.body;
 
             graphics.smooth();
-            if (isGoldenHidden) {
-                graphics.tint(80, alpha);
-            } else {
-                graphics.tint(255, alpha);
-            }
+            graphics.tint(255, alpha);
 
-            // Body
             if (spriteManager.body) {
-                const bodyW = spriteManager.body.width * previewScale;
-                const bodyH = spriteManager.body.height * previewScale;
+                const s = previewScale * bodyScale;
+                const bodyW = spriteManager.body.width * s;
+                const bodyH = spriteManager.body.height * s;
                 graphics.image(spriteManager.body, -bodyW / 2, -bodyH / 2, bodyW, bodyH);
             }
 
-            // Antenna
             if (spriteManager.antenna) {
-                const anchors = spriteManager.anchors;
-                const s = previewScale;
-                const bodyCenter = anchors.body;
-
-                // Left antenna
-                const lOnBody = anchors.antenna.left.onBody;
-                const lOnAnt = anchors.antenna.left.onAntenna;
-                const lbx = (lOnBody.x - bodyCenter.centerX) * s;
-                const lby = (lOnBody.y - bodyCenter.centerY) * s;
-                const antW = spriteManager.antenna.width * s;
-                const antH = spriteManager.antenna.height * s;
-                const lax = lbx - lOnAnt.x * s;
-                const lay = lby - lOnAnt.y * s;
-                graphics.image(spriteManager.antenna, lax, lay, antW, antH);
+                const antennaScale = previewScale * bodyScale;
+                const antennaW = spriteManager.antenna.width * antennaScale;
+                const antennaH = spriteManager.antenna.height * antennaScale;
+                const anchors = spriteManager.anchors.antenna;
+                for (const side of ['left', 'right']) {
+                    const anchor = anchors[side];
+                    const bodyConnX = (anchor.onBody.x - bodyCenter.centerX) * antennaScale;
+                    const bodyConnY = (anchor.onBody.y - bodyCenter.centerY) * antennaScale;
+                    const drawX = bodyConnX - (anchor.onAntenna.x * antennaScale);
+                    const drawY = bodyConnY - (anchor.onAntenna.y * antennaScale);
+                    graphics.image(spriteManager.antenna, drawX, drawY, antennaW, antennaH);
+                }
             }
 
-            // Wings
-            const wings = spriteManager.wings[type];
-            if (wings) {
-                const anchors = spriteManager.anchors;
-                const bodyCenter = anchors.body;
-                const s = previewScale;
-                const ws = s * 1.45; // Match game wing size boost
+            graphics.push();
+            graphics.rotate(flutter * 0.3);
 
-                graphics.push();
-                graphics.rotate(flutter * 0.3);
+            for (const wingKey of ['hindLeft', 'hindRight', 'foreLeft', 'foreRight']) {
+                const piece = spriteManager.getWingPieceForSpec(spec, wingKey);
+                if (!piece) continue;
 
-                // Draw each wing piece
-                const wingKeys = ['hindLeft', 'hindRight', 'foreLeft', 'foreRight'];
-                for (const wingKey of wingKeys) {
-                    const piece = wings[wingKey];
-                    const anchor = anchors.wings[wingKey];
-                    const relAnchor = anchors.wingsRelative[wingKey];
-                    const isHind = wingKey.startsWith('hind');
-                    const spread = isHind ? hindSpread : wingSpread;
-
-                    const bodyConnX = (anchor.onBody.x - bodyCenter.centerX) * s;
-                    let bodyConnY = (anchor.onBody.y - bodyCenter.centerY) * s;
-                    if (isHind) bodyConnY -= 5 * s;
-
-                    const pieceW = piece.width * ws;
-                    const pieceH = piece.height * ws;
-                    const drawX = bodyConnX - (relAnchor.x * ws);
-                    const drawY = bodyConnY - (relAnchor.y * ws);
-
-                    graphics.push();
-                    graphics.translate(bodyConnX, bodyConnY);
-                    graphics.scale(spread, 1);
-                    graphics.translate(-bodyConnX, -bodyConnY);
-                    graphics.image(piece, drawX, drawY, pieceW, pieceH);
-                    graphics.pop();
+                const anchor = spriteManager.anchors.wings[wingKey];
+                const relAnchor = spriteManager.anchors.wingsRelative[wingKey];
+                const bodyConnX = (anchor.onBody.x - bodyCenter.centerX) * (previewScale * bodyScale);
+                let bodyConnY = (anchor.onBody.y - bodyCenter.centerY) * (previewScale * bodyScale);
+                if (wingKey.startsWith('hind')) {
+                    bodyConnY -= 5 * previewScale * bodyScale;
                 }
 
+                const ws = previewScale * wingScale * 1.45;
+                const pieceW = piece.width * ws;
+                const pieceH = piece.height * ws;
+                const drawX = bodyConnX - (relAnchor.x * ws);
+                const drawY = bodyConnY - (relAnchor.y * ws);
+                const spread = wingKey.startsWith('hind') ? hindSpread : wingSpread;
+
+                graphics.push();
+                graphics.translate(bodyConnX, bodyConnY);
+                graphics.scale(spread, 1);
+                graphics.translate(-bodyConnX, -bodyConnY);
+                graphics.image(piece, drawX, drawY, pieceW, pieceH);
                 graphics.pop();
             }
 
+            graphics.pop();
             graphics.noTint();
             graphics.noSmooth();
         } else {
-            // Fallback: procedural bezier wings
-            const scale = 1.2 * this.scale;
-            const flutter = sin(frameCount * 0.1) * 0.03;
-            const colors = personality.colors;
-            const wingColor = colors[0];
-
             graphics.noStroke();
-
-            graphics.push();
-            graphics.scale(scale);
-            graphics.rotate(-flutter);
-            if (type === 'golden' && !gameCore.gameState.encounteredButterflies.has('golden')) {
-                graphics.fill(100, 100, 100, alpha);
-            } else {
-                graphics.fill(wingColor[0], wingColor[1], wingColor[2], alpha);
-            }
-            graphics.beginShape();
-            graphics.vertex(-15, -5);
-            graphics.bezierVertex(-20, -15, -25, -10, -20, 0);
-            graphics.bezierVertex(-25, 10, -20, 15, -15, 5);
-            graphics.vertex(-5, 0);
-            graphics.endShape(CLOSE);
-            graphics.pop();
-
-            graphics.push();
-            graphics.scale(scale);
-            graphics.rotate(flutter);
-            graphics.fill(wingColor[0], wingColor[1], wingColor[2], alpha);
-            graphics.beginShape();
-            graphics.vertex(15, -5);
-            graphics.bezierVertex(20, -15, 25, -10, 20, 0);
-            graphics.bezierVertex(25, 10, 20, 15, 15, 5);
-            graphics.vertex(5, 0);
-            graphics.endShape(CLOSE);
-            graphics.pop();
-
-            graphics.fill(40, 30, 20, alpha);
-            graphics.rect(-3 * scale, -8 * scale, 6 * scale, 16 * scale);
+            graphics.fill(255, 255, 255, alpha);
+            graphics.ellipse(0, 0, 24 * this.scale, 14 * this.scale);
         }
 
         graphics.pop();
     }
-    
+
     drawNavigationArrows(graphics) {
-        // Left arrow - improved visibility
         if (this.canNavigateLeft()) {
-            const hover = this.isMouseOverLeftArrow();
-            const arrowAlpha = hover ? Math.min(255, this.fadeAlpha * 1.2) : Math.min(255, this.fadeAlpha * 0.7);
-            
-            graphics.fill(255, 255, 255, arrowAlpha);
+            graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha * 0.85));
             graphics.noStroke();
             graphics.textAlign(CENTER, CENTER);
             graphics.textSize(24 * this.scale);
-            graphics.text('<', this.leftArrow.x + this.leftArrow.width/2, this.leftArrow.y);
+            graphics.text('<', this.leftArrow.x + this.leftArrow.width / 2, this.leftArrow.y);
         }
-        
-        // Right arrow - improved visibility
+
         if (this.canNavigateRight()) {
-            const hover = this.isMouseOverRightArrow();
-            const arrowAlpha = hover ? Math.min(255, this.fadeAlpha * 1.2) : Math.min(255, this.fadeAlpha * 0.7);
-            
-            graphics.fill(255, 255, 255, arrowAlpha);
+            graphics.fill(255, 255, 255, Math.min(255, this.fadeAlpha * 0.85));
             graphics.noStroke();
             graphics.textAlign(CENTER, CENTER);
             graphics.textSize(24 * this.scale);
-            graphics.text('>', this.rightArrow.x + this.rightArrow.width/2, this.rightArrow.y);
+            graphics.text('>', this.rightArrow.x + this.rightArrow.width / 2, this.rightArrow.y);
         }
     }
-    
-    isMouseOverLeftArrow() {
-        const adjustedX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
-        const adjustedY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
-        
-        return adjustedX >= this.leftArrow.x && 
-               adjustedX <= this.leftArrow.x + this.leftArrow.width &&
-               adjustedY >= this.leftArrow.y - this.leftArrow.height/2 && 
-               adjustedY <= this.leftArrow.y + this.leftArrow.height/2;
+
+    isInsideRect(x, y, rect) {
+        return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
     }
-    
-    isMouseOverRightArrow() {
-        const adjustedX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
-        const adjustedY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
-        
-        return adjustedX >= this.rightArrow.x && 
-               adjustedX <= this.rightArrow.x + this.rightArrow.width &&
-               adjustedY >= this.rightArrow.y - this.rightArrow.height/2 && 
-               adjustedY <= this.rightArrow.y + this.rightArrow.height/2;
-    }
-    
+
     isClickInside(mouseX, mouseY) {
         if (!this.visible || this.fadeAlpha < 200) return false;
-        
-        // Adjust for canvas scaling
+
         const adjustedX = mouseX * (gameConfig.canvas.baseWidth / gameConfig.canvas.targetWidth);
         const adjustedY = mouseY * (gameConfig.canvas.baseHeight / gameConfig.canvas.targetHeight);
-        
-        // Check if click is within the collection panel bounds
-        return adjustedX >= this.x && 
+
+        return adjustedX >= this.x &&
                adjustedX <= this.x + this.width &&
-               adjustedY >= this.y && 
+               adjustedY >= this.y &&
                adjustedY <= this.y + this.height;
     }
 }

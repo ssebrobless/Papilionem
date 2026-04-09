@@ -8,12 +8,19 @@ class DebugUI {
         this.tools = ['butterfly', 'flower', 'walkable', 'blocked'];
         this.walkableTiles = new Set(); // Set of "x,y" strings for walkable tiles
         this.blockedTiles = new Set();  // Set of "x,y" strings for blocked tiles
+        this.showSexLabels = false;
         
         // God mode testing buttons
         this.godModeButtons = [
             { id: 'spawnButterfly', text: 'Spawn Butterfly', x: 10, y: 0, width: 120, height: 25 },
             { id: 'spawnFlower', text: 'Spawn Flower', x: 140, y: 0, width: 100, height: 25 },
-            { id: 'spawnPixels', text: 'Spawn Pixels', x: 250, y: 0, width: 100, height: 25 }
+            { id: 'spawnPixels', text: 'Spawn Pixels', x: 250, y: 0, width: 100, height: 25 },
+            { id: 'refreshPheromones', text: 'Refresh M Pheromone', x: 10, y: 32, width: 160, height: 25 },
+            { id: 'hatchEggs', text: 'Hatch Eggs', x: 180, y: 32, width: 90, height: 25 },
+            { id: 'hatchCocoons', text: 'Hatch Cocoons', x: 280, y: 32, width: 110, height: 25 },
+            { id: 'flowersForCaterpillars', text: 'Flower Caterpillars', x: 10, y: 64, width: 160, height: 25 },
+            { id: 'toggleSexLabels', text: 'Sex Labels: Off', x: 180, y: 64, width: 120, height: 25 },
+            { id: 'resetProgression', text: 'Reset Progression', x: 310, y: 64, width: 130, height: 25 }
         ];
     }
     
@@ -25,6 +32,10 @@ class DebugUI {
             const bounds = gridManager.bounds;
             this.cursorX = Math.floor(bounds.maxX / 2);
             this.cursorY = Math.floor(bounds.maxY / 2);
+        } else {
+            this.showSexLabels = false;
+            const sexButton = this.godModeButtons.find(button => button.id === 'toggleSexLabels');
+            if (sexButton) sexButton.text = 'Sex Labels: Off';
         }
     }
     
@@ -149,11 +160,11 @@ class DebugUI {
         
         // Check god mode buttons (positioned at bottom of screen)
         const canvasHeight = gameConfig.canvas.targetHeight;
-        const buttonY = canvasHeight - 35;
+        const buttonY = canvasHeight - 105;
         
         for (let button of this.godModeButtons) {
             if (mouseX >= button.x && mouseX <= button.x + button.width &&
-                mouseY >= buttonY && mouseY <= buttonY + button.height) {
+                mouseY >= buttonY + button.y && mouseY <= buttonY + button.y + button.height) {
                 
                 this.handleGodModeAction(button.id);
                 return true; // Consumed the click
@@ -176,6 +187,30 @@ class DebugUI {
                 break;
             case 'spawnPixels':
                 this.godSpawnPixels(bounds);
+                break;
+            case 'refreshPheromones':
+                eventBus.emit('debug:refreshPheromones');
+                break;
+            case 'hatchEggs':
+                eventBus.emit('debug:hatchEggs');
+                break;
+            case 'hatchCocoons':
+                eventBus.emit('debug:hatchCocoons');
+                break;
+            case 'flowersForCaterpillars':
+                eventBus.emit('debug:flowersForCaterpillars');
+                break;
+            case 'toggleSexLabels':
+                this.showSexLabels = !this.showSexLabels;
+                {
+                    const sexButton = this.godModeButtons.find(button => button.id === 'toggleSexLabels');
+                    if (sexButton) {
+                        sexButton.text = `Sex Labels: ${this.showSexLabels ? 'On' : 'Off'}`;
+                    }
+                }
+                break;
+            case 'resetProgression':
+                eventBus.emit('debug:resetProgression');
                 break;
         }
     }
@@ -286,6 +321,7 @@ class DebugUI {
         this.drawTileStates(graphics);
         this.drawDebugCursor(graphics);
         this.drawButterflyPaths(graphics);
+        this.drawSexLabels(graphics);
         this.drawDebugUI(graphics);
         this.drawGodModeButtons(graphics);
     }
@@ -337,7 +373,7 @@ class DebugUI {
     drawDebugUI(graphics) {
         graphics.fill(0, 0, 0, 150);
         graphics.noStroke();
-        graphics.rect(10, 10, 250, 195);
+        graphics.rect(10, 10, 370, 255);
         
         graphics.fill(255);
         graphics.textAlign(LEFT);
@@ -354,12 +390,19 @@ class DebugUI {
         }
         
         graphics.text('X: Export data', 15, 145);
+        graphics.text('C: Collection   R: Rename hybrid', 15, 165);
+        graphics.text('Buttons: pheromone, eggs, cocoons, caterpillars, sex, reset', 15, 185);
         
         // Show bounds configuration info
         graphics.textSize(10);
         graphics.fill(200);
-        graphics.text(`Bounds: (0,0) to (${gridManager.bounds.maxX},${gridManager.bounds.maxY})`, 15, 165);
-        graphics.text(`Grid: ${gridManager.cellSize}px tiles`, 15, 180);
+        graphics.text(`Bounds: (0,0) to (${gridManager.bounds.maxX},${gridManager.bounds.maxY})`, 15, 210);
+        graphics.text(`Grid: ${gridManager.cellSize}px tiles`, 15, 225);
+        if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
+            const state = gameCore.getGameState();
+            graphics.text(`Adults: ${state.butterflies.length}  Caterpillars: ${(state.caterpillars || []).length}`, 15, 240);
+            graphics.text(`Hybrids saved: ${(state.hybridJournal || []).length}  Pending births: ${state.pendingOffspringReservations || 0}`, 15, 252);
+        }
         graphics.textSize(12);
     }
     
@@ -450,11 +493,13 @@ class DebugUI {
                 'feeding': [100, 255, 100],
                 'scared': [255, 100, 100],
                 'display': [255, 255, 100],
-                'following': [100, 200, 255]
+                'following': [100, 200, 255],
+                'mating': [255, 180, 255],
+                'pregnant-travel': [255, 210, 120]
             };
             const stateColor = stateColors[butterfly.state] || [255, 255, 255];
             graphics.fill(stateColor[0], stateColor[1], stateColor[2], 150);
-            graphics.text(butterfly.state, butterfly.x, butterfly.y - 25);
+            graphics.text(`${butterfly.state} ${butterfly.sex || '?'}`, butterfly.x, butterfly.y - 25);
             
             // Show goal info for debugging
             graphics.textSize(6);
@@ -462,7 +507,28 @@ class DebugUI {
             const hasGoal = butterfly.goalGridPos ? 'GOAL' : 'NO GOAL';
             const seekingFlowers = butterfly.seekingFlower ? 'SEEKING FLOWER' : 'NOT SEEKING';
             const happinessStatus = `H:${Math.round(butterfly.happiness)}%`;
-            graphics.text(`${hasGoal} | ${seekingFlowers} | ${happinessStatus}`, butterfly.x, butterfly.y - 35);
+            const pheromoneStatus = butterfly.sex === 'M'
+                ? `CD:${Math.max(0, Math.ceil(((butterfly.pheromoneCooldownUntil || 0) - frameCount) / 60))}s`
+                : (butterfly.pregnancy?.active ? 'PREG' : 'OPEN');
+            graphics.text(`${hasGoal} | ${seekingFlowers} | ${happinessStatus} | ${pheromoneStatus}`, butterfly.x, butterfly.y - 35);
+        }
+
+        graphics.textSize(8);
+        for (let flower of flowers) {
+            if (flower.occupancyState && flower.occupancyState !== 'normal') {
+                graphics.fill(255, 230, 180, 180);
+                graphics.noStroke();
+                graphics.text(flower.occupancyState.toUpperCase(), flower.x, flower.y - flower.stemHeight - 18);
+            }
+        }
+
+        const caterpillars = (typeof gameCore !== 'undefined' && gameCore.isInitialized())
+            ? (gameCore.getGameState().caterpillars || [])
+            : [];
+        for (const caterpillar of caterpillars) {
+            graphics.fill(210, 255, 180, 180);
+            graphics.noStroke();
+            graphics.text(caterpillar.phase || 'caterpillar', caterpillar.x, caterpillar.y - 14);
         }
         
         graphics.pop();
@@ -501,14 +567,14 @@ class DebugUI {
     // Draw god mode testing buttons
     drawGodModeButtons(graphics) {
         const canvasHeight = gameConfig.canvas.targetHeight;
-        const buttonY = canvasHeight - 35;
+        const buttonY = canvasHeight - 105;
         
         graphics.push();
         
         // Draw button panel background
         graphics.fill(0, 0, 0, 150);
         graphics.noStroke();
-        graphics.rect(5, buttonY - 5, 360, 35);
+        graphics.rect(5, buttonY - 18, 445, 100);
         
         // Draw title
         graphics.fill(255);
@@ -522,16 +588,38 @@ class DebugUI {
             graphics.fill(60, 60, 60);
             graphics.stroke(120);
             graphics.strokeWeight(1);
-            graphics.rect(button.x, buttonY, button.width, button.height);
+            graphics.rect(button.x, buttonY + button.y, button.width, button.height);
             
             // Button text
             graphics.fill(255);
             graphics.noStroke();
             graphics.textAlign(CENTER);
             graphics.textSize(11);
-            graphics.text(button.text, button.x + button.width/2, buttonY + 16);
+            graphics.text(button.text, button.x + button.width/2, buttonY + button.y + 16);
         }
         
+        graphics.pop();
+    }
+
+    drawSexLabels(graphics) {
+        if (!this.enabled || !this.showSexLabels) return;
+        if (typeof gameCore === 'undefined' || !gameCore.isInitialized()) return;
+
+        const butterflies = gameCore.getGameState().butterflies || [];
+        graphics.push();
+        graphics.textAlign(CENTER, CENTER);
+        graphics.textSize(12);
+        graphics.textStyle(BOLD);
+        graphics.noStroke();
+
+        for (const butterfly of butterflies) {
+            graphics.fill(0, 0, 0, 160);
+            graphics.rect(butterfly.x - 8, butterfly.y - 28, 16, 14, 4);
+            graphics.fill(butterfly.sex === 'M' ? 120 : 255, butterfly.sex === 'M' ? 200 : 130, 255, 255);
+            graphics.text(butterfly.sex || '?', butterfly.x, butterfly.y - 21);
+        }
+
+        graphics.textStyle(NORMAL);
         graphics.pop();
     }
 }
