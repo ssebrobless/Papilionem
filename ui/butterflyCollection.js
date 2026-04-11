@@ -196,7 +196,6 @@ class ButterflyCollectionUI {
         if (pages.length === 0) return;
 
         graphics.push();
-        graphics.smooth();
         graphics.fill(20, 20, 30, this.fadeAlpha * 0.94);
         graphics.stroke(255, 255, 255, this.fadeAlpha * 0.3);
         graphics.strokeWeight(2);
@@ -412,7 +411,6 @@ class ButterflyCollectionUI {
             const wingScale = spec.sex === 'F' ? 1.2 : 1.0;
             const bodyCenter = spriteManager.anchors.body;
 
-            graphics.smooth();
             graphics.tint(255, alpha);
 
             if (spriteManager.body) {

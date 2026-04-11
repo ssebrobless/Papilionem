@@ -23,6 +23,34 @@ class GameUI {
             lineHeight: 15,
             textColor: 150
         };
+
+        this.inspectPanel = {
+            visible: false,
+            x: 560,
+            y: 14,
+            width: 228,
+            lineHeight: 14
+        };
+
+        this.accessibilityPanel = {
+            visible: false,
+            x: 532,
+            y: 188,
+            width: 256,
+            lineHeight: 14
+        };
+
+        this.accessibilitySettings = {
+            reducedMotion: false,
+            battleMotionSimplify: true,
+            highContrastUI: false,
+            colorblindSafeIndicators: true,
+            strongSelectionOutlines: true,
+            trailVisibility: 'full',
+            backgroundAtmosphere: 'full',
+            statusIndicatorDensity: 'simplified',
+            uiScale: 1
+        };
         
         this.boundaryZones = [
             { dist: 0, color: [100, 255, 100, 50], label: "Safe" },
@@ -39,6 +67,10 @@ class GameUI {
     initialize(flowerManager, config) {
         this.flowerManager = flowerManager;
         this.stillFramesRequired = config?.stillFramesRequired || 60;
+        this.accessibilitySettings = {
+            ...this.accessibilitySettings,
+            ...(gameConfig?.accessibility || {})
+        };
         
         // Initialize butterfly collection UI
         this.butterflyCollection = new ButterflyCollectionUI();
@@ -64,6 +96,18 @@ class GameUI {
         if (this.butterflyCollection) {
             this.butterflyCollection.update();
             this.butterflyCollection.draw(graphics);
+        }
+
+        if (this.inspectPanel.visible) {
+            this.drawInspectPanel(graphics, gameState);
+        }
+
+        if (this.accessibilityPanel.visible) {
+            this.drawAccessibilityPanel(graphics, gameState);
+        }
+
+        if (gameState.viewMode === 'battle') {
+            this.drawBattleHud(graphics, gameState);
         }
         
         graphics.pop();
@@ -145,8 +189,232 @@ class GameUI {
             this.toggleButterflyCollection();
             return true;
         }
+
+        if (key === 'I' || key === 'i') {
+            this.inspectPanel.visible = !this.inspectPanel.visible;
+            return true;
+        }
+
+        if (key === 'A' || key === 'a') {
+            this.accessibilityPanel.visible = !this.accessibilityPanel.visible;
+            return true;
+        }
+
+        if (key === 'M' || key === 'm') {
+            this.toggleAccessibilitySetting('reducedMotion');
+            return true;
+        }
+
+        if (key === 'T' || key === 't') {
+            this.cycleAccessibilitySetting('trailVisibility', ['full', 'reduced', 'off']);
+            return true;
+        }
+
+        if (key === 'G' || key === 'g') {
+            this.cycleAccessibilitySetting('backgroundAtmosphere', ['full', 'reduced', 'minimal']);
+            return true;
+        }
+
+        if (key === 'H' || key === 'h') {
+            this.toggleAccessibilitySetting('highContrastUI');
+            return true;
+        }
+
+        if (key === 'S' || key === 's') {
+            this.toggleAccessibilitySetting('battleMotionSimplify');
+            return true;
+        }
         
         return false; // No key consumed
+    }
+
+    resolveInspectTarget(gameState) {
+        const hovered = gameCore?.interactionSystem?.hoveredButterfly || null;
+        if (hovered?.id) return hovered;
+
+        const cursorX = gameState.adjustedMouseX ?? 0;
+        const cursorY = gameState.adjustedMouseY ?? 0;
+        const butterflies = gameState.butterflies || [];
+        let closest = null;
+        let closestDistance = 28;
+
+        for (const butterfly of butterflies) {
+            const distance = butterfly.distanceTo(cursorX, cursorY);
+            if (distance < closestDistance) {
+                closest = butterfly;
+                closestDistance = distance;
+            }
+        }
+
+        return closest;
+    }
+
+    drawInspectPanel(graphics, gameState) {
+        const target = this.resolveInspectTarget(gameState);
+        const panel = this.inspectPanel;
+
+        graphics.push();
+        graphics.fill(14, 18, 22, 190);
+        if (this.accessibilitySettings.highContrastUI) {
+            graphics.fill(0, 0, 0, 220);
+            graphics.stroke(255);
+            graphics.strokeWeight(1.5);
+        } else {
+            graphics.noStroke();
+        }
+        graphics.rect(panel.x, panel.y, panel.width, 166, 8);
+
+        graphics.fill(240, 240, 240);
+        graphics.textAlign(LEFT);
+        graphics.textSize(12);
+        graphics.text('Inspect (I)', panel.x + 10, panel.y + 18);
+
+        if (!target) {
+            graphics.fill(180);
+            graphics.text('Hover near a butterfly to inspect.', panel.x + 10, panel.y + 40);
+            graphics.text('The panel uses live owner-system state.', panel.x + 10, panel.y + 56);
+            graphics.pop();
+            return;
+        }
+
+        const sleepState = typeof sleepSystem !== 'undefined'
+            ? sleepSystem.getSleepState?.(target.id)
+            : null;
+        const statusBundle = typeof statusSystem !== 'undefined'
+            ? statusSystem.getAggregatedModifiers?.(target.id)
+            : { numeric: {}, cooldowns: {} };
+        const zoneId = typeof zoneSystem !== 'undefined'
+            ? zoneSystem.getZoneAtGrid?.(target.gridPos?.x ?? 0, target.gridPos?.y ?? 0)?.id || null
+            : null;
+        const lines = [
+            `${target.displayName || target.personalityType || 'butterfly'} (${target.sex || '?'})`,
+            `State: ${target.state || 'normal'}   Special: ${target.getSpecialAbility?.() || 'none'}`,
+            `Zone: ${zoneId || 'unknown'}   Happiness: ${Math.round(target.happiness || 0)}`,
+            `Exhaustion: ${Math.round((sleepState?.exhaustion || 0) * 100)}   Sleep: ${sleepState?.subtype || 'awake'}`,
+            `Trust: ${Math.round((target.cursor?.trustLevel || 0))}   Age ticks: ${target.lifeSim?.lifecycle?.ageTicks || 0}`,
+            `Move bonus: ${((statusBundle.numeric?.movement_speed_bonus || 0) * 100).toFixed(0)}%`,
+            `Heal bonus: ${((statusBundle.numeric?.healing_received_bonus || 0) * 100).toFixed(0)}%`,
+            `Wake resist: ${((statusBundle.numeric?.wake_resistance || 0) * 100).toFixed(0)}%`
+        ];
+
+        graphics.fill(255);
+        graphics.textSize(11);
+        let y = panel.y + 40;
+        for (const line of lines) {
+            graphics.text(line, panel.x + 10, y);
+            y += panel.lineHeight;
+        }
+
+        graphics.fill(170);
+        graphics.text(`Cooldowns: ${Object.keys(statusBundle.cooldowns || {}).join(', ') || 'none'}`, panel.x + 10, y + 8);
+
+        if (this.accessibilitySettings.strongSelectionOutlines) {
+            graphics.noFill();
+            if (this.accessibilitySettings.highContrastUI) {
+                graphics.stroke(255);
+            } else {
+                graphics.stroke(255, 228, 140, 220);
+            }
+            graphics.strokeWeight(2);
+            graphics.ellipse(target.x, target.y - 2, 30, 20);
+        }
+        graphics.pop();
+    }
+
+    getAccessibilitySettings() {
+        return { ...this.accessibilitySettings };
+    }
+
+    toggleAccessibilitySetting(key) {
+        this.accessibilitySettings[key] = !this.accessibilitySettings[key];
+        return this.accessibilitySettings[key];
+    }
+
+    cycleAccessibilitySetting(key, values) {
+        const currentIndex = values.indexOf(this.accessibilitySettings[key]);
+        const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % values.length : 0;
+        this.accessibilitySettings[key] = values[nextIndex];
+        return this.accessibilitySettings[key];
+    }
+
+    drawAccessibilityPanel(graphics, gameState) {
+        const panel = this.accessibilityPanel;
+        const uiScaleLabel = `${Math.round((this.accessibilitySettings.uiScale || 1) * 100)}%`;
+        const panelFill = this.accessibilitySettings.highContrastUI ? [0, 0, 0, 225] : [20, 24, 30, 196];
+        const accent = this.accessibilitySettings.highContrastUI ? [255, 255, 255] : [210, 228, 255];
+
+        graphics.push();
+        graphics.fill(...panelFill);
+        graphics.stroke(...accent, 220);
+        graphics.strokeWeight(1);
+        graphics.rect(panel.x, panel.y, panel.width, 162, 8);
+
+        graphics.noStroke();
+        graphics.fill(255);
+        graphics.textAlign(LEFT);
+        graphics.textSize(12);
+        graphics.text('Accessibility / Readability (A)', panel.x + 10, panel.y + 18);
+        graphics.textSize(11);
+
+        const lines = [
+            `M Reduced motion: ${this.accessibilitySettings.reducedMotion ? 'On' : 'Off'}`,
+            `T Trails: ${this.accessibilitySettings.trailVisibility}`,
+            `G Background: ${this.accessibilitySettings.backgroundAtmosphere}`,
+            `H High contrast UI: ${this.accessibilitySettings.highContrastUI ? 'On' : 'Off'}`,
+            `S Battle motion simplify: ${this.accessibilitySettings.battleMotionSimplify ? 'On' : 'Off'}`,
+            `Status density: ${this.accessibilitySettings.statusIndicatorDensity}`,
+            `Color-safe: ${this.accessibilitySettings.colorblindSafeIndicators ? 'On' : 'Off'}  Outlines: ${this.accessibilitySettings.strongSelectionOutlines ? 'Strong' : 'Normal'}`,
+            `UI scale: ${uiScaleLabel}  View: ${gameState.viewMode || 'focused-garden'}`
+        ];
+
+        let y = panel.y + 40;
+        for (const line of lines) {
+            graphics.fill(...accent);
+            graphics.text(line, panel.x + 10, y);
+            y += panel.lineHeight;
+        }
+
+        graphics.fill(185, 190, 198);
+        graphics.text('Normal play uses these render/readability settings.', panel.x + 10, panel.y + 150);
+        graphics.pop();
+    }
+
+    drawBattleHud(graphics, gameState) {
+        const snapshot = typeof battleSystem !== 'undefined'
+            ? battleSystem.getSnapshot?.(gameState.activeBattleId)
+            : null;
+        const participants = Object.values(snapshot?.participantsById || {});
+        const teams = Object.values(snapshot?.teams || {});
+        const debugOverlayActive = (typeof gameCore !== 'undefined' && gameCore.getDebugMode?.().enabled) || false;
+        const teamSummaries = teams.map(team => {
+            const activeCount = (team.participantIds || []).filter(id => {
+                const participant = snapshot.participantsById?.[id];
+                return participant && !participant.defeated && !participant.retreated;
+            }).length;
+            return `${team.teamId}:${activeCount}`;
+        });
+        const hudWidth = 250;
+        const hudHeight = 82;
+        const hudX = debugOverlayActive ? (gameConfig.canvas.baseWidth - hudWidth - 14) : 14;
+        const hudY = 14;
+
+        graphics.push();
+        graphics.fill(this.accessibilitySettings.highContrastUI ? 0 : 12, this.accessibilitySettings.highContrastUI ? 0 : 18, this.accessibilitySettings.highContrastUI ? 0 : 28, 198);
+        graphics.stroke(this.accessibilitySettings.highContrastUI ? 255 : 180, this.accessibilitySettings.highContrastUI ? 255 : 220, this.accessibilitySettings.highContrastUI ? 255 : 255, 180);
+        graphics.strokeWeight(1);
+        graphics.rect(hudX, hudY, hudWidth, hudHeight, 8);
+
+        graphics.noStroke();
+        graphics.fill(255);
+        graphics.textAlign(LEFT);
+        graphics.textSize(12);
+        graphics.text('Battle View', hudX + 10, hudY + 18);
+        graphics.textSize(11);
+        graphics.text(`Battle: ${gameState.activeBattleId || 'none'}`, hudX + 10, hudY + 34);
+        graphics.text(`Teams: ${teamSummaries.join('  ') || 'none'}`, hudX + 10, hudY + 48);
+        graphics.text(`Units: ${participants.length}   Time: x${gameState.timeScale || 1}`, hudX + 10, hudY + 62);
+        graphics.text(`Motion simplify: ${this.accessibilitySettings.battleMotionSimplify ? 'On' : 'Off'}`, hudX + 10, hudY + 76);
+        graphics.pop();
     }
     
     // Update boundary zones visibility

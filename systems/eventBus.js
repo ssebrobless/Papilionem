@@ -155,7 +155,30 @@ const GameEvents = {
     // System events
     ENTITY_LIMIT_REACHED: 'system:entityLimitReached',
     ECOSYSTEM_BALANCED: 'system:ecosystemBalanced',
-    RARE_COLOR_DISCOVERED: 'system:rareColorDiscovered'
+    RARE_COLOR_DISCOVERED: 'system:rareColorDiscovered',
+
+    // Foundation system events
+    STATUS_APPLIED: 'status:applied',
+    STATUS_REMOVED: 'status:removed',
+    STATUS_TICKED: 'status:ticked',
+    SLEEP_STATE_CHANGED: 'sleep:stateChanged',
+    SLEEP_ASSIST_REQUESTED: 'sleep:assistRequested',
+    TEACHING_STARTED: 'teaching:started',
+    TEACHING_COMPLETED: 'teaching:completed',
+    OBJECT_PICKED_UP: 'object:pickedUp',
+    OBJECT_DROPPED: 'object:dropped',
+    OBJECT_DELIVERED: 'object:delivered',
+    OBJECT_CONSUMED: 'object:consumed',
+    BATTLE_SNAPSHOT_CREATED: 'battle:snapshotCreated',
+    BATTLE_COMMITTED: 'battle:committed',
+    REPLAY_SESSION_STARTED: 'replay:sessionStarted',
+    REPLAY_SEED_CHANGED: 'replay:seedChanged',
+    REPLAY_MARKER_RECORDED: 'replay:markerRecorded',
+    SAVE_SERIALIZED: 'save:serialized',
+    SAVE_DESERIALIZED: 'save:deserialized',
+    SAVE_REBUILT: 'save:rebuilt',
+    ZONE_FOCUS_CHANGED: 'zone:focusChanged',
+    DEBUG_AUDIT_SCENARIO_LOADED: 'debug:auditScenarioLoaded'
 };
 
 // Create global event bus

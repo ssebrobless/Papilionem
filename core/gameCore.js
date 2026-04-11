@@ -11,6 +11,17 @@ class GameCore {
         this.flowerManager = null;
         this.entityManager = null;
         this.mainColorPool = null;
+        this.zoneSystem = null;
+        this.statusSystem = null;
+        this.behaviorSystem = null;
+        this.objectSystem = null;
+        this.sleepSystem = null;
+        this.teachingSystem = null;
+        this.battleSystem = null;
+        this.saveSystem = null;
+        this.telemetrySystem = null;
+        this.systems = {};
+        this.replaySessionCounter = 0;
         
         // Game state
         this.gameState = {
@@ -30,7 +41,12 @@ class GameCore {
             showButterflyCollection: false, // Toggle for collection UI
             hybridJournal: [],
             nextHybridId: 1,
-            pendingOffspringReservations: 0
+            pendingOffspringReservations: 0,
+            timeScale: gameConfig?.simulation?.defaultTimeScale || 1,
+            focusedZoneId: null,
+            viewMode: 'focused-garden',
+            activeBattleId: null,
+            replay: null
         };
         
         // Debug mode state
@@ -50,6 +66,16 @@ class GameCore {
             'trigCache',
             'eventBus', 
             'gridManager',
+            'zoneSystem',
+            'statusSystem',
+            'behaviorSystem',
+            'objectSystem',
+            'sleepSystem',
+            'teachingSystem',
+            'battleSystem',
+            'saveSystem',
+            'telemetrySystem',
+            'replayMetadata',
             'renderManager',
             'entityManager',
             'particleSystem',
@@ -87,31 +113,45 @@ class GameCore {
             // Step 4: Initialize grid manager
             await this.initializeGridManager();
             
-            // Step 5: Initialize render manager
+            // Step 5: Initialize foundation systems
+            await this.initializeZoneSystem();
+            await this.initializeStatusSystem();
+            await this.initializeBehaviorSystem();
+            await this.initializeObjectSystem();
+            await this.initializeSleepSystem();
+            await this.initializeTeachingSystem();
+            await this.initializeBattleSystem();
+            await this.initializeSaveSystem();
+            await this.initializeTelemetrySystem();
+            
+            // Step 6: Initialize render manager
             await this.initializeRenderManager(backgroundImage);
             
-            // Step 6: Initialize entity manager (population manager)
+            // Step 7: Initialize entity manager (population manager)
             await this.initializeEntityManager();
             
-            // Step 7: Initialize particle system
+            // Step 8: Initialize particle system
             await this.initializeParticleSystem();
             
-            // Step 8: Initialize pool manager
+            // Step 9: Initialize pool manager
             await this.initializePoolManager();
             
-            // Step 9: Initialize main color pool
+            // Step 10: Initialize main color pool
             await this.initializeMainColorPool();
             
-            // Step 10: Initialize flower manager
+            // Step 11: Initialize flower manager
             await this.initializeFlowerManager();
             
-            // Step 11: Initialize interaction system
+            // Step 12: Initialize interaction system
             await this.initializeInteractionSystem();
             
-            // Step 12: Set up ecosystem event chains
+            // Step 13: Set up ecosystem event chains
             await this.setupEcosystemEvents();
+
+            // Step 13.5: Initialize replay metadata before random-heavy entity creation
+            await this.initializeReplayMetadata();
             
-            // Step 13: Create initial entities
+            // Step 14: Create initial entities
             await this.initializeStartingEntities();
             
             this.gameState.initialized = true;
@@ -161,6 +201,113 @@ class GameCore {
         console.log('✓ Grid manager initialized');
     }
     
+    async initializeZoneSystem() {
+        if (typeof ZoneSystem === 'undefined' || typeof zoneSystem === 'undefined') {
+            throw new Error('ZoneSystem not found - ensure systems/zoneSystem.js is loaded');
+        }
+        this.zoneSystem = zoneSystem;
+        this.zoneSystem.initialize(this.gridManager);
+        this.gameState.focusedZoneId = this.zoneSystem.focusedZoneId;
+        this.gameState.viewMode = this.zoneSystem.viewMode;
+        this.systems.zoneSystem = this.zoneSystem;
+        this.completedSteps.add('zoneSystem');
+        console.log('✓ Zone system initialized');
+    }
+    
+    async initializeStatusSystem() {
+        if (typeof StatusSystem === 'undefined' || typeof statusSystem === 'undefined') {
+            throw new Error('StatusSystem not found - ensure systems/statusSystem.js is loaded');
+        }
+        this.statusSystem = statusSystem;
+        this.statusSystem.initialize();
+        this.systems.statusSystem = this.statusSystem;
+        this.completedSteps.add('statusSystem');
+        console.log('✓ Status system initialized');
+    }
+    
+    async initializeBehaviorSystem() {
+        if (typeof BehaviorSystem === 'undefined' || typeof behaviorSystem === 'undefined') {
+            throw new Error('BehaviorSystem not found - ensure systems/behaviorSystem.js is loaded');
+        }
+        this.behaviorSystem = behaviorSystem;
+        this.behaviorSystem.initialize();
+        this.systems.behaviorSystem = this.behaviorSystem;
+        this.completedSteps.add('behaviorSystem');
+        console.log('✓ Behavior system initialized');
+    }
+    
+    async initializeObjectSystem() {
+        if (typeof ObjectSystem === 'undefined' || typeof objectSystem === 'undefined') {
+            throw new Error('ObjectSystem not found - ensure systems/objectSystem.js is loaded');
+        }
+        this.objectSystem = objectSystem;
+        this.objectSystem.initialize();
+        this.systems.objectSystem = this.objectSystem;
+        this.completedSteps.add('objectSystem');
+        console.log('✓ Object system initialized');
+    }
+    
+    async initializeSleepSystem() {
+        if (typeof SleepSystem === 'undefined' || typeof sleepSystem === 'undefined') {
+            throw new Error('SleepSystem not found - ensure systems/sleepSystem.js is loaded');
+        }
+        this.sleepSystem = sleepSystem;
+        this.sleepSystem.initialize();
+        this.systems.sleepSystem = this.sleepSystem;
+        this.completedSteps.add('sleepSystem');
+        console.log('✓ Sleep system initialized');
+    }
+    
+    async initializeTeachingSystem() {
+        if (typeof TeachingSystem === 'undefined' || typeof teachingSystem === 'undefined') {
+            throw new Error('TeachingSystem not found - ensure systems/teachingSystem.js is loaded');
+        }
+        this.teachingSystem = teachingSystem;
+        this.teachingSystem.initialize();
+        this.systems.teachingSystem = this.teachingSystem;
+        this.completedSteps.add('teachingSystem');
+        console.log('✓ Teaching system initialized');
+    }
+    
+    async initializeBattleSystem() {
+        if (typeof BattleSystem === 'undefined' || typeof battleSystem === 'undefined') {
+            throw new Error('BattleSystem not found - ensure systems/battleSystem.js is loaded');
+        }
+        this.battleSystem = battleSystem;
+        this.battleSystem.initialize();
+        this.systems.battleSystem = this.battleSystem;
+        this.completedSteps.add('battleSystem');
+        console.log('✓ Battle system initialized');
+    }
+    
+    async initializeSaveSystem() {
+        if (typeof SaveSystem === 'undefined' || typeof saveSystem === 'undefined') {
+            throw new Error('SaveSystem not found - ensure systems/saveSystem.js is loaded');
+        }
+        this.saveSystem = saveSystem;
+        this.saveSystem.initialize();
+        this.systems.saveSystem = this.saveSystem;
+        this.completedSteps.add('saveSystem');
+        console.log('✓ Save system initialized');
+    }
+
+    async initializeTelemetrySystem() {
+        if (typeof TelemetrySystem === 'undefined' || typeof telemetrySystem === 'undefined') {
+            throw new Error('TelemetrySystem not found - ensure systems/telemetrySystem.js is loaded');
+        }
+        this.telemetrySystem = telemetrySystem;
+        this.telemetrySystem.initialize();
+        this.systems.telemetrySystem = this.telemetrySystem;
+        this.completedSteps.add('telemetrySystem');
+        console.log('✓ Telemetry system initialized');
+    }
+
+    async initializeReplayMetadata() {
+        this.resetReplayMetadata({ forceNewSession: true, preserveMarkers: false });
+        this.completedSteps.add('replayMetadata');
+        console.log('✓ Replay metadata initialized');
+    }
+    
     async initializeRenderManager(backgroundImage) {
         if (typeof RenderManager === 'undefined' || typeof renderManager === 'undefined') {
             throw new Error('RenderManager not found - ensure core/renderManager.js is loaded');
@@ -172,6 +319,10 @@ class GameCore {
         if (backgroundImage) {
             this.renderManager.setBackgroundImage(backgroundImage);
         }
+        if (this.gameState.focusedZoneId) {
+            this.renderManager.setFocusedZone(this.gameState.focusedZoneId);
+        }
+        this.renderManager.setViewMode(this.gameState.viewMode || 'focused-garden');
         
         this.completedSteps.add('renderManager');
         console.log('✓ Render manager initialized');
@@ -186,7 +337,11 @@ class GameCore {
         
         // Set up event listeners for entity lifecycle
         this.entityManager.on('entityDied', (data) => {
-            eventBus.emit(GameEvents.BUTTERFLY_DIED, data);
+            if (data.type === 'butterflies') {
+                eventBus.emit(GameEvents.BUTTERFLY_DIED, data);
+            } else if (data.type === 'flowers') {
+                eventBus.emit(GameEvents.FLOWER_DIED, data);
+            }
         });
         
         this.completedSteps.add('entityManager');
@@ -331,6 +486,7 @@ class GameCore {
             
             this.gameState.butterflies.push(butterfly);
             this.entityManager.addEntity('butterflies', butterfly);
+            this.registerEntityWithFoundationSystems(butterfly, 'butterfly');
             
             // Mark as encountered
             this.gameState.encounteredButterflies.add(butterfly.personalityType);
@@ -370,6 +526,7 @@ class GameCore {
             
             this.gameState.flowers.push(flower);
             this.entityManager.addEntity('flowers', flower);
+            this.registerEntityWithFoundationSystems(flower, 'flower');
         }
         
         if (typeof progressionManager !== 'undefined') {
@@ -383,6 +540,8 @@ class GameCore {
     // Main game update loop
     update() {
         if (!this.gameState.initialized || this.gameState.paused) return;
+
+        const updateStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
         
         // Update interaction system first (cursor tracking)
         this.interactionSystem.update();
@@ -397,11 +556,21 @@ class GameCore {
         this.gameState.lastCursorY = this.interactionSystem.lastCursorY;
         
         // Update all game systems
+        const foundationStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        this.updateFoundationSystems();
+        const foundationMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - foundationStart;
+
+        const entityStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
         this.updateEntities();
         this.updateCaterpillars();
+        const entityMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - entityStart;
+
+        const particleStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
         this.particleSystem.update();
+        const particleUpdateMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - particleStart;
         
         // Update special effects
+        const worldStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
         if (typeof specialEffects !== 'undefined') {
             specialEffects.update();
         }
@@ -418,6 +587,64 @@ class GameCore {
         
         // Emit periodic events
         this.emitPeriodicEvents();
+
+        const totalUpdateMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - updateStart;
+        const worldMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - worldStart;
+        this.telemetrySystem?.recordUpdateSample?.(this.gameState, {
+            totalUpdateMs,
+            foundationMs,
+            entityMs,
+            particleUpdateMs,
+            worldMs
+        });
+    }
+    
+    updateFoundationSystems() {
+        const deltaSeconds = gameConfig.simulation.fixedDeltaSeconds * this.gameState.timeScale;
+
+        this.zoneSystem?.update(this.gameState, deltaSeconds);
+        this.statusSystem?.update(this.gameState, deltaSeconds);
+        this.objectSystem?.update(this.gameState, deltaSeconds);
+        this.sleepSystem?.update(this.gameState, deltaSeconds);
+        this.teachingSystem?.update(this.gameState, deltaSeconds);
+        this.behaviorSystem?.update(this.gameState, deltaSeconds);
+        this.battleSystem?.update(this.gameState, deltaSeconds);
+        this.saveSystem?.update(this.gameState, deltaSeconds);
+    }
+    
+    registerEntityWithFoundationSystems(entity, entityType) {
+        if (!entity?.id) return;
+
+        if (entityType === 'butterfly' || entityType === 'caterpillar') {
+            this.behaviorSystem?.registerEntity(entity);
+            this.sleepSystem?.registerEntity(entity);
+            this.statusSystem?.registerEntity(entity);
+            this.teachingSystem?.registerEntity(entity);
+        }
+
+        if (entityType === 'flower') {
+            this.objectSystem?.registerObject(entity, { type: 'flower', consumable: true });
+        }
+    }
+    
+    unregisterEntityFromFoundationSystems(entity) {
+        if (!entity?.id) return;
+
+        this.behaviorSystem?.unregisterEntity?.(entity.id);
+        this.sleepSystem?.unregisterEntity?.(entity.id);
+        this.statusSystem?.unregisterEntity?.(entity.id);
+        this.objectSystem?.unregisterObject?.(entity.id);
+        this.teachingSystem?.unregisterEntity?.(entity.id);
+    }
+    
+    resetFoundationSystems() {
+        this.behaviorSystem?.reset?.();
+        this.sleepSystem?.reset?.();
+        this.statusSystem?.reset?.();
+        this.objectSystem?.reset?.();
+        this.teachingSystem?.reset?.();
+        this.battleSystem?.reset?.();
+        this.telemetrySystem?.reset?.();
     }
     
     updateEntities() {
@@ -428,6 +655,8 @@ class GameCore {
             
             if (butterfly.isDead()) {
                 this.handleButterflyDeath(butterfly);
+                this.entityManager.removeEntity('butterflies', butterfly);
+                this.unregisterEntityFromFoundationSystems(butterfly);
                 this.gameState.butterflies.splice(i, 1);
             }
         }
@@ -441,6 +670,7 @@ class GameCore {
                 if (caterpillar.failReason === 'starved' && caterpillar.lifecycleData?.reservationActive) {
                     this.gameState.pendingOffspringReservations = Math.max(0, this.gameState.pendingOffspringReservations - 1);
                 }
+                this.unregisterEntityFromFoundationSystems(caterpillar);
                 this.gameState.caterpillars.splice(i, 1);
             }
         }
@@ -497,6 +727,7 @@ class GameCore {
             const newFlower = new Flower(validPosition.x, validPosition.y, false);
             this.gameState.flowers.push(newFlower);
             this.entityManager.addEntity('flowers', newFlower);
+            this.registerEntityWithFoundationSystems(newFlower, 'flower');
             
             // Magical appearance effect
             this.particleSystem.emitBurst(validPosition.x, validPosition.y, [255, 255, 200], 12);
@@ -571,9 +802,18 @@ class GameCore {
             this.drawLoadingScreen();
             return;
         }
-        
+
+        const renderStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
         // Use render manager for all drawing
         this.renderManager.render();
+        const totalRenderMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - renderStart;
+        const particleStats = this.particleSystem?.getRenderStats?.() || {};
+        this.telemetrySystem?.recordRenderSample?.({
+            totalRenderMs,
+            particleRenderMs: particleStats.renderTime || 0,
+            particleCount: particleStats.particleCount || 0,
+            batchCount: particleStats.lastBatchCount || 0
+        });
     }
     
     drawLoadingScreen() {
@@ -620,7 +860,12 @@ class GameCore {
             }
         }
 
-        if (this.debugMode.enabled) return false;
+        if (this.debugMode.enabled) {
+            if (typeof debugUI !== 'undefined' && debugUI.handleMouseClick?.(mouseX, mouseY)) {
+                return true;
+            }
+            return false;
+        }
 
         return false;
     }
@@ -700,6 +945,51 @@ class GameCore {
             this.exportZoneData();
             return true;
         }
+
+        if (key === 'K' || key === 'k') {
+            debugUI?.saveGameState?.();
+            return true;
+        }
+
+        if (key === 'L' || key === 'l') {
+            debugUI?.loadGameState?.();
+            return true;
+        }
+
+        if (key === 'V' || key === 'v') {
+            debugUI?.runRoundTripAudit?.();
+            return true;
+        }
+
+        if (key === 'N' || key === 'n') {
+            debugUI?.runSnapshotDiffAudit?.();
+            return true;
+        }
+
+        if (key === 'P' || key === 'p') {
+            debugUI?.loadNextAuditPreset?.();
+            return true;
+        }
+
+        if (key === 'O' || key === 'o') {
+            debugUI?.exportAuditSetup?.();
+            return true;
+        }
+
+        if (key === 'U' || key === 'u') {
+            debugUI?.importAuditSetup?.();
+            return true;
+        }
+
+        if (key === 'Y' || key === 'y') {
+            debugUI?.runGameplayAudit?.();
+            return true;
+        }
+
+        if (key === 'J' || key === 'j') {
+            debugUI?.reseedReplaySession?.();
+            return true;
+        }
         
         return false;
     }
@@ -721,6 +1011,7 @@ class GameCore {
             );
             this.gameState.butterflies.push(butterfly);
             this.entityManager.addEntity('butterflies', butterfly);
+            this.registerEntityWithFoundationSystems(butterfly, 'butterfly');
             
             // Mark as encountered
             this.gameState.encounteredButterflies.add(butterfly.personalityType);
@@ -732,6 +1023,7 @@ class GameCore {
             const flower = new Flower(screenPos.x, screenPos.y);
             this.gameState.flowers.push(flower);
             this.entityManager.addEntity('flowers', flower);
+            this.registerEntityWithFoundationSystems(flower, 'flower');
             
         } else if (this.debugMode.selectedTool === 'walkable' || this.debugMode.selectedTool === 'blocked') {
             const tileKey = `${gridX},${gridY}`;
@@ -799,6 +1091,8 @@ class GameCore {
             const isFirstButterfly = this.getWildButterflyCount() === 0;
             const butterfly = new Butterfly(x, y, colors || null, isFirstButterfly); // Allow custom colors or use personality
             this.gameState.butterflies.push(butterfly);
+            this.entityManager?.addEntity('butterflies', butterfly);
+            this.registerEntityWithFoundationSystems(butterfly, 'butterfly');
             
             // Mark as encountered
             this.gameState.encounteredButterflies.add(butterfly.personalityType);
@@ -819,6 +1113,8 @@ class GameCore {
         if (this.gameState.flowers.length < gameConfig.entities.maxFlowers) {
             const flower = new Flower(x, y);
             this.gameState.flowers.push(flower);
+            this.entityManager?.addEntity('flowers', flower);
+            this.registerEntityWithFoundationSystems(flower, 'flower');
             
             // Spawn burst effect
             this.particleSystem.emitBurst(x, y, [255, 255, 255], 8);
@@ -847,7 +1143,8 @@ class GameCore {
     
     handleFlowerDeath(flower) {
         // Already handled by FlowerManager, but we can add additional effects here
-        eventBus.emit(GameEvents.FLOWER_DIED, { flower });
+        this.entityManager?.removeEntity('flowers', flower);
+        this.unregisterEntityFromFoundationSystems(flower);
     }
     
     handlePoolReady(pool) {
@@ -919,6 +1216,248 @@ class GameCore {
     getGameState() {
         return { ...this.gameState };
     }
+
+    createReplaySessionId() {
+        this.replaySessionCounter += 1;
+        return `replay_${Date.now()}_${this.replaySessionCounter}`;
+    }
+
+    normalizeReplaySeed(seedInput = Date.now()) {
+        if (typeof seedInput === 'string') {
+            const trimmed = seedInput.trim();
+            if (/^-?\d+$/.test(trimmed)) {
+                seedInput = Number(trimmed);
+            } else {
+                let hash = 0;
+                for (let i = 0; i < trimmed.length; i++) {
+                    hash = ((hash * 31) + trimmed.charCodeAt(i)) >>> 0;
+                }
+                seedInput = hash;
+            }
+        }
+
+        let numericSeed = Number(seedInput);
+        if (!Number.isFinite(numericSeed)) {
+            numericSeed = Date.now();
+        }
+
+        numericSeed = Math.floor(Math.abs(numericSeed)) % 2147483646;
+        return numericSeed === 0 ? 1 : numericSeed;
+    }
+
+    buildReplayMetadata(overrides = {}) {
+        const normalizedSeed = this.normalizeReplaySeed(overrides.seed ?? Date.now());
+        const markers = Array.isArray(overrides.markers)
+            ? overrides.markers.slice(-24).map(marker => JSON.parse(JSON.stringify(marker)))
+            : [];
+
+        return {
+            sessionId: overrides.sessionId || this.createReplaySessionId(),
+            seed: normalizedSeed,
+            startedAtMs: overrides.startedAtMs ?? Date.now(),
+            lastSeededAtMs: overrides.lastSeededAtMs ?? Date.now(),
+            markerCounter: overrides.markerCounter ?? markers.length,
+            deterministicCoverage: overrides.deterministicCoverage || 'metadata-only',
+            markers
+        };
+    }
+
+    applyReplaySeed(seedInput) {
+        const normalizedSeed = this.normalizeReplaySeed(seedInput);
+        if (typeof randomSeed === 'function') {
+            randomSeed(normalizedSeed);
+        }
+        if (typeof noiseSeed === 'function') {
+            noiseSeed(normalizedSeed);
+        }
+        return normalizedSeed;
+    }
+
+    resetReplayMetadata(options = {}) {
+        const { forceNewSession = false, preserveMarkers = false, seed = null } = options;
+        const existing = this.gameState.replay;
+        const replay = this.buildReplayMetadata({
+            sessionId: forceNewSession || !existing ? null : existing.sessionId,
+            seed: seed ?? existing?.seed ?? Date.now(),
+            startedAtMs: forceNewSession || !existing ? Date.now() : existing.startedAtMs,
+            lastSeededAtMs: Date.now(),
+            markerCounter: preserveMarkers ? (existing?.markerCounter ?? 0) : 0,
+            markers: preserveMarkers ? (existing?.markers || []) : [],
+            deterministicCoverage: existing?.deterministicCoverage || 'metadata-only'
+        });
+
+        replay.seed = this.applyReplaySeed(replay.seed);
+        this.gameState.replay = replay;
+        eventBus?.emit?.(GameEvents?.REPLAY_SESSION_STARTED || 'replay:sessionStarted', {
+            sessionId: replay.sessionId,
+            seed: replay.seed,
+            startedAtMs: replay.startedAtMs,
+            deterministicCoverage: replay.deterministicCoverage
+        });
+        return this.getReplayMetadata();
+    }
+
+    restoreReplayMetadata(replayMetadata, options = {}) {
+        if (!replayMetadata || typeof replayMetadata !== 'object') {
+            return this.resetReplayMetadata({
+                forceNewSession: options.forceNewSession !== false,
+                preserveMarkers: !!options.preserveMarkers
+            });
+        }
+
+        const replay = this.buildReplayMetadata({
+            sessionId: replayMetadata.sessionId || (options.forceNewSession ? null : this.gameState.replay?.sessionId),
+            seed: replayMetadata.seed ?? this.gameState.replay?.seed ?? Date.now(),
+            startedAtMs: replayMetadata.startedAtMs ?? Date.now(),
+            lastSeededAtMs: replayMetadata.lastSeededAtMs ?? Date.now(),
+            markerCounter: replayMetadata.markerCounter ?? (Array.isArray(replayMetadata.markers) ? replayMetadata.markers.length : 0),
+            deterministicCoverage: replayMetadata.deterministicCoverage || 'metadata-only',
+            markers: Array.isArray(replayMetadata.markers) ? replayMetadata.markers : []
+        });
+
+        replay.seed = this.applyReplaySeed(replay.seed);
+        this.gameState.replay = replay;
+        return this.getReplayMetadata();
+    }
+
+    setReplaySeed(seedInput, options = {}) {
+        const current = this.gameState.replay || this.buildReplayMetadata();
+        const startNewSession = !!options.newSession;
+        const nextReplay = this.buildReplayMetadata({
+            sessionId: startNewSession ? null : current.sessionId,
+            seed: seedInput ?? current.seed,
+            startedAtMs: startNewSession ? Date.now() : current.startedAtMs,
+            lastSeededAtMs: Date.now(),
+            markerCounter: startNewSession ? 0 : (current.markerCounter ?? 0),
+            markers: startNewSession ? [] : (current.markers || []),
+            deterministicCoverage: current.deterministicCoverage || 'metadata-only'
+        });
+
+        nextReplay.seed = this.applyReplaySeed(nextReplay.seed);
+        this.gameState.replay = nextReplay;
+
+        eventBus?.emit?.(GameEvents?.REPLAY_SEED_CHANGED || 'replay:seedChanged', {
+            sessionId: nextReplay.sessionId,
+            seed: nextReplay.seed,
+            previousSeed: current.seed ?? null,
+            newSession: startNewSession
+        });
+
+        if (!options.suppressMarker) {
+            this.recordReplayMarker(options.markerLabel || 'reseed-session', {
+                newSession: startNewSession,
+                seed: nextReplay.seed,
+                previousSeed: current.seed ?? null
+            });
+        }
+
+        return this.getReplayMetadata();
+    }
+
+    recordReplayMarker(label, payload = {}) {
+        if (!label) return null;
+        if (!this.gameState.replay) {
+            this.resetReplayMetadata({ forceNewSession: true, preserveMarkers: false });
+        }
+
+        const replay = this.gameState.replay;
+        const nextIndex = (replay.markerCounter ?? 0) + 1;
+        const marker = {
+            index: nextIndex,
+            label,
+            createdAtMs: Date.now(),
+            frame: typeof frameCount === 'number' ? frameCount : null,
+            payload: JSON.parse(JSON.stringify(payload || {}))
+        };
+
+        replay.markerCounter = nextIndex;
+        replay.markers = Array.isArray(replay.markers) ? replay.markers : [];
+        replay.markers.push(marker);
+        while (replay.markers.length > 24) {
+            replay.markers.shift();
+        }
+
+        eventBus?.emit?.(GameEvents?.REPLAY_MARKER_RECORDED || 'replay:markerRecorded', {
+            sessionId: replay.sessionId,
+            marker
+        });
+
+        return JSON.parse(JSON.stringify(marker));
+    }
+
+    getReplayMetadata() {
+        return this.gameState.replay
+            ? JSON.parse(JSON.stringify(this.gameState.replay))
+            : null;
+    }
+    
+    setViewMode(mode) {
+        this.gameState.viewMode = mode;
+        this.zoneSystem?.setViewMode(mode);
+        this.renderManager?.setViewMode(mode);
+    }
+    
+    focusZone(zoneId) {
+        if (!this.zoneSystem?.setFocusedZone(zoneId)) return false;
+        this.gameState.focusedZoneId = zoneId;
+        this.gameState.viewMode = 'focused-garden';
+        this.renderManager?.setFocusedZone(zoneId);
+        this.renderManager?.setViewMode('focused-garden');
+        return true;
+    }
+    
+    getSystems() {
+        return { ...this.systems };
+    }
+
+    getTelemetrySnapshot() {
+        return this.telemetrySystem?.getSnapshot?.() || null;
+    }
+
+    reseedReplaySession(seedInput = Date.now(), options = {}) {
+        return this.setReplaySeed(seedInput, {
+            newSession: options.newSession !== false,
+            markerLabel: options.markerLabel || 'manual-reseed'
+        });
+    }
+
+    startBattleSession(participants, options = {}) {
+        const snapshot = this.battleSystem?.startBattle(participants, options);
+        if (!snapshot) return null;
+        this.gameState.activeBattleId = snapshot.battleId;
+        this.setViewMode('battle');
+        return snapshot;
+    }
+
+    resolveBattleSession(battleId, result = {}) {
+        return this.battleSystem?.resolveSnapshot(battleId, result) || null;
+    }
+
+    commitBattleSession(battleId) {
+        const snapshot = this.battleSystem?.commitResults(battleId) || null;
+        if (!snapshot) return null;
+        if (this.gameState.activeBattleId === battleId) {
+            this.gameState.activeBattleId = null;
+            this.setViewMode('focused-garden');
+        }
+        return snapshot;
+    }
+
+    serializeGameState() {
+        return this.saveSystem?.serializeState?.(this.gameState) || null;
+    }
+
+    applySerializedState(serialized) {
+        return this.saveSystem?.applyDeserializedState?.(this, serialized) || null;
+    }
+
+    saveGameToStorage() {
+        return this.saveSystem?.saveToStorage?.(this.gameState) || null;
+    }
+
+    loadGameFromStorage() {
+        return this.saveSystem?.loadFromStorage?.(this) || null;
+    }
     
     getDebugMode() {
         return { ...this.debugMode };
@@ -971,11 +1510,13 @@ class GameCore {
         this.gameState.maxCombo = 0;
         this.gameState.showButterflyCollection = false;
         this.gameState.pendingOffspringReservations = 0;
+        this.gameState.activeBattleId = null;
         
         // Clear entity manager
         if (this.entityManager) {
             this.entityManager.clear();
         }
+        this.resetFoundationSystems();
         
         // Reset particle system
         if (this.particleSystem) {
@@ -993,6 +1534,8 @@ class GameCore {
         if (this.poolManager) {
             this.poolManager.pools = [];
         }
+
+        this.resetReplayMetadata({ forceNewSession: true, preserveMarkers: false });
         
         // Reinitialize starting entities
         this.initializeStartingEntities().then(() => {

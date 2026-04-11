@@ -7,6 +7,7 @@ let spawnCoverImage;
 let showTitleScreen = true;
 let titleFadeAlpha = 255;
 let titleFading = false;
+const TITLE_FADE_PER_SECOND = 180;
 
 function preload() {
     backgroundImage = loadImage('background2.png');
@@ -20,11 +21,11 @@ function preload() {
 function setup() {
     const container = select('#canvas-container');
     
-    // Enable antialiasing for better text quality
-    setAttributes({ antialias: true });
-    
     const canvas = createCanvas(gameConfig.canvas.targetWidth, gameConfig.canvas.targetHeight);
     canvas.parent(container);
+    
+    // The default 2D renderer already handles text smoothing; p5's setAttributes
+    // helper is for WEBGL contexts and spams warnings when used with createGraphics layers.
     
     // Set target frame rate to 60 FPS
     frameRate(60);
@@ -94,8 +95,10 @@ function draw() {
         
         // Handle fade out
         if (titleFading) {
-            titleFadeAlpha -= 3; // Slower fade for smooth cross-fade
+            const fadeStep = TITLE_FADE_PER_SECOND * Math.max(0, deltaTime || 0) / 1000;
+            titleFadeAlpha -= fadeStep;
             if (titleFadeAlpha <= 0) {
+                titleFadeAlpha = 0;
                 showTitleScreen = false;
                 titleFading = false;
             }

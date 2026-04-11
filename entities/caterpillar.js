@@ -13,10 +13,39 @@ class Caterpillar extends Entity {
         this.dead = false;
         this.animationFrames = [0, 1, 2, 1];
         this.animationSpeed = 8;
+        this.lifeSim = createBaseLifeSimState({
+            entityType: 'caterpillar',
+            archetype: 'caterpillar',
+            source: lifecycleData.birthSource || 'garden',
+            drives: {
+                selfMaintenance: 0.55,
+                safetyAvoidance: 0.2,
+                resourceControl: 0.35,
+                socialConnection: 0.05,
+                caregiving: 0,
+                exploration: 0.15,
+                statusExpression: 0,
+                rest: 0.25
+            },
+            emotions: {
+                curiosity: 0.15,
+                agitation: 0.1,
+                exhaustion: 0.1
+            },
+            genetics: {
+                source: lifecycleData.birthSource || 'garden',
+                heritageTags: ['caterpillar']
+            },
+            lifecycle: {
+                stage: 'larval'
+            }
+        });
     }
 
     update(gameState) {
         if (this.dead) return;
+        this.lifeSim.lifecycle.ageTicks++;
+        this.lifeSim.lifecycle.stage = this.phase;
 
         this.acquireTarget(gameState.flowers || []);
         if (!this.targetFlower) {
@@ -76,6 +105,8 @@ class Caterpillar extends Entity {
         if (this.phase === 'seekingFood') {
             this.targetFlower.consumeByCaterpillar(gameState.particleSystem);
             this.phase = 'seekingChrysalis';
+            this.lifeSim.drives.resourceControl = 0.1;
+            this.lifeSim.drives.rest = 0.45;
             this.phaseStartedAt = frameCount;
             this.targetFlower = null;
             return;
