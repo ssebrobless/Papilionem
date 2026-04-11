@@ -233,6 +233,49 @@ const gameConfig = {
             oversleepPressureDecayRate: 0.016,
             forcedSleepRecoveryRate: 0.014,
             passiveOversleepPressureDecayRate: 0.004
+        },
+        social: {
+            teachingLessonDurationSeconds: 1.6,
+            teachingPulseRadius: 76,
+            teachingPulseMemoryValence: 0.22,
+            teachingPulseMemoryStrength: 0.26,
+            teachingPulseEdgeTrust: 0.02,
+            teachingPulseEdgeAdmiration: 0.035,
+            teachingPulseEdgeComfort: 0.015,
+            teachingPulseRoutineReinforcement: 0.025,
+            trustCascadeRadius: 132,
+            trustCascadeMemoryValence: 0.28,
+            trustCascadeMemoryStrength: 0.34,
+            trustCascadeEdgeTrust: 0.035,
+            trustCascadeEdgeComfort: 0.025,
+            trustCascadeEdgeAdmiration: 0.015,
+            lessonUpbringingStrength: 0.28,
+            lessonRoutineReinforcement: 0.05,
+            lessonInterpretationClarityGain: 0.01,
+            lessonMemoryValence: 0.36,
+            lessonMemoryStrength: 0.4,
+            lessonEdgeTrust: 0.03,
+            lessonEdgeAdmiration: 0.04,
+            lessonEdgeComfort: 0.02,
+            listenerTeachingRoutineReinforcement: 0.035,
+            teacherTeachingRoutineReinforcement: 0.025,
+            teachingBoostFrames: 16
+        },
+        hybrid: {
+            pheromoneRadius: 132,
+            matingDistance: 16,
+            matingDurationFrames: 150,
+            pheromoneCooldownFrames: 21600,
+            adultHardCap: 50,
+            eggHatchFrames: {
+                min: 28800,
+                max: 39600
+            },
+            cocoonHatchFrames: {
+                min: 28800,
+                max: 39600
+            },
+            bredFertilityUses: 1
         }
     },
 

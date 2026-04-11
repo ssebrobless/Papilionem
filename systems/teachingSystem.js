@@ -19,6 +19,10 @@ class TeachingSystem {
         return Math.max(0, Math.min(1, value ?? 0));
     }
 
+    getSocialBalance() {
+        return gameConfig?.balance?.social || {};
+    }
+
     getLiveButterflies() {
         return gameCore?.gameState?.butterflies || [];
     }
@@ -127,7 +131,8 @@ class TeachingSystem {
         const teacher = this.getEntityById(data.teacherId);
         if (!teacher) return;
 
-        const radius = data.radius || 80;
+        const socialBalance = this.getSocialBalance();
+        const radius = data.radius || socialBalance.teachingPulseRadius || 80;
         const radiusSq = radius * radius;
         for (const listener of this.getLiveButterflies()) {
             if (listener === teacher) continue;
@@ -142,19 +147,19 @@ class TeachingSystem {
             });
 
             this.recordSocialMemory(listener, teacher.id, ['teaching-pulse'], {
-                valence: 0.25,
-                strength: 0.3,
+                valence: socialBalance.teachingPulseMemoryValence ?? 0.25,
+                strength: socialBalance.teachingPulseMemoryStrength ?? 0.3,
                 metadata: { source: 'teaching-pulse' }
             });
             adjustLifeSocialEdge(listener, teacher.id, {
-                trust: 0.03,
-                admiration: 0.05,
-                comfort: 0.02
+                trust: socialBalance.teachingPulseEdgeTrust ?? 0.03,
+                admiration: socialBalance.teachingPulseEdgeAdmiration ?? 0.05,
+                comfort: socialBalance.teachingPulseEdgeComfort ?? 0.02
             }, {
                 updatedAtSeconds: this.simulationClockSeconds,
                 tag: 'teaching-pulse'
             });
-            reinforceLifeRoutine(listener, 'teaching', teacher.id, 0.04, {
+            reinforceLifeRoutine(listener, 'teaching', teacher.id, socialBalance.teachingPulseRoutineReinforcement ?? 0.04, {
                 phaseAffinity: 'learning',
                 recency: 1
             });
@@ -165,20 +170,21 @@ class TeachingSystem {
         const source = this.getEntityById(data.sourceId);
         if (!source || !Array.isArray(data.butterflies)) return;
 
+        const socialBalance = this.getSocialBalance();
         for (const entry of data.butterflies) {
             const butterflyId = typeof entry === 'string' ? entry : entry?.id;
             const butterfly = this.getEntityById(butterflyId);
             if (!butterfly?.lifeSim || butterfly.id === source.id) continue;
 
             this.recordSocialMemory(butterfly, source.id, ['trust-cascade'], {
-                valence: 0.35,
-                strength: 0.4,
+                valence: socialBalance.trustCascadeMemoryValence ?? 0.35,
+                strength: socialBalance.trustCascadeMemoryStrength ?? 0.4,
                 metadata: { source: 'trust-cascade' }
             });
             adjustLifeSocialEdge(butterfly, source.id, {
-                trust: 0.05,
-                comfort: 0.04,
-                admiration: 0.02
+                trust: socialBalance.trustCascadeEdgeTrust ?? 0.05,
+                comfort: socialBalance.trustCascadeEdgeComfort ?? 0.04,
+                admiration: socialBalance.trustCascadeEdgeAdmiration ?? 0.02
             }, {
                 updatedAtSeconds: this.simulationClockSeconds,
                 tag: 'trust-cascade'
@@ -241,6 +247,7 @@ class TeachingSystem {
     }
 
     applyResolvedLesson(listener, teacher, resolvedLesson) {
+        const socialBalance = this.getSocialBalance();
         const warpedTeachingBias = listener?.lifeSim?.distortion?.warpedTeachingBias ?? 0;
         const warped = warpedTeachingBias > 0.6;
 
@@ -256,7 +263,7 @@ class TeachingSystem {
         appendUpbringingLesson(listener, {
             category: resolvedLesson.lessonCategory,
             teacherId: resolvedLesson.teacherId,
-            strength: 0.35,
+            strength: socialBalance.lessonUpbringingStrength ?? 0.35,
             warped,
             createdAtSeconds: this.simulationClockSeconds,
             tags: ['teaching-complete'],
@@ -265,35 +272,35 @@ class TeachingSystem {
 
         if (listener.lifeSim?.upbringing?.routineReinforcement) {
             listener.lifeSim.upbringing.routineReinforcement[resolvedLesson.lessonCategory] =
-                this.clamp01((listener.lifeSim.upbringing.routineReinforcement[resolvedLesson.lessonCategory] || 0) + 0.08);
+                this.clamp01((listener.lifeSim.upbringing.routineReinforcement[resolvedLesson.lessonCategory] || 0) + (socialBalance.lessonRoutineReinforcement ?? 0.08));
         }
 
         if (listener.lifeSim?.interpretation) {
-            listener.lifeSim.interpretation.clarity = this.clamp01((listener.lifeSim.interpretation.clarity || 0) + 0.015);
+            listener.lifeSim.interpretation.clarity = this.clamp01((listener.lifeSim.interpretation.clarity || 0) + (socialBalance.lessonInterpretationClarityGain ?? 0.015));
         }
 
         this.recordSocialMemory(listener, teacher?.id || resolvedLesson.teacherId, ['lesson-complete'], {
-            valence: 0.4,
-            strength: 0.45,
+            valence: socialBalance.lessonMemoryValence ?? 0.4,
+            strength: socialBalance.lessonMemoryStrength ?? 0.45,
             metadata: { category: resolvedLesson.lessonCategory }
         });
 
         adjustLifeSocialEdge(listener, teacher?.id || resolvedLesson.teacherId, {
-            trust: 0.04,
-            admiration: 0.06,
-            comfort: 0.03
+            trust: socialBalance.lessonEdgeTrust ?? 0.04,
+            admiration: socialBalance.lessonEdgeAdmiration ?? 0.06,
+            comfort: socialBalance.lessonEdgeComfort ?? 0.03
         }, {
             updatedAtSeconds: this.simulationClockSeconds,
             tag: 'lesson-complete'
         });
 
-        reinforceLifeRoutine(listener, 'teaching', teacher?.id || resolvedLesson.teacherId, 0.05, {
+        reinforceLifeRoutine(listener, 'teaching', teacher?.id || resolvedLesson.teacherId, socialBalance.listenerTeachingRoutineReinforcement ?? 0.05, {
             phaseAffinity: 'learning',
             recency: 1
         });
 
         if (listener.timers) {
-            listener.timers.teachingBoost = Math.max(listener.timers.teachingBoost || 0, 20);
+            listener.timers.teachingBoost = Math.max(listener.timers.teachingBoost || 0, socialBalance.teachingBoostFrames ?? 20);
         }
 
         if (teacher?.lifeSim) {
@@ -304,7 +311,7 @@ class TeachingSystem {
                 tags: ['taught-listener'],
                 createdAtSeconds: this.simulationClockSeconds
             });
-            reinforceLifeRoutine(teacher, 'teaching', listener.id, 0.04, {
+            reinforceLifeRoutine(teacher, 'teaching', listener.id, socialBalance.teacherTeachingRoutineReinforcement ?? 0.04, {
                 phaseAffinity: 'teacher',
                 recency: 1
             });
@@ -312,7 +319,7 @@ class TeachingSystem {
     }
 
     updateActiveLessons() {
-        const lessonDurationSeconds = 1.25;
+        const lessonDurationSeconds = this.getSocialBalance().teachingLessonDurationSeconds ?? 1.25;
         for (const [listenerId, lesson] of Array.from(this.activeLessons.entries())) {
             if ((this.simulationClockSeconds - lesson.startedAtSeconds) < lessonDurationSeconds) continue;
 

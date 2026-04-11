@@ -31,7 +31,10 @@ class DebugUI {
         this.auditScenarioPresets = [
             { id: 'sleep-assist-cluster', label: 'Sleep Assist' },
             { id: 'teaching-pair', label: 'Teaching Pair' },
-            { id: 'hybrid-lineage', label: 'Hybrid Lineage' }
+            { id: 'trust-cascade-cluster', label: 'Trust Cascade' },
+            { id: 'social-routine-web', label: 'Social Web' },
+            { id: 'hybrid-lineage', label: 'Hybrid Lineage' },
+            { id: 'nursery-lineage', label: 'Nursery Lineage' }
         ];
         this.currentAuditScenarioIndex = -1;
         
@@ -570,6 +573,43 @@ class DebugUI {
                 };
                 baseline.progression.encounteredButterflies = ['wise', 'friendly', 'skittish'];
                 break;
+            case 'trust-cascade-cluster':
+                baseline.butterflies = [
+                    { id: 'audit_cascade_source', personalityType: 'skittish', sex: 'F', x: 356, y: 182, state: 'normal', happiness: 78, baselineHappiness: 60, maxHappiness: 100 },
+                    { id: 'audit_cascade_friend', personalityType: 'friendly', sex: 'M', x: 324, y: 170, state: 'normal', happiness: 62, baselineHappiness: 60, maxHappiness: 100 },
+                    { id: 'audit_cascade_cautious', personalityType: 'cautious', sex: 'F', x: 394, y: 174, state: 'normal', happiness: 58, baselineHappiness: 60, maxHappiness: 100 },
+                    { id: 'audit_cascade_runner', personalityType: 'energetic', sex: 'M', x: 380, y: 210, state: 'normal', happiness: 68, baselineHappiness: 60, maxHappiness: 100 }
+                ];
+                baseline.flowers = [
+                    { id: 'audit_flower_cascade', x: 360, y: 226, stage: 'mature', stageTimer: 680, isImmortal: true, flowerType: 'daisy' }
+                ];
+                baseline.progression.encounteredButterflies = ['skittish', 'friendly', 'cautious', 'energetic'];
+                break;
+            case 'social-routine-web':
+                baseline.butterflies = [
+                    { id: 'audit_social_teacher', personalityType: 'wise', sex: 'F', x: 324, y: 172, state: 'normal', happiness: 84, baselineHappiness: 60, maxHappiness: 100 },
+                    { id: 'audit_social_listener_a', personalityType: 'friendly', sex: 'M', x: 360, y: 182, state: 'normal', happiness: 63, baselineHappiness: 60, maxHappiness: 100 },
+                    { id: 'audit_social_listener_b', personalityType: 'cautious', sex: 'F', x: 392, y: 192, state: 'normal', happiness: 61, baselineHappiness: 60, maxHappiness: 100 },
+                    { id: 'audit_social_witness', personalityType: 'mystic', sex: 'F', x: 346, y: 214, state: 'normal', happiness: 76, baselineHappiness: 60, maxHappiness: 100 }
+                ];
+                baseline.flowers = [
+                    { id: 'audit_flower_social_a', x: 338, y: 232, stage: 'mature', stageTimer: 720, isImmortal: true, flowerType: 'rose' },
+                    { id: 'audit_flower_social_b', x: 390, y: 236, stage: 'mature', stageTimer: 560, isImmortal: true, flowerType: 'lily' }
+                ];
+                baseline.foundations.teaching = {
+                    packetsByEntityId: {
+                        audit_social_teacher: [
+                            { id: 'lesson_packet_audit_social_1', category: 'resource', content: { source: 'audit-preset', note: 'circle near the bloom edge' }, warped: false, createdAtSeconds: 0 },
+                            { id: 'lesson_packet_audit_social_2', category: 'sleep', content: { source: 'audit-preset', note: 'rest after feeding' }, warped: false, createdAtSeconds: 0.4 }
+                        ]
+                    },
+                    activeLessons: {
+                        audit_social_listener_a: { teacherId: 'audit_social_teacher', listenerId: 'audit_social_listener_a', lessonCategory: 'resource', content: { source: 'audit-preset', note: 'flower path' }, startedAtSeconds: 0.1 },
+                        audit_social_listener_b: { teacherId: 'audit_social_teacher', listenerId: 'audit_social_listener_b', lessonCategory: 'sleep', content: { source: 'audit-preset', note: 'calm cluster' }, startedAtSeconds: 0.25 }
+                    }
+                };
+                baseline.progression.encounteredButterflies = ['wise', 'friendly', 'cautious', 'mystic'];
+                break;
             case 'hybrid-lineage':
                 baseline.butterflies = [
                     { id: 'audit_hybrid_guardian', personalityType: 'friendly', sex: 'F', x: 360, y: 182, state: 'normal', happiness: 74, baselineHappiness: 60, maxHappiness: 100, birthSource: 'bred', displayName: 'Aurel', isHybrid: true, hybridEntryId: 1, hybridGenome: { primary: { personalityType: 'friendly', sex: 'F' }, secondary: { personalityType: 'wise', sex: 'M' } } },
@@ -586,6 +626,51 @@ class DebugUI {
                 ];
                 baseline.progression.nextHybridId = 2;
                 baseline.progression.encounteredButterflies = ['friendly', 'wise'];
+                break;
+            case 'nursery-lineage':
+                baseline.butterflies = [
+                    {
+                        id: 'audit_nursery_mother',
+                        personalityType: 'friendly',
+                        sex: 'F',
+                        x: 344,
+                        y: 182,
+                        state: 'pregnant-travel',
+                        happiness: 72,
+                        baselineHappiness: 60,
+                        maxHappiness: 100,
+                        birthSource: 'bred',
+                        displayName: 'Ilya',
+                        isHybrid: true,
+                        hybridEntryId: 2,
+                        hybridGenome: { primary: { personalityType: 'friendly', sex: 'F' }, secondary: { personalityType: 'energetic', sex: 'M' } },
+                        pregnancy: {
+                            active: true,
+                            lifecycleData: {
+                                childSex: 'F',
+                                parentA: { personalityType: 'friendly', sex: 'F' },
+                                parentB: { personalityType: 'energetic', sex: 'M' },
+                                hybridGenome: { wingDonors: {}, bodySex: 'F' },
+                                inheritedTraits: { speed: 1.1, jitteriness: 1.05, trustPropensity: 1.2, trustSpeed: 1.1, scareThreshold: 3.9, happinessBonus: 1.0, special: 'welcome' },
+                                inheritedColors: [[255, 160, 120], [180, 140, 255]],
+                                inheritedAbility: 'welcome',
+                                reservationActive: true
+                            },
+                            targetFlower: { id: 'audit_flower_nursery' }
+                        }
+                    },
+                    { id: 'audit_nursery_partner', personalityType: 'energetic', sex: 'M', x: 312, y: 170, state: 'normal', happiness: 80, baselineHappiness: 60, maxHappiness: 100, birthSource: 'wild' },
+                    { id: 'audit_nursery_guardian', personalityType: 'wise', sex: 'F', x: 386, y: 188, state: 'normal', happiness: 82, baselineHappiness: 60, maxHappiness: 100, birthSource: 'wild' }
+                ];
+                baseline.flowers = [
+                    { id: 'audit_flower_nursery', x: 380, y: 234, stage: 'mature', stageTimer: 860, isImmortal: true, flowerType: 'sunflower' }
+                ];
+                baseline.progression.hybridJournal = [
+                    { id: 2, displayName: 'Ilya', parentA: { personalityType: 'friendly', sex: 'F' }, parentB: { personalityType: 'energetic', sex: 'M' }, createdAtMs: 0 }
+                ];
+                baseline.progression.nextHybridId = 3;
+                baseline.progression.encounteredButterflies = ['friendly', 'energetic', 'wise'];
+                baseline.runtime.pendingOffspringReservations = 1;
                 break;
             default:
                 return null;

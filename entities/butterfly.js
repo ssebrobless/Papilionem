@@ -230,7 +230,9 @@ class Butterfly extends Entity {
         this.displayName = options.displayName || null;
         this.hybridEntryId = options.hybridEntryId || null;
         this.pheromoneCooldownUntil = options.pheromoneCooldownUntil || 0;
-        this.fertilityUsesRemaining = options.fertilityUsesRemaining ?? (this.birthSource === 'bred' ? 1 : Infinity);
+        this.fertilityUsesRemaining = options.fertilityUsesRemaining ?? (this.birthSource === 'bred'
+            ? (gameConfig?.balance?.hybrid?.bredFertilityUses ?? 1)
+            : Infinity);
         this.breeding = {
             partnerId: null,
             matingTimer: 0,
@@ -2934,6 +2936,7 @@ class Butterfly extends Entity {
             return;
         }
         
+        const teachingPulseRadius = gameConfig?.balance?.social?.teachingPulseRadius ?? 80;
         this.abilities.teachingAura = true;
         
         if (this.getAbilityCooldownRemaining('teaching_pulse') <= 0) {
@@ -2941,7 +2944,7 @@ class Butterfly extends Entity {
                 teacherId: this.id,
                 x: this.x,
                 y: this.y,
-                radius: 80
+                radius: teachingPulseRadius
             });
             this.setAbilityCooldown('teaching_pulse', 2, { durationSeconds: 2 });
         }
@@ -2976,7 +2979,7 @@ class Butterfly extends Entity {
             
             const dx = this.x - butterfly.x;
             const dy = this.y - butterfly.y;
-            if (dx*dx + dy*dy < 22500) { // 150^2 = 22500
+            if (dx*dx + dy*dy < ((gameConfig?.balance?.social?.trustCascadeRadius ?? 150) ** 2)) {
                 this.abilities.trustCascadeCache.push({
                     id: butterfly.id,
                     x: butterfly.x,
@@ -2991,7 +2994,7 @@ class Butterfly extends Entity {
                 sourceId: this.id,
                 x: this.x,
                 y: this.y,
-                radius: 150,
+                radius: gameConfig?.balance?.social?.trustCascadeRadius ?? 150,
                 butterflies: this.abilities.trustCascadeCache
             });
         }
