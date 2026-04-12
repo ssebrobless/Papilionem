@@ -1,4 +1,4 @@
-# Ephemera
+# Papilionem
 
 An interactive digital art piece exploring themes of fragility and beauty through pixel butterflies in an impressionistic garden.
 
