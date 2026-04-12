@@ -25,6 +25,12 @@ class RenderManager {
 
         // Ground wave overlay (grass/ground waving effect)
         this.groundWaveQuadrants = null; // Array of 4 p5.Image quadrants
+
+        this.viewState = {
+            mode: 'focused-garden',
+            focusedZoneId: 'garden-core',
+            battleActive: false
+        };
     }
     
     // Initialize all render layers
@@ -51,6 +57,49 @@ class RenderManager {
     setBackgroundImage(img) {
         this.backgroundImage = img;
         this.drawBackground();
+    }
+
+    setViewMode(mode) {
+        this.viewState.mode = mode;
+        this.viewState.battleActive = mode === 'battle';
+    }
+
+    setFocusedZone(zoneId) {
+        this.viewState.focusedZoneId = zoneId;
+    }
+
+    getAccessibilitySettings() {
+        return (typeof gameUI !== 'undefined' && gameUI.getAccessibilitySettings)
+            ? gameUI.getAccessibilitySettings()
+            : (gameConfig?.accessibility || {});
+    }
+
+    getBackgroundAtmosphereMode() {
+        return this.getAccessibilitySettings().backgroundAtmosphere || 'full';
+    }
+
+    getTrailVisibilityMode() {
+        return this.getAccessibilitySettings().trailVisibility || 'full';
+    }
+
+    shouldRenderMovingBackgroundEffects() {
+        const settings = this.getAccessibilitySettings();
+        if (this.viewState.battleActive) return false;
+        if (settings.reducedMotion) return false;
+        if (settings.backgroundAtmosphere === 'minimal') return false;
+        return this.viewState.mode !== 'overview';
+    }
+
+    shouldRenderAfterimageTrails() {
+        const settings = this.getAccessibilitySettings();
+        if (this.viewState.battleActive) return false;
+        if (settings.reducedMotion) return false;
+        if (settings.trailVisibility === 'off') return false;
+        return true;
+    }
+
+    getRenderContext() {
+        return { ...this.viewState };
     }
     
     // Draw the static background
@@ -291,7 +340,10 @@ class RenderManager {
         }
         
         // Draw special effects
-        if (typeof specialEffects !== 'undefined') {
+        const accessibility = this.getAccessibilitySettings();
+        const allowSpecialEffects = !accessibility.reducedMotion &&
+            !(this.viewState.battleActive && accessibility.battleMotionSimplify);
+        if (typeof specialEffects !== 'undefined' && allowSpecialEffects) {
             specialEffects.draw(layer);
         }
         
@@ -510,16 +562,21 @@ class RenderManager {
     // Composite all layers to main canvas
     compositeLayers() {
         const { targetWidth, targetHeight } = gameConfig.canvas;
+        const backgroundAtmosphereMode = this.getBackgroundAtmosphereMode();
         
         // Draw each layer — ground wave below everything, spawning butterflies behind archways
         image(this.layers.background, 0, 0, targetWidth, targetHeight);
-        this.drawGroundWaveOverlay();
+        if (this.shouldRenderMovingBackgroundEffects()) {
+            this.drawGroundWaveOverlay();
+        }
         this.drawPoolBase();
         image(this.layers.entitiesBehind, 0, 0, targetWidth, targetHeight);
         this.drawSpawnCover();
         image(this.layers.entities, 0, 0, targetWidth, targetHeight);
         image(this.layers.particles, 0, 0, targetWidth, targetHeight);
-        this.drawFoliageOverlay();
+        if (this.shouldRenderMovingBackgroundEffects() && backgroundAtmosphereMode === 'full') {
+            this.drawFoliageOverlay();
+        }
         image(this.layers.ui, 0, 0, targetWidth, targetHeight);
         
         // Get debug mode state from gameCore or fallback
@@ -533,11 +590,10 @@ class RenderManager {
     
     // Draw collection progress in top left corner
     drawFPSCounter(layer) {
+        const accessibility = this.getAccessibilitySettings();
+        const uiScale = accessibility.uiScale || 1;
         layer.push();
         layer.noStroke();
-        
-        // Enable smooth text rendering for better quality
-        layer.smooth();
         
         // Get collection stats
         let collectedCount = 0;
@@ -549,21 +605,36 @@ class RenderManager {
         }
         
         // Draw semi-transparent background for better readability
-        layer.fill(0, 0, 0, 120);
-        layer.rect(10, 10, 140, 50, 8); // Rounded rectangle
-        
+        if (accessibility.highContrastUI) {
+            layer.fill(0, 0, 0, 220);
+            layer.stroke(255);
+            layer.strokeWeight(1.5);
+        } else {
+            layer.fill(0, 0, 0, 120);
+            layer.noStroke();
+        }
+        layer.rect(10, 10, 150 * uiScale, 52 * uiScale, 8); // Rounded rectangle
+
         // Draw collection progress with high contrast
-        layer.fill(255, 255, 200, 255); // Warm white/yellow for collection
+        if (accessibility.highContrastUI) {
+            layer.fill(255);
+        } else {
+            layer.fill(255, 255, 200, 255); // Warm white/yellow for collection
+        }
         layer.textAlign(LEFT, TOP);
-        layer.textSize(16); // Larger for better visibility
+        layer.textSize(16 * uiScale); // Larger for better visibility
         layer.textStyle(BOLD);
         layer.text(`${collectedCount}/${totalButterflies} Collected`, 18, 18);
         layer.textStyle(NORMAL);
-        
+
         // Draw helpful tooltip
-        layer.fill(220, 220, 220, 230); // Slightly gray for secondary text
-        layer.textSize(12);
-        layer.text('Press C to view journal', 18, 38);
+        if (accessibility.highContrastUI) {
+            layer.fill(255);
+        } else {
+            layer.fill(220, 220, 220, 230); // Slightly gray for secondary text
+        }
+        layer.textSize(12 * uiScale);
+        layer.text('Press C to view journal', 18, 38 + ((uiScale - 1) * 6));
         
         layer.pop();
     }

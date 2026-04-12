@@ -121,7 +121,7 @@ const BUTTERFLY_PERSONALITIES = {
 };
 
 const BUTTERFLY_VARIANT_ABILITIES = {
-    friendly: null,
+    friendly: 'welcome',
     cautious: 'sparkle',
     energetic: 'speedzone',
     skittish: 'cascade',
@@ -230,7 +230,9 @@ class Butterfly extends Entity {
         this.displayName = options.displayName || null;
         this.hybridEntryId = options.hybridEntryId || null;
         this.pheromoneCooldownUntil = options.pheromoneCooldownUntil || 0;
-        this.fertilityUsesRemaining = options.fertilityUsesRemaining ?? (this.birthSource === 'bred' ? 1 : Infinity);
+        this.fertilityUsesRemaining = options.fertilityUsesRemaining ?? (this.birthSource === 'bred'
+            ? (gameConfig?.balance?.hybrid?.bredFertilityUses ?? 1)
+            : Infinity);
         this.breeding = {
             partnerId: null,
             matingTimer: 0,
@@ -265,6 +267,34 @@ class Butterfly extends Entity {
             : (BUTTERFLY_VARIANT_ABILITIES[this.personalityType] || null);
         this.specialAbility = options.specialAbility ?? options.customAbility ?? options.customTraits?.special ?? defaultAbility;
         this.traits.special = this.specialAbility;
+        this.lifeSim = createBaseLifeSimState({
+            entityType: 'butterfly',
+            archetype: this.personalityType,
+            source: this.birthSource,
+            drives: {
+                selfMaintenance: 0.45,
+                safetyAvoidance: Math.max(0.15, 1 / Math.max(this.traits.scareThreshold, 1)),
+                resourceControl: 0.2,
+                socialConnection: Math.min(1, this.traits.trustPropensity * 0.5),
+                caregiving: this.pregnancy ? 0.6 : 0.15,
+                exploration: Math.min(1, this.traits.speed * 0.5),
+                statusExpression: this.personality.rarity === 'legendary' ? 1 : 0.35,
+                rest: 0.2
+            },
+            emotions: {
+                significance: this.personality.rarity === 'legendary' ? 0.75 : 0.25,
+                curiosity: Math.min(1, this.traits.speed * 0.4),
+                agitation: Math.min(1, this.traits.jitteriness * 0.35)
+            },
+            genetics: {
+                source: this.isHybrid ? 'hybrid' : this.birthSource,
+                baselineTraits: this.traits,
+                heritageTags: [this.personalityType, this.personality.wingPattern || 'solid'].filter(Boolean)
+            },
+            lifecycle: {
+                stage: 'adult'
+            }
+        });
         
         // Override base properties with personality-based values
         this.size = this.personality.size || 12; // Personality-based size
@@ -330,9 +360,6 @@ class Butterfly extends Entity {
             postFeedingCooldown: 0,
             postFeedingLeadCooldown: 0,
             scareImmunity: 0,
-            speedBoost: 0,
-            teachingBoost: 0,
-            trustBoost: 0,
             exclamation: 0,
             postFeedingDash: 0,
             
@@ -348,7 +375,7 @@ class Butterfly extends Entity {
                 // Count down active timers
                 const activeTimers = ['display', 'scared', 'feeding', 'following', 'mating',
                     'postFeedingCooldown', 'postFeedingLeadCooldown', 'scareImmunity',
-                    'speedBoost', 'teachingBoost', 'trustBoost', 'exclamation', 'postFeedingDash'];
+                    'exclamation', 'postFeedingDash'];
                 
                 for (let key of activeTimers) {
                     if (this[key] > 0) this[key]--;
@@ -370,13 +397,6 @@ class Butterfly extends Entity {
                 
                 return signals;
             }
-        };
-        
-        // === UNIFIED BOOSTS SYSTEM ===
-        this.boosts = {
-            speed: 1.0,
-            trust: 1.0,
-            happiness: 1.0
         };
         
         // === HAPPINESS SYSTEM ===
@@ -448,9 +468,7 @@ class Butterfly extends Entity {
         // === SPECIAL ABILITIES ===
         this.abilities = {
             sparkleTrail: [], // For cautious butterflies
-            speedZoneTimer: 0, // For energetic butterflies
             teachingAura: false, // For wise butterflies
-            teachingPulseTimer: 0,
             trustCascadeCache: [] // Pre-allocated for skittish
         };
         
@@ -485,6 +503,7 @@ class Butterfly extends Entity {
 
         // Call parent update
         super.update(gameState);
+        this.lifeSim.lifecycle.ageTicks++;
         
         // Extract what we need from gameState
         const { flowers, particleSystem, cursorVelocity, adjustedMouseX, adjustedMouseY } = gameState;
@@ -509,6 +528,18 @@ class Butterfly extends Entity {
         }
         if (this.cursor.trustGlowAlpha > 0 && this.cursor.currentPatience === 0) {
             this.cursor.trustGlowAlpha = Math.max(0, this.cursor.trustGlowAlpha - 5);
+        }
+
+        const sleepState = this.getSleepState();
+        if (!sleepState?.subtype && this.movement.targetType === 'sleep') {
+            this.movement.clearTarget();
+            this.pickNewWanderTarget();
+        }
+
+        if (sleepState?.subtype) {
+            this.updateSleepingState(gameState, sleepState);
+            this.updateSpawnEffects(particleSystem);
+            return;
         }
         
         // 5. Check state transitions
@@ -536,27 +567,7 @@ class Butterfly extends Entity {
         }
         
         // 10. Update spawn effects
-        if (this.spawnTimer > 0) {
-            this.spawnTimer--;
-            // Fade out spawn glow (golden butterflies have longer timer)
-            const maxSpawnTimer = this.personalityType === 'golden' ? 300 : 180;
-            this.spawnGlowIntensity = this.spawnTimer / maxSpawnTimer;
-            
-            // Emit sparkles while spawning
-            if (this.spawnTimer % 10 === 0) {
-                const sparkleColor = this.personalityType === 'golden' ? 
-                    [255, 215, 0] : // Pure gold for golden butterfly
-                    [255, 255, 200]; // Light golden for others
-                    
-                particleSystem.emit(
-                    this.x + random(-10, 10),
-                    this.y + random(-10, 10),
-                    sparkleColor,
-                    1,
-                    'joy'
-                );
-            }
-        }
+        this.updateSpawnEffects(particleSystem);
         
         // 11. Handle timer signals
         if (timerSignals.includes('wander') && this.state === 'normal') {
@@ -568,6 +579,60 @@ class Butterfly extends Entity {
         if (timerSignals.includes('particle')) this.checkParticleEmission(particleSystem);
         if (timerSignals.includes('flowerSeek') && this.state === 'normal') {
             this.checkFlowerSeeking(flowers);
+        }
+    }
+
+    getSleepState() {
+        if (typeof sleepSystem === 'undefined') return null;
+        return sleepSystem.getSleepState(this.id);
+    }
+
+    updateSleepingState(gameState, sleepState) {
+        const { particleSystem } = gameState;
+
+        this.afterimages.length = 0;
+        this.movement.target.x = this.gridPos.x;
+        this.movement.target.y = this.gridPos.y;
+        this.movement.targetType = 'sleep';
+        this.movement.targetPriority = 999;
+        this.movement.wobbleAmount = 0;
+        this.movement.followOffset.x = 0;
+        this.movement.followOffset.y = 0;
+        this.cursor.trustGlowAlpha = Math.max(0, this.cursor.trustGlowAlpha - 12);
+
+        if (this.state === 'display' || this.state === 'following') {
+            this.state = 'normal';
+            this.stateData = {};
+        }
+
+        this.updateWings();
+        this.gridPos = gridManager.screenToIso(this.x, this.y);
+        this.updateZIndex();
+
+        if (sleepState.subtype !== 'settling_sleep' && particleSystem && frameCount % 180 === 0) {
+            particleSystem.emit(this.x + random(-2, 2), this.y - 4 + random(-1, 1), [210, 225, 255], 1, 'joy');
+        }
+    }
+
+    updateSpawnEffects(particleSystem) {
+        if (this.spawnTimer <= 0) return;
+
+        this.spawnTimer--;
+        const maxSpawnTimer = this.personalityType === 'golden' ? 300 : 180;
+        this.spawnGlowIntensity = this.spawnTimer / maxSpawnTimer;
+
+        if (this.spawnTimer % 10 === 0) {
+            const sparkleColor = this.personalityType === 'golden'
+                ? [255, 215, 0]
+                : [255, 255, 200];
+
+            particleSystem.emit(
+                this.x + random(-10, 10),
+                this.y + random(-10, 10),
+                sparkleColor,
+                1,
+                'joy'
+            );
         }
     }
     
@@ -594,9 +659,9 @@ class Butterfly extends Entity {
             speed = speed + (this.speeds.happy - speed) * ratio;
         }
         
-        // Apply speed boost
-        if (this.timers.speedBoost > 0) {
-            speed *= this.boosts.speed;
+        const movementSpeedBonus = this.getStatusStrength('movement_speed_bonus');
+        if (movementSpeedBonus > 0) {
+            speed *= 1 + movementSpeedBonus;
         }
         
         return speed;
@@ -1405,9 +1470,9 @@ class Butterfly extends Entity {
             rate *= 2.0;
         }
         
-        // Apply teaching bonus
-        if (this.timers.teachingBoost > 0) {
-            rate *= 1.5;
+        const healingReceivedBonus = this.getStatusStrength('healing_received_bonus');
+        if (healingReceivedBonus > 0) {
+            rate *= 1 + healingReceivedBonus;
         }
         
         return rate;
@@ -1675,20 +1740,27 @@ class Butterfly extends Entity {
     updateWings() {
         // Calculate wing speed based on state and happiness
         let speed = this.visual.wingSpeed;
-        
-        if (this.state === 'display') {
-            speed = this.visual.wingDisplaySpeed;
-        } else if (this.state === 'scared') {
-            speed = this.visual.wingScaredSpeed;
-        } else if (this.state === 'feeding') {
-            speed = this.visual.wingSpeed * 0.3; // Slow, gentle
-        } else if (this.state === 'following') {
-            speed = this.visual.wingSpeed * 1.3; // Excited
-        } else if (this.happiness > this.baselineHappiness) {
-            const happinessRatio = (this.happiness - this.baselineHappiness) / 
-                                  (this.maxHappiness - this.baselineHappiness);
-            speed = this.visual.wingSpeed + 
-                   (this.visual.happyWingSpeed - this.visual.wingSpeed) * happinessRatio;
+        const sleepState = this.getSleepState();
+
+        if (sleepState?.subtype === 'settling_sleep') {
+            speed = this.visual.wingSpeed * 0.35;
+        } else if (sleepState?.subtype) {
+            speed = this.visual.wingSpeed * 0.08;
+        } else {
+            if (this.state === 'display') {
+                speed = this.visual.wingDisplaySpeed;
+            } else if (this.state === 'scared') {
+                speed = this.visual.wingScaredSpeed;
+            } else if (this.state === 'feeding') {
+                speed = this.visual.wingSpeed * 0.3; // Slow, gentle
+            } else if (this.state === 'following') {
+                speed = this.visual.wingSpeed * 1.3; // Excited
+            } else if (this.happiness > this.baselineHappiness) {
+                const happinessRatio = (this.happiness - this.baselineHappiness) /
+                    (this.maxHappiness - this.baselineHappiness);
+                speed = this.visual.wingSpeed +
+                    (this.visual.happyWingSpeed - this.visual.wingSpeed) * happinessRatio;
+            }
         }
         
         this.visual.wingAngle += speed;
@@ -1736,9 +1808,57 @@ class Butterfly extends Entity {
         return this.specialAbility ?? this.traits.special ?? null;
     }
 
+    getStatusBundle() {
+        if (typeof statusSystem === 'undefined' || !this.id) {
+            return { families: {}, numeric: {}, cooldowns: {}, charges: {}, immunities: {}, totalEffects: 0 };
+        }
+        return statusSystem.getAggregatedModifiers(this.id);
+    }
+
+    getStatusStrength(family) {
+        const bundle = this.getStatusBundle();
+        if (typeof bundle.numeric?.[family] === 'number') {
+            return bundle.numeric[family];
+        }
+        return bundle.families?.[family]?.strength ?? 0;
+    }
+
+    getAbilityCooldownRemaining(channel) {
+        const bundle = this.getStatusBundle();
+        return bundle.cooldowns?.[channel]?.remainingSeconds ?? 0;
+    }
+
+    setAbilityCooldown(channel, remainingSeconds, options = {}) {
+        if (typeof statusSystem === 'undefined' || !this.id || !channel) return null;
+        return statusSystem.setCooldown(this.id, channel, remainingSeconds, {
+            sourceId: this.id,
+            tags: ['butterfly-ability', this.getAbilityDebugLabel()],
+            ...options
+        });
+    }
+
+    applyAbilityAura(targetId, family, strength, durationSeconds, effectId, metadata = {}) {
+        if (typeof statusSystem === 'undefined' || !targetId || !family || !effectId) return null;
+        return statusSystem.applyEffect({
+            id: effectId,
+            family,
+            subtype: this.getAbilityDebugLabel(),
+            sourceId: this.id,
+            targetId,
+            strength,
+            durationSeconds,
+            metadata,
+            tags: ['butterfly-ability', this.getAbilityDebugLabel()]
+        });
+    }
+
     setSpecialAbility(ability) {
         this.specialAbility = ability || null;
         this.traits.special = this.specialAbility;
+    }
+
+    getAbilityDebugLabel() {
+        return this.getSpecialAbility() || this.personalityType || 'butterfly';
     }
 
     getFlowerInteractionType() {
@@ -1816,12 +1936,21 @@ class Butterfly extends Entity {
     // Override parent's entity drawing
     drawAfterimages(graphics) {
         if (this.afterimages.length === 0) return;
+        if (typeof renderManager !== 'undefined' && !renderManager.shouldRenderAfterimageTrails()) return;
+        const trailMode = typeof renderManager !== 'undefined'
+            ? renderManager.getTrailVisibilityMode?.() || 'full'
+            : 'full';
+        const startIndex = trailMode === 'reduced'
+            ? Math.max(0, this.afterimages.length - Math.ceil(this.afterimages.length / 2))
+            : 0;
 
         const useSprites = this.hasRenderableWings();
 
-        for (let i = 0; i < this.afterimages.length; i++) {
+        for (let i = startIndex; i < this.afterimages.length; i++) {
             const ghost = this.afterimages[i];
-            const ghostAlpha = map(i, 0, this.afterimages.length, 20, 60);
+            const relativeIndex = i - startIndex;
+            const relativeLength = Math.max(1, this.afterimages.length - startIndex);
+            const ghostAlpha = map(relativeIndex, 0, relativeLength, trailMode === 'reduced' ? 28 : 20, trailMode === 'reduced' ? 48 : 60);
 
             graphics.push();
             graphics.translate(ghost.x, ghost.y);
@@ -1834,7 +1963,6 @@ class Butterfly extends Entity {
             graphics.noStroke();
 
             if (useSprites) {
-                graphics.smooth();
                 graphics.tint(255, ghostAlpha);
 
                 this.drawSpriteBody(graphics);
@@ -1871,12 +1999,20 @@ class Butterfly extends Entity {
     }
 
     drawEntity(graphics, alpha) {
+        const sleepState = this.getSleepState();
+
         // Draw afterimage trail behind the main butterfly
-        this.drawAfterimages(graphics);
+        if (!sleepState?.subtype) {
+            this.drawAfterimages(graphics);
+        }
 
         // Draw butterfly at current position
         graphics.push();
-        graphics.translate(this.x, this.y);
+        const sleepVisual = typeof sleepSystem !== 'undefined' ? sleepSystem.getVisualState(this.id) : null;
+        graphics.translate(this.x, this.y + (sleepVisual?.yOffset || 0));
+        if (sleepVisual?.tilt) {
+            graphics.rotate(sleepVisual.tilt);
+        }
         graphics.scale(gameConfig.rendering.butterflyVisualScale);
         
         // Draw warning effect if butterfly needs attention
@@ -1930,9 +2066,6 @@ class Butterfly extends Entity {
         const useSprites = this.hasRenderableWings();
 
         if (useSprites) {
-            // Enable smooth scaling for sprite downscaling quality
-            graphics.smooth();
-
             // Apply alpha for fading butterflies
             if (alpha < 255) {
                 graphics.tint(255, alpha);
@@ -1986,7 +2119,34 @@ class Butterfly extends Entity {
         if (this.cursor.trustGlowAlpha > 0) {
             this.drawTrustIndicator(graphics);
         }
+
+        if (sleepState?.subtype) {
+            this.drawSleepIndicator(graphics, sleepState, alpha);
+        }
         
+        graphics.pop();
+    }
+
+    drawSleepIndicator(graphics, sleepState, alpha) {
+        graphics.push();
+        graphics.noStroke();
+
+        const indicatorColor = sleepState.subtype === 'oversleeping'
+            ? [170, 190, 255]
+            : [220, 230, 255];
+
+        graphics.fill(indicatorColor[0], indicatorColor[1], indicatorColor[2], alpha * 0.22);
+        graphics.ellipse(0, 9, 18, 7);
+
+        if (sleepState.subtype !== 'settling_sleep') {
+            graphics.fill(indicatorColor[0], indicatorColor[1], indicatorColor[2], alpha * 0.85);
+            graphics.textAlign(CENTER, CENTER);
+            graphics.textSize(8);
+            graphics.text('z', 6, -12);
+            graphics.textSize(6);
+            graphics.text('z', 11, -18);
+        }
+
         graphics.pop();
     }
     
@@ -2594,6 +2754,12 @@ class Butterfly extends Entity {
         this.feeding.cooldowns.clear(); // Clear all feeding cooldowns
         this.pregnancy = null;
         this.visual.hasBeenHovered = false;
+        if (typeof sleepSystem !== 'undefined') {
+            sleepSystem.setExhaustion(this.id, 0);
+            sleepSystem.wakeEntity(this.id, 'lifecycle-restart');
+        }
+        this.lifeSim.emotions.exhaustion = 0;
+        this.lifeSim.lifecycle.deathState = null;
         
         // Reset movement to prevent weird glitches
         this.movement.smoothFollowTarget = { x: this.gridPos.x, y: this.gridPos.y };
@@ -2629,6 +2795,10 @@ class Butterfly extends Entity {
         const { butterflies, particleSystem } = gameState;
         
         switch (ability) {
+            case 'welcome':
+                this.updateWarmWelcomeAura(butterflies);
+                break;
+
             case 'sparkle':
                 this.updateSparkleTrail(particleSystem);
                 break;
@@ -2646,8 +2816,37 @@ class Butterfly extends Entity {
                 break;
                 
             case 'shimmer':
-                // Visual effect handled in draw
+                this.updateSleepAssistAura(butterflies);
                 break;
+        }
+    }
+
+    updateWarmWelcomeAura(butterflies) {
+        if (this.happiness <= this.baselineHappiness) return;
+
+        for (const butterfly of butterflies) {
+            if (butterfly === this || !butterfly?.id) continue;
+
+            const dx = this.x - butterfly.x;
+            const dy = this.y - butterfly.y;
+            if ((dx * dx) + (dy * dy) >= 8100) continue;
+
+            this.applyAbilityAura(
+                butterfly.id,
+                'healing_received_bonus',
+                0.2,
+                0.35,
+                `welcome_heal_${this.id}_${butterfly.id}`,
+                { ability: 'welcome', radius: 90 }
+            );
+            this.applyAbilityAura(
+                butterfly.id,
+                'panic_resistance',
+                0.18,
+                0.35,
+                `welcome_panic_${this.id}_${butterfly.id}`,
+                { ability: 'welcome', radius: 90 }
+            );
         }
     }
     
@@ -2696,32 +2895,37 @@ class Butterfly extends Entity {
     // Energetic butterfly - creates speed zones
     updateSpeedZone(butterflies) {
         if (this.happiness <= this.baselineHappiness) return;
-        
-        this.abilities.speedZoneTimer++;
-        
-        // Create speed zone every 5 seconds
-        if (this.abilities.speedZoneTimer >= 300) {
-            this.abilities.speedZoneTimer = 0;
-            
-            // Boost nearby butterflies
-            for (let butterfly of butterflies) {
-                if (butterfly === this) continue;
-                
-                const dx = this.x - butterfly.x;
-                const dy = this.y - butterfly.y;
-                if (dx*dx + dy*dy < 10000) { // 100^2 = 10000
-                    // Give temporary speed boost
-                    butterfly.boosts.speed = 1.5;
-                    butterfly.timers.speedBoost = 180; // 3 seconds
-                    
-                    // Visual feedback
-                    eventBus.emit('speedzone:created', {
-                        x: this.x,
-                        y: this.y,
-                        radius: 100
-                    });
-                }
-            }
+
+        if (this.getAbilityCooldownRemaining('speedzone_pulse') > 0) return;
+
+        let affectedCount = 0;
+        for (const butterfly of butterflies) {
+            if (butterfly === this || !butterfly?.id) continue;
+
+            const dx = this.x - butterfly.x;
+            const dy = this.y - butterfly.y;
+            if ((dx * dx) + (dy * dy) >= 10000) continue;
+
+            this.applyAbilityAura(
+                butterfly.id,
+                'movement_speed_bonus',
+                0.5,
+                3,
+                `speedzone_${this.id}_${butterfly.id}`,
+                { ability: 'speedzone', radius: 100 }
+            );
+            affectedCount++;
+        }
+
+        if (affectedCount > 0) {
+            this.setAbilityCooldown('speedzone_pulse', 5, { durationSeconds: 5 });
+            eventBus.emit('speedzone:created', {
+                sourceId: this.id,
+                x: this.x,
+                y: this.y,
+                radius: 100,
+                affectedCount
+            });
         }
     }
     
@@ -2732,29 +2936,34 @@ class Butterfly extends Entity {
             return;
         }
         
+        const teachingPulseRadius = gameConfig?.balance?.social?.teachingPulseRadius ?? 80;
         this.abilities.teachingAura = true;
         
-        // Emit teaching pulse periodically
-        this.abilities.teachingPulseTimer++;
-        
-        if (this.abilities.teachingPulseTimer >= 120) { // Every 2 seconds
-            this.abilities.teachingPulseTimer = 0;
+        if (this.getAbilityCooldownRemaining('teaching_pulse') <= 0) {
             eventBus.emit('teaching:pulse', {
+                teacherId: this.id,
                 x: this.x,
-                y: this.y
+                y: this.y,
+                radius: teachingPulseRadius
             });
+            this.setAbilityCooldown('teaching_pulse', 2, { durationSeconds: 2 });
         }
-        
-        // Boost happiness gain of nearby butterflies
-        for (let butterfly of butterflies) {
-            if (butterfly === this) continue;
-            
+
+        for (const butterfly of butterflies) {
+            if (butterfly === this || !butterfly?.id) continue;
+
             const dx = this.x - butterfly.x;
             const dy = this.y - butterfly.y;
-            if (dx*dx + dy*dy < 6400) { // 80^2 = 6400
-                // Mark butterfly as being taught
-                butterfly.timers.teachingBoost = 10;
-            }
+            if ((dx * dx) + (dy * dy) >= 6400) continue;
+
+            this.applyAbilityAura(
+                butterfly.id,
+                'healing_received_bonus',
+                0.5,
+                0.35,
+                `teacher_heal_${this.id}_${butterfly.id}`,
+                { ability: 'teacher', radius: 80 }
+            );
         }
     }
     
@@ -2770,22 +2979,63 @@ class Butterfly extends Entity {
             
             const dx = this.x - butterfly.x;
             const dy = this.y - butterfly.y;
-            if (dx*dx + dy*dy < 22500) { // 150^2 = 22500
-                // Temporarily boost trust
-                butterfly.boosts.trust = 2.0;
-                butterfly.timers.trustBoost = 300; // 5 seconds
-                this.abilities.trustCascadeCache.push(butterfly);
+            if (dx*dx + dy*dy < ((gameConfig?.balance?.social?.trustCascadeRadius ?? 150) ** 2)) {
+                this.abilities.trustCascadeCache.push({
+                    id: butterfly.id,
+                    x: butterfly.x,
+                    y: butterfly.y
+                });
             }
         }
         
         // Visual feedback - green wave with affected butterflies
         if (this.abilities.trustCascadeCache.length > 0) {
             eventBus.emit('trust:cascade', {
+                sourceId: this.id,
                 x: this.x,
                 y: this.y,
-                radius: 150,
+                radius: gameConfig?.balance?.social?.trustCascadeRadius ?? 150,
                 butterflies: this.abilities.trustCascadeCache
             });
+        }
+    }
+
+    updateSleepAssistAura(butterflies) {
+        if (this.happiness <= this.baselineHappiness) return;
+        if (typeof sleepSystem === 'undefined') return;
+
+        for (const butterfly of butterflies) {
+            if (butterfly === this || !butterfly?.id) continue;
+
+            const dx = this.x - butterfly.x;
+            const dy = this.y - butterfly.y;
+            if ((dx * dx) + (dy * dy) >= 7225) continue;
+
+            sleepSystem.requestSleepAssist(butterfly.id, this.id, 'comfort', 0.18);
+            this.applyAbilityAura(
+                butterfly.id,
+                'sleep_comfort_bonus',
+                0.2,
+                0.35,
+                `shimmer_comfort_${this.id}_${butterfly.id}`,
+                { ability: 'shimmer', radius: 85 }
+            );
+            this.applyAbilityAura(
+                butterfly.id,
+                'wake_resistance',
+                0.16,
+                0.35,
+                `shimmer_wake_${this.id}_${butterfly.id}`,
+                { ability: 'shimmer', radius: 85 }
+            );
+            this.applyAbilityAura(
+                butterfly.id,
+                'sleep_recovery_multiplier',
+                0.18,
+                0.35,
+                `shimmer_recovery_${this.id}_${butterfly.id}`,
+                { ability: 'shimmer', radius: 85 }
+            );
         }
     }
     

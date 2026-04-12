@@ -1,0 +1,4 @@
+node_modules/
+qa_screenshots/
+npm-debug.log*
+

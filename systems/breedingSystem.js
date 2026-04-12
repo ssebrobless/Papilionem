@@ -1,14 +1,23 @@
 class BreedingSystem {
     constructor() {
-        this.pheromoneRadius = 150;
-        this.matingDistance = 18;
-        this.matingDuration = 120;
-        this.pheromoneCooldownFrames = 60 * 300; // 5 minutes
-        this.adultHardCap = 50;
-        this.minEggHatchFrames = 60 * 420;
-        this.maxEggHatchFrames = 60 * 600;
-        this.minCocoonHatchFrames = 60 * 420;
-        this.maxCocoonHatchFrames = 60 * 600;
+        this.refreshConfig();
+    }
+
+    getHybridBalance() {
+        return gameConfig?.balance?.hybrid || {};
+    }
+
+    refreshConfig() {
+        const hybridBalance = this.getHybridBalance();
+        this.pheromoneRadius = hybridBalance.pheromoneRadius ?? 150;
+        this.matingDistance = hybridBalance.matingDistance ?? 18;
+        this.matingDuration = hybridBalance.matingDurationFrames ?? 120;
+        this.pheromoneCooldownFrames = hybridBalance.pheromoneCooldownFrames ?? (60 * 300);
+        this.adultHardCap = hybridBalance.adultHardCap ?? 50;
+        this.minEggHatchFrames = hybridBalance.eggHatchFrames?.min ?? (60 * 420);
+        this.maxEggHatchFrames = hybridBalance.eggHatchFrames?.max ?? (60 * 600);
+        this.minCocoonHatchFrames = hybridBalance.cocoonHatchFrames?.min ?? (60 * 420);
+        this.maxCocoonHatchFrames = hybridBalance.cocoonHatchFrames?.max ?? (60 * 600);
     }
 
     ensureState(gameState) {
@@ -33,7 +42,9 @@ class BreedingSystem {
         }
 
         butterfly.birthSource = butterfly.birthSource || 'wild';
-        butterfly.fertilityUsesRemaining = butterfly.fertilityUsesRemaining ?? (butterfly.birthSource === 'bred' ? 1 : Infinity);
+        butterfly.fertilityUsesRemaining = butterfly.fertilityUsesRemaining ?? (butterfly.birthSource === 'bred'
+            ? (this.getHybridBalance().bredFertilityUses ?? 1)
+            : Infinity);
         butterfly.pheromoneCooldownUntil = butterfly.pheromoneCooldownUntil || 0;
         butterfly.breeding = butterfly.breeding || {};
         butterfly.pregnancy = butterfly.pregnancy || null;
@@ -43,6 +54,7 @@ class BreedingSystem {
     }
 
     update(gameState, particleSystem) {
+        this.refreshConfig();
         this.ensureState(gameState);
         this.updateAttraction(gameState);
         this.updateMatings(gameState, particleSystem);
@@ -383,7 +395,7 @@ class BreedingSystem {
             {
                 sex: lifecycleData.childSex,
                 birthSource: 'bred',
-                fertilityUsesRemaining: 1,
+                fertilityUsesRemaining: this.getHybridBalance().bredFertilityUses ?? 1,
                 hybridGenome: lifecycleData.hybridGenome,
                 customTraits: lifecycleData.inheritedTraits,
                 customAbility: lifecycleData.inheritedAbility,

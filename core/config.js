@@ -168,7 +168,203 @@ const gameConfig = {
         showGrid: true,
         showZones: true,
         showCoordinates: true,
-        showFPS: true
+        showFPS: true,
+        gardenTimeControls: {
+            enabledInNormalPlay: false,
+            debugSpeedPresets: [1, 2, 4]
+        },
+        auditTools: {
+            scenarioPresets: true,
+            snapshotDiff: true,
+            invariantChecker: true,
+            eventTimeline: true,
+            saveLoadVerifier: true,
+            screenshotNotes: true
+        }
+    },
+
+    accessibility: {
+        reducedMotion: false,
+        battleMotionSimplify: true,
+        highContrastUI: false,
+        colorblindSafeIndicators: true,
+        strongSelectionOutlines: true,
+        trailVisibility: 'full',
+        backgroundAtmosphere: 'full',
+        statusIndicatorDensity: 'simplified',
+        uiScale: 1
+    },
+
+    simulation: {
+        defaultTimeScale: 1,
+        battleTimeScales: [1, 2],
+        frameRate: 60,
+        fixedDeltaSeconds: 1 / 60
+    },
+
+    balance: {
+        sleep: {
+            assistStrengthDefault: 0.15,
+            movementMultiplierSettling: 0.25,
+            wingAnimationMultiplierSettling: 0.35,
+            wingAnimationMultiplierAsleep: 0.08,
+            visualYOffsetSettling: 1.5,
+            visualYOffsetAsleep: 3,
+            visualTiltSettling: 0.08,
+            visualTiltAsleep: 0.18,
+            passiveExhaustionBaseGain: 0.006,
+            passiveExhaustionRestMultiplier: 0.004,
+            passiveExhaustionInsomniaMultiplier: 0.002,
+            settleThresholdBase: 0.62,
+            settleThresholdFloor: 0.28,
+            settleThresholdInsomniaMultiplier: 0.08,
+            settleThresholdComfortMultiplier: 0.05,
+            settlingDurationSeconds: 1.5,
+            normalRecoveryBaseRate: 0.032,
+            normalRecoveryComfortMultiplier: 0.014,
+            oversleepPressureGainMultiplier: 0.02,
+            wakeThresholdBase: 0.18,
+            wakeThresholdFloor: 0.08,
+            wakeThresholdResistanceMultiplier: 0.03,
+            wakeMinimumSleepSeconds: 4,
+            oversleepThresholdBase: 0.35,
+            oversleepThresholdBiasMultiplier: 0.15,
+            oversleepRecoveryRate: 0.02,
+            oversleepPressureDecayRate: 0.016,
+            forcedSleepRecoveryRate: 0.014,
+            passiveOversleepPressureDecayRate: 0.004
+        },
+        social: {
+            teachingLessonDurationSeconds: 1.6,
+            teachingPulseRadius: 76,
+            teachingPulseMemoryValence: 0.22,
+            teachingPulseMemoryStrength: 0.26,
+            teachingPulseEdgeTrust: 0.02,
+            teachingPulseEdgeAdmiration: 0.035,
+            teachingPulseEdgeComfort: 0.015,
+            teachingPulseRoutineReinforcement: 0.025,
+            trustCascadeRadius: 132,
+            trustCascadeMemoryValence: 0.28,
+            trustCascadeMemoryStrength: 0.34,
+            trustCascadeEdgeTrust: 0.035,
+            trustCascadeEdgeComfort: 0.025,
+            trustCascadeEdgeAdmiration: 0.015,
+            lessonUpbringingStrength: 0.28,
+            lessonRoutineReinforcement: 0.05,
+            lessonInterpretationClarityGain: 0.01,
+            lessonMemoryValence: 0.36,
+            lessonMemoryStrength: 0.4,
+            lessonEdgeTrust: 0.03,
+            lessonEdgeAdmiration: 0.04,
+            lessonEdgeComfort: 0.02,
+            listenerTeachingRoutineReinforcement: 0.035,
+            teacherTeachingRoutineReinforcement: 0.025,
+            teachingBoostFrames: 16
+        },
+        hybrid: {
+            pheromoneRadius: 132,
+            matingDistance: 16,
+            matingDurationFrames: 150,
+            pheromoneCooldownFrames: 21600,
+            adultHardCap: 50,
+            eggHatchFrames: {
+                min: 28800,
+                max: 39600
+            },
+            cocoonHatchFrames: {
+                min: 28800,
+                max: 39600
+            },
+            bredFertilityUses: 1
+        }
+    },
+
+    world: {
+        layout: 'single-zone-foundation',
+        overviewMode: false,
+        viewModes: ['overview', 'focused-garden', 'battle'],
+        zones: [
+            {
+                id: 'garden-core',
+                label: 'Garden Core',
+                kind: 'garden',
+                poolAllowed: true,
+                doorwayIds: [],
+                adjacentZoneIds: [],
+                bounds: {
+                    minX: 0,
+                    maxX: 17,
+                    minY: 0,
+                    maxY: 17
+                },
+                renderProfile: {
+                    movingBackgroundEffectsInFocus: true,
+                    movingBackgroundEffectsInOverview: false,
+                    afterimageTrailsInFocus: true,
+                    afterimageTrailsInBattle: false
+                }
+            }
+        ]
+    },
+
+    registries: {
+        actionFamilies: [
+            'idle',
+            'wander',
+            'seek_resource',
+            'care_for_vulnerable',
+            'teach_or_listen',
+            'sleep',
+            'socialize',
+            'reposition',
+            'battle'
+        ],
+        statusFamilies: [
+            'healing_received_bonus',
+            'panic_resistance',
+            'aggression_suppression',
+            'attack_speed_bonus',
+            'movement_speed_bonus',
+            'energetic_state_boost',
+            'reposition_guidance',
+            'cooldown_intelligence',
+            'sleep_comfort_bonus',
+            'wake_resistance',
+            'forced_sleep',
+            'forced_sleep_immunity',
+            'sleep_recovery_multiplier'
+        ],
+        sleepSubtypes: [
+            'settling_sleep',
+            'normal_sleep',
+            'oversleeping',
+            'forced_battle_sleep'
+        ],
+        battleStates: [
+            'inactive',
+            'snapshotting',
+            'active',
+            'resolving',
+            'committing'
+        ],
+        persistenceFieldClasses: {
+            durable: 'durable',
+            derived: 'derived',
+            runtime: 'runtime'
+        }
+    },
+
+    systems: {
+        phaseFoundationOrder: [
+            'zoneSystem',
+            'statusSystem',
+            'behaviorSystem',
+            'objectSystem',
+            'sleepSystem',
+            'teachingSystem',
+            'battleSystem',
+            'saveSystem'
+        ]
     }
 };
 

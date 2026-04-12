@@ -6,6 +6,266 @@ function generateEntityId(prefix = 'entity') {
     return `${prefix}_${Date.now()}_${__entityIdCounter}`;
 }
 
+function createDriveProfile(overrides = {}) {
+    return {
+        selfMaintenance: 0,
+        safetyAvoidance: 0,
+        resourceControl: 0,
+        socialConnection: 0,
+        caregiving: 0,
+        exploration: 0,
+        statusExpression: 0,
+        rest: 0,
+        ...overrides
+    };
+}
+
+function createEmotionProfile(overrides = {}) {
+    return {
+        threat: 0,
+        relief: 0,
+        attachment: 0,
+        rejection: 0,
+        significance: 0,
+        failure: 0,
+        curiosity: 0,
+        agitation: 0,
+        exhaustion: 0,
+        ...overrides
+    };
+}
+
+function createMemoryStore() {
+    return {
+        place: [],
+        object: [],
+        interaction: [],
+        outcome: [],
+        routine: [],
+        social: [],
+        danger: [],
+        care: []
+    };
+}
+
+function createRoutineStore() {
+    return {
+        movement: [],
+        social: [],
+        care: [],
+        resource: [],
+        rest: [],
+        vigilance: [],
+        teaching: []
+    };
+}
+
+function createDistortionProfile(overrides = {}) {
+    return {
+        traumaBias: 0,
+        anxietyBias: 0,
+        withdrawalBias: 0,
+        fixationBias: 0,
+        insomniaBias: 0,
+        oversleepBias: 0,
+        warpedTeachingBias: 0,
+        ...overrides
+    };
+}
+
+function createGeneticsProfile(options = {}) {
+    return {
+        source: options.source || 'wild',
+        baselineTraits: { ...(options.baselineTraits || {}) },
+        inheritedTraits: { ...(options.inheritedTraits || {}) },
+        heritageTags: [...(options.heritageTags || [])],
+        lineageIds: {
+            parents: [...(options.parentIds || [])],
+            ancestors: [...(options.ancestorIds || [])]
+        }
+    };
+}
+
+function createLifecycleProfile(overrides = {}) {
+    return {
+        stage: overrides.stage || 'adult',
+        ageTicks: overrides.ageTicks || 0,
+        deathState: overrides.deathState || null,
+        upbringingState: overrides.upbringingState || null
+    };
+}
+
+function createBaseLifeSimState(options = {}) {
+    return {
+        identity: {
+            entityType: options.entityType || 'entity',
+            archetype: options.archetype || options.entityType || 'entity',
+            source: options.source || 'wild'
+        },
+        drives: createDriveProfile(options.drives),
+        emotions: createEmotionProfile(options.emotions),
+        memories: createMemoryStore(),
+        socialEdges: {},
+        routines: createRoutineStore(),
+        interpretation: {
+            clarity: 1,
+            lastSignals: [],
+            warpedSignals: 0
+        },
+        distortion: createDistortionProfile(options.distortion),
+        genetics: createGeneticsProfile(options.genetics),
+        upbringing: {
+            imprintSources: [...(options.imprintSources || [])],
+            lessons: [],
+            routineReinforcement: {}
+        },
+        lifecycle: createLifecycleProfile(options.lifecycle)
+    };
+}
+
+function createObjectProfile(options = {}) {
+    return {
+        entityType: options.entityType || 'object',
+        subtype: options.subtype || 'generic',
+        resourceTags: [...(options.resourceTags || [])],
+        carryable: !!options.carryable,
+        consumable: !!options.consumable,
+        occupancyState: options.occupancyState || 'normal',
+        lifecycleStage: options.lifecycleStage || null
+    };
+}
+
+function clampLifeSimUnit(value) {
+    return Math.max(0, Math.min(1, value ?? 0));
+}
+
+function appendLifeMemory(entity, family, packet = {}) {
+    const store = entity?.lifeSim?.memories?.[family];
+    if (!Array.isArray(store)) return null;
+
+    const normalized = {
+        id: packet.id || `${family}_memory_${entity.id}_${Date.now()}_${store.length + 1}`,
+        family,
+        subjectId: packet.subjectId || null,
+        valence: packet.valence ?? 0,
+        strength: clampLifeSimUnit(packet.strength ?? 0.25),
+        recency: packet.recency ?? 1,
+        reinforcementCount: packet.reinforcementCount ?? 1,
+        emotionalColoring: { ...(packet.emotionalColoring || {}) },
+        warped: !!packet.warped,
+        tags: [...(packet.tags || [])],
+        createdAtSeconds: packet.createdAtSeconds ?? null,
+        metadata: { ...(packet.metadata || {}) }
+    };
+
+    store.unshift(normalized);
+    if (store.length > 24) {
+        store.length = 24;
+    }
+    return normalized;
+}
+
+function ensureLifeSocialEdge(entity, targetId) {
+    if (!entity?.lifeSim || !targetId) return null;
+    if (!entity.lifeSim.socialEdges[targetId]) {
+        entity.lifeSim.socialEdges[targetId] = {
+            trust: 0,
+            comfort: 0,
+            attachment: 0,
+            dependence: 0,
+            rivalry: 0,
+            resentment: 0,
+            admiration: 0,
+            protectiveness: 0,
+            lastUpdatedSeconds: null,
+            historyTags: []
+        };
+    }
+    return entity.lifeSim.socialEdges[targetId];
+}
+
+function adjustLifeSocialEdge(entity, targetId, deltas = {}, metadata = {}) {
+    const edge = ensureLifeSocialEdge(entity, targetId);
+    if (!edge) return null;
+
+    const edgeFamilies = [
+        'trust',
+        'comfort',
+        'attachment',
+        'dependence',
+        'rivalry',
+        'resentment',
+        'admiration',
+        'protectiveness'
+    ];
+
+    for (const family of edgeFamilies) {
+        if (typeof deltas[family] !== 'number') continue;
+        edge[family] = clampLifeSimUnit(edge[family] + deltas[family]);
+    }
+
+    edge.lastUpdatedSeconds = metadata.updatedAtSeconds ?? edge.lastUpdatedSeconds;
+    if (metadata.tag) {
+        edge.historyTags.unshift(metadata.tag);
+        if (edge.historyTags.length > 8) {
+            edge.historyTags.length = 8;
+        }
+    }
+
+    return edge;
+}
+
+function reinforceLifeRoutine(entity, family, targetReference = null, rewardDelta = 0.05, metadata = {}) {
+    const routines = entity?.lifeSim?.routines?.[family];
+    if (!Array.isArray(routines)) return null;
+
+    let routine = routines.find(entry => entry.targetReference === targetReference);
+    if (!routine) {
+        routine = {
+            family,
+            targetReference,
+            phaseAffinity: metadata.phaseAffinity || null,
+            strength: 0,
+            stability: 0,
+            recency: 0,
+            emotionalReward: 0
+        };
+        routines.unshift(routine);
+    }
+
+    routine.strength = clampLifeSimUnit(routine.strength + rewardDelta);
+    routine.stability = clampLifeSimUnit(routine.stability + rewardDelta * 0.5);
+    routine.recency = metadata.recency ?? 1;
+    routine.emotionalReward = clampLifeSimUnit((routine.emotionalReward || 0) + rewardDelta);
+    if (routines.length > 16) {
+        routines.length = 16;
+    }
+
+    return routine;
+}
+
+function appendUpbringingLesson(entity, lesson = {}) {
+    const lessons = entity?.lifeSim?.upbringing?.lessons;
+    if (!Array.isArray(lessons)) return null;
+
+    const normalized = {
+        id: lesson.id || `lesson_${entity.id}_${Date.now()}_${lessons.length + 1}`,
+        category: lesson.category || 'general',
+        teacherId: lesson.teacherId || null,
+        strength: clampLifeSimUnit(lesson.strength ?? 0.25),
+        warped: !!lesson.warped,
+        createdAtSeconds: lesson.createdAtSeconds ?? null,
+        tags: [...(lesson.tags || [])],
+        content: { ...(lesson.content || {}) }
+    };
+
+    lessons.unshift(normalized);
+    if (lessons.length > 24) {
+        lessons.length = 24;
+    }
+    return normalized;
+}
+
 class Entity {
     constructor(x, y) {
         this.id = generateEntityId('entity');

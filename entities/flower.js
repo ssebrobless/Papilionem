@@ -74,6 +74,15 @@ class Flower extends Entity {
         // Apply dynamic properties
         if (config.clusterCount) this.clusterCount = config.clusterCount();
         if (config.stemCount) this.stemCount = config.stemCount();
+        this.objectProfile = createObjectProfile({
+            entityType: 'flower',
+            subtype: this.flowerType,
+            resourceTags: ['nectar', 'care', 'garden-object'],
+            carryable: false,
+            consumable: true,
+            occupancyState: 'normal',
+            lifecycleStage: this.stage
+        });
         
         // Vibrant colors with strong contrast against the background
         const flowerPalettes = [
@@ -115,6 +124,8 @@ class Flower extends Entity {
     update(gameState) {
         const { butterflies, particleSystem } = gameState;
         this.ensureLifecycleData();
+        this.objectProfile.lifecycleStage = this.stage;
+        this.objectProfile.occupancyState = this.occupancyState;
         
         // Update golden blessing timer
         if (this.goldenBlessing > 0) {
@@ -165,6 +176,7 @@ class Flower extends Entity {
         
         if (currentIndex < stages.length - 1) {
             this.stage = stages[currentIndex + 1];
+            this.objectProfile.lifecycleStage = this.stage;
             this.stageTimer = 0;
         }
     }
@@ -686,6 +698,7 @@ class Flower extends Entity {
     attachEgg(eggData) {
         this.ensureLifecycleData();
         this.occupancyState = 'egg';
+        this.objectProfile.occupancyState = 'egg';
         this.allowedButterflyId = eggData.motherId;
         this.eggData = eggData;
         this.currentFeeder = null;
@@ -705,9 +718,11 @@ class Flower extends Entity {
 
     consumeByCaterpillar(particleSystem) {
         this.occupancyState = 'normal';
+        this.objectProfile.occupancyState = 'normal';
         this.eggData = null;
         this.chrysalisData = null;
         this.stage = 'dissolve';
+        this.objectProfile.lifecycleStage = this.stage;
         this.stageTimer = this.stageDurations.dissolve;
 
         if (particleSystem) {
@@ -718,6 +733,7 @@ class Flower extends Entity {
     becomeChrysalisFlower(lifecycleData) {
         this.ensureLifecycleData();
         this.occupancyState = 'chrysalis';
+        this.objectProfile.occupancyState = 'chrysalis';
         this.chrysalisData = {
             lifecycleData,
             hatchFrame: frameCount + Math.floor(random(60 * 420, 60 * 600)),

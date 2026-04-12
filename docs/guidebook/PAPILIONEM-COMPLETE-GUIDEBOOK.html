@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Papilionem Complete Guidebook</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    @page { size: Letter; margin: 0.6in; }
+    :root { --bg:#fcf8f3; --ink:#2a2431; --muted:#6d6775; --line:#d8cfbf; --panel:#fffdf9; --accent:#356b59; --accent-soft:#e8f2ed; --warm:#7f4f24; --mono:"Cascadia Mono","Consolas",monospace; --sans:"Segoe UI","Trebuchet MS",sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); line-height:1.45; font-size:11pt; }
+    main { max-width:8in; margin:0 auto; }
+    .page { break-after:page; min-height:10in; padding:0.2in 0 0 0; }
+    .section-break { break-before:page; padding-top:0.15in; }
+    h1,h2,h3,h4 { line-height:1.15; margin:0 0 0.2rem 0; }
+    h1 { font-size:28pt; margin-top:0.2in; }
+    h2 { font-size:18pt; margin-top:0.35in; padding-top:0.08in; border-top:2px solid var(--line); }
+    h3 { font-size:13pt; margin-top:0.25in; }
+    h4 { font-size:11pt; margin-top:0.18in; }
+    p,li { margin-top:0.15rem; margin-bottom:0.15rem; }
+    .cover-note,.subtle { color:var(--muted); }
+    .hero { border:2px solid var(--ink); background:linear-gradient(135deg, #fffaf2, #f7efe2); padding:0.28in; border-radius:16px; }
+    .hero-grid { display:grid; grid-template-columns:1.2fr 0.8fr; gap:0.22in; align-items:start; }
+    .shape-box { font-family:var(--mono); white-space:pre-wrap; background:var(--panel); border:1px solid var(--line); padding:0.16in; border-radius:12px; font-size:9pt; }
+    .toc { display:grid; gap:0.06in; margin-top:0.18in; padding:0.18in; border:1px solid var(--line); background:var(--panel); border-radius:12px; }
+    .toc a { color:var(--ink); text-decoration:none; display:flex; justify-content:space-between; gap:0.12in; border-bottom:1px dotted #c8c0b2; padding-bottom:0.04in; }
+    .callout { margin:0.16in 0; padding:0.14in 0.16in; border-left:4px solid var(--accent); background:var(--accent-soft); border-radius:8px; }
+    .warning { border-left-color:var(--warm); background:#f8eee4; }
+    .diagram { margin:0.18in 0 0.26in 0; padding:0.12in; background:var(--panel); border:1px solid var(--line); border-radius:12px; }
+    .kv-table { width:100%; border-collapse:collapse; margin:0.08in 0 0.16in 0; font-size:9.5pt; }
+    .kv-table th,.kv-table td { border:1px solid var(--line); padding:0.06in 0.08in; vertical-align:top; text-align:left; }
+    .kv-table th { background:#f1eadf; }
+    .columns-2 { display:grid; grid-template-columns:1fr 1fr; gap:0.18in; }
+    .pill-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:0.08in; margin:0.1in 0; }
+    .pill { border:1px solid var(--line); background:var(--panel); border-radius:999px; padding:0.05in 0.1in; font-size:9.5pt; }
+    code { font-family:var(--mono); font-size:9pt; }
+    .appendix-grid { display:grid; gap:0.14in; }
+    .config-block { break-inside:avoid; }
+    .visual-plate { margin:0.16in 0 0.22in 0; padding:0.14in; border:1px solid var(--line); background:var(--panel); border-radius:16px; break-inside:avoid; }
+    .visual-plate img { display:block; width:100%; height:auto; border:1px solid #e6ddd0; border-radius:12px; background:#fffaf5; }
+    .visual-plate figcaption { margin-top:0.1in; color:var(--muted); font-size:9.8pt; }
+    .plate-page { break-before:page; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad:false, theme:'base', securityLevel:'loose', themeVariables:{ primaryColor:'#fffaf2', primaryTextColor:'#2a2431', primaryBorderColor:'#7f4f24', lineColor:'#356b59', secondaryColor:'#f4ede3', tertiaryColor:'#eef5f1', fontFamily:'Segoe UI, Trebuchet MS, sans-serif' }, flowchart:{ useMaxWidth:true, htmlLabels:true, curve:'basis' } }); window.addEventListener('load', async () => { await mermaid.run({ querySelector: '.mermaid' }); document.body.dataset.mermaidReady = 'true'; });</script>
+</head>
+<body>
+<main>
+  <section class="page">
+    <div class="hero"><div class="hero-grid"><div><h1>Papilionem Complete Guidebook</h1><p class="cover-note">Built from the current implemented milestone branch on 2026-04-12.</p><p>This guidebook is meant to do two jobs at once:</p><ul><li>teach an average player or tester how the game works</li><li>preserve the exact internal logic, tuning, and system boundaries for future reference</li></ul><div class="callout"><strong>Important note:</strong> when this guide talks about the game's neuro layer, it does <em>not</em> mean a machine-learning neural network. Papilionem uses a simulated life-model made of drives, emotions, memory, social edges, routines, interpretation, distortion, genetics, and lifecycle state.</div></div><div class="shape-box">Guidebook shape
+page 1: table of contents
+part 1: how to play and read the garden
+part 2: how the living simulation works
+part 3: internal systems, save/audit, battle
+part 4: visual supplement + exact config tables + glossary</div></div></div>
+    <h2>Table Of Contents</h2>
+    <nav class="toc"><a href="#guide-overview"><span>1. Guide overview and how to use this book</span><span>&gt;</span></a>
+<a href="#game-shape"><span>2. What the game is and how it flows</span><span>&gt;</span></a>
+<a href="#controls"><span>3. All player, accessibility, collection, and debug controls</span><span>&gt;</span></a>
+<a href="#world-camera"><span>4. World, camera, rendering, and readability</span><span>&gt;</span></a>
+<a href="#entities"><span>5. Butterflies, flowers, caterpillars, and lifecycle objects</span><span>&gt;</span></a>
+<a href="#player-logic"><span>6. What the player actually changes in the simulation</span><span>&gt;</span></a>
+<a href="#archetypes-abilities"><span>7. Archetypes, traits, abilities, and spawn logic</span><span>&gt;</span></a>
+<a href="#life-sim"><span>8. The neuro-social life-simulation model</span><span>&gt;</span></a>
+<a href="#sleep"><span>9. Sleep, oversleep, comfort, and wake rules</span><span>&gt;</span></a>
+<a href="#teaching"><span>10. Teaching, trust, routines, and social pacing</span><span>&gt;</span></a>
+<a href="#genetics"><span>11. Genetics, breeding, lineage, and upbringing</span><span>&gt;</span></a>
+<a href="#progression"><span>12. Progression, collection, and hybrid journaling</span><span>&gt;</span></a>
+<a href="#owners"><span>13. Internal logic ownership and system boundaries</span><span>&gt;</span></a>
+<a href="#save-audit"><span>14. Save/load, replay, audit, and telemetry</span><span>&gt;</span></a>
+<a href="#battle"><span>15. Battle snapshot layer</span><span>&gt;</span></a>
+<a href="#assets"><span>16. Sprite and asset pipeline</span><span>&gt;</span></a>
+<a href="#visual-supplement"><span>17. Visual supplement: anatomy, archetypes, hybrids, and lifecycle visuals</span><span>&gt;</span></a>
+<a href="#config"><span>18. Exact tunable config tables</span><span>&gt;</span></a>
+<a href="#glossary"><span>19. Glossary</span><span>&gt;</span></a></nav>
+  </section>
+  <section id="guide-overview" class="section-break"><h2>1. Guide Overview And How To Use This Book</h2><div class="columns-2"><div><h3>Who this is for</h3><ul><li>players who want to understand what they are seeing</li><li>testers who need to reproduce and describe behavior</li><li>developers who need exact system logic and tunable values</li><li>future-you when you want one place that explains the whole project</li></ul></div><div><h3>How it is organized</h3><ul><li>the early sections are plain-language and player-facing</li><li>the middle sections explain the life-simulation model</li><li>the later sections cover persistence, audit tools, battle, and assets</li><li>the appendix contains exact config values pulled from code</li></ul></div></div></section>
+  <section id="game-shape"><h2>2. What The Game Is And How It Flows</h2><div class="diagram"><div class="mermaid">
+flowchart LR
+    Core["GameCore"]
+    Durable["Durable Truth"]
+
+    subgraph WR["World / Render / UI Systems"]
+        Zone["ZoneSystem"]
+        Render["RenderManager<br/>visuals only"]
+        UI["GameUI"]
+        Interaction["InteractionSystem"]
+    end
+
+    subgraph LS["Life-Simulation Owners"]
+        Status["StatusSystem"]
+        Behavior["BehaviorSystem"]
+        Object["ObjectSystem"]
+        Sleep["SleepSystem"]
+        Teaching["TeachingSystem"]
+        Breeding["BreedingSystem"]
+    end
+
+    subgraph DS["Debug / Audit / Persistence"]
+        Save["SaveSystem"]
+        Progression["ProgressionManager"]
+        Telemetry["TelemetrySystem"]
+        Debug["DebugUI"]
+    end
+
+    subgraph BS["Battle Snapshot Layer"]
+        Battle["BattleSystem"]
+    end
+
+    Core --> Zone
+    Core --> Render
+    Core --> UI
+    Core --> Interaction
+    Core --> Status
+    Core --> Behavior
+    Core --> Object
+    Core --> Sleep
+    Core --> Teaching
+    Core --> Breeding
+    Core --> Save
+    Core --> Progression
+    Core --> Telemetry
+    Core --> Debug
+    Save --> Durable
+    Core -. snapshot / commit .-> Battle
+</div></div><p>Papilionem is a living-garden simulation first. The butterflies are not just decorative sprites. Each one carries a persistent internal model that shapes how it moves, whom it trusts, how it learns, how it sleeps, and what it can pass on to offspring.</p><div class="callout"><strong>The short version:</strong> the player enters a garden, influences butterflies mainly through presence and care, and watches a long-running social, genetic, and lifecycle simulation unfold over time.</div><h3>High-level flow</h3><div class="shape-box">Title screen
+v
+living garden
+- butterflies move, react, trust, fear, sleep
+- flowers support feeding, eggs, caterpillars
+- teaching and memory alter later behavior
+- breeding creates hybrid lineages
+v
+optional debug / audit / replay
+v
+optional battle snapshot layer</div></section>
+  <section id="controls"><h2>3. All Controls</h2><div class="diagram"><div class="mermaid">
+flowchart TB
+    subgraph Start["Start / Entry"]
+        StartAny["Any key or click"]
+    end
+
+    subgraph Garden["Normal Garden Controls"]
+        D["D Debug mode"]
+        B["B Boundary overlay"]
+        C["C Collection / journal"]
+        I["I Inspect panel"]
+    end
+
+    subgraph Access["Accessibility Controls"]
+        A["A Accessibility panel"]
+        M["M Reduced motion"]
+        T["T Trail visibility"]
+        G["G Background atmosphere"]
+        H["H High contrast UI"]
+        S["S Battle motion simplify"]
+    end
+
+    subgraph DebugCtl["Debug / Audit Controls"]
+        QE["Q / E Cycle debug tools"]
+        Space["Space Place current tool"]
+        X["X Export zone data"]
+        K["K Save"]
+        L["L Load"]
+        V["V Verify roundtrip"]
+        N["N Compare snapshots"]
+        P["P Next audit preset"]
+        O["O Export audit setup"]
+        U["U Import audit setup"]
+        Y["Y Run gameplay audit"]
+        J["J Reseed replay"]
+    end
+
+    subgraph Collection["Collection Controls"]
+        Arrows["Left / Right page"]
+        R["R Rename current hybrid"]
+    end
+</div></div><h3>Normal play controls</h3>
+<section class="config-block">
+  <h4>Normal controls</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>Any key / click</code></td><td><code>Leave title screen and enter garden</code></td></tr>
+<tr><td><code>D</code></td><td><code>Toggle debug mode</code></td></tr>
+<tr><td><code>B</code></td><td><code>Show boundary overlay while held</code></td></tr>
+<tr><td><code>C</code></td><td><code>Open butterfly collection / journal</code></td></tr>
+<tr><td><code>I</code></td><td><code>Open inspect panel</code></td></tr>
+<tr><td><code>A</code></td><td><code>Open accessibility panel</code></td></tr>
+<tr><td><code>M</code></td><td><code>Toggle reduced motion</code></td></tr>
+<tr><td><code>T</code></td><td><code>Cycle trail visibility</code></td></tr>
+<tr><td><code>G</code></td><td><code>Cycle background atmosphere</code></td></tr>
+<tr><td><code>H</code></td><td><code>Toggle high-contrast UI</code></td></tr>
+<tr><td><code>S</code></td><td><code>Toggle battle motion simplify</code></td></tr>
+<tr><td><code>Left / Right</code></td><td><code>Change collection page</code></td></tr>
+<tr><td><code>R</code></td><td><code>Rename current hybrid in collection</code></td></tr>
+    </tbody>
+  </table>
+</section><h3>Debug and audit controls</h3>
+<section class="config-block">
+  <h4>Debug controls</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>Arrow keys</code></td><td><code>Move debug cursor on isometric grid</code></td></tr>
+<tr><td><code>Q / E</code></td><td><code>Cycle debug tools</code></td></tr>
+<tr><td><code>Space</code></td><td><code>Place current debug tool</code></td></tr>
+<tr><td><code>X</code></td><td><code>Export zone data</code></td></tr>
+<tr><td><code>K</code></td><td><code>Save game state</code></td></tr>
+<tr><td><code>L</code></td><td><code>Load game state</code></td></tr>
+<tr><td><code>V</code></td><td><code>Verify save/load roundtrip</code></td></tr>
+<tr><td><code>N</code></td><td><code>Compare recent snapshots</code></td></tr>
+<tr><td><code>P</code></td><td><code>Load next audit preset</code></td></tr>
+<tr><td><code>O</code></td><td><code>Export audit setup</code></td></tr>
+<tr><td><code>U</code></td><td><code>Import audit setup</code></td></tr>
+<tr><td><code>Y</code></td><td><code>Run gameplay audit</code></td></tr>
+<tr><td><code>J</code></td><td><code>Reseed replay session</code></td></tr>
+    </tbody>
+  </table>
+</section></section>
+  <section id="world-camera"><h2>4. World, Camera, Rendering, And Readability</h2><p>The shipped build is a single-zone foundation, but the systems are already built as if the world can grow into multiple zones later. The camera and render layer know about view modes and readability rules.</p><div class="pill-grid"><div class="pill"><strong>Canvas:</strong> 800×450</div><div class="pill"><strong>Grid:</strong> 18×18</div><div class="pill"><strong>Tile:</strong> 18×9 isometric</div><div class="pill"><strong>Modes:</strong> overview, focused-garden, battle</div></div><ul><li>Focused garden mode allows more background motion and decorative presence.</li><li>Overview mode suppresses moving background effects so the garden stays readable from afar.</li><li>Battle mode removes moving background effects and afterimage trails so tactical readability wins over decoration.</li><li>Accessibility toggles can further reduce motion, raise contrast, and simplify visual density.</li></ul><div class="callout warning"><strong>Internal rule:</strong> rendering changes appearance only. It never changes gameplay range, collision, ownership, or state truth.</div></section>
+  <section id="entities"><h2>5. Entities And Lifecycle Objects</h2><h3>Butterflies</h3><p>Butterflies are the main living agents. They hold personality traits, a life-simulation state, ability state, breeding state, social history, and long-term progression visibility.</p><h3>Flowers</h3><p>Flowers are consumable, non-carryable garden objects with their own lifecycle. They bloom, mature, wilt, and dissolve. They can also become lifecycle hosts for eggs and chrysalis stages.</p>
+<section class="config-block">
+  <h4>Flower lifecycle defaults</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>stageDurations.bloom</code></td><td><code>1200 frames (~20s at 60fps)</code></td></tr>
+<tr><td><code>stageDurations.mature</code></td><td><code>2400 frames (~40s)</code></td></tr>
+<tr><td><code>stageDurations.wilting</code></td><td><code>1200 frames (~20s)</code></td></tr>
+<tr><td><code>stageDurations.dissolve</code></td><td><code>360 frames (~6s)</code></td></tr>
+<tr><td><code>flower types</code></td><td><code>daisy, tulip, bush, lavender, sprout</code></td></tr>
+<tr><td><code>resource tags</code></td><td><code>nectar, care, garden-object</code></td></tr>
+    </tbody>
+  </table>
+</section><h3>Caterpillars</h3><p>Caterpillars are a real intermediate life stage, not just a note in the breeding system. They seek a food flower first, then seek a second flower to become a chrysalis host. If they fail to find what they need in time, they can starve and die.</p>
+<section class="config-block">
+  <h4>Caterpillar behavior defaults</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>initial phase</code></td><td><code>seekingFood</code></td></tr>
+<tr><td><code>follow-up phase</code></td><td><code>seekingChrysalis</code></td></tr>
+<tr><td><code>phase timeout</code></td><td><code>10800 frames (~3 minutes)</code></td></tr>
+<tr><td><code>speed</code></td><td><code>0.35</code></td></tr>
+<tr><td><code>lifecycle.stage</code></td><td><code>larval / phase-driven</code></td></tr>
+    </tbody>
+  </table>
+</section></section>
+  <section id="player-logic"><h2>6. What The Player Actually Changes</h2><div class="diagram"><div class="mermaid">
+flowchart LR
+    Cursor["Player cursor"]
+    Velocity["Cursor velocity"]
+    Gentle["Gentle hover check"]
+    Near["Nearby butterfly check"]
+    Hover["Hover timer builds"]
+    Trust["Display / follow / trust memory"]
+    Fear["Scare memory / threat state"]
+
+    Cursor --> Velocity --> Gentle
+    Cursor --> Near
+    Gentle -->|still enough| Hover
+    Gentle -->|too fast| Fear
+    Near --> Hover
+    Hover -->|threshold reached| Trust
+</div></div><p>The player does not command butterflies directly like an RTS unit. The core player influence is the cursor and the conditions the player creates around the garden.</p><ul><li>A calm cursor can build gentle hover interactions and trust-related memory.</li><li>A fast cursor can startle butterflies and create danger memory.</li><li>Feeding and flower contact create object and outcome memories.</li><li>Debug mode can directly create scenarios, but normal play mostly nudges the living systems rather than bypassing them.</li></ul></section>
+  <section id="archetypes-abilities"><h2>7. Archetypes, Traits, Abilities, And Spawn Logic</h2>
+<section class="config-block">
+  <h4>Butterfly roster</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>friendly</code></td><td><code>warm, trusting, support-oriented</code></td></tr>
+<tr><td><code>cautious</code></td><td><code>delicate, patient, sparkle-oriented</code></td></tr>
+<tr><td><code>energetic</code></td><td><code>fast, excitable, state-boosting</code></td></tr>
+<tr><td><code>skittish</code></td><td><code>nervous, reactive, trust-cascade capable</code></td></tr>
+<tr><td><code>wise</code></td><td><code>calm, teaching-oriented</code></td></tr>
+<tr><td><code>mystic</code></td><td><code>sleep-comfort and calm aura oriented</code></td></tr>
+<tr><td><code>golden</code></td><td><code>special legendary presence</code></td></tr>
+<tr><td><code>hybrid</code></td><td><code>bred mixture with inherited traits and one parent ability</code></td></tr>
+    </tbody>
+  </table>
+</section>
+<section class="config-block">
+  <h4>Shared trait axes</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>speed</code></td><td><code>movement feel and pacing</code></td></tr>
+<tr><td><code>jitteriness</code></td><td><code>movement noise and nervousness</code></td></tr>
+<tr><td><code>trustPropensity</code></td><td><code>how likely trust is to build</code></td></tr>
+<tr><td><code>trustSpeed</code></td><td><code>how quickly trust changes</code></td></tr>
+<tr><td><code>scareThreshold</code></td><td><code>how easy it is to scare the butterfly</code></td></tr>
+<tr><td><code>happinessBonus</code></td><td><code>how strongly positive outcomes raise mood</code></td></tr>
+    </tbody>
+  </table>
+</section>
+<section class="config-block">
+  <h4>Ability mapping</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>friendly</code></td><td><code>Warm Welcome: healing and panic support aura</code></td></tr>
+<tr><td><code>cautious</code></td><td><code>Delicate Pink: sparkle / flower-oriented presence</code></td></tr>
+<tr><td><code>energetic</code></td><td><code>Electric Violet: movement speed and energetic state boost</code></td></tr>
+<tr><td><code>skittish</code></td><td><code>Nervous Jewel: trust cascade on care event</code></td></tr>
+<tr><td><code>wise</code></td><td><code>Ancient Scholar: teaching pulse and lesson support</code></td></tr>
+<tr><td><code>mystic</code></td><td><code>Twilight Dancer: sleep comfort and recovery support</code></td></tr>
+<tr><td><code>golden</code></td><td><code>legendary special crown state</code></td></tr>
+<tr><td><code>hybrid</code></td><td><code>one chosen parent ability inherited into hybrid genome</code></td></tr>
+    </tbody>
+  </table>
+</section>
+<section class="config-block">
+  <h4>Current base spawn weights</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>friendly</code></td><td><code>40</code></td></tr>
+<tr><td><code>cautious</code></td><td><code>15</code></td></tr>
+<tr><td><code>energetic</code></td><td><code>15</code></td></tr>
+<tr><td><code>skittish</code></td><td><code>10</code></td></tr>
+<tr><td><code>wise</code></td><td><code>10</code></td></tr>
+<tr><td><code>mystic</code></td><td><code>10</code></td></tr>
+<tr><td><code>golden</code></td><td><code>special, not part of normal weighted spawn</code></td></tr>
+    </tbody>
+  </table>
+</section></section>
+  <section id="life-sim"><h2>8. The Neuro-Social Life-Simulation Model</h2><div class="diagram"><div class="mermaid">
+flowchart TB
+    LS["LifeSim"]
+    LS --> Identity["identity<br/>entityType<br/>archetype<br/>source"]
+    LS --> Drives["drives<br/>selfMaintenance<br/>safetyAvoidance<br/>resourceControl<br/>socialConnection<br/>caregiving<br/>exploration<br/>statusExpression<br/>rest"]
+    LS --> Emotions["emotions<br/>threat<br/>relief<br/>attachment<br/>rejection<br/>significance<br/>failure<br/>curiosity<br/>agitation<br/>exhaustion"]
+    LS --> Memories["memories<br/>place<br/>object<br/>interaction<br/>outcome<br/>routine<br/>social<br/>danger<br/>care"]
+    LS --> Social["socialEdges<br/>trust<br/>comfort<br/>attachment<br/>dependence<br/>rivalry<br/>resentment<br/>admiration<br/>protectiveness"]
+    LS --> Routines["routines<br/>movement<br/>social<br/>care<br/>resource<br/>rest<br/>vigilance<br/>teaching"]
+    LS --> Interpretation["interpretation<br/>clarity<br/>lastSignals<br/>warpedSignals"]
+    LS --> Distortion["distortion<br/>traumaBias<br/>anxietyBias<br/>withdrawalBias<br/>fixationBias<br/>insomniaBias<br/>oversleepBias<br/>warpedTeachingBias"]
+    LS --> Genetics["genetics<br/>source<br/>baselineTraits<br/>inheritedTraits<br/>heritageTags<br/>lineageIds"]
+    LS --> Upbringing["upbringing<br/>imprintSources<br/>lessons<br/>routineReinforcement"]
+    LS --> Lifecycle["lifecycle<br/>stage<br/>ageTicks<br/>deathState<br/>upbringingState"]
+</div></div><p>This is the heart of the game. Every major living agent is represented by a structured life-simulation state.</p><div class="callout"><strong>Plain-language summary:</strong> instead of a black-box AI brain, the game stores explicit pressures, feelings, memories, relationships, habits, inherited traits, and life stage. Those pieces are visible, inspectable, and persistent.</div><h3>Drives</h3><p>Drives are long-running pressures: self-maintenance, safety avoidance, resource control, social connection, caregiving, exploration, status expression, and rest.</p><h3>Emotion channels</h3><p>Emotion channels are current-state readings such as threat, relief, attachment, rejection, significance, failure, curiosity, agitation, and exhaustion.</p><h3>Memory packets</h3><p>Memories are concrete packets, not vague story text. Each packet has a family, subject, valence, strength, recency, reinforcement count, emotional tags, and metadata.</p><h3>Social edges</h3><p>Social edges are longer-term relationship summaries: trust, comfort, attachment, dependence, rivalry, resentment, admiration, and protectiveness.</p><h3>Routines</h3><p>Routines are reinforced habits: movement, social, care, resource, rest, vigilance, and teaching.</p><h3>Interpretation and distortion</h3><p>Interpretation tracks clarity and signal handling. Distortion biases such as trauma, anxiety, insomnia, or warped teaching do not create separate disconnected systems. They bend the shared systems over time.</p></section>
+  <section id="sleep"><h2>9. Sleep, Oversleep, Comfort, And Wake Rules</h2><div class="diagram"><div class="mermaid">
+flowchart LR
+    Comfort["sleepComfort"]
+    Resistance["wakeResistance"]
+    Recovery["sleepRecoveryMultiplier"]
+    Insomnia["insomniaBias"]
+    OversleepBias["oversleepBias"]
+
+    Awake["awake"]
+    Settling["settling_sleep"]
+    Normal["normal_sleep"]
+    Oversleep["oversleeping"]
+    Forced["forced_battle_sleep"]
+
+    Awake -->|exhaustion threshold crossed| Settling
+    Awake -->|forced sleep effect lands| Forced
+    Settling -->|settling duration completed| Normal
+    Settling -->|interrupted| Awake
+    Normal -->|recovered enough| Awake
+    Normal -->|oversleep pressure high| Oversleep
+    Oversleep -->|oversleep finishes| Awake
+    Forced -->|effect ends| Awake
+
+    Comfort -.-> Settling
+    Comfort -.-> Normal
+    Resistance -.-> Normal
+    Resistance -.-> Forced
+    Recovery -.-> Normal
+    Recovery -.-> Forced
+    Insomnia -.-> Settling
+    OversleepBias -.-> Oversleep
+</div></div><p>Sleep is a full system with owned state transitions. Butterflies do not just have a boolean asleep flag. They can be settling, normally asleep, oversleeping, or in forced battle sleep.</p><ul><li>Exhaustion grows passively while awake.</li><li>Rest drive, insomnia bias, and comfort influence how easy it is to settle.</li><li>Sleep assist sources and sleep-related status modifiers increase comfort or recovery.</li><li>Oversleep is not random noise; it is driven by oversleep pressure and oversleep bias.</li><li>Forced battle sleep is intentionally separated from normal garden sleep so battle effects do not accidentally use oversleep rules.</li></ul>
+<section class="config-block">
+  <h4>Stored sleep state fields</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>subtype</code></td><td><code>current sleep subtype or null</code></td></tr>
+<tr><td><code>exhaustion</code></td><td><code>current exhaustion value</code></td></tr>
+<tr><td><code>sleepPressure</code></td><td><code>rest-drive-linked sleep pressure</code></td></tr>
+<tr><td><code>sleepComfort</code></td><td><code>comfort gathered from assists and statuses</code></td></tr>
+<tr><td><code>wakeDrive</code></td><td><code>wake pressure against staying asleep</code></td></tr>
+<tr><td><code>oversleepPressure</code></td><td><code>pressure to remain asleep longer than needed</code></td></tr>
+<tr><td><code>oversleepHabit</code></td><td><code>distortion-linked oversleep predisposition</code></td></tr>
+<tr><td><code>assistSources</code></td><td><code>queued sleep assists for this update</code></td></tr>
+<tr><td><code>settlingSeconds</code></td><td><code>time spent settling</code></td></tr>
+<tr><td><code>asleepSeconds</code></td><td><code>time spent asleep</code></td></tr>
+<tr><td><code>lastSleepStartSeconds</code></td><td><code>last sleep start timestamp</code></td></tr>
+<tr><td><code>lastWakeSeconds</code></td><td><code>last wake timestamp</code></td></tr>
+<tr><td><code>lastWakeReason</code></td><td><code>why the entity woke up</code></td></tr>
+    </tbody>
+  </table>
+</section></section>
+  <section id="teaching"><h2>10. Teaching, Trust, Routines, And Social Pacing</h2><div class="diagram"><div class="mermaid">
+flowchart TB
+    subgraph T1["Wise Butterfly Teaching Aura"]
+        Pulse["Teaching pulse emitted"]
+        Listeners["Listeners in radius"]
+        Begin["beginTeach"]
+        Active["active lesson timer"]
+        Resolve["resolveLesson"]
+        Packet["lesson packet"]
+        Upbringing["upbringing lesson"]
+        Memory["social memory"]
+        Edge["social edge shift"]
+        Routine["routine reinforced"]
+
+        Pulse --> Listeners --> Begin --> Active --> Resolve --> Packet --> Upbringing --> Memory --> Edge --> Routine
+    end
+
+    subgraph T2["Skittish Butterfly Trust Cascade"]
+        Fed["Skittish butterfly fed"]
+        Cascade["Trust cascade emitted"]
+        Nearby["Nearby butterflies"]
+
+        Fed --> Cascade --> Nearby --> Memory
+        Nearby --> Edge
+    end
+
+    Visit["Flower visit"] --> Memory
+    Visit --> Routine
+</div></div><p>Teaching is a real continuity system. A wise butterfly's aura begins a lesson, the lesson runs for a tunable duration, then the result is turned into a packet, upbringing note, social memory, edge adjustment, and routine reinforcement.</p><p>A skittish butterfly's trust cascade is also persistent. It does not just flash a temporary effect; it creates memory and relationship fallout in nearby butterflies.</p><ul><li>Flower visits can create object and outcome memory plus resource-routine reinforcement.</li><li>Following the player cursor can create trusted-cursor interaction memory.</li><li>Being scared by the player cursor can create danger memory tied to the cursor.</li><li>Teaching can raise interpretation clarity and teaching-related routine strength.</li></ul></section>
+  <section id="genetics"><h2>11. Genetics, Breeding, Lineage, And Upbringing</h2><div class="diagram"><div class="mermaid">
+flowchart TB
+    Male["Eligible male"]
+    Female["Eligible female"]
+    Attraction["Pheromone attraction"]
+    Mating["Mating state"]
+    Pregnancy["Pregnancy assigned"]
+    Flower["Target flower"]
+    Egg["Egg on flower"]
+    Caterpillar["Caterpillar"]
+    Chrysalis["Chrysalis flower"]
+    Adult["Hybrid butterfly"]
+    Journal["Hybrid journal entry"]
+
+    Male --> Attraction
+    Female --> Attraction --> Mating --> Pregnancy --> Flower --> Egg --> Caterpillar --> Chrysalis --> Adult --> Journal
+
+    subgraph Inheritance["Inheritance Rules"]
+        Sex["Child sex random"]
+        Traits["Core traits averaged"]
+        Ability["One parent ability chosen"]
+        Wings["Each wing donor chosen independently"]
+        Colors["Colors averaged"]
+        Fertility["Bred fertility uses limited"]
+    end
+
+    Inheritance -.-> Adult
+</div></div><p>Breeding is not a single spawn action. It is a staged lifecycle: attraction, mating, pregnancy, egg placement, caterpillar, chrysalis, adult hybrid, and journal entry.</p><ul><li>Males and females must both be eligible, free, and within pheromone radius.</li><li>Distance chooses the best attraction match among eligible pairs.</li><li>Pregnancy is assigned to the female and targeted toward an appropriate flower.</li><li>Egg and cocoon hatch timing is tunable and stored.</li><li>Hybrid adults inherit averaged core traits, blended colors, one chosen parent ability, and independently chosen wing donors.</li></ul><div class="callout"><strong>Genes vs upbringing:</strong> genes set the baseline predisposition. Upbringing does not erase that baseline; it reinforces, suppresses, clarifies, or distorts it over time.</div>
+<section class="config-block">
+  <h4>Hybrid lifecycle artifacts</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>pregnancy</code></td><td><code>stored on female butterfly until egg lay</code></td></tr>
+<tr><td><code>lifecycleData</code></td><td><code>carries lineage and inheritance context through egg, caterpillar, and chrysalis stages</code></td></tr>
+<tr><td><code>hybridGenome</code></td><td><code>stored on resulting hybrid butterfly</code></td></tr>
+<tr><td><code>hybridJournal entry</code></td><td><code>stored in progression data and collection layer</code></td></tr>
+    </tbody>
+  </table>
+</section></section>
+  <section id="progression"><h2>12. Progression, Collection, And Hybrid Journaling</h2><div class="diagram"><div class="mermaid">
+flowchart LR
+    Encounter["Encounter butterfly"]
+    Collect["Collection stats update"]
+    Breed["Breed hybrid"]
+    Journal["Hybrid journal entry"]
+    Rename["Optional rename"]
+    Save["Progression save"]
+
+    Encounter --> Collect
+    Breed --> Journal --> Rename --> Save
+    Collect --> Save
+</div></div><p>The progression layer turns the simulation into an archive. It stores encountered butterflies, collected butterflies, collection stats, hybrid journal entries, and the next hybrid id. The journal also supports renaming hybrids so discoveries feel personal and trackable.</p>
+<section class="config-block">
+  <h4>Progression storage</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>encounteredButterflies</code></td><td><code>set of seen types</code></td></tr>
+<tr><td><code>collectedButterflies</code></td><td><code>set of collected types</code></td></tr>
+<tr><td><code>butterflyCollectionStats</code></td><td><code>aggregate collection stats</code></td></tr>
+<tr><td><code>hybridJournal</code></td><td><code>ordered hybrid entry list</code></td></tr>
+<tr><td><code>nextHybridId</code></td><td><code>next journal id counter</code></td></tr>
+    </tbody>
+  </table>
+</section></section>
+  <section id="owners"><h2>13. Internal Logic Ownership And Boundaries</h2><p>One owner per truth is the main internal safety rule. This is how the game avoids double-applying logic or letting two systems disagree about the same state.</p>
+<section class="config-block">
+  <h4>Owner map</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>ZoneSystem</code></td><td><code>world zones, focus, and mode context</code></td></tr>
+<tr><td><code>StatusSystem</code></td><td><code>timed effects, auras, cooldowns, charges, immunities, and aggregated modifiers</code></td></tr>
+<tr><td><code>BehaviorSystem</code></td><td><code>current action runtime and target choice</code></td></tr>
+<tr><td><code>ObjectSystem</code></td><td><code>carry, drop, delivery, and object ownership</code></td></tr>
+<tr><td><code>SleepSystem</code></td><td><code>sleep transitions and sleep visual state inputs</code></td></tr>
+<tr><td><code>TeachingSystem</code></td><td><code>lesson packets, trust cascades, social teaching fallout</code></td></tr>
+<tr><td><code>BreedingSystem</code></td><td><code>mating, pregnancy, eggs, caterpillars, chrysalis, adult hybrid spawn</code></td></tr>
+<tr><td><code>SaveSystem</code></td><td><code>durable serialization and migration</code></td></tr>
+<tr><td><code>TelemetrySystem</code></td><td><code>update/render metrics</code></td></tr>
+<tr><td><code>RenderManager</code></td><td><code>visuals only</code></td></tr>
+<tr><td><code>BattleSystem</code></td><td><code>isolated battle snapshot layer</code></td></tr>
+    </tbody>
+  </table>
+</section></section>
+  <section id="save-audit"><h2>14. Save / Load, Replay, Audit, And Telemetry</h2><div class="diagram"><div class="mermaid">
+flowchart TB
+    Live["Live game state"]
+    Serialize["SaveSystem serializeState"]
+    Storage["localStorage save slot"]
+    Deserialize["SaveSystem deserialize / migrate"]
+    Restore["Entity + system restore"]
+    Rebuild["Rebuild derived state"]
+    Audit["Roundtrip verify / invariant checks / gameplay audit"]
+
+    Live --> Serialize --> Storage --> Deserialize --> Restore --> Rebuild --> Audit
+</div></div><p>Persistence in Papilionem is designed around durable truth plus rebuilt derived state. Butterflies, flowers, caterpillars, progression, runtime values, and system-owned durable sub-states are serialized. Cheap derived values are reconstructed after load.</p><ul><li>SaveSystem captures butterfly, flower, and caterpillar state plus progression and selected runtime values.</li><li>Sleep state is synchronized into life-sim lifecycle fields before save so the durable record stays honest.</li><li>Roundtrip verification saves, reloads, rebuilds, and compares durable truth.</li><li>Gameplay audit chains snapshots, invariant checks, and persistence checks into one pass.</li><li>Replay metadata tracks session ids, seeds, and audit markers for reproducibility groundwork.</li></ul><h3>Telemetry</h3><p>Telemetry records recent update and render samples, including total update time, foundation time, entity time, particle time, render time, particle render time, entity counts, time scale, and view mode. It is meant to support optimization without changing game truth.</p></section>
+  <section id="battle"><h2>15. Battle Snapshot Layer</h2><div class="diagram"><div class="mermaid">
+flowchart LR
+    Garden["Live garden entities"]
+    Snapshot["Battle snapshot copy"]
+    Resolve["Battle-local mutation<br/>HP / pressure / cooldowns / commit memories"]
+    Commit["Selective commit payload"]
+    Garden2["Live garden entities updated"]
+
+    Garden -. read only .-> Snapshot --> Resolve --> Commit --> Garden2
+</div></div><p>Battle is intentionally isolated from the garden. When a battle starts, live entities are cloned into a battle snapshot. HP changes, pressure, retreat, cooldown spending, charge spending, and battle-generated social or memory outcomes are all recorded inside that snapshot first.</p><p>Only selected results are committed back into the live garden state. This keeps battle experimentation from corrupting normal simulation truth.</p></section>
+  <section id="assets"><h2>16. Sprite And Asset Pipeline</h2><p>Runtime rendering uses the repository's asset folders, while the sprite manager slices, cleans, and composes those assets into renderable butterflies and lifecycle visuals.</p>
+<section class="config-block">
+  <h4>Sprite pipeline</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>butterfly wing base path</code></td><td><code>assets/butterflies/</code></td></tr>
+<tr><td><code>wing file organization</code></td><td><code>separate male/female full wing composites per archetype</code></td></tr>
+<tr><td><code>body sprite</code></td><td><code>ephemera-butterfly-body-.png</code></td></tr>
+<tr><td><code>antenna sprite</code></td><td><code>ephemera-butterfly-antenna.png</code></td></tr>
+<tr><td><code>cocoon sprites</code></td><td><code>assets/cocoons/cocoon-unhatched.png and cocoon-hatched.png</code></td></tr>
+<tr><td><code>caterpillar frames</code></td><td><code>assets/caterpillars/caterpillar-crawl1/2/3.png</code></td></tr>
+<tr><td><code>wing split point</code></td><td><code>x=900, y=600</code></td></tr>
+<tr><td><code>background cleanup rule</code></td><td><code>near-black pixels converted to transparent</code></td></tr>
+    </tbody>
+  </table>
+</section><p>The render spec for hybrids can mix wing donors per wing, so hybrid visuals are not limited to a single parent's full wing set.</p></section>
+  <section id="visual-supplement" class="section-break"><h2>17. Visual Supplement: Sprite Anatomy, Archetypes, Hybrids, And Lifecycle</h2><p>This section uses the actual runtime sprite assets from the project to show how the butterfly visuals are built, how the male and female versions differ at render time, how hybrids mix donor wings, and how the caterpillar-to-cocoon-to-adult lifecycle is displayed.</p><ul><li>The anatomy plate shows the body sprite, antenna sprite, wing sheet split points, and anchor facts used by the sprite manager.</li><li>The comparison plates show assembled in-game male and female renders for every archetype, not just raw wing sheets.</li><li>The hybrid plate uses mixed donor wings so the visual inheritance logic can be read at a glance.</li><li>The lifecycle plate shows caterpillar frames, cocoon states, adult composition order, and wing-spread-based adult motion.</li></ul></section>
+  <section class="plate-page"><figure class="visual-plate"><img src="visual-supplement/01-sprite-anatomy.png" alt="Sprite anatomy plate"><figcaption><strong>Sprite anatomy plate.</strong> Shows the separate body and antenna assets, a representative wing sheet split at x=900 and y=600, and the runtime anchor facts that let the renderer assemble the butterfly.</figcaption></figure></section>
+  <section class="plate-page"><figure class="visual-plate"><img src="visual-supplement/02-archetype-male-female-comparisons-core.png" alt="Archetype male/female comparison plate, core roster"><figcaption><strong>Archetype male/female comparison plate, core roster.</strong> Shows the assembled male and female versions of Warm Welcome, Delicate Pink, Electric Violet, and Nervous Jewel using the same sex-based sprite scaling the game uses.</figcaption></figure></section>
+  <section class="plate-page"><figure class="visual-plate"><img src="visual-supplement/03-archetype-male-female-comparisons-special.png" alt="Archetype male/female comparison plate, special roster"><figcaption><strong>Archetype male/female comparison plate, special roster.</strong> Shows the assembled male and female versions of Ancient Scholar, Twilight Dancer, and Legendary One, preserving the visual distinction between ordinary archetypes and the special golden form.</figcaption></figure></section>
+  <section class="plate-page"><figure class="visual-plate"><img src="visual-supplement/04-hybrid-inheritance-visual.png" alt="Hybrid inheritance plate"><figcaption><strong>Hybrid inheritance plate.</strong> Shows one worked hybrid example with a friendly female donor, an energetic male donor, a mixed child, and a per-wing donor map so the visual inheritance rule is explicit.</figcaption></figure></section>
+  <section class="plate-page"><figure class="visual-plate"><img src="visual-supplement/05-animation-lifecycle-breakdown.png" alt="Animation and lifecycle plate"><figcaption><strong>Animation and lifecycle plate.</strong> Shows caterpillar crawl frames, cocoon states, adult composition order, and the adult wing-spread animation approach that creates flap motion without swapping a separate butterfly frame sheet.</figcaption></figure></section>
+  <section id="config" class="section-break"><h2>18. Exact Tunable Config Tables</h2><p class="subtle">These tables are generated from the live <code>core/config.js</code> structure so the guidebook reflects the implemented values instead of a hand-maintained copy.</p><div class="appendix-grid">
+<section class="config-block">
+  <h4>Rendering</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>useSprites</code></td><td><code>true</code></td></tr>
+<tr><td><code>butterflyVisualScale</code></td><td><code>1.6</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Canvas</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>baseWidth</code></td><td><code>800</code></td></tr>
+<tr><td><code>baseHeight</code></td><td><code>450</code></td></tr>
+<tr><td><code>targetWidth</code></td><td><code>800</code></td></tr>
+<tr><td><code>targetHeight</code></td><td><code>450</code></td></tr>
+<tr><td><code>backgroundColor</code></td><td><code>#f4e8dc</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Grid</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>cellSize</code></td><td><code>16</code></td></tr>
+<tr><td><code>gridWidth</code></td><td><code>18</code></td></tr>
+<tr><td><code>gridHeight</code></td><td><code>18</code></td></tr>
+<tr><td><code>debugGridSize</code></td><td><code>32</code></td></tr>
+<tr><td><code>gridOffset.x</code></td><td><code>10</code></td></tr>
+<tr><td><code>gridOffset.y</code></td><td><code>8</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Isometric</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>tileWidth</code></td><td><code>18</code></td></tr>
+<tr><td><code>tileHeight</code></td><td><code>9</code></td></tr>
+<tr><td><code>offsetX</code></td><td><code>400</code></td></tr>
+<tr><td><code>offsetY</code></td><td><code>100</code></td></tr>
+<tr><td><code>bounds.minX</code></td><td><code>0</code></td></tr>
+<tr><td><code>bounds.maxX</code></td><td><code>17</code></td></tr>
+<tr><td><code>bounds.minY</code></td><td><code>0</code></td></tr>
+<tr><td><code>bounds.maxY</code></td><td><code>17</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Entities: limits and defaults</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>maxButterflies</code></td><td><code>12</code></td></tr>
+<tr><td><code>maxFlowers</code></td><td><code>6</code></td></tr>
+<tr><td><code>heightOffset.butterfly</code></td><td><code>10</code></td></tr>
+<tr><td><code>heightOffset.flower</code></td><td><code>0</code></td></tr>
+<tr><td><code>heightOffset.pixel</code></td><td><code>0</code></td></tr>
+<tr><td><code>butterfly.size</code></td><td><code>12</code></td></tr>
+<tr><td><code>butterfly.speed</code></td><td><code>0.008</code></td></tr>
+<tr><td><code>butterfly.wanderTimer.min</code></td><td><code>40</code></td></tr>
+<tr><td><code>butterfly.wanderTimer.max</code></td><td><code>90</code></td></tr>
+<tr><td><code>butterfly.maxWanderDistance</code></td><td><code>3</code></td></tr>
+<tr><td><code>butterfly.lifetime</code></td><td><code>10000</code></td></tr>
+<tr><td><code>butterfly.personalities</code></td><td><code>brave, cautious, curious</code></td></tr>
+<tr><td><code>butterfly.colors</code></td><td><code>255, 140, 60, 255, 220, 120, 220, 100, 150, 255, 180, 200, 150, 120, 200, 200, 170, 255, 100, 180, 140, 150, 220, 180</code></td></tr>
+<tr><td><code>flower.types</code></td><td><code>daisy, tulip, rose, sunflower, lily</code></td></tr>
+<tr><td><code>flower.stemHeight</code></td><td><code>16</code></td></tr>
+<tr><td><code>flower.stageDurations.bloom</code></td><td><code>1200</code></td></tr>
+<tr><td><code>flower.stageDurations.mature</code></td><td><code>2400</code></td></tr>
+<tr><td><code>flower.stageDurations.wilting</code></td><td><code>1200</code></td></tr>
+<tr><td><code>flower.stageDurations.dissolve</code></td><td><code>360</code></td></tr>
+<tr><td><code>flower.palettes</code></td><td><code>{&quot;petals&quot;:[255,180,120],&quot;center&quot;:[255,240,180]}, {&quot;petals&quot;:[255,150,200],&quot;center&quot;:[255,255,220]}, {&quot;petals&quot;:[200,150,255],&quot;center&quot;:[255,230,150]}, {&quot;petals&quot;:[255,220,150],&quot;center&quot;:[255,255,200]}, {&quot;petals&quot;:[180,220,255],&quot;center&quot;:[255,255,240]}</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Particles</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>maxParticles</code></td><td><code>100</code></td></tr>
+<tr><td><code>gravity</code></td><td><code>0.1</code></td></tr>
+<tr><td><code>pixelSize</code></td><td><code>2</code></td></tr>
+<tr><td><code>bounce</code></td><td><code>0.3</code></td></tr>
+<tr><td><code>friction</code></td><td><code>0.99</code></td></tr>
+<tr><td><code>types.scale.lifetime</code></td><td><code>-1</code></td></tr>
+<tr><td><code>types.scale.fadeSpeed</code></td><td><code>0</code></td></tr>
+<tr><td><code>types.joy.lifetime</code></td><td><code>255</code></td></tr>
+<tr><td><code>types.joy.fadeSpeed</code></td><td><code>2</code></td></tr>
+<tr><td><code>types.stress.lifetime</code></td><td><code>180</code></td></tr>
+<tr><td><code>types.stress.fadeSpeed</code></td><td><code>3</code></td></tr>
+<tr><td><code>types.happy.lifetime</code></td><td><code>-1</code></td></tr>
+<tr><td><code>types.happy.fadeSpeed</code></td><td><code>0</code></td></tr>
+<tr><td><code>types.happy_visual.lifetime</code></td><td><code>200</code></td></tr>
+<tr><td><code>types.happy_visual.fadeSpeed</code></td><td><code>1</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Color pools</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>radius</code></td><td><code>20</code></td></tr>
+<tr><td><code>requiredPixels</code></td><td><code>50</code></td></tr>
+<tr><td><code>pulseSpeed</code></td><td><code>0.1</code></td></tr>
+<tr><td><code>spawnDelay</code></td><td><code>180</code></td></tr>
+<tr><td><code>gridSize</code></td><td><code>40</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Interaction</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>stillFramesRequired</code></td><td><code>120</code></td></tr>
+<tr><td><code>cursorZoneRadius</code></td><td><code>30</code></td></tr>
+<tr><td><code>butterflyZones.brave.comfort</code></td><td><code>60</code></td></tr>
+<tr><td><code>butterflyZones.brave.flee</code></td><td><code>40</code></td></tr>
+<tr><td><code>butterflyZones.cautious.comfort</code></td><td><code>100</code></td></tr>
+<tr><td><code>butterflyZones.cautious.flee</code></td><td><code>80</code></td></tr>
+<tr><td><code>butterflyZones.curious.comfort</code></td><td><code>80</code></td></tr>
+<tr><td><code>butterflyZones.curious.flee</code></td><td><code>60</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Effects</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>shadowOpacity</code></td><td><code>50</code></td></tr>
+<tr><td><code>glowPulseSpeed</code></td><td><code>0.1</code></td></tr>
+<tr><td><code>swaySpeed.min</code></td><td><code>0.02</code></td></tr>
+<tr><td><code>swaySpeed.max</code></td><td><code>0.03</code></td></tr>
+<tr><td><code>swayAmount</code></td><td><code>0.1</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Debug</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>enabled</code></td><td><code>false</code></td></tr>
+<tr><td><code>showGrid</code></td><td><code>true</code></td></tr>
+<tr><td><code>showZones</code></td><td><code>true</code></td></tr>
+<tr><td><code>showCoordinates</code></td><td><code>true</code></td></tr>
+<tr><td><code>showFPS</code></td><td><code>true</code></td></tr>
+<tr><td><code>gardenTimeControls.enabledInNormalPlay</code></td><td><code>false</code></td></tr>
+<tr><td><code>gardenTimeControls.debugSpeedPresets</code></td><td><code>1, 2, 4</code></td></tr>
+<tr><td><code>auditTools.scenarioPresets</code></td><td><code>true</code></td></tr>
+<tr><td><code>auditTools.snapshotDiff</code></td><td><code>true</code></td></tr>
+<tr><td><code>auditTools.invariantChecker</code></td><td><code>true</code></td></tr>
+<tr><td><code>auditTools.eventTimeline</code></td><td><code>true</code></td></tr>
+<tr><td><code>auditTools.saveLoadVerifier</code></td><td><code>true</code></td></tr>
+<tr><td><code>auditTools.screenshotNotes</code></td><td><code>true</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Accessibility</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>reducedMotion</code></td><td><code>false</code></td></tr>
+<tr><td><code>battleMotionSimplify</code></td><td><code>true</code></td></tr>
+<tr><td><code>highContrastUI</code></td><td><code>false</code></td></tr>
+<tr><td><code>colorblindSafeIndicators</code></td><td><code>true</code></td></tr>
+<tr><td><code>strongSelectionOutlines</code></td><td><code>true</code></td></tr>
+<tr><td><code>trailVisibility</code></td><td><code>full</code></td></tr>
+<tr><td><code>backgroundAtmosphere</code></td><td><code>full</code></td></tr>
+<tr><td><code>statusIndicatorDensity</code></td><td><code>simplified</code></td></tr>
+<tr><td><code>uiScale</code></td><td><code>1</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Simulation</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>defaultTimeScale</code></td><td><code>1</code></td></tr>
+<tr><td><code>battleTimeScales</code></td><td><code>1, 2</code></td></tr>
+<tr><td><code>frameRate</code></td><td><code>60</code></td></tr>
+<tr><td><code>fixedDeltaSeconds</code></td><td><code>0.016666666666666666</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Balance: sleep</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>assistStrengthDefault</code></td><td><code>0.15</code></td></tr>
+<tr><td><code>movementMultiplierSettling</code></td><td><code>0.25</code></td></tr>
+<tr><td><code>wingAnimationMultiplierSettling</code></td><td><code>0.35</code></td></tr>
+<tr><td><code>wingAnimationMultiplierAsleep</code></td><td><code>0.08</code></td></tr>
+<tr><td><code>visualYOffsetSettling</code></td><td><code>1.5</code></td></tr>
+<tr><td><code>visualYOffsetAsleep</code></td><td><code>3</code></td></tr>
+<tr><td><code>visualTiltSettling</code></td><td><code>0.08</code></td></tr>
+<tr><td><code>visualTiltAsleep</code></td><td><code>0.18</code></td></tr>
+<tr><td><code>passiveExhaustionBaseGain</code></td><td><code>0.006</code></td></tr>
+<tr><td><code>passiveExhaustionRestMultiplier</code></td><td><code>0.004</code></td></tr>
+<tr><td><code>passiveExhaustionInsomniaMultiplier</code></td><td><code>0.002</code></td></tr>
+<tr><td><code>settleThresholdBase</code></td><td><code>0.62</code></td></tr>
+<tr><td><code>settleThresholdFloor</code></td><td><code>0.28</code></td></tr>
+<tr><td><code>settleThresholdInsomniaMultiplier</code></td><td><code>0.08</code></td></tr>
+<tr><td><code>settleThresholdComfortMultiplier</code></td><td><code>0.05</code></td></tr>
+<tr><td><code>settlingDurationSeconds</code></td><td><code>1.5</code></td></tr>
+<tr><td><code>normalRecoveryBaseRate</code></td><td><code>0.032</code></td></tr>
+<tr><td><code>normalRecoveryComfortMultiplier</code></td><td><code>0.014</code></td></tr>
+<tr><td><code>oversleepPressureGainMultiplier</code></td><td><code>0.02</code></td></tr>
+<tr><td><code>wakeThresholdBase</code></td><td><code>0.18</code></td></tr>
+<tr><td><code>wakeThresholdFloor</code></td><td><code>0.08</code></td></tr>
+<tr><td><code>wakeThresholdResistanceMultiplier</code></td><td><code>0.03</code></td></tr>
+<tr><td><code>wakeMinimumSleepSeconds</code></td><td><code>4</code></td></tr>
+<tr><td><code>oversleepThresholdBase</code></td><td><code>0.35</code></td></tr>
+<tr><td><code>oversleepThresholdBiasMultiplier</code></td><td><code>0.15</code></td></tr>
+<tr><td><code>oversleepRecoveryRate</code></td><td><code>0.02</code></td></tr>
+<tr><td><code>oversleepPressureDecayRate</code></td><td><code>0.016</code></td></tr>
+<tr><td><code>forcedSleepRecoveryRate</code></td><td><code>0.014</code></td></tr>
+<tr><td><code>passiveOversleepPressureDecayRate</code></td><td><code>0.004</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Balance: social</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>teachingLessonDurationSeconds</code></td><td><code>1.6</code></td></tr>
+<tr><td><code>teachingPulseRadius</code></td><td><code>76</code></td></tr>
+<tr><td><code>teachingPulseMemoryValence</code></td><td><code>0.22</code></td></tr>
+<tr><td><code>teachingPulseMemoryStrength</code></td><td><code>0.26</code></td></tr>
+<tr><td><code>teachingPulseEdgeTrust</code></td><td><code>0.02</code></td></tr>
+<tr><td><code>teachingPulseEdgeAdmiration</code></td><td><code>0.035</code></td></tr>
+<tr><td><code>teachingPulseEdgeComfort</code></td><td><code>0.015</code></td></tr>
+<tr><td><code>teachingPulseRoutineReinforcement</code></td><td><code>0.025</code></td></tr>
+<tr><td><code>trustCascadeRadius</code></td><td><code>132</code></td></tr>
+<tr><td><code>trustCascadeMemoryValence</code></td><td><code>0.28</code></td></tr>
+<tr><td><code>trustCascadeMemoryStrength</code></td><td><code>0.34</code></td></tr>
+<tr><td><code>trustCascadeEdgeTrust</code></td><td><code>0.035</code></td></tr>
+<tr><td><code>trustCascadeEdgeComfort</code></td><td><code>0.025</code></td></tr>
+<tr><td><code>trustCascadeEdgeAdmiration</code></td><td><code>0.015</code></td></tr>
+<tr><td><code>lessonUpbringingStrength</code></td><td><code>0.28</code></td></tr>
+<tr><td><code>lessonRoutineReinforcement</code></td><td><code>0.05</code></td></tr>
+<tr><td><code>lessonInterpretationClarityGain</code></td><td><code>0.01</code></td></tr>
+<tr><td><code>lessonMemoryValence</code></td><td><code>0.36</code></td></tr>
+<tr><td><code>lessonMemoryStrength</code></td><td><code>0.4</code></td></tr>
+<tr><td><code>lessonEdgeTrust</code></td><td><code>0.03</code></td></tr>
+<tr><td><code>lessonEdgeAdmiration</code></td><td><code>0.04</code></td></tr>
+<tr><td><code>lessonEdgeComfort</code></td><td><code>0.02</code></td></tr>
+<tr><td><code>listenerTeachingRoutineReinforcement</code></td><td><code>0.035</code></td></tr>
+<tr><td><code>teacherTeachingRoutineReinforcement</code></td><td><code>0.025</code></td></tr>
+<tr><td><code>teachingBoostFrames</code></td><td><code>16</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Balance: hybrid</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>pheromoneRadius</code></td><td><code>132</code></td></tr>
+<tr><td><code>matingDistance</code></td><td><code>16</code></td></tr>
+<tr><td><code>matingDurationFrames</code></td><td><code>150</code></td></tr>
+<tr><td><code>pheromoneCooldownFrames</code></td><td><code>21600</code></td></tr>
+<tr><td><code>adultHardCap</code></td><td><code>50</code></td></tr>
+<tr><td><code>eggHatchFrames.min</code></td><td><code>28800</code></td></tr>
+<tr><td><code>eggHatchFrames.max</code></td><td><code>39600</code></td></tr>
+<tr><td><code>cocoonHatchFrames.min</code></td><td><code>28800</code></td></tr>
+<tr><td><code>cocoonHatchFrames.max</code></td><td><code>39600</code></td></tr>
+<tr><td><code>bredFertilityUses</code></td><td><code>1</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>World</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>layout</code></td><td><code>single-zone-foundation</code></td></tr>
+<tr><td><code>overviewMode</code></td><td><code>false</code></td></tr>
+<tr><td><code>viewModes</code></td><td><code>overview, focused-garden, battle</code></td></tr>
+<tr><td><code>zones</code></td><td><code>{&quot;id&quot;:&quot;garden-core&quot;,&quot;label&quot;:&quot;Garden Core&quot;,&quot;kind&quot;:&quot;garden&quot;,&quot;poolAllowed&quot;:true,&quot;doorwayIds&quot;:[],&quot;adjacentZoneIds&quot;:[],&quot;bounds&quot;:{&quot;minX&quot;:0,&quot;maxX&quot;:17,&quot;minY&quot;:0,&quot;maxY&quot;:17},&quot;renderProfile&quot;:{&quot;movingBackgroundEffectsInFocus&quot;:true,&quot;movingBackgroundEffectsInOverview&quot;:false,&quot;afterimageTrailsInFocus&quot;:true,&quot;afterimageTrailsInBattle&quot;:false}}</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>Registries</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>actionFamilies</code></td><td><code>idle, wander, seek_resource, care_for_vulnerable, teach_or_listen, sleep, socialize, reposition, battle</code></td></tr>
+<tr><td><code>statusFamilies</code></td><td><code>healing_received_bonus, panic_resistance, aggression_suppression, attack_speed_bonus, movement_speed_bonus, energetic_state_boost, reposition_guidance, cooldown_intelligence, sleep_comfort_bonus, wake_resistance, forced_sleep, forced_sleep_immunity, sleep_recovery_multiplier</code></td></tr>
+<tr><td><code>sleepSubtypes</code></td><td><code>settling_sleep, normal_sleep, oversleeping, forced_battle_sleep</code></td></tr>
+<tr><td><code>battleStates</code></td><td><code>inactive, snapshotting, active, resolving, committing</code></td></tr>
+<tr><td><code>persistenceFieldClasses.durable</code></td><td><code>durable</code></td></tr>
+<tr><td><code>persistenceFieldClasses.derived</code></td><td><code>derived</code></td></tr>
+<tr><td><code>persistenceFieldClasses.runtime</code></td><td><code>runtime</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="config-block">
+  <h4>System order</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>phaseFoundationOrder</code></td><td><code>zoneSystem, statusSystem, behaviorSystem, objectSystem, sleepSystem, teachingSystem, battleSystem, saveSystem</code></td></tr>
+    </tbody>
+  </table>
+</section></div></section>
+  <section id="glossary"><h2>19. Glossary</h2>
+<section class="config-block">
+  <h4>Glossary</h4>
+  <table class="kv-table">
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td><code>Archetype</code></td><td><code>A base butterfly type such as friendly, wise, or mystic.</code></td></tr>
+<tr><td><code>Ability</code></td><td><code>A special effect identity tied to an archetype or inherited by a hybrid.</code></td></tr>
+<tr><td><code>Drive</code></td><td><code>A long-running pressure such as rest, exploration, or safety.</code></td></tr>
+<tr><td><code>Emotion channel</code></td><td><code>A current-state feeling value such as threat, curiosity, or exhaustion.</code></td></tr>
+<tr><td><code>Memory packet</code></td><td><code>A stored event-like record with valence, strength, and tags.</code></td></tr>
+<tr><td><code>Social edge</code></td><td><code>A durable relationship summary like trust or admiration.</code></td></tr>
+<tr><td><code>Routine</code></td><td><code>A reinforced tendency to behave in a certain way.</code></td></tr>
+<tr><td><code>Distortion</code></td><td><code>A bias that bends shared systems, such as anxiety or insomnia bias.</code></td></tr>
+<tr><td><code>LifeSim</code></td><td><code>The full internal life-simulation state carried by an entity.</code></td></tr>
+<tr><td><code>Hybrid genome</code></td><td><code>The inherited trait and visual source data for a bred hybrid butterfly.</code></td></tr>
+<tr><td><code>Roundtrip verify</code></td><td><code>A save/load comparison that checks whether durable truth survives correctly.</code></td></tr>
+<tr><td><code>Gameplay audit</code></td><td><code>A chained test pass that checks snapshots, invariants, save/load, and visible state.</code></td></tr>
+<tr><td><code>Battle snapshot</code></td><td><code>A battle-local copy of live entities used so battle can mutate safely before commit.</code></td></tr>
+    </tbody>
+  </table>
+</section></section>
+</main>
+</body>
+</html>

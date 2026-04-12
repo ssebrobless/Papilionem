@@ -3,6 +3,7 @@ class EntityManager {
     constructor() {
         this.entities = {
             butterflies: [],
+            caterpillars: [],
             flowers: [],
             particles: [],
             pools: []
@@ -84,6 +85,8 @@ class EntityManager {
                 break;
             case 'flowers':
                 this.handleFlowerDeath(entity);
+                break;
+            case 'caterpillars':
                 break;
         }
         
