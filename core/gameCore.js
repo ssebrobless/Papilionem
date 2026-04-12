@@ -1532,7 +1532,7 @@ class GameCore {
         
         // Reset pool manager pools
         if (this.poolManager) {
-            this.poolManager.pools = [];
+            this.poolManager.clearPools?.();
         }
 
         this.resetReplayMetadata({ forceNewSession: true, preserveMarkers: false });
