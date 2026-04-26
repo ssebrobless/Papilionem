@@ -1602,6 +1602,8 @@ class TelemetrySystem {
             freezeSuspects: this.cloneJson(capture.freezeSuspects, []),
             runtimeIssues: this.cloneJson(capture.runtimeIssues, []),
             heapSamples: this.cloneJson(capture.heapSamples, []),
+            frameTimes: this.cloneJson(capture.frameTimes, []),
+            frameTimesDroppedCount: Number(capture.frameTimesDroppedCount || 0),
             eventHistory: this.cloneJson(eventHistory, []),
             eventHistoryDroppedCount,
             replayMarkers: this.cloneJson(replayMarkers, []),

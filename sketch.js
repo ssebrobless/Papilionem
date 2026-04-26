@@ -11,6 +11,9 @@ const TITLE_FADE_PER_SECOND = 180;
 let lastSketchFrameError = null;
 let lastSketchFrameErrorAtMs = 0;
 
+const PAPILIONEM_HARNESS_ACTIVE = typeof window !== 'undefined'
+    && !!window.__PAPILIONEM_HARNESS_MODE__;
+
 function applyCanvasPerformanceProfile(targetWidth = gameConfig.canvas.targetWidth, targetHeight = gameConfig.canvas.targetHeight) {
     const performanceConfig = gameConfig.performance?.canvas || {};
     const deviceDensity = typeof displayDensity === 'function'
@@ -88,10 +91,81 @@ function setup() {
             if (gameCore.isInitialized()) {
                 windowResized();
             }
+            if (PAPILIONEM_HARNESS_ACTIVE) {
+                installPapilionemHarness();
+            }
         }, 10);
     }).catch(error => {
         console.error('Game initialization failed:', error);
     });
+}
+
+function installPapilionemHarness() {
+    showTitleScreen = false;
+    titleFading = false;
+    titleFadeAlpha = 0;
+    if (typeof noLoop === 'function') {
+        noLoop();
+    }
+    const stepFrame = () => {
+        gameCore.update();
+        gameCore.draw();
+    };
+    const harness = {
+        ready: true,
+        step: stepFrame,
+        tick(n = 1) {
+            const count = Math.max(1, Math.floor(Number(n) || 1));
+            const t0 = performance.now();
+            for (let i = 0; i < count; i += 1) stepFrame();
+            return { frames: count, wallMs: performance.now() - t0 };
+        },
+        snapshot() {
+            return gameCore?.telemetrySystem?.getSnapshot?.() || null;
+        },
+        getButterflyCount() {
+            return gameCore?.gameState?.butterflies?.length || 0;
+        },
+        spawnTo(targetCount) {
+            const target = Math.max(0, Math.floor(Number(targetCount) || 0));
+            const limit = (typeof gameConfig !== 'undefined' && gameConfig.entities?.maxButterflies) || 500;
+            const cappedTarget = Math.min(target, limit);
+            let attempts = 0;
+            const attemptCap = cappedTarget * 8 + 32;
+            while ((gameCore.gameState.butterflies?.length || 0) < cappedTarget && attempts < attemptCap) {
+                gameCore.spawnAmbientWildButterfly();
+                attempts += 1;
+            }
+            return {
+                requested: target,
+                cappedTo: cappedTarget,
+                actual: gameCore.gameState.butterflies?.length || 0,
+                attempts
+            };
+        },
+        applySeed(seed) {
+            return gameCore.resetReplayMetadata({ forceNewSession: true, seed });
+        },
+        startCapture(label = 'harness-bench') {
+            return gameCore.telemetrySystem?.startSessionCapture?.(gameCore.getGameState(), {
+                label,
+                source: 'harness'
+            });
+        },
+        finishCapture() {
+            return gameCore.telemetrySystem?.finishSessionCapture?.(gameCore.getGameState(), {
+                reason: 'harness-finish'
+            });
+        },
+        buildCaptureExport(options = {}) {
+            return gameCore.telemetrySystem?.buildSessionCaptureExport?.(gameCore.getGameState(), {
+                source: 'harness',
+                ...options
+            }) || null;
+        }
+    };
+    window.papilionemHarness = harness;
+    window.dispatchEvent(new CustomEvent('papilionem:harness-ready'));
 }
 
 function draw() {

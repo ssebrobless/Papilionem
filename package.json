@@ -8,7 +8,9 @@
     "dev": "node server.js",
     "playtest": "node server.js",
     "playtest:share": "node server.js",
-    "build:source-book": "node scripts/build-source-book.js"
+    "build:source-book": "node scripts/build-source-book.js",
+    "bench": "node scripts/bench.js",
+    "bench:compare": "node scripts/bench-compare.js"
   },
   "dependencies": {
     "express": "^4.18.2",

@@ -1,0 +1,8 @@
+{
+    "label": "butterflies-400",
+    "seed": 17,
+    "butterflyCount": 400,
+    "warmupFrames": 60,
+    "captureFrames": 600,
+    "notes": "Stress population near maxButterflies cap (500). Expect significant cliff."
+}
