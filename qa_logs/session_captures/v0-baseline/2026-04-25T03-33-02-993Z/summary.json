@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0-baseline\\2026-04-25T03-33-02-993Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.138333344459534,
+      "avgRenderMs": 13.640833328167597,
+      "p95FrameMs": 24.200000047683716,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 10.254166674613952,
+      "avgRenderMs": 14.489999989668528,
+      "p95FrameMs": 30.09999990463257,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 18.595000008742016,
+      "avgRenderMs": 26.22000000079473,
+      "p95FrameMs": 61.90000009536743,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 8.542500007152558,
+      "avgRenderMs": 16.208333341280618,
+      "p95FrameMs": 33.40000009536743,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

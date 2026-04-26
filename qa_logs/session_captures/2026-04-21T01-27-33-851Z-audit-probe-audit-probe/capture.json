@@ -1,0 +1,9 @@
+{
+  "session": {
+    "sessionId": "audit-probe",
+    "label": "audit-probe"
+  },
+  "summary": {
+    "durationMs": 1
+  }
+}

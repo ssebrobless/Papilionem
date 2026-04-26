@@ -1,0 +1,354 @@
+{
+  "generatedAt": "2026-04-22T00:53:20.701Z",
+  "captureDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\2026-04-22T00-53-10-595Z-v0-baseline-soak40-capture-1776819174220",
+  "captureLabel": "v0-baseline-soak40",
+  "durationMs": 16362,
+  "recordCount": 25,
+  "warningShare": 0.08,
+  "acknowledgementShare": 0,
+  "topMotiveFamilies": [
+    {
+      "label": "comfort",
+      "count": 16
+    },
+    {
+      "label": "teaching",
+      "count": 7
+    },
+    {
+      "label": "warning",
+      "count": 2
+    }
+  ],
+  "topResidueTypes": [
+    {
+      "label": "comfort-heard",
+      "count": 14
+    },
+    {
+      "label": "heard-lesson",
+      "count": 7
+    },
+    {
+      "label": "shared-calm",
+      "count": 2
+    },
+    {
+      "label": "protective-warning",
+      "count": 1
+    },
+    {
+      "label": "warning-heard",
+      "count": 1
+    }
+  ],
+  "topStances": [
+    {
+      "label": "acknowledge",
+      "count": 22
+    },
+    {
+      "label": "comfort_back",
+      "count": 2
+    },
+    {
+      "label": "comply",
+      "count": 1
+    }
+  ],
+  "topExactPhrases": [
+    {
+      "label": "Stay with me this part of the echoing ground is steady enough for you to breathe again.",
+      "count": 4
+    },
+    {
+      "label": "Keep near me a moment the pressure in the echo has already dropped.",
+      "count": 2
+    },
+    {
+      "label": "Look closely here the pool edge tells you where the safer line opens.",
+      "count": 2
+    },
+    {
+      "label": "Watch this pattern the waterlit path changes before the rest of the echoing ground.",
+      "count": 2
+    },
+    {
+      "label": "Back away from the pool edge something in that part of the echoing ground does not feel stable!",
+      "count": 1
+    },
+    {
+      "label": "Careful near the stone rim the pattern there is breaking unevenly!",
+      "count": 1
+    },
+    {
+      "label": "Easy now the pressure in the echo has already dropped.",
+      "count": 1
+    },
+    {
+      "label": "Easy now this part of the echoing ground is steady enough for you to breathe again.",
+      "count": 1
+    },
+    {
+      "label": "Hold this shape in your head the change in the echo starts before the ground looks different.",
+      "count": 1
+    },
+    {
+      "label": "Keep near me a moment the pressure in the air has already dropped.",
+      "count": 1
+    },
+    {
+      "label": "Keep near me a moment this part of the training floor is steady enough for you to breathe again.",
+      "count": 1
+    },
+    {
+      "label": "Keep this pattern in mind the waterlit path changes before the rest of the echoing ground.",
+      "count": 1
+    }
+  ],
+  "topNormalizedPhrasePatterns": [
+    {
+      "label": "stay with me this part of the echoing ground is steady enough for you to breathe again",
+      "count": 4
+    },
+    {
+      "label": "keep near me a moment the pressure in the echo has already dropped",
+      "count": 2
+    },
+    {
+      "label": "look closely here the pool edge tells you where the safer line opens",
+      "count": 2
+    },
+    {
+      "label": "watch this pattern the waterlit path changes before the rest of the echoing ground",
+      "count": 2
+    },
+    {
+      "label": "back away from the pool edge something in that part of the echoing ground does not feel stable",
+      "count": 1
+    },
+    {
+      "label": "careful near the stone rim the pattern there is breaking unevenly",
+      "count": 1
+    },
+    {
+      "label": "easy now the pressure in the echo has already dropped",
+      "count": 1
+    },
+    {
+      "label": "easy now this part of the echoing ground is steady enough for you to breathe again",
+      "count": 1
+    },
+    {
+      "label": "hold this shape in your head the change in the echo starts before the ground looks different",
+      "count": 1
+    },
+    {
+      "label": "keep near me a moment the pressure in the air has already dropped",
+      "count": 1
+    },
+    {
+      "label": "keep near me a moment this part of the training floor is steady enough for you to breathe again",
+      "count": 1
+    },
+    {
+      "label": "keep this pattern in mind the waterlit path changes before the rest of the echoing ground",
+      "count": 1
+    }
+  ],
+  "followThroughCounts": [
+    {
+      "label": "heard",
+      "count": 15
+    },
+    {
+      "label": "considering",
+      "count": 7
+    },
+    {
+      "label": "held",
+      "count": 2
+    },
+    {
+      "label": "acting",
+      "count": 1
+    }
+  ],
+  "topSourceLabels": [
+    {
+      "label": "Kevin(M)",
+      "count": 5
+    },
+    {
+      "label": "Bella(F)",
+      "count": 4
+    },
+    {
+      "label": "Cameron(M)",
+      "count": 3
+    },
+    {
+      "label": "NervousJewel(F)",
+      "count": 3
+    },
+    {
+      "label": "Wyatt(M)",
+      "count": 3
+    },
+    {
+      "label": "Camila(F)",
+      "count": 2
+    },
+    {
+      "label": "Ethan(M)",
+      "count": 2
+    },
+    {
+      "label": "Blake(M)",
+      "count": 1
+    },
+    {
+      "label": "Eli(M)",
+      "count": 1
+    },
+    {
+      "label": "Oliver(M)",
+      "count": 1
+    }
+  ],
+  "underExpressedFamilies": [
+    {
+      "label": "companionship",
+      "count": 0
+    },
+    {
+      "label": "shared-observation",
+      "count": 0
+    },
+    {
+      "label": "admiration",
+      "count": 0
+    },
+    {
+      "label": "repair",
+      "count": 0
+    },
+    {
+      "label": "rivalry",
+      "count": 0
+    },
+    {
+      "label": "play",
+      "count": 0
+    },
+    {
+      "label": "flirtation",
+      "count": 0
+    }
+  ],
+  "weakFollowThroughExamples": [
+    {
+      "phrase": "Hold this shape in your head the change in the echo starts before the ground looks different.",
+      "motiveFamily": "teaching",
+      "residueType": "heard-lesson",
+      "stance": "acknowledge",
+      "followThroughState": "considering",
+      "sourceLabel": "Bella(F)"
+    },
+    {
+      "phrase": "Look closely here the pool edge tells you where the safer line opens.",
+      "motiveFamily": "teaching",
+      "residueType": "heard-lesson",
+      "stance": "acknowledge",
+      "followThroughState": "considering",
+      "sourceLabel": "Bella(F)"
+    },
+    {
+      "phrase": "Watch this pattern the waterlit path changes before the rest of the echoing ground.",
+      "motiveFamily": "teaching",
+      "residueType": "heard-lesson",
+      "stance": "acknowledge",
+      "followThroughState": "considering",
+      "sourceLabel": "Bella(F)"
+    },
+    {
+      "phrase": "Look closely here the pool edge tells you where the safer line opens.",
+      "motiveFamily": "teaching",
+      "residueType": "heard-lesson",
+      "stance": "acknowledge",
+      "followThroughState": "considering",
+      "sourceLabel": "Bella(F)"
+    },
+    {
+      "phrase": "Keep this pattern in mind the waterlit path changes before the rest of the echoing ground.",
+      "motiveFamily": "teaching",
+      "residueType": "heard-lesson",
+      "stance": "acknowledge",
+      "followThroughState": "considering",
+      "sourceLabel": "Wyatt(M)"
+    },
+    {
+      "phrase": "Watch this pattern the waterlit path changes before the rest of the echoing ground.",
+      "motiveFamily": "teaching",
+      "residueType": "heard-lesson",
+      "stance": "acknowledge",
+      "followThroughState": "considering",
+      "sourceLabel": "Wyatt(M)"
+    },
+    {
+      "phrase": "Watch this pattern the pool edge tells you where the safer line opens.",
+      "motiveFamily": "teaching",
+      "residueType": "heard-lesson",
+      "stance": "acknowledge",
+      "followThroughState": "considering",
+      "sourceLabel": "Wyatt(M)"
+    },
+    {
+      "phrase": "Careful near the stone rim the pattern there is breaking unevenly!",
+      "motiveFamily": "warning",
+      "residueType": "warning-heard",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "Camila(F)"
+    },
+    {
+      "phrase": "Stay with me this part of the echoing ground is steady enough for you to breathe again.",
+      "motiveFamily": "comfort",
+      "residueType": "comfort-heard",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "Cameron(M)"
+    },
+    {
+      "phrase": "Stay with me this part of the echoing ground is steady enough for you to breathe again.",
+      "motiveFamily": "comfort",
+      "residueType": "comfort-heard",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "Ethan(M)"
+    },
+    {
+      "phrase": "Easy now the pressure in the echo has already dropped.",
+      "motiveFamily": "comfort",
+      "residueType": "comfort-heard",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "Cameron(M)"
+    },
+    {
+      "phrase": "Keep near me a moment the pressure in the echo has already dropped.",
+      "motiveFamily": "comfort",
+      "residueType": "comfort-heard",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "Eli(M)"
+    }
+  ],
+  "proofChecklist": [
+    "capture repeated-line / repeated-motive dominance from real play",
+    "broaden family mix away from warning-heavy loops in ordinary garden play",
+    "reduce acknowledgement-only reply saturation",
+    "show later behavior that proves anchoring residue mattered",
+    "surface distinct pair chemistry without turning UI into truth owner"
+  ]
+}

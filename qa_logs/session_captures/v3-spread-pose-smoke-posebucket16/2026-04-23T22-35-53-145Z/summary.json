@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v3-spread-pose-smoke-posebucket16\\2026-04-23T22-35-53-145Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 25.099999994647746,
+      "avgRenderMs": 26.564285713799144,
+      "p95FrameMs": 67.99999976158142,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 22.99833333492279,
+      "avgRenderMs": 29.531666656335194,
+      "p95FrameMs": 67.2000002861023,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 39.5091666718324,
+      "avgRenderMs": 39.93666667938233,
+      "p95FrameMs": 101.60000014305115,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 23.655833345651626,
+      "avgRenderMs": 26.343333339691164,
+      "p95FrameMs": 66.70000004768372,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

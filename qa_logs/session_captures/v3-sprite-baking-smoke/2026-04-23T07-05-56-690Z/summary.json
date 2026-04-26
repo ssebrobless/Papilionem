@@ -1,0 +1,46 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v3-sprite-baking-smoke\\2026-04-23T07-05-56-690Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 24.71090909567746,
+      "avgRenderMs": 24.88545454198664,
+      "p95FrameMs": 64.60000014305115,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 23.488333344459534,
+      "avgRenderMs": 30.114166659116744,
+      "p95FrameMs": 67.7000002861023,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "travel",
+      "avgUpdateMs": 24.440833340088528,
+      "avgRenderMs": 33.22083331545194,
+      "p95FrameMs": 70.89999985694885,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 40.5849999944369,
+      "avgRenderMs": 41.21749999523163,
+      "p95FrameMs": 96.70000004768372,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 24.945833333333333,
+      "avgRenderMs": 27.214166675011317,
+      "p95FrameMs": 69.90000009536743,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    }
+  ]
+}

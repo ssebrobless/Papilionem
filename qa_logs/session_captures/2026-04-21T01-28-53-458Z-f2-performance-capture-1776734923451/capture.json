@@ -1,0 +1,5950 @@
+{
+  "version": "h1-session-capture-v2",
+  "session": {
+    "sessionId": "capture_1776734923451",
+    "label": "f2-performance",
+    "startedAt": "2026-04-21T01:28:43.451Z",
+    "stoppedAt": "2026-04-21T01:28:53.448Z"
+  },
+  "summary": {
+    "active": false,
+    "sessionId": "capture_1776734923451",
+    "label": "f2-performance",
+    "startedAtMs": 1776734923451,
+    "stoppedAtMs": 1776734933448,
+    "durationMs": 9997,
+    "timelineCount": 7,
+    "runtimeIssueCount": 0,
+    "eventCounts": {
+      "capture": 2,
+      "snapshot": 3,
+      "navigation": 1,
+      "save": 1
+    },
+    "maxUpdateMs": 0,
+    "maxRenderMs": 0,
+    "maxParticleCount": 0,
+    "output": null,
+    "startState": {
+      "recordedAtMs": 1776734923451,
+      "butterflyCount": 12,
+      "flowerCount": 9,
+      "caterpillarCount": 0,
+      "blockCount": 108,
+      "hybridCount": 0,
+      "focusedZoneId": "ivy-cloister",
+      "viewMode": "focused-garden",
+      "activeBattleId": null,
+      "timeScale": 1,
+      "shellState": {
+        "viewMode": "focused-garden",
+        "focusedZoneId": "ivy-cloister",
+        "openPanels": [
+          "guide"
+        ],
+        "openPanelCount": 1,
+        "feedVisible": false,
+        "inspectVisible": false,
+        "accessVisible": false,
+        "battleSetupVisible": false,
+        "journalVisible": false,
+        "battleHudVisible": false,
+        "guideVisible": true,
+        "debugEnabled": false,
+        "feedEntryCount": 0,
+        "inspectTargetId": null,
+        "journalSection": null
+      }
+    },
+    "endState": {
+      "recordedAtMs": 1776734933448,
+      "butterflyCount": 12,
+      "flowerCount": 17,
+      "caterpillarCount": 0,
+      "blockCount": 108,
+      "hybridCount": 0,
+      "focusedZoneId": "sun-court",
+      "viewMode": "focused-garden",
+      "activeBattleId": null,
+      "timeScale": 1,
+      "shellState": {
+        "viewMode": "focused-garden",
+        "focusedZoneId": "sun-court",
+        "openPanels": [
+          "feed"
+        ],
+        "openPanelCount": 1,
+        "feedVisible": true,
+        "inspectVisible": false,
+        "accessVisible": false,
+        "battleSetupVisible": false,
+        "journalVisible": false,
+        "battleHudVisible": false,
+        "guideVisible": false,
+        "debugEnabled": false,
+        "feedEntryCount": 0,
+        "inspectTargetId": null,
+        "journalSection": null
+      }
+    }
+  },
+  "startState": {
+    "recordedAtMs": 1776734923451,
+    "butterflyCount": 12,
+    "flowerCount": 9,
+    "caterpillarCount": 0,
+    "blockCount": 108,
+    "hybridCount": 0,
+    "focusedZoneId": "ivy-cloister",
+    "viewMode": "focused-garden",
+    "activeBattleId": null,
+    "timeScale": 1,
+    "shellState": {
+      "viewMode": "focused-garden",
+      "focusedZoneId": "ivy-cloister",
+      "openPanels": [
+        "guide"
+      ],
+      "openPanelCount": 1,
+      "feedVisible": false,
+      "inspectVisible": false,
+      "accessVisible": false,
+      "battleSetupVisible": false,
+      "journalVisible": false,
+      "battleHudVisible": false,
+      "guideVisible": true,
+      "debugEnabled": false,
+      "feedEntryCount": 0,
+      "inspectTargetId": null,
+      "journalSection": null
+    }
+  },
+  "endState": {
+    "recordedAtMs": 1776734933448,
+    "butterflyCount": 12,
+    "flowerCount": 17,
+    "caterpillarCount": 0,
+    "blockCount": 108,
+    "hybridCount": 0,
+    "focusedZoneId": "sun-court",
+    "viewMode": "focused-garden",
+    "activeBattleId": null,
+    "timeScale": 1,
+    "shellState": {
+      "viewMode": "focused-garden",
+      "focusedZoneId": "sun-court",
+      "openPanels": [
+        "feed"
+      ],
+      "openPanelCount": 1,
+      "feedVisible": true,
+      "inspectVisible": false,
+      "accessVisible": false,
+      "battleSetupVisible": false,
+      "journalVisible": false,
+      "battleHudVisible": false,
+      "guideVisible": false,
+      "debugEnabled": false,
+      "feedEntryCount": 0,
+      "inspectTargetId": null,
+      "journalSection": null
+    }
+  },
+  "telemetry": {
+    "lastUpdateSample": {
+      "recordedAtMs": 1776734933427,
+      "totalUpdateMs": 5.799999952316284,
+      "foundationMs": 5,
+      "foundationBreakdown": {
+        "zoneEcologyCadence": 2,
+        "zoneEcologyRefreshApplied": 0,
+        "zoneSystemMs": 0,
+        "statusSystemMs": 0.09999990463256836,
+        "objectSystemMs": 0,
+        "structureSystemMs": 0.10000014305114746,
+        "sleepSystemMs": 0.09999990463256836,
+        "lifeSimSystemMs": 4.5,
+        "teachingSystemMs": 0,
+        "communicationSystemMs": 0.10000014305114746,
+        "behaviorSystemMs": 0,
+        "mlInferenceSystemMs": 0.09999990463256836,
+        "battleSystemMs": 0,
+        "saveSystemMs": 0,
+        "zoneEcologyStateMs": 0,
+        "zoneEcologyCollectMs": 0,
+        "zoneEcologyResourceLoopMs": 0,
+        "zoneEcologyPressureRefreshMs": 0,
+        "zoneEcologyTelemetryMs": 0
+      },
+      "entityMs": 0.40000009536743164,
+      "entityBreakdown": {
+        "butterflyUpdateMs": 0,
+        "caterpillarUpdateMs": 0,
+        "blockUpdateMs": 0.10000014305114746
+      },
+      "physicsMs": 0.20000004768371582,
+      "particleUpdateMs": 0,
+      "worldMs": 0.39999985694885254,
+      "worldBreakdown": {
+        "specialEffectsMs": 0,
+        "flowerSpawningMs": 0,
+        "pollenPlantingMs": 0,
+        "flowerManagerMs": 0,
+        "breedingMs": 0.39999985694885254,
+        "interactionChecksMs": 0,
+        "periodicEventsMs": 0
+      },
+      "updateBreakdown": {
+        "foundationMs": 5,
+        "entityMs": 0.40000009536743164,
+        "physicsMs": 0.20000004768371582,
+        "particleUpdateMs": 0,
+        "worldMs": 0.39999985694885254,
+        "foundation.zoneEcologyCadence": 2,
+        "foundation.zoneEcologyRefreshApplied": 0,
+        "foundation.zoneSystemMs": 0,
+        "foundation.statusSystemMs": 0.09999990463256836,
+        "foundation.objectSystemMs": 0,
+        "foundation.structureSystemMs": 0.10000014305114746,
+        "foundation.sleepSystemMs": 0.09999990463256836,
+        "foundation.lifeSimSystemMs": 4.5,
+        "foundation.teachingSystemMs": 0,
+        "foundation.communicationSystemMs": 0.10000014305114746,
+        "foundation.behaviorSystemMs": 0,
+        "foundation.mlInferenceSystemMs": 0.09999990463256836,
+        "foundation.battleSystemMs": 0,
+        "foundation.saveSystemMs": 0,
+        "foundation.zoneEcologyStateMs": 0,
+        "foundation.zoneEcologyCollectMs": 0,
+        "foundation.zoneEcologyResourceLoopMs": 0,
+        "foundation.zoneEcologyPressureRefreshMs": 0,
+        "foundation.zoneEcologyTelemetryMs": 0,
+        "entity.butterflyUpdateMs": 0,
+        "entity.caterpillarUpdateMs": 0,
+        "entity.blockUpdateMs": 0.10000014305114746,
+        "world.specialEffectsMs": 0,
+        "world.flowerSpawningMs": 0,
+        "world.pollenPlantingMs": 0,
+        "world.flowerManagerMs": 0,
+        "world.breedingMs": 0.39999985694885254,
+        "world.interactionChecksMs": 0,
+        "world.periodicEventsMs": 0
+      },
+      "physicsBudget": {
+        "focusedGardenPhysicsMs": 3.5,
+        "focusedGardenTotalUpdateMs": 22
+      },
+      "butterflyCount": 12,
+      "flowerCount": 17,
+      "caterpillarCount": 0,
+      "blockCount": 108,
+      "visibleButterflyCount": 0,
+      "visibleFlowerCount": 2,
+      "visibleCaterpillarCount": 0,
+      "visibleBlockCount": 27,
+      "visibleEntityCount": 29,
+      "timeScale": 1,
+      "viewMode": "focused-garden"
+    },
+    "lastRenderSample": {
+      "recordedAtMs": 1776734933439,
+      "totalRenderMs": 12.199999809265137,
+      "particleRenderMs": 0.20000004768371582,
+      "particleCount": 0,
+      "batchCount": 1,
+      "visibleEffectCount": 0,
+      "trailMode": "off",
+      "atmosphereTier": "throttled",
+      "renderBreakdown": {
+        "recordedAtMs": 1776734933427,
+        "clearDynamicMs": 0.09999990463256836,
+        "entityLayerMs": 0.5999999046325684,
+        "particleLayerMs": 0,
+        "uiLayerMs": 0.40000009536743164,
+        "debugLayerMs": 0,
+        "canvasClearMs": 0.09999990463256836,
+        "compositeMs": 11,
+        "atmosphereCompositeMs": 0,
+        "shellState": {
+          "viewMode": "focused-garden",
+          "focusedZoneId": "sun-court",
+          "openPanels": [
+            "feed"
+          ],
+          "openPanelCount": 1,
+          "feedVisible": true,
+          "inspectVisible": false,
+          "accessVisible": false,
+          "battleSetupVisible": false,
+          "journalVisible": false,
+          "battleHudVisible": false,
+          "guideVisible": false,
+          "debugEnabled": false,
+          "feedEntryCount": 0,
+          "inspectTargetId": null,
+          "journalSection": null
+        },
+        "failure": null,
+        "compositeBreakdown": {
+          "backgroundCompositeMs": 0,
+          "groundAtmosphereCompositeMs": 0,
+          "behindEntitiesCompositeMs": 0,
+          "spawnCoverCompositeMs": 0,
+          "entitiesCompositeMs": 10.300000190734863,
+          "particlesCompositeMs": 0,
+          "foliageAtmosphereCompositeMs": 0,
+          "uiCompositeMs": 0.6999998092651367,
+          "debugCompositeMs": 0,
+          "totalCompositeMs": 11
+        },
+        "totalMeasuredMs": 12.199999809265137
+      },
+      "renderBreakdownFlat": {
+        "clearDynamicMs": 0.09999990463256836,
+        "entityLayerMs": 0.5999999046325684,
+        "particleLayerMs": 0,
+        "uiLayerMs": 0.40000009536743164,
+        "debugLayerMs": 0,
+        "canvasClearMs": 0.09999990463256836,
+        "compositeMs": 11,
+        "atmosphereCompositeMs": 0,
+        "particleRenderMs": 0.20000004768371582,
+        "composite.backgroundCompositeMs": 0,
+        "composite.groundAtmosphereCompositeMs": 0,
+        "composite.behindEntitiesCompositeMs": 0,
+        "composite.spawnCoverCompositeMs": 0,
+        "composite.entitiesCompositeMs": 10.300000190734863,
+        "composite.particlesCompositeMs": 0,
+        "composite.foliageAtmosphereCompositeMs": 0,
+        "composite.uiCompositeMs": 0.6999998092651367,
+        "composite.debugCompositeMs": 0,
+        "composite.totalCompositeMs": 11
+      },
+      "shellState": {
+        "viewMode": "focused-garden",
+        "focusedZoneId": "sun-court",
+        "openPanels": [
+          "feed"
+        ],
+        "openPanelCount": 1,
+        "feedVisible": true,
+        "inspectVisible": false,
+        "accessVisible": false,
+        "battleSetupVisible": false,
+        "journalVisible": false,
+        "battleHudVisible": false,
+        "guideVisible": false,
+        "debugEnabled": false,
+        "feedEntryCount": 0,
+        "inspectTargetId": null,
+        "journalSection": null
+      }
+    },
+    "lastEcologySample": {
+      "recordedAtMs": 1776734932988,
+      "butterflyCount": 12,
+      "flowerCount": 17,
+      "timeScale": 1,
+      "viewMode": "focused-garden",
+      "zoneCount": 4,
+      "zoneHealth": {
+        "distinctIdentityCount": 4,
+        "distinctSignatureCount": 4,
+        "zonesBelowFloorCount": 0,
+        "minResourceReserve": 0.82,
+        "minHabitatQuality": 0.62,
+        "maxDepletionPressure": 0.01,
+        "avgCrowdingPressure": 0.1775,
+        "avgMigrationPull": 0.3375
+      },
+      "migration": {
+        "livingCount": 12,
+        "homeAnchoredCount": 12,
+        "settledHomeCount": 12,
+        "awayFromHomeCount": 0,
+        "activeTravelerCount": 0,
+        "multiZoneCount": 0,
+        "completedTravelCount": 0,
+        "homeReturnCount": 0,
+        "scoutingTripCount": 0
+      },
+      "release": {
+        "totalReleases": 0,
+        "currentBatchCount": 0,
+        "releaseHistoryCount": 0,
+        "latestCohortId": null,
+        "latestCohortBlendGuard": 0,
+        "latestPreferredZoneId": null,
+        "latestWaveWildCount": 0,
+        "latestLineageCount": 0
+      },
+      "zoneSummaries": [
+        {
+          "zoneId": "ivy-cloister",
+          "identityLabel": "Quiet cloister",
+          "signatureLabel": "social calm",
+          "normalFlowers": 8,
+          "floorTarget": 2,
+          "resourceReserve": 1,
+          "habitatQuality": 0.72,
+          "depletionPressure": 0,
+          "migrationPull": 0.26,
+          "crowdingPressure": 0.71
+        },
+        {
+          "zoneId": "sun-court",
+          "identityLabel": "Sun court drills",
+          "signatureLabel": "drill-heavy pull",
+          "normalFlowers": 2,
+          "floorTarget": 1,
+          "resourceReserve": 0.82,
+          "habitatQuality": 0.62,
+          "depletionPressure": 0.01,
+          "migrationPull": 0.21,
+          "crowdingPressure": 0
+        },
+        {
+          "zoneId": "moss-hollow",
+          "identityLabel": "Moss watch",
+          "signatureLabel": "watchful shelter",
+          "normalFlowers": 3,
+          "floorTarget": 1,
+          "resourceReserve": 0.93,
+          "habitatQuality": 0.69,
+          "depletionPressure": 0,
+          "migrationPull": 0.32,
+          "crowdingPressure": 0
+        },
+        {
+          "zoneId": "pool-heart",
+          "identityLabel": "Echo pool",
+          "signatureLabel": "echoing roam",
+          "normalFlowers": 4,
+          "floorTarget": 1,
+          "resourceReserve": 0.98,
+          "habitatQuality": 0.72,
+          "depletionPressure": 0,
+          "migrationPull": 0.56,
+          "crowdingPressure": 0
+        }
+      ]
+    },
+    "averages": {
+      "updateMs": 6.629999991257986,
+      "foundationMs": 5.80333333214124,
+      "entityMs": 0.4241666615009308,
+      "physicsMs": 0.323333328962326,
+      "particleUpdateMs": 0.0033333361148834228,
+      "worldMs": 0.39583332935969034,
+      "renderMs": 12.746666665871938,
+      "particleRenderMs": 0.21083335280418397,
+      "uiLayerMs": 0.5133333424727122,
+      "compositeMs": 11.172500002384187
+    },
+    "breakdowns": {
+      "update": {
+        "foundationMs": 5.80333333214124,
+        "entityMs": 0.4241666615009308,
+        "physicsMs": 0.323333328962326,
+        "particleUpdateMs": 0.0033333361148834228,
+        "worldMs": 0.39583332935969034,
+        "foundation.zoneEcologyCadence": 2,
+        "foundation.zoneEcologyRefreshApplied": 0.5,
+        "foundation.zoneSystemMs": 0.0024999996026357015,
+        "foundation.statusSystemMs": 0.12249999642372131,
+        "foundation.objectSystemMs": 0.09666667183240255,
+        "foundation.structureSystemMs": 0.06583333810170491,
+        "foundation.sleepSystemMs": 0.11249999205271403,
+        "foundation.lifeSimSystemMs": 4.818333333730697,
+        "foundation.teachingSystemMs": 0.017499991257985435,
+        "foundation.communicationSystemMs": 0.01416667103767395,
+        "foundation.behaviorSystemMs": 0.04916667739550273,
+        "foundation.mlInferenceSystemMs": 0.3808333237965902,
+        "foundation.battleSystemMs": 0,
+        "foundation.saveSystemMs": 0.0041666726271311445,
+        "foundation.zoneEcologyStateMs": 0.002500001589457194,
+        "foundation.zoneEcologyCollectMs": 0.009999996423721314,
+        "foundation.zoneEcologyResourceLoopMs": 0.0066666682561238606,
+        "foundation.zoneEcologyPressureRefreshMs": 0.015833332141240438,
+        "foundation.zoneEcologyTelemetryMs": 0.06250000397364298,
+        "entity.butterflyUpdateMs": 0.002499997615814209,
+        "entity.caterpillarUpdateMs": 0.0008333325386047363,
+        "entity.blockUpdateMs": 0.07750000158945719,
+        "world.specialEffectsMs": 0.0016666670640309651,
+        "world.flowerSpawningMs": 0.0008333325386047363,
+        "world.pollenPlantingMs": 0.0016666650772094727,
+        "world.flowerManagerMs": 0.0016666690508524576,
+        "world.breedingMs": 0.3791666626930237,
+        "world.interactionChecksMs": 0.0024999996026357015,
+        "world.periodicEventsMs": 0.005833333730697632
+      },
+      "render": {
+        "clearDynamicMs": 0.028333336114883423,
+        "entityLayerMs": 0.8074999888737996,
+        "particleLayerMs": 0.15166666706403095,
+        "uiLayerMs": 0.5133333424727122,
+        "debugLayerMs": 0,
+        "canvasClearMs": 0.01749999721844991,
+        "compositeMs": 11.172500002384187,
+        "atmosphereCompositeMs": 0,
+        "particleRenderMs": 0.21083335280418397,
+        "composite.backgroundCompositeMs": 0.028333324193954467,
+        "composite.groundAtmosphereCompositeMs": 0,
+        "composite.behindEntitiesCompositeMs": 0,
+        "composite.spawnCoverCompositeMs": 0.008333333333333333,
+        "composite.entitiesCompositeMs": 10.203333340088527,
+        "composite.particlesCompositeMs": 0.09750000437100728,
+        "composite.foliageAtmosphereCompositeMs": 0,
+        "composite.uiCompositeMs": 0.8183333257834117,
+        "composite.debugCompositeMs": 0,
+        "composite.totalCompositeMs": 11.155833327770234
+      }
+    },
+    "attribution": {
+      "category": "mixed",
+      "summaryLine": "Mixed lag: update 6.63ms and render 12.75ms are both materially loaded.",
+      "avgUpdateMs": 6.629999991257986,
+      "avgRenderMs": 12.746666665871938,
+      "shellState": {
+        "viewMode": "focused-garden",
+        "focusedZoneId": "sun-court",
+        "openPanels": [
+          "feed"
+        ],
+        "openPanelCount": 1,
+        "feedVisible": true,
+        "inspectVisible": false,
+        "accessVisible": false,
+        "battleSetupVisible": false,
+        "journalVisible": false,
+        "battleHudVisible": false,
+        "guideVisible": false,
+        "debugEnabled": false,
+        "feedEntryCount": 0,
+        "inspectTargetId": null,
+        "journalSection": null
+      },
+      "shellSummary": "focused-garden | feed",
+      "topUpdateContributors": [
+        {
+          "label": "foundationMs",
+          "ms": 5.80333333214124
+        },
+        {
+          "label": "foundation.lifeSimSystemMs",
+          "ms": 4.818333333730697
+        },
+        {
+          "label": "foundation.zoneEcologyCadence",
+          "ms": 2
+        },
+        {
+          "label": "foundation.zoneEcologyRefreshApplied",
+          "ms": 0.5
+        }
+      ],
+      "topRenderContributors": [
+        {
+          "label": "compositeMs",
+          "ms": 11.172500002384187
+        },
+        {
+          "label": "composite.totalCompositeMs",
+          "ms": 11.155833327770234
+        },
+        {
+          "label": "composite.entitiesCompositeMs",
+          "ms": 10.203333340088527
+        },
+        {
+          "label": "composite.uiCompositeMs",
+          "ms": 0.8183333257834117
+        }
+      ],
+      "averageUpdateBreakdown": {
+        "foundationMs": 5.80333333214124,
+        "entityMs": 0.4241666615009308,
+        "physicsMs": 0.323333328962326,
+        "particleUpdateMs": 0.0033333361148834228,
+        "worldMs": 0.39583332935969034,
+        "foundation.zoneEcologyCadence": 2,
+        "foundation.zoneEcologyRefreshApplied": 0.5,
+        "foundation.zoneSystemMs": 0.0024999996026357015,
+        "foundation.statusSystemMs": 0.12249999642372131,
+        "foundation.objectSystemMs": 0.09666667183240255,
+        "foundation.structureSystemMs": 0.06583333810170491,
+        "foundation.sleepSystemMs": 0.11249999205271403,
+        "foundation.lifeSimSystemMs": 4.818333333730697,
+        "foundation.teachingSystemMs": 0.017499991257985435,
+        "foundation.communicationSystemMs": 0.01416667103767395,
+        "foundation.behaviorSystemMs": 0.04916667739550273,
+        "foundation.mlInferenceSystemMs": 0.3808333237965902,
+        "foundation.battleSystemMs": 0,
+        "foundation.saveSystemMs": 0.0041666726271311445,
+        "foundation.zoneEcologyStateMs": 0.002500001589457194,
+        "foundation.zoneEcologyCollectMs": 0.009999996423721314,
+        "foundation.zoneEcologyResourceLoopMs": 0.0066666682561238606,
+        "foundation.zoneEcologyPressureRefreshMs": 0.015833332141240438,
+        "foundation.zoneEcologyTelemetryMs": 0.06250000397364298,
+        "entity.butterflyUpdateMs": 0.002499997615814209,
+        "entity.caterpillarUpdateMs": 0.0008333325386047363,
+        "entity.blockUpdateMs": 0.07750000158945719,
+        "world.specialEffectsMs": 0.0016666670640309651,
+        "world.flowerSpawningMs": 0.0008333325386047363,
+        "world.pollenPlantingMs": 0.0016666650772094727,
+        "world.flowerManagerMs": 0.0016666690508524576,
+        "world.breedingMs": 0.3791666626930237,
+        "world.interactionChecksMs": 0.0024999996026357015,
+        "world.periodicEventsMs": 0.005833333730697632
+      },
+      "averageRenderBreakdown": {
+        "clearDynamicMs": 0.028333336114883423,
+        "entityLayerMs": 0.8074999888737996,
+        "particleLayerMs": 0.15166666706403095,
+        "uiLayerMs": 0.5133333424727122,
+        "debugLayerMs": 0,
+        "canvasClearMs": 0.01749999721844991,
+        "compositeMs": 11.172500002384187,
+        "atmosphereCompositeMs": 0,
+        "particleRenderMs": 0.21083335280418397,
+        "composite.backgroundCompositeMs": 0.028333324193954467,
+        "composite.groundAtmosphereCompositeMs": 0,
+        "composite.behindEntitiesCompositeMs": 0,
+        "composite.spawnCoverCompositeMs": 0.008333333333333333,
+        "composite.entitiesCompositeMs": 10.203333340088527,
+        "composite.particlesCompositeMs": 0.09750000437100728,
+        "composite.foliageAtmosphereCompositeMs": 0,
+        "composite.uiCompositeMs": 0.8183333257834117,
+        "composite.debugCompositeMs": 0,
+        "composite.totalCompositeMs": 11.155833327770234
+      }
+    },
+    "pressure": {
+      "tier": "hot",
+      "avgUpdateMs": 6.629999991257986,
+      "avgPhysicsMs": 0.323333328962326,
+      "avgRenderMs": 12.746666665871938,
+      "avgParticleRenderMs": 0.21083335280418397,
+      "visibleEntities": 29,
+      "visibleButterflies": 0,
+      "visibleEffects": 0,
+      "particleCount": 0,
+      "isWarm": true,
+      "isHot": true,
+      "isCritical": false,
+      "simulationMultiplier": 0.58,
+      "visualMultiplier": 0.48
+    },
+    "ecology": {
+      "sampleCount": 90,
+      "avgMinResourceReserve": 0.7182222222222224,
+      "avgMinHabitatQuality": 0.5776666666666667,
+      "avgMaxDepletionPressure": 0.013666666666666676,
+      "maxZonesBelowFloorCount": 0,
+      "avgHomeAnchorShare": 1,
+      "avgMultiZoneShare": 0,
+      "maxActiveTravelerCount": 0,
+      "latestCohortId": null,
+      "latestWaveWildCount": 0,
+      "distinctIdentityCount": 4,
+      "distinctSignatureCount": 4
+    },
+    "mlCorpus": {
+      "sampleCount": 0,
+      "scenarioCount": 0,
+      "scenarioFamilies": [],
+      "recordKinds": [],
+      "reviewedSampleCount": 0,
+      "correctedSampleCount": 0,
+      "correctedPolicyCount": 0,
+      "latestScenarioId": null
+    },
+    "mlRuntime": {
+      "sampleCount": 240,
+      "gardenSampleCount": 240,
+      "battleSampleCount": 0,
+      "avgGardenUpdateMs": 0.3775000015894572,
+      "maxGardenUpdateMs": 7.200000047683716,
+      "avgBattleDecisionMs": 0,
+      "maxBattleDecisionMs": 0,
+      "avgRefreshedTraceCount": 0.6291666666666667,
+      "mlPolicyCount": 755,
+      "fallbackPolicyCount": 0,
+      "mlPolicyShare": 1,
+      "fallbackPolicyShare": 0,
+      "budgetTargets": {
+        "focusedGardenInferenceMs": 3.5,
+        "battleDecisionMs": 0.75,
+        "focusedGardenPhysicsMs": 3.5,
+        "focusedGardenTotalUpdateMs": 22
+      },
+      "withinBudget": {
+        "gardenInference": true,
+        "battleDecision": true
+      },
+      "modelLoaded": true,
+      "useModelInference": true,
+      "lastMode": "garden-update",
+      "lastDecisionSource": "ml"
+    },
+    "sessionCapture": {
+      "active": false,
+      "sessionId": "capture_1776734923451",
+      "label": "f2-performance",
+      "startedAtMs": 1776734923451,
+      "stoppedAtMs": 1776734933448,
+      "durationMs": 9997,
+      "timelineCount": 7,
+      "runtimeIssueCount": 0,
+      "eventCounts": {
+        "capture": 2,
+        "snapshot": 3,
+        "navigation": 1,
+        "save": 1
+      },
+      "maxUpdateMs": 0,
+      "maxRenderMs": 0,
+      "maxParticleCount": 0,
+      "output": null,
+      "startState": {
+        "recordedAtMs": 1776734923451,
+        "butterflyCount": 12,
+        "flowerCount": 9,
+        "caterpillarCount": 0,
+        "blockCount": 108,
+        "hybridCount": 0,
+        "focusedZoneId": "ivy-cloister",
+        "viewMode": "focused-garden",
+        "activeBattleId": null,
+        "timeScale": 1,
+        "shellState": {
+          "viewMode": "focused-garden",
+          "focusedZoneId": "ivy-cloister",
+          "openPanels": [
+            "guide"
+          ],
+          "openPanelCount": 1,
+          "feedVisible": false,
+          "inspectVisible": false,
+          "accessVisible": false,
+          "battleSetupVisible": false,
+          "journalVisible": false,
+          "battleHudVisible": false,
+          "guideVisible": true,
+          "debugEnabled": false,
+          "feedEntryCount": 0,
+          "inspectTargetId": null,
+          "journalSection": null
+        }
+      },
+      "endState": {
+        "recordedAtMs": 1776734933448,
+        "butterflyCount": 12,
+        "flowerCount": 17,
+        "caterpillarCount": 0,
+        "blockCount": 108,
+        "hybridCount": 0,
+        "focusedZoneId": "sun-court",
+        "viewMode": "focused-garden",
+        "activeBattleId": null,
+        "timeScale": 1,
+        "shellState": {
+          "viewMode": "focused-garden",
+          "focusedZoneId": "sun-court",
+          "openPanels": [
+            "feed"
+          ],
+          "openPanelCount": 1,
+          "feedVisible": true,
+          "inspectVisible": false,
+          "accessVisible": false,
+          "battleSetupVisible": false,
+          "journalVisible": false,
+          "battleHudVisible": false,
+          "guideVisible": false,
+          "debugEnabled": false,
+          "feedEntryCount": 0,
+          "inspectTargetId": null,
+          "journalSection": null
+        }
+      }
+    },
+    "sampleCounts": {
+      "updates": 120,
+      "renders": 120,
+      "ecology": 90,
+      "mlCorpus": 0,
+      "mlRuntime": 240
+    }
+  },
+  "timeline": [
+    {
+      "category": "capture",
+      "label": "started",
+      "atMs": 1776734923451,
+      "frame": 65,
+      "payload": {
+        "label": "f2-performance",
+        "viewMode": "focused-garden",
+        "focusedZoneId": "ivy-cloister"
+      }
+    },
+    {
+      "category": "snapshot",
+      "label": "start",
+      "atMs": 1776734923451,
+      "frame": 65,
+      "payload": {
+        "state": {
+          "recordedAtMs": 1776734923451,
+          "butterflyCount": 12,
+          "flowerCount": 9,
+          "caterpillarCount": 0,
+          "blockCount": 108,
+          "hybridCount": 0,
+          "focusedZoneId": "ivy-cloister",
+          "viewMode": "focused-garden",
+          "activeBattleId": null,
+          "timeScale": 1,
+          "shellState": {
+            "viewMode": "focused-garden",
+            "focusedZoneId": "ivy-cloister",
+            "openPanels": [
+              "guide"
+            ],
+            "openPanelCount": 1,
+            "feedVisible": false,
+            "inspectVisible": false,
+            "accessVisible": false,
+            "battleSetupVisible": false,
+            "journalVisible": false,
+            "battleHudVisible": false,
+            "guideVisible": true,
+            "debugEnabled": false,
+            "feedEntryCount": 0,
+            "inspectTargetId": null,
+            "journalSection": null
+          }
+        },
+        "telemetry": {
+          "lastUpdateSample": {
+            "recordedAtMs": 1776734923422,
+            "totalUpdateMs": 15.5,
+            "foundationMs": 8.799999952316284,
+            "foundationBreakdown": {
+              "zoneEcologyCadence": 3,
+              "zoneEcologyRefreshApplied": 0,
+              "zoneSystemMs": 0,
+              "statusSystemMs": 0.09999990463256836,
+              "objectSystemMs": 0.20000004768371582,
+              "structureSystemMs": 0.10000014305114746,
+              "sleepSystemMs": 0.2999999523162842,
+              "lifeSimSystemMs": 7.799999952316284,
+              "teachingSystemMs": 0,
+              "communicationSystemMs": 0,
+              "behaviorSystemMs": 0.09999990463256836,
+              "mlInferenceSystemMs": 0.10000014305114746,
+              "battleSystemMs": 0,
+              "saveSystemMs": 0,
+              "zoneEcologyStateMs": 0,
+              "zoneEcologyCollectMs": 0,
+              "zoneEcologyResourceLoopMs": 0,
+              "zoneEcologyPressureRefreshMs": 0,
+              "zoneEcologyTelemetryMs": 0
+            },
+            "entityMs": 6.200000047683716,
+            "entityBreakdown": {
+              "butterflyUpdateMs": 3,
+              "caterpillarUpdateMs": 0,
+              "blockUpdateMs": 0.09999990463256836
+            },
+            "physicsMs": 2.9000000953674316,
+            "particleUpdateMs": 0,
+            "worldMs": 0.5,
+            "worldBreakdown": {
+              "specialEffectsMs": 0,
+              "flowerSpawningMs": 0,
+              "pollenPlantingMs": 0,
+              "flowerManagerMs": 0,
+              "breedingMs": 0.5,
+              "interactionChecksMs": 0,
+              "periodicEventsMs": 0
+            },
+            "updateBreakdown": {
+              "foundationMs": 8.799999952316284,
+              "entityMs": 6.200000047683716,
+              "physicsMs": 2.9000000953674316,
+              "particleUpdateMs": 0,
+              "worldMs": 0.5,
+              "foundation.zoneEcologyCadence": 3,
+              "foundation.zoneEcologyRefreshApplied": 0,
+              "foundation.zoneSystemMs": 0,
+              "foundation.statusSystemMs": 0.09999990463256836,
+              "foundation.objectSystemMs": 0.20000004768371582,
+              "foundation.structureSystemMs": 0.10000014305114746,
+              "foundation.sleepSystemMs": 0.2999999523162842,
+              "foundation.lifeSimSystemMs": 7.799999952316284,
+              "foundation.teachingSystemMs": 0,
+              "foundation.communicationSystemMs": 0,
+              "foundation.behaviorSystemMs": 0.09999990463256836,
+              "foundation.mlInferenceSystemMs": 0.10000014305114746,
+              "foundation.battleSystemMs": 0,
+              "foundation.saveSystemMs": 0,
+              "foundation.zoneEcologyStateMs": 0,
+              "foundation.zoneEcologyCollectMs": 0,
+              "foundation.zoneEcologyResourceLoopMs": 0,
+              "foundation.zoneEcologyPressureRefreshMs": 0,
+              "foundation.zoneEcologyTelemetryMs": 0,
+              "entity.butterflyUpdateMs": 3,
+              "entity.caterpillarUpdateMs": 0,
+              "entity.blockUpdateMs": 0.09999990463256836,
+              "world.specialEffectsMs": 0,
+              "world.flowerSpawningMs": 0,
+              "world.pollenPlantingMs": 0,
+              "world.flowerManagerMs": 0,
+              "world.breedingMs": 0.5,
+              "world.interactionChecksMs": 0,
+              "world.periodicEventsMs": 0
+            },
+            "physicsBudget": {
+              "focusedGardenPhysicsMs": 3.5,
+              "focusedGardenTotalUpdateMs": 22
+            },
+            "butterflyCount": 12,
+            "flowerCount": 9,
+            "caterpillarCount": 0,
+            "blockCount": 108,
+            "visibleButterflyCount": 12,
+            "visibleFlowerCount": 6,
+            "visibleCaterpillarCount": 0,
+            "visibleBlockCount": 27,
+            "visibleEntityCount": 45,
+            "timeScale": 1,
+            "viewMode": "focused-garden"
+          },
+          "lastRenderSample": {
+            "recordedAtMs": 1776734923440,
+            "totalRenderMs": 18,
+            "particleRenderMs": 0,
+            "particleCount": 0,
+            "batchCount": 0,
+            "visibleEffectCount": 3,
+            "trailMode": "off",
+            "atmosphereTier": "severe",
+            "renderBreakdown": {
+              "recordedAtMs": 1776734923422,
+              "clearDynamicMs": 0,
+              "entityLayerMs": 5.5,
+              "particleLayerMs": 0,
+              "uiLayerMs": 0.5,
+              "debugLayerMs": 0,
+              "canvasClearMs": 0,
+              "compositeMs": 11.900000095367432,
+              "atmosphereCompositeMs": 0,
+              "shellState": {
+                "viewMode": "focused-garden",
+                "focusedZoneId": "ivy-cloister",
+                "openPanels": [
+                  "guide"
+                ],
+                "openPanelCount": 1,
+                "feedVisible": false,
+                "inspectVisible": false,
+                "accessVisible": false,
+                "battleSetupVisible": false,
+                "journalVisible": false,
+                "battleHudVisible": false,
+                "guideVisible": true,
+                "debugEnabled": false,
+                "feedEntryCount": 0,
+                "inspectTargetId": null,
+                "journalSection": null
+              },
+              "failure": null,
+              "compositeBreakdown": {
+                "backgroundCompositeMs": 0.09999990463256836,
+                "groundAtmosphereCompositeMs": 0,
+                "behindEntitiesCompositeMs": 0,
+                "spawnCoverCompositeMs": 0,
+                "entitiesCompositeMs": 10.900000095367432,
+                "particlesCompositeMs": 0,
+                "foliageAtmosphereCompositeMs": 0,
+                "uiCompositeMs": 0.9000000953674316,
+                "debugCompositeMs": 0,
+                "totalCompositeMs": 11.900000095367432
+              },
+              "totalMeasuredMs": 17.90000009536743
+            },
+            "renderBreakdownFlat": {
+              "clearDynamicMs": 0,
+              "entityLayerMs": 5.5,
+              "particleLayerMs": 0,
+              "uiLayerMs": 0.5,
+              "debugLayerMs": 0,
+              "canvasClearMs": 0,
+              "compositeMs": 11.900000095367432,
+              "atmosphereCompositeMs": 0,
+              "particleRenderMs": 0,
+              "composite.backgroundCompositeMs": 0.09999990463256836,
+              "composite.groundAtmosphereCompositeMs": 0,
+              "composite.behindEntitiesCompositeMs": 0,
+              "composite.spawnCoverCompositeMs": 0,
+              "composite.entitiesCompositeMs": 10.900000095367432,
+              "composite.particlesCompositeMs": 0,
+              "composite.foliageAtmosphereCompositeMs": 0,
+              "composite.uiCompositeMs": 0.9000000953674316,
+              "composite.debugCompositeMs": 0,
+              "composite.totalCompositeMs": 11.900000095367432
+            },
+            "shellState": {
+              "viewMode": "focused-garden",
+              "focusedZoneId": "ivy-cloister",
+              "openPanels": [
+                "guide"
+              ],
+              "openPanelCount": 1,
+              "feedVisible": false,
+              "inspectVisible": false,
+              "accessVisible": false,
+              "battleSetupVisible": false,
+              "journalVisible": false,
+              "battleHudVisible": false,
+              "guideVisible": true,
+              "debugEnabled": false,
+              "feedEntryCount": 0,
+              "inspectTargetId": null,
+              "journalSection": null
+            }
+          },
+          "lastEcologySample": {
+            "recordedAtMs": 1776734922863,
+            "butterflyCount": 12,
+            "flowerCount": 9,
+            "timeScale": 1,
+            "viewMode": "focused-garden",
+            "zoneCount": 4,
+            "zoneHealth": {
+              "distinctIdentityCount": 4,
+              "distinctSignatureCount": 4,
+              "zonesBelowFloorCount": 0,
+              "minResourceReserve": 0.54,
+              "minHabitatQuality": 0.49,
+              "maxDepletionPressure": 0.07,
+              "avgCrowdingPressure": 0.175,
+              "avgMigrationPull": 0.37
+            },
+            "migration": {
+              "livingCount": 12,
+              "homeAnchoredCount": 12,
+              "settledHomeCount": 12,
+              "awayFromHomeCount": 0,
+              "activeTravelerCount": 0,
+              "multiZoneCount": 0,
+              "completedTravelCount": 0,
+              "homeReturnCount": 0,
+              "scoutingTripCount": 0
+            },
+            "release": {
+              "totalReleases": 0,
+              "currentBatchCount": 0,
+              "releaseHistoryCount": 0,
+              "latestCohortId": null,
+              "latestCohortBlendGuard": 0,
+              "latestPreferredZoneId": null,
+              "latestWaveWildCount": 0,
+              "latestLineageCount": 0
+            },
+            "zoneSummaries": [
+              {
+                "zoneId": "ivy-cloister",
+                "identityLabel": "Quiet cloister",
+                "signatureLabel": "social calm",
+                "normalFlowers": 6,
+                "floorTarget": 2,
+                "resourceReserve": 0.77,
+                "habitatQuality": 0.62,
+                "depletionPressure": 0.07,
+                "migrationPull": 0.28,
+                "crowdingPressure": 0.7
+              },
+              {
+                "zoneId": "sun-court",
+                "identityLabel": "Sun court drills",
+                "signatureLabel": "drill-heavy pull",
+                "normalFlowers": 1,
+                "floorTarget": 1,
+                "resourceReserve": 0.54,
+                "habitatQuality": 0.49,
+                "depletionPressure": 0.07,
+                "migrationPull": 0.24,
+                "crowdingPressure": 0
+              },
+              {
+                "zoneId": "moss-hollow",
+                "identityLabel": "Moss watch",
+                "signatureLabel": "watchful shelter",
+                "normalFlowers": 1,
+                "floorTarget": 1,
+                "resourceReserve": 0.61,
+                "habitatQuality": 0.52,
+                "depletionPressure": 0.07,
+                "migrationPull": 0.36,
+                "crowdingPressure": 0
+              },
+              {
+                "zoneId": "pool-heart",
+                "identityLabel": "Echo pool",
+                "signatureLabel": "echoing roam",
+                "normalFlowers": 1,
+                "floorTarget": 1,
+                "resourceReserve": 0.61,
+                "habitatQuality": 0.52,
+                "depletionPressure": 0.07,
+                "migrationPull": 0.6,
+                "crowdingPressure": 0
+              }
+            ]
+          },
+          "averages": {
+            "updateMs": 15.13709678188447,
+            "foundationMs": 8.333870960820105,
+            "entityMs": 6.301612911685821,
+            "physicsMs": 3.4548387104465115,
+            "particleUpdateMs": 0.004838705062866211,
+            "worldMs": 0.48548387712047947,
+            "renderMs": 17.334920648544554,
+            "particleRenderMs": 0,
+            "uiLayerMs": 0.8619047800699869,
+            "compositeMs": 10.266666669694205
+          },
+          "breakdowns": {
+            "update": {
+              "foundationMs": 8.333870960820105,
+              "entityMs": 6.301612911685821,
+              "physicsMs": 3.4548387104465115,
+              "particleUpdateMs": 0.004838705062866211,
+              "worldMs": 0.48548387712047947,
+              "foundation.zoneEcologyCadence": 2.9838709677419355,
+              "foundation.zoneEcologyRefreshApplied": 0.3387096774193548,
+              "foundation.zoneSystemMs": 0,
+              "foundation.statusSystemMs": 0.2467742081611387,
+              "foundation.objectSystemMs": 0.13064516359759915,
+              "foundation.structureSystemMs": 0.2161290337962489,
+              "foundation.sleepSystemMs": 0.2677419301002256,
+              "foundation.lifeSimSystemMs": 6.085483862507727,
+              "foundation.teachingSystemMs": 0.02741935945326282,
+              "foundation.communicationSystemMs": 0.03387097004921206,
+              "foundation.behaviorSystemMs": 0.06451613287771901,
+              "foundation.mlInferenceSystemMs": 1.0999999892327093,
+              "foundation.battleSystemMs": 0.0032258072207050938,
+              "foundation.saveSystemMs": 0.006451610595949234,
+              "foundation.zoneEcologyStateMs": 0.019354831787847703,
+              "foundation.zoneEcologyCollectMs": 0.012903221191898469,
+              "foundation.zoneEcologyResourceLoopMs": 0.017741933945686586,
+              "foundation.zoneEcologyPressureRefreshMs": 0.024193540696174867,
+              "foundation.zoneEcologyTelemetryMs": 0.05322582106436453,
+              "entity.butterflyUpdateMs": 2.72741937252783,
+              "entity.caterpillarUpdateMs": 0.0064516144414101875,
+              "entity.blockUpdateMs": 0.08709676419534991,
+              "world.specialEffectsMs": 0.0032258072207050938,
+              "world.flowerSpawningMs": 0.012903228882820375,
+              "world.pollenPlantingMs": 0.0032258072207050938,
+              "world.flowerManagerMs": 0.014516122879520539,
+              "world.breedingMs": 0.4403225952579129,
+              "world.interactionChecksMs": 0.0016129016876220703,
+              "world.periodicEventsMs": 0.0016129016876220703
+            },
+            "render": {
+              "clearDynamicMs": 0.039682551035805355,
+              "entityLayerMs": 6.117460303836399,
+              "particleLayerMs": 0.01111111565241738,
+              "uiLayerMs": 0.8619047800699869,
+              "debugLayerMs": 0,
+              "canvasClearMs": 0.01269840815710643,
+              "compositeMs": 10.266666669694205,
+              "atmosphereCompositeMs": 0,
+              "particleRenderMs": 0,
+              "composite.backgroundCompositeMs": 0.01111111565241738,
+              "composite.groundAtmosphereCompositeMs": 0,
+              "composite.behindEntitiesCompositeMs": 0,
+              "composite.spawnCoverCompositeMs": 0.004761900220598493,
+              "composite.entitiesCompositeMs": 9.144444435361832,
+              "composite.particlesCompositeMs": 0,
+              "composite.foliageAtmosphereCompositeMs": 0,
+              "composite.uiCompositeMs": 1.0777777944292342,
+              "composite.debugCompositeMs": 0,
+              "composite.totalCompositeMs": 10.238095245664082
+            }
+          },
+          "attribution": {
+            "category": "render-dominant",
+            "summaryLine": "Render-dominant lag: render 17.33ms vs update 15.14ms, led by compositeMs.",
+            "avgUpdateMs": 15.13709678188447,
+            "avgRenderMs": 17.334920648544554,
+            "shellState": {
+              "viewMode": "focused-garden",
+              "focusedZoneId": "ivy-cloister",
+              "openPanels": [
+                "guide"
+              ],
+              "openPanelCount": 1,
+              "feedVisible": false,
+              "inspectVisible": false,
+              "accessVisible": false,
+              "battleSetupVisible": false,
+              "journalVisible": false,
+              "battleHudVisible": false,
+              "guideVisible": true,
+              "debugEnabled": false,
+              "feedEntryCount": 0,
+              "inspectTargetId": null,
+              "journalSection": null
+            },
+            "shellSummary": "focused-garden | guide",
+            "topUpdateContributors": [
+              {
+                "label": "foundationMs",
+                "ms": 8.333870960820105
+              },
+              {
+                "label": "entityMs",
+                "ms": 6.301612911685821
+              },
+              {
+                "label": "foundation.lifeSimSystemMs",
+                "ms": 6.085483862507727
+              },
+              {
+                "label": "physicsMs",
+                "ms": 3.4548387104465115
+              }
+            ],
+            "topRenderContributors": [
+              {
+                "label": "compositeMs",
+                "ms": 10.266666669694205
+              },
+              {
+                "label": "composite.totalCompositeMs",
+                "ms": 10.238095245664082
+              },
+              {
+                "label": "composite.entitiesCompositeMs",
+                "ms": 9.144444435361832
+              },
+              {
+                "label": "entityLayerMs",
+                "ms": 6.117460303836399
+              }
+            ],
+            "averageUpdateBreakdown": "[circular]",
+            "averageRenderBreakdown": "[circular]"
+          },
+          "pressure": {
+            "tier": "critical",
+            "avgUpdateMs": 15.13709678188447,
+            "avgPhysicsMs": 3.4548387104465115,
+            "avgRenderMs": 17.334920648544554,
+            "avgParticleRenderMs": 0,
+            "visibleEntities": 45,
+            "visibleButterflies": 12,
+            "visibleEffects": 3,
+            "particleCount": 0,
+            "isWarm": true,
+            "isHot": true,
+            "isCritical": true,
+            "simulationMultiplier": 0.38,
+            "visualMultiplier": 0.28
+          },
+          "ecology": {
+            "sampleCount": 21,
+            "avgMinResourceReserve": 0.5128571428571427,
+            "avgMinHabitatQuality": 0.49857142857142867,
+            "avgMaxDepletionPressure": 0.0728571428571429,
+            "maxZonesBelowFloorCount": 0,
+            "avgHomeAnchorShare": 1,
+            "avgMultiZoneShare": 0,
+            "maxActiveTravelerCount": 0,
+            "latestCohortId": null,
+            "latestWaveWildCount": 0,
+            "distinctIdentityCount": 4,
+            "distinctSignatureCount": 4
+          },
+          "mlCorpus": {
+            "sampleCount": 0,
+            "scenarioCount": 0,
+            "scenarioFamilies": [],
+            "recordKinds": [],
+            "reviewedSampleCount": 0,
+            "correctedSampleCount": 0,
+            "correctedPolicyCount": 0,
+            "latestScenarioId": null
+          },
+          "mlRuntime": {
+            "sampleCount": 62,
+            "gardenSampleCount": 62,
+            "battleSampleCount": 0,
+            "avgGardenUpdateMs": 1.0693548456315072,
+            "maxGardenUpdateMs": 14.300000190734863,
+            "avgBattleDecisionMs": 0,
+            "maxBattleDecisionMs": 0,
+            "avgRefreshedTraceCount": 1.8709677419354838,
+            "mlPolicyCount": 580,
+            "fallbackPolicyCount": 0,
+            "mlPolicyShare": 1,
+            "fallbackPolicyShare": 0,
+            "budgetTargets": {
+              "focusedGardenInferenceMs": 3.5,
+              "battleDecisionMs": 0.75,
+              "focusedGardenPhysicsMs": 3.5,
+              "focusedGardenTotalUpdateMs": 22
+            },
+            "withinBudget": {
+              "gardenInference": true,
+              "battleDecision": true
+            },
+            "modelLoaded": true,
+            "useModelInference": true,
+            "lastMode": "garden-update",
+            "lastDecisionSource": "ml"
+          },
+          "sessionCapture": {
+            "active": true,
+            "sessionId": "capture_1776734923451",
+            "label": "f2-performance",
+            "startedAtMs": 1776734923451,
+            "stoppedAtMs": null,
+            "durationMs": 3,
+            "timelineCount": 1,
+            "runtimeIssueCount": 0,
+            "eventCounts": {
+              "capture": 1
+            },
+            "maxUpdateMs": 0,
+            "maxRenderMs": 0,
+            "maxParticleCount": 0,
+            "output": null,
+            "startState": {
+              "recordedAtMs": 1776734923451,
+              "butterflyCount": 12,
+              "flowerCount": 9,
+              "caterpillarCount": 0,
+              "blockCount": 108,
+              "hybridCount": 0,
+              "focusedZoneId": "ivy-cloister",
+              "viewMode": "focused-garden",
+              "activeBattleId": null,
+              "timeScale": 1,
+              "shellState": {
+                "viewMode": "focused-garden",
+                "focusedZoneId": "ivy-cloister",
+                "openPanels": [
+                  "guide"
+                ],
+                "openPanelCount": 1,
+                "feedVisible": false,
+                "inspectVisible": false,
+                "accessVisible": false,
+                "battleSetupVisible": false,
+                "journalVisible": false,
+                "battleHudVisible": false,
+                "guideVisible": true,
+                "debugEnabled": false,
+                "feedEntryCount": 0,
+                "inspectTargetId": null,
+                "journalSection": null
+              }
+            },
+            "endState": null
+          },
+          "sampleCounts": {
+            "updates": 62,
+            "renders": 63,
+            "ecology": 21,
+            "mlCorpus": 0,
+            "mlRuntime": 62
+          }
+        }
+      }
+    },
+    {
+      "category": "navigation",
+      "label": "focus-zone",
+      "atMs": 1776734923459,
+      "frame": 65,
+      "payload": {
+        "previousZoneId": "ivy-cloister",
+        "nextZoneId": "sun-court",
+        "viewMode": "focused-garden"
+      }
+    },
+    {
+      "category": "save",
+      "label": "saved",
+      "atMs": 1776734923487,
+      "frame": 65,
+      "payload": {
+        "source": "f2-audit",
+        "focusedZoneId": "sun-court",
+        "viewMode": "focused-garden"
+      }
+    },
+    {
+      "category": "snapshot",
+      "label": "interval",
+      "atMs": 1776734928467,
+      "frame": 209,
+      "payload": {
+        "state": {
+          "recordedAtMs": 1776734928467,
+          "butterflyCount": 12,
+          "flowerCount": 17,
+          "caterpillarCount": 0,
+          "blockCount": 108,
+          "hybridCount": 0,
+          "focusedZoneId": "sun-court",
+          "viewMode": "focused-garden",
+          "activeBattleId": null,
+          "timeScale": 1,
+          "shellState": {
+            "viewMode": "focused-garden",
+            "focusedZoneId": "sun-court",
+            "openPanels": [
+              "feed"
+            ],
+            "openPanelCount": 1,
+            "feedVisible": true,
+            "inspectVisible": false,
+            "accessVisible": false,
+            "battleSetupVisible": false,
+            "journalVisible": false,
+            "battleHudVisible": false,
+            "guideVisible": false,
+            "debugEnabled": false,
+            "feedEntryCount": 0,
+            "inspectTargetId": null,
+            "journalSection": null
+          }
+        },
+        "telemetry": {
+          "lastUpdateSample": {
+            "recordedAtMs": 1776734928467,
+            "totalUpdateMs": 6.5,
+            "foundationMs": 5.5,
+            "foundationBreakdown": {
+              "zoneEcologyCadence": 2,
+              "zoneEcologyRefreshApplied": 0,
+              "zoneSystemMs": 0,
+              "statusSystemMs": 0.19999980926513672,
+              "objectSystemMs": 0,
+              "structureSystemMs": 0.10000014305114746,
+              "sleepSystemMs": 0.09999990463256836,
+              "lifeSimSystemMs": 4.900000095367432,
+              "teachingSystemMs": 0.09999990463256836,
+              "communicationSystemMs": 0,
+              "behaviorSystemMs": 0,
+              "mlInferenceSystemMs": 0.10000014305114746,
+              "battleSystemMs": 0,
+              "saveSystemMs": 0,
+              "zoneEcologyStateMs": 0,
+              "zoneEcologyCollectMs": 0,
+              "zoneEcologyResourceLoopMs": 0,
+              "zoneEcologyPressureRefreshMs": 0,
+              "zoneEcologyTelemetryMs": 0
+            },
+            "entityMs": 0.5,
+            "entityBreakdown": {
+              "butterflyUpdateMs": 0,
+              "caterpillarUpdateMs": 0,
+              "blockUpdateMs": 0.09999990463256836
+            },
+            "physicsMs": 0.3000001907348633,
+            "particleUpdateMs": 0,
+            "worldMs": 0.5,
+            "worldBreakdown": {
+              "specialEffectsMs": 0,
+              "flowerSpawningMs": 0,
+              "pollenPlantingMs": 0,
+              "flowerManagerMs": 0,
+              "breedingMs": 0.5,
+              "interactionChecksMs": 0,
+              "periodicEventsMs": 0
+            },
+            "updateBreakdown": {
+              "foundationMs": 5.5,
+              "entityMs": 0.5,
+              "physicsMs": 0.3000001907348633,
+              "particleUpdateMs": 0,
+              "worldMs": 0.5,
+              "foundation.zoneEcologyCadence": 2,
+              "foundation.zoneEcologyRefreshApplied": 0,
+              "foundation.zoneSystemMs": 0,
+              "foundation.statusSystemMs": 0.19999980926513672,
+              "foundation.objectSystemMs": 0,
+              "foundation.structureSystemMs": 0.10000014305114746,
+              "foundation.sleepSystemMs": 0.09999990463256836,
+              "foundation.lifeSimSystemMs": 4.900000095367432,
+              "foundation.teachingSystemMs": 0.09999990463256836,
+              "foundation.communicationSystemMs": 0,
+              "foundation.behaviorSystemMs": 0,
+              "foundation.mlInferenceSystemMs": 0.10000014305114746,
+              "foundation.battleSystemMs": 0,
+              "foundation.saveSystemMs": 0,
+              "foundation.zoneEcologyStateMs": 0,
+              "foundation.zoneEcologyCollectMs": 0,
+              "foundation.zoneEcologyResourceLoopMs": 0,
+              "foundation.zoneEcologyPressureRefreshMs": 0,
+              "foundation.zoneEcologyTelemetryMs": 0,
+              "entity.butterflyUpdateMs": 0,
+              "entity.caterpillarUpdateMs": 0,
+              "entity.blockUpdateMs": 0.09999990463256836,
+              "world.specialEffectsMs": 0,
+              "world.flowerSpawningMs": 0,
+              "world.pollenPlantingMs": 0,
+              "world.flowerManagerMs": 0,
+              "world.breedingMs": 0.5,
+              "world.interactionChecksMs": 0,
+              "world.periodicEventsMs": 0
+            },
+            "physicsBudget": {
+              "focusedGardenPhysicsMs": 3.5,
+              "focusedGardenTotalUpdateMs": 22
+            },
+            "butterflyCount": 12,
+            "flowerCount": 17,
+            "caterpillarCount": 0,
+            "blockCount": 108,
+            "visibleButterflyCount": 0,
+            "visibleFlowerCount": 2,
+            "visibleCaterpillarCount": 0,
+            "visibleBlockCount": 27,
+            "visibleEntityCount": 29,
+            "timeScale": 1,
+            "viewMode": "focused-garden"
+          },
+          "lastRenderSample": {
+            "recordedAtMs": 1776734928446,
+            "totalRenderMs": 15.300000190734863,
+            "particleRenderMs": 0.2999999523162842,
+            "particleCount": 32,
+            "batchCount": 1,
+            "visibleEffectCount": 0,
+            "trailMode": "off",
+            "atmosphereTier": "throttled",
+            "renderBreakdown": {
+              "recordedAtMs": 1776734928431,
+              "clearDynamicMs": 0,
+              "entityLayerMs": 0.9000000953674316,
+              "particleLayerMs": 0.2999999523162842,
+              "uiLayerMs": 0.5,
+              "debugLayerMs": 0,
+              "canvasClearMs": 0,
+              "compositeMs": 13.600000143051147,
+              "atmosphereCompositeMs": 0,
+              "shellState": {
+                "viewMode": "focused-garden",
+                "focusedZoneId": "sun-court",
+                "openPanels": [
+                  "feed"
+                ],
+                "openPanelCount": 1,
+                "feedVisible": true,
+                "inspectVisible": false,
+                "accessVisible": false,
+                "battleSetupVisible": false,
+                "journalVisible": false,
+                "battleHudVisible": false,
+                "guideVisible": false,
+                "debugEnabled": false,
+                "feedEntryCount": 0,
+                "inspectTargetId": null,
+                "journalSection": null
+              },
+              "failure": null,
+              "compositeBreakdown": {
+                "backgroundCompositeMs": 0,
+                "groundAtmosphereCompositeMs": 0,
+                "behindEntitiesCompositeMs": 0,
+                "spawnCoverCompositeMs": 0,
+                "entitiesCompositeMs": 12.400000095367432,
+                "particlesCompositeMs": 0.09999990463256836,
+                "foliageAtmosphereCompositeMs": 0,
+                "uiCompositeMs": 0.9000000953674316,
+                "debugCompositeMs": 0,
+                "totalCompositeMs": 13.400000095367432
+              },
+              "totalMeasuredMs": 15.300000190734863
+            },
+            "renderBreakdownFlat": {
+              "clearDynamicMs": 0,
+              "entityLayerMs": 0.9000000953674316,
+              "particleLayerMs": 0.2999999523162842,
+              "uiLayerMs": 0.5,
+              "debugLayerMs": 0,
+              "canvasClearMs": 0,
+              "compositeMs": 13.600000143051147,
+              "atmosphereCompositeMs": 0,
+              "particleRenderMs": 0.2999999523162842,
+              "composite.backgroundCompositeMs": 0,
+              "composite.groundAtmosphereCompositeMs": 0,
+              "composite.behindEntitiesCompositeMs": 0,
+              "composite.spawnCoverCompositeMs": 0,
+              "composite.entitiesCompositeMs": 12.400000095367432,
+              "composite.particlesCompositeMs": 0.09999990463256836,
+              "composite.foliageAtmosphereCompositeMs": 0,
+              "composite.uiCompositeMs": 0.9000000953674316,
+              "composite.debugCompositeMs": 0,
+              "composite.totalCompositeMs": 13.400000095367432
+            },
+            "shellState": {
+              "viewMode": "focused-garden",
+              "focusedZoneId": "sun-court",
+              "openPanels": [
+                "feed"
+              ],
+              "openPanelCount": 1,
+              "feedVisible": true,
+              "inspectVisible": false,
+              "accessVisible": false,
+              "battleSetupVisible": false,
+              "journalVisible": false,
+              "battleHudVisible": false,
+              "guideVisible": false,
+              "debugEnabled": false,
+              "feedEntryCount": 0,
+              "inspectTargetId": null,
+              "journalSection": null
+            }
+          },
+          "lastEcologySample": {
+            "recordedAtMs": 1776734928430,
+            "butterflyCount": 12,
+            "flowerCount": 17,
+            "timeScale": 1,
+            "viewMode": "focused-garden",
+            "zoneCount": 4,
+            "zoneHealth": {
+              "distinctIdentityCount": 4,
+              "distinctSignatureCount": 4,
+              "zonesBelowFloorCount": 0,
+              "minResourceReserve": 0.65,
+              "minHabitatQuality": 0.55,
+              "maxDepletionPressure": 0.02,
+              "avgCrowdingPressure": 0.1775,
+              "avgMigrationPull": 0.34750000000000003
+            },
+            "migration": {
+              "livingCount": 12,
+              "homeAnchoredCount": 12,
+              "settledHomeCount": 12,
+              "awayFromHomeCount": 0,
+              "activeTravelerCount": 0,
+              "multiZoneCount": 0,
+              "completedTravelCount": 0,
+              "homeReturnCount": 0,
+              "scoutingTripCount": 0
+            },
+            "release": {
+              "totalReleases": 0,
+              "currentBatchCount": 0,
+              "releaseHistoryCount": 0,
+              "latestCohortId": null,
+              "latestCohortBlendGuard": 0,
+              "latestPreferredZoneId": null,
+              "latestWaveWildCount": 0,
+              "latestLineageCount": 0
+            },
+            "zoneSummaries": [
+              {
+                "zoneId": "ivy-cloister",
+                "identityLabel": "Quiet cloister",
+                "signatureLabel": "social calm",
+                "normalFlowers": 8,
+                "floorTarget": 2,
+                "resourceReserve": 0.97,
+                "habitatQuality": 0.7,
+                "depletionPressure": 0,
+                "migrationPull": 0.27,
+                "crowdingPressure": 0.71
+              },
+              {
+                "zoneId": "sun-court",
+                "identityLabel": "Sun court drills",
+                "signatureLabel": "drill-heavy pull",
+                "normalFlowers": 2,
+                "floorTarget": 1,
+                "resourceReserve": 0.65,
+                "habitatQuality": 0.55,
+                "depletionPressure": 0.02,
+                "migrationPull": 0.22,
+                "crowdingPressure": 0
+              },
+              {
+                "zoneId": "moss-hollow",
+                "identityLabel": "Moss watch",
+                "signatureLabel": "watchful shelter",
+                "normalFlowers": 3,
+                "floorTarget": 1,
+                "resourceReserve": 0.68,
+                "habitatQuality": 0.59,
+                "depletionPressure": 0,
+                "migrationPull": 0.33,
+                "crowdingPressure": 0
+              },
+              {
+                "zoneId": "pool-heart",
+                "identityLabel": "Echo pool",
+                "signatureLabel": "echoing roam",
+                "normalFlowers": 4,
+                "floorTarget": 1,
+                "resourceReserve": 0.66,
+                "habitatQuality": 0.59,
+                "depletionPressure": 0,
+                "migrationPull": 0.57,
+                "crowdingPressure": 0
+              }
+            ]
+          },
+          "averages": {
+            "updateMs": 8.780833333730698,
+            "foundationMs": 7.693333343664805,
+            "entityMs": 0.5241666595141093,
+            "physicsMs": 0.4033333361148834,
+            "particleUpdateMs": 0.010000000397364298,
+            "worldMs": 0.5483333329359691,
+            "renderMs": 14.875833332538605,
+            "particleRenderMs": 0.07416665951410929,
+            "uiLayerMs": 0.5866666714350383,
+            "compositeMs": 13.204166664679844
+          },
+          "breakdowns": {
+            "update": {
+              "foundationMs": 7.693333343664805,
+              "entityMs": 0.5241666595141093,
+              "physicsMs": 0.4033333361148834,
+              "particleUpdateMs": 0.010000000397364298,
+              "worldMs": 0.5483333329359691,
+              "foundation.zoneEcologyCadence": 2,
+              "foundation.zoneEcologyRefreshApplied": 0.5,
+              "foundation.zoneSystemMs": 0.0008333325386047363,
+              "foundation.statusSystemMs": 0.173333344856898,
+              "foundation.objectSystemMs": 0.1216666579246521,
+              "foundation.structureSystemMs": 0.10666666825612386,
+              "foundation.sleepSystemMs": 0.1474999964237213,
+              "foundation.lifeSimSystemMs": 6.383333341280619,
+              "foundation.teachingSystemMs": 0.03916666110356649,
+              "foundation.communicationSystemMs": 0.01166666547457377,
+              "foundation.behaviorSystemMs": 0.047500004371007286,
+              "foundation.mlInferenceSystemMs": 0.5283333381017049,
+              "foundation.battleSystemMs": 0.004166666666666667,
+              "foundation.saveSystemMs": 0.004999999205271403,
+              "foundation.zoneEcologyStateMs": 0.0033333341280619303,
+              "foundation.zoneEcologyCollectMs": 0.008333333333333333,
+              "foundation.zoneEcologyResourceLoopMs": 0.014166665077209473,
+              "foundation.zoneEcologyPressureRefreshMs": 0.01916666825612386,
+              "foundation.zoneEcologyTelemetryMs": 0.05416666666666667,
+              "entity.butterflyUpdateMs": 0.002500001589457194,
+              "entity.caterpillarUpdateMs": 0,
+              "entity.blockUpdateMs": 0.08999999364217122,
+              "world.specialEffectsMs": 0.0008333325386047363,
+              "world.flowerSpawningMs": 0.03416666587193807,
+              "world.pollenPlantingMs": 0.0016666690508524576,
+              "world.flowerManagerMs": 0.017499999205271403,
+              "world.breedingMs": 0.4875000019868215,
+              "world.interactionChecksMs": 0,
+              "world.periodicEventsMs": 0.003333332141240438
+            },
+            "render": {
+              "clearDynamicMs": 0.035000006357828774,
+              "entityLayerMs": 0.8916666607062022,
+              "particleLayerMs": 0.08416666189829508,
+              "uiLayerMs": 0.5866666714350383,
+              "debugLayerMs": 0,
+              "canvasClearMs": 0.014166667064030965,
+              "compositeMs": 13.204166664679844,
+              "atmosphereCompositeMs": 0,
+              "particleRenderMs": 0.07416665951410929,
+              "composite.backgroundCompositeMs": 0.022499990463256837,
+              "composite.groundAtmosphereCompositeMs": 0,
+              "composite.behindEntitiesCompositeMs": 0,
+              "composite.spawnCoverCompositeMs": 0.00750000278155009,
+              "composite.entitiesCompositeMs": 12.025833342472712,
+              "composite.particlesCompositeMs": 0.031666662295659384,
+              "composite.foliageAtmosphereCompositeMs": 0,
+              "composite.uiCompositeMs": 1.0783333341280619,
+              "composite.debugCompositeMs": 0,
+              "composite.totalCompositeMs": 13.16583333214124
+            }
+          },
+          "attribution": {
+            "category": "render-dominant",
+            "summaryLine": "Render-dominant lag: render 14.88ms vs update 8.78ms, led by compositeMs.",
+            "avgUpdateMs": 8.780833333730698,
+            "avgRenderMs": 14.875833332538605,
+            "shellState": {
+              "viewMode": "focused-garden",
+              "focusedZoneId": "sun-court",
+              "openPanels": [
+                "feed"
+              ],
+              "openPanelCount": 1,
+              "feedVisible": true,
+              "inspectVisible": false,
+              "accessVisible": false,
+              "battleSetupVisible": false,
+              "journalVisible": false,
+              "battleHudVisible": false,
+              "guideVisible": false,
+              "debugEnabled": false,
+              "feedEntryCount": 0,
+              "inspectTargetId": null,
+              "journalSection": null
+            },
+            "shellSummary": "focused-garden | feed",
+            "topUpdateContributors": [
+              {
+                "label": "foundationMs",
+                "ms": 7.693333343664805
+              },
+              {
+                "label": "foundation.lifeSimSystemMs",
+                "ms": 6.383333341280619
+              },
+              {
+                "label": "foundation.zoneEcologyCadence",
+                "ms": 2
+              },
+              {
+                "label": "worldMs",
+                "ms": 0.5483333329359691
+              }
+            ],
+            "topRenderContributors": [
+              {
+                "label": "compositeMs",
+                "ms": 13.204166664679844
+              },
+              {
+                "label": "composite.totalCompositeMs",
+                "ms": 13.16583333214124
+              },
+              {
+                "label": "composite.entitiesCompositeMs",
+                "ms": 12.025833342472712
+              },
+              {
+                "label": "composite.uiCompositeMs",
+                "ms": 1.0783333341280619
+              }
+            ],
+            "averageUpdateBreakdown": "[circular]",
+            "averageRenderBreakdown": "[circular]"
+          },
+          "pressure": {
+            "tier": "hot",
+            "avgUpdateMs": 8.780833333730698,
+            "avgPhysicsMs": 0.4033333361148834,
+            "avgRenderMs": 14.875833332538605,
+            "avgParticleRenderMs": 0.07416665951410929,
+            "visibleEntities": 29,
+            "visibleButterflies": 0,
+            "visibleEffects": 0,
+            "particleCount": 32,
+            "isWarm": true,
+            "isHot": true,
+            "isCritical": false,
+            "simulationMultiplier": 0.58,
+            "visualMultiplier": 0.48
+          },
+          "ecology": {
+            "sampleCount": 90,
+            "avgMinResourceReserve": 0.5842222222222223,
+            "avgMinHabitatQuality": 0.5112222222222227,
+            "avgMaxDepletionPressure": 0.04933333333333325,
+            "maxZonesBelowFloorCount": 0,
+            "avgHomeAnchorShare": 1,
+            "avgMultiZoneShare": 0,
+            "maxActiveTravelerCount": 0,
+            "latestCohortId": null,
+            "latestWaveWildCount": 0,
+            "distinctIdentityCount": 4,
+            "distinctSignatureCount": 4
+          },
+          "mlCorpus": {
+            "sampleCount": 0,
+            "scenarioCount": 0,
+            "scenarioFamilies": [],
+            "recordKinds": [],
+            "reviewedSampleCount": 0,
+            "correctedSampleCount": 0,
+            "correctedPolicyCount": 0,
+            "latestScenarioId": null
+          },
+          "mlRuntime": {
+            "sampleCount": 207,
+            "gardenSampleCount": 207,
+            "battleSampleCount": 0,
+            "avgGardenUpdateMs": 0.6420289882715198,
+            "maxGardenUpdateMs": 14.300000190734863,
+            "avgBattleDecisionMs": 0,
+            "maxBattleDecisionMs": 0,
+            "avgRefreshedTraceCount": 1.0434782608695652,
+            "mlPolicyCount": 1080,
+            "fallbackPolicyCount": 0,
+            "mlPolicyShare": 1,
+            "fallbackPolicyShare": 0,
+            "budgetTargets": {
+              "focusedGardenInferenceMs": 3.5,
+              "battleDecisionMs": 0.75,
+              "focusedGardenPhysicsMs": 3.5,
+              "focusedGardenTotalUpdateMs": 22
+            },
+            "withinBudget": {
+              "gardenInference": true,
+              "battleDecision": true
+            },
+            "modelLoaded": true,
+            "useModelInference": true,
+            "lastMode": "garden-update",
+            "lastDecisionSource": "ml"
+          },
+          "sessionCapture": {
+            "active": true,
+            "sessionId": "capture_1776734923451",
+            "label": "f2-performance",
+            "startedAtMs": 1776734923451,
+            "stoppedAtMs": null,
+            "durationMs": 5019,
+            "timelineCount": 4,
+            "runtimeIssueCount": 0,
+            "eventCounts": {
+              "capture": 1,
+              "snapshot": 1,
+              "navigation": 1,
+              "save": 1
+            },
+            "maxUpdateMs": 0,
+            "maxRenderMs": 0,
+            "maxParticleCount": 0,
+            "output": null,
+            "startState": {
+              "recordedAtMs": 1776734923451,
+              "butterflyCount": 12,
+              "flowerCount": 9,
+              "caterpillarCount": 0,
+              "blockCount": 108,
+              "hybridCount": 0,
+              "focusedZoneId": "ivy-cloister",
+              "viewMode": "focused-garden",
+              "activeBattleId": null,
+              "timeScale": 1,
+              "shellState": {
+                "viewMode": "focused-garden",
+                "focusedZoneId": "ivy-cloister",
+                "openPanels": [
+                  "guide"
+                ],
+                "openPanelCount": 1,
+                "feedVisible": false,
+                "inspectVisible": false,
+                "accessVisible": false,
+                "battleSetupVisible": false,
+                "journalVisible": false,
+                "battleHudVisible": false,
+                "guideVisible": true,
+                "debugEnabled": false,
+                "feedEntryCount": 0,
+                "inspectTargetId": null,
+                "journalSection": null
+              }
+            },
+            "endState": null
+          },
+          "sampleCounts": {
+            "updates": 120,
+            "renders": 120,
+            "ecology": 90,
+            "mlCorpus": 0,
+            "mlRuntime": 207
+          }
+        }
+      }
+    },
+    {
+      "category": "capture",
+      "label": "stopping",
+      "atMs": 1776734933448,
+      "frame": 349,
+      "payload": {
+        "reason": "export",
+        "viewMode": "focused-garden",
+        "focusedZoneId": "sun-court"
+      }
+    },
+    {
+      "category": "snapshot",
+      "label": "end",
+      "atMs": 1776734933448,
+      "frame": 349,
+      "payload": {
+        "state": {
+          "recordedAtMs": 1776734933448,
+          "butterflyCount": 12,
+          "flowerCount": 17,
+          "caterpillarCount": 0,
+          "blockCount": 108,
+          "hybridCount": 0,
+          "focusedZoneId": "sun-court",
+          "viewMode": "focused-garden",
+          "activeBattleId": null,
+          "timeScale": 1,
+          "shellState": {
+            "viewMode": "focused-garden",
+            "focusedZoneId": "sun-court",
+            "openPanels": [
+              "feed"
+            ],
+            "openPanelCount": 1,
+            "feedVisible": true,
+            "inspectVisible": false,
+            "accessVisible": false,
+            "battleSetupVisible": false,
+            "journalVisible": false,
+            "battleHudVisible": false,
+            "guideVisible": false,
+            "debugEnabled": false,
+            "feedEntryCount": 0,
+            "inspectTargetId": null,
+            "journalSection": null
+          }
+        },
+        "telemetry": {
+          "lastUpdateSample": {
+            "recordedAtMs": 1776734933427,
+            "totalUpdateMs": 5.799999952316284,
+            "foundationMs": 5,
+            "foundationBreakdown": {
+              "zoneEcologyCadence": 2,
+              "zoneEcologyRefreshApplied": 0,
+              "zoneSystemMs": 0,
+              "statusSystemMs": 0.09999990463256836,
+              "objectSystemMs": 0,
+              "structureSystemMs": 0.10000014305114746,
+              "sleepSystemMs": 0.09999990463256836,
+              "lifeSimSystemMs": 4.5,
+              "teachingSystemMs": 0,
+              "communicationSystemMs": 0.10000014305114746,
+              "behaviorSystemMs": 0,
+              "mlInferenceSystemMs": 0.09999990463256836,
+              "battleSystemMs": 0,
+              "saveSystemMs": 0,
+              "zoneEcologyStateMs": 0,
+              "zoneEcologyCollectMs": 0,
+              "zoneEcologyResourceLoopMs": 0,
+              "zoneEcologyPressureRefreshMs": 0,
+              "zoneEcologyTelemetryMs": 0
+            },
+            "entityMs": 0.40000009536743164,
+            "entityBreakdown": {
+              "butterflyUpdateMs": 0,
+              "caterpillarUpdateMs": 0,
+              "blockUpdateMs": 0.10000014305114746
+            },
+            "physicsMs": 0.20000004768371582,
+            "particleUpdateMs": 0,
+            "worldMs": 0.39999985694885254,
+            "worldBreakdown": {
+              "specialEffectsMs": 0,
+              "flowerSpawningMs": 0,
+              "pollenPlantingMs": 0,
+              "flowerManagerMs": 0,
+              "breedingMs": 0.39999985694885254,
+              "interactionChecksMs": 0,
+              "periodicEventsMs": 0
+            },
+            "updateBreakdown": {
+              "foundationMs": 5,
+              "entityMs": 0.40000009536743164,
+              "physicsMs": 0.20000004768371582,
+              "particleUpdateMs": 0,
+              "worldMs": 0.39999985694885254,
+              "foundation.zoneEcologyCadence": 2,
+              "foundation.zoneEcologyRefreshApplied": 0,
+              "foundation.zoneSystemMs": 0,
+              "foundation.statusSystemMs": 0.09999990463256836,
+              "foundation.objectSystemMs": 0,
+              "foundation.structureSystemMs": 0.10000014305114746,
+              "foundation.sleepSystemMs": 0.09999990463256836,
+              "foundation.lifeSimSystemMs": 4.5,
+              "foundation.teachingSystemMs": 0,
+              "foundation.communicationSystemMs": 0.10000014305114746,
+              "foundation.behaviorSystemMs": 0,
+              "foundation.mlInferenceSystemMs": 0.09999990463256836,
+              "foundation.battleSystemMs": 0,
+              "foundation.saveSystemMs": 0,
+              "foundation.zoneEcologyStateMs": 0,
+              "foundation.zoneEcologyCollectMs": 0,
+              "foundation.zoneEcologyResourceLoopMs": 0,
+              "foundation.zoneEcologyPressureRefreshMs": 0,
+              "foundation.zoneEcologyTelemetryMs": 0,
+              "entity.butterflyUpdateMs": 0,
+              "entity.caterpillarUpdateMs": 0,
+              "entity.blockUpdateMs": 0.10000014305114746,
+              "world.specialEffectsMs": 0,
+              "world.flowerSpawningMs": 0,
+              "world.pollenPlantingMs": 0,
+              "world.flowerManagerMs": 0,
+              "world.breedingMs": 0.39999985694885254,
+              "world.interactionChecksMs": 0,
+              "world.periodicEventsMs": 0
+            },
+            "physicsBudget": {
+              "focusedGardenPhysicsMs": 3.5,
+              "focusedGardenTotalUpdateMs": 22
+            },
+            "butterflyCount": 12,
+            "flowerCount": 17,
+            "caterpillarCount": 0,
+            "blockCount": 108,
+            "visibleButterflyCount": 0,
+            "visibleFlowerCount": 2,
+            "visibleCaterpillarCount": 0,
+            "visibleBlockCount": 27,
+            "visibleEntityCount": 29,
+            "timeScale": 1,
+            "viewMode": "focused-garden"
+          },
+          "lastRenderSample": {
+            "recordedAtMs": 1776734933439,
+            "totalRenderMs": 12.199999809265137,
+            "particleRenderMs": 0.20000004768371582,
+            "particleCount": 0,
+            "batchCount": 1,
+            "visibleEffectCount": 0,
+            "trailMode": "off",
+            "atmosphereTier": "throttled",
+            "renderBreakdown": {
+              "recordedAtMs": 1776734933427,
+              "clearDynamicMs": 0.09999990463256836,
+              "entityLayerMs": 0.5999999046325684,
+              "particleLayerMs": 0,
+              "uiLayerMs": 0.40000009536743164,
+              "debugLayerMs": 0,
+              "canvasClearMs": 0.09999990463256836,
+              "compositeMs": 11,
+              "atmosphereCompositeMs": 0,
+              "shellState": {
+                "viewMode": "focused-garden",
+                "focusedZoneId": "sun-court",
+                "openPanels": [
+                  "feed"
+                ],
+                "openPanelCount": 1,
+                "feedVisible": true,
+                "inspectVisible": false,
+                "accessVisible": false,
+                "battleSetupVisible": false,
+                "journalVisible": false,
+                "battleHudVisible": false,
+                "guideVisible": false,
+                "debugEnabled": false,
+                "feedEntryCount": 0,
+                "inspectTargetId": null,
+                "journalSection": null
+              },
+              "failure": null,
+              "compositeBreakdown": {
+                "backgroundCompositeMs": 0,
+                "groundAtmosphereCompositeMs": 0,
+                "behindEntitiesCompositeMs": 0,
+                "spawnCoverCompositeMs": 0,
+                "entitiesCompositeMs": 10.300000190734863,
+                "particlesCompositeMs": 0,
+                "foliageAtmosphereCompositeMs": 0,
+                "uiCompositeMs": 0.6999998092651367,
+                "debugCompositeMs": 0,
+                "totalCompositeMs": 11
+              },
+              "totalMeasuredMs": 12.199999809265137
+            },
+            "renderBreakdownFlat": {
+              "clearDynamicMs": 0.09999990463256836,
+              "entityLayerMs": 0.5999999046325684,
+              "particleLayerMs": 0,
+              "uiLayerMs": 0.40000009536743164,
+              "debugLayerMs": 0,
+              "canvasClearMs": 0.09999990463256836,
+              "compositeMs": 11,
+              "atmosphereCompositeMs": 0,
+              "particleRenderMs": 0.20000004768371582,
+              "composite.backgroundCompositeMs": 0,
+              "composite.groundAtmosphereCompositeMs": 0,
+              "composite.behindEntitiesCompositeMs": 0,
+              "composite.spawnCoverCompositeMs": 0,
+              "composite.entitiesCompositeMs": 10.300000190734863,
+              "composite.particlesCompositeMs": 0,
+              "composite.foliageAtmosphereCompositeMs": 0,
+              "composite.uiCompositeMs": 0.6999998092651367,
+              "composite.debugCompositeMs": 0,
+              "composite.totalCompositeMs": 11
+            },
+            "shellState": {
+              "viewMode": "focused-garden",
+              "focusedZoneId": "sun-court",
+              "openPanels": [
+                "feed"
+              ],
+              "openPanelCount": 1,
+              "feedVisible": true,
+              "inspectVisible": false,
+              "accessVisible": false,
+              "battleSetupVisible": false,
+              "journalVisible": false,
+              "battleHudVisible": false,
+              "guideVisible": false,
+              "debugEnabled": false,
+              "feedEntryCount": 0,
+              "inspectTargetId": null,
+              "journalSection": null
+            }
+          },
+          "lastEcologySample": {
+            "recordedAtMs": 1776734932988,
+            "butterflyCount": 12,
+            "flowerCount": 17,
+            "timeScale": 1,
+            "viewMode": "focused-garden",
+            "zoneCount": 4,
+            "zoneHealth": {
+              "distinctIdentityCount": 4,
+              "distinctSignatureCount": 4,
+              "zonesBelowFloorCount": 0,
+              "minResourceReserve": 0.82,
+              "minHabitatQuality": 0.62,
+              "maxDepletionPressure": 0.01,
+              "avgCrowdingPressure": 0.1775,
+              "avgMigrationPull": 0.3375
+            },
+            "migration": {
+              "livingCount": 12,
+              "homeAnchoredCount": 12,
+              "settledHomeCount": 12,
+              "awayFromHomeCount": 0,
+              "activeTravelerCount": 0,
+              "multiZoneCount": 0,
+              "completedTravelCount": 0,
+              "homeReturnCount": 0,
+              "scoutingTripCount": 0
+            },
+            "release": {
+              "totalReleases": 0,
+              "currentBatchCount": 0,
+              "releaseHistoryCount": 0,
+              "latestCohortId": null,
+              "latestCohortBlendGuard": 0,
+              "latestPreferredZoneId": null,
+              "latestWaveWildCount": 0,
+              "latestLineageCount": 0
+            },
+            "zoneSummaries": [
+              {
+                "zoneId": "ivy-cloister",
+                "identityLabel": "Quiet cloister",
+                "signatureLabel": "social calm",
+                "normalFlowers": 8,
+                "floorTarget": 2,
+                "resourceReserve": 1,
+                "habitatQuality": 0.72,
+                "depletionPressure": 0,
+                "migrationPull": 0.26,
+                "crowdingPressure": 0.71
+              },
+              {
+                "zoneId": "sun-court",
+                "identityLabel": "Sun court drills",
+                "signatureLabel": "drill-heavy pull",
+                "normalFlowers": 2,
+                "floorTarget": 1,
+                "resourceReserve": 0.82,
+                "habitatQuality": 0.62,
+                "depletionPressure": 0.01,
+                "migrationPull": 0.21,
+                "crowdingPressure": 0
+              },
+              {
+                "zoneId": "moss-hollow",
+                "identityLabel": "Moss watch",
+                "signatureLabel": "watchful shelter",
+                "normalFlowers": 3,
+                "floorTarget": 1,
+                "resourceReserve": 0.93,
+                "habitatQuality": 0.69,
+                "depletionPressure": 0,
+                "migrationPull": 0.32,
+                "crowdingPressure": 0
+              },
+              {
+                "zoneId": "pool-heart",
+                "identityLabel": "Echo pool",
+                "signatureLabel": "echoing roam",
+                "normalFlowers": 4,
+                "floorTarget": 1,
+                "resourceReserve": 0.98,
+                "habitatQuality": 0.72,
+                "depletionPressure": 0,
+                "migrationPull": 0.56,
+                "crowdingPressure": 0
+              }
+            ]
+          },
+          "averages": {
+            "updateMs": 6.629999991257986,
+            "foundationMs": 5.80333333214124,
+            "entityMs": 0.4241666615009308,
+            "physicsMs": 0.323333328962326,
+            "particleUpdateMs": 0.0033333361148834228,
+            "worldMs": 0.39583332935969034,
+            "renderMs": 12.746666665871938,
+            "particleRenderMs": 0.21083335280418397,
+            "uiLayerMs": 0.5133333424727122,
+            "compositeMs": 11.172500002384187
+          },
+          "breakdowns": {
+            "update": {
+              "foundationMs": 5.80333333214124,
+              "entityMs": 0.4241666615009308,
+              "physicsMs": 0.323333328962326,
+              "particleUpdateMs": 0.0033333361148834228,
+              "worldMs": 0.39583332935969034,
+              "foundation.zoneEcologyCadence": 2,
+              "foundation.zoneEcologyRefreshApplied": 0.5,
+              "foundation.zoneSystemMs": 0.0024999996026357015,
+              "foundation.statusSystemMs": 0.12249999642372131,
+              "foundation.objectSystemMs": 0.09666667183240255,
+              "foundation.structureSystemMs": 0.06583333810170491,
+              "foundation.sleepSystemMs": 0.11249999205271403,
+              "foundation.lifeSimSystemMs": 4.818333333730697,
+              "foundation.teachingSystemMs": 0.017499991257985435,
+              "foundation.communicationSystemMs": 0.01416667103767395,
+              "foundation.behaviorSystemMs": 0.04916667739550273,
+              "foundation.mlInferenceSystemMs": 0.3808333237965902,
+              "foundation.battleSystemMs": 0,
+              "foundation.saveSystemMs": 0.0041666726271311445,
+              "foundation.zoneEcologyStateMs": 0.002500001589457194,
+              "foundation.zoneEcologyCollectMs": 0.009999996423721314,
+              "foundation.zoneEcologyResourceLoopMs": 0.0066666682561238606,
+              "foundation.zoneEcologyPressureRefreshMs": 0.015833332141240438,
+              "foundation.zoneEcologyTelemetryMs": 0.06250000397364298,
+              "entity.butterflyUpdateMs": 0.002499997615814209,
+              "entity.caterpillarUpdateMs": 0.0008333325386047363,
+              "entity.blockUpdateMs": 0.07750000158945719,
+              "world.specialEffectsMs": 0.0016666670640309651,
+              "world.flowerSpawningMs": 0.0008333325386047363,
+              "world.pollenPlantingMs": 0.0016666650772094727,
+              "world.flowerManagerMs": 0.0016666690508524576,
+              "world.breedingMs": 0.3791666626930237,
+              "world.interactionChecksMs": 0.0024999996026357015,
+              "world.periodicEventsMs": 0.005833333730697632
+            },
+            "render": {
+              "clearDynamicMs": 0.028333336114883423,
+              "entityLayerMs": 0.8074999888737996,
+              "particleLayerMs": 0.15166666706403095,
+              "uiLayerMs": 0.5133333424727122,
+              "debugLayerMs": 0,
+              "canvasClearMs": 0.01749999721844991,
+              "compositeMs": 11.172500002384187,
+              "atmosphereCompositeMs": 0,
+              "particleRenderMs": 0.21083335280418397,
+              "composite.backgroundCompositeMs": 0.028333324193954467,
+              "composite.groundAtmosphereCompositeMs": 0,
+              "composite.behindEntitiesCompositeMs": 0,
+              "composite.spawnCoverCompositeMs": 0.008333333333333333,
+              "composite.entitiesCompositeMs": 10.203333340088527,
+              "composite.particlesCompositeMs": 0.09750000437100728,
+              "composite.foliageAtmosphereCompositeMs": 0,
+              "composite.uiCompositeMs": 0.8183333257834117,
+              "composite.debugCompositeMs": 0,
+              "composite.totalCompositeMs": 11.155833327770234
+            }
+          },
+          "attribution": {
+            "category": "mixed",
+            "summaryLine": "Mixed lag: update 6.63ms and render 12.75ms are both materially loaded.",
+            "avgUpdateMs": 6.629999991257986,
+            "avgRenderMs": 12.746666665871938,
+            "shellState": {
+              "viewMode": "focused-garden",
+              "focusedZoneId": "sun-court",
+              "openPanels": [
+                "feed"
+              ],
+              "openPanelCount": 1,
+              "feedVisible": true,
+              "inspectVisible": false,
+              "accessVisible": false,
+              "battleSetupVisible": false,
+              "journalVisible": false,
+              "battleHudVisible": false,
+              "guideVisible": false,
+              "debugEnabled": false,
+              "feedEntryCount": 0,
+              "inspectTargetId": null,
+              "journalSection": null
+            },
+            "shellSummary": "focused-garden | feed",
+            "topUpdateContributors": [
+              {
+                "label": "foundationMs",
+                "ms": 5.80333333214124
+              },
+              {
+                "label": "foundation.lifeSimSystemMs",
+                "ms": 4.818333333730697
+              },
+              {
+                "label": "foundation.zoneEcologyCadence",
+                "ms": 2
+              },
+              {
+                "label": "foundation.zoneEcologyRefreshApplied",
+                "ms": 0.5
+              }
+            ],
+            "topRenderContributors": [
+              {
+                "label": "compositeMs",
+                "ms": 11.172500002384187
+              },
+              {
+                "label": "composite.totalCompositeMs",
+                "ms": 11.155833327770234
+              },
+              {
+                "label": "composite.entitiesCompositeMs",
+                "ms": 10.203333340088527
+              },
+              {
+                "label": "composite.uiCompositeMs",
+                "ms": 0.8183333257834117
+              }
+            ],
+            "averageUpdateBreakdown": "[circular]",
+            "averageRenderBreakdown": "[circular]"
+          },
+          "pressure": {
+            "tier": "hot",
+            "avgUpdateMs": 6.629999991257986,
+            "avgPhysicsMs": 0.323333328962326,
+            "avgRenderMs": 12.746666665871938,
+            "avgParticleRenderMs": 0.21083335280418397,
+            "visibleEntities": 29,
+            "visibleButterflies": 0,
+            "visibleEffects": 0,
+            "particleCount": 0,
+            "isWarm": true,
+            "isHot": true,
+            "isCritical": false,
+            "simulationMultiplier": 0.58,
+            "visualMultiplier": 0.48
+          },
+          "ecology": {
+            "sampleCount": 90,
+            "avgMinResourceReserve": 0.7182222222222224,
+            "avgMinHabitatQuality": 0.5776666666666667,
+            "avgMaxDepletionPressure": 0.013666666666666676,
+            "maxZonesBelowFloorCount": 0,
+            "avgHomeAnchorShare": 1,
+            "avgMultiZoneShare": 0,
+            "maxActiveTravelerCount": 0,
+            "latestCohortId": null,
+            "latestWaveWildCount": 0,
+            "distinctIdentityCount": 4,
+            "distinctSignatureCount": 4
+          },
+          "mlCorpus": {
+            "sampleCount": 0,
+            "scenarioCount": 0,
+            "scenarioFamilies": [],
+            "recordKinds": [],
+            "reviewedSampleCount": 0,
+            "correctedSampleCount": 0,
+            "correctedPolicyCount": 0,
+            "latestScenarioId": null
+          },
+          "mlRuntime": {
+            "sampleCount": 240,
+            "gardenSampleCount": 240,
+            "battleSampleCount": 0,
+            "avgGardenUpdateMs": 0.3775000015894572,
+            "maxGardenUpdateMs": 7.200000047683716,
+            "avgBattleDecisionMs": 0,
+            "maxBattleDecisionMs": 0,
+            "avgRefreshedTraceCount": 0.6291666666666667,
+            "mlPolicyCount": 755,
+            "fallbackPolicyCount": 0,
+            "mlPolicyShare": 1,
+            "fallbackPolicyShare": 0,
+            "budgetTargets": {
+              "focusedGardenInferenceMs": 3.5,
+              "battleDecisionMs": 0.75,
+              "focusedGardenPhysicsMs": 3.5,
+              "focusedGardenTotalUpdateMs": 22
+            },
+            "withinBudget": {
+              "gardenInference": true,
+              "battleDecision": true
+            },
+            "modelLoaded": true,
+            "useModelInference": true,
+            "lastMode": "garden-update",
+            "lastDecisionSource": "ml"
+          },
+          "sessionCapture": {
+            "active": true,
+            "sessionId": "capture_1776734923451",
+            "label": "f2-performance",
+            "startedAtMs": 1776734923451,
+            "stoppedAtMs": null,
+            "durationMs": 9999,
+            "timelineCount": 6,
+            "runtimeIssueCount": 0,
+            "eventCounts": {
+              "capture": 2,
+              "snapshot": 2,
+              "navigation": 1,
+              "save": 1
+            },
+            "maxUpdateMs": 0,
+            "maxRenderMs": 0,
+            "maxParticleCount": 0,
+            "output": null,
+            "startState": {
+              "recordedAtMs": 1776734923451,
+              "butterflyCount": 12,
+              "flowerCount": 9,
+              "caterpillarCount": 0,
+              "blockCount": 108,
+              "hybridCount": 0,
+              "focusedZoneId": "ivy-cloister",
+              "viewMode": "focused-garden",
+              "activeBattleId": null,
+              "timeScale": 1,
+              "shellState": {
+                "viewMode": "focused-garden",
+                "focusedZoneId": "ivy-cloister",
+                "openPanels": [
+                  "guide"
+                ],
+                "openPanelCount": 1,
+                "feedVisible": false,
+                "inspectVisible": false,
+                "accessVisible": false,
+                "battleSetupVisible": false,
+                "journalVisible": false,
+                "battleHudVisible": false,
+                "guideVisible": true,
+                "debugEnabled": false,
+                "feedEntryCount": 0,
+                "inspectTargetId": null,
+                "journalSection": null
+              }
+            },
+            "endState": {
+              "recordedAtMs": 1776734933448,
+              "butterflyCount": 12,
+              "flowerCount": 17,
+              "caterpillarCount": 0,
+              "blockCount": 108,
+              "hybridCount": 0,
+              "focusedZoneId": "sun-court",
+              "viewMode": "focused-garden",
+              "activeBattleId": null,
+              "timeScale": 1,
+              "shellState": {
+                "viewMode": "focused-garden",
+                "focusedZoneId": "sun-court",
+                "openPanels": [
+                  "feed"
+                ],
+                "openPanelCount": 1,
+                "feedVisible": true,
+                "inspectVisible": false,
+                "accessVisible": false,
+                "battleSetupVisible": false,
+                "journalVisible": false,
+                "battleHudVisible": false,
+                "guideVisible": false,
+                "debugEnabled": false,
+                "feedEntryCount": 0,
+                "inspectTargetId": null,
+                "journalSection": null
+              }
+            }
+          },
+          "sampleCounts": {
+            "updates": 120,
+            "renders": 120,
+            "ecology": 90,
+            "mlCorpus": 0,
+            "mlRuntime": 240
+          }
+        }
+      }
+    }
+  ],
+  "runtimeIssues": [],
+  "eventHistory": [
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 139
+      },
+      "timestamp": 1776734926067,
+      "frame": 142
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 140
+      },
+      "timestamp": 1776734926107,
+      "frame": 143
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 141
+      },
+      "timestamp": 1776734926149,
+      "frame": 144
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 142
+      },
+      "timestamp": 1776734926185,
+      "frame": 145
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 143
+      },
+      "timestamp": 1776734926225,
+      "frame": 146
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 144
+      },
+      "timestamp": 1776734926270,
+      "frame": 147
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 145
+      },
+      "timestamp": 1776734926308,
+      "frame": 148
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 146
+      },
+      "timestamp": 1776734926342,
+      "frame": 149
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 147
+      },
+      "timestamp": 1776734926378,
+      "frame": 150
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 148
+      },
+      "timestamp": 1776734926413,
+      "frame": 151
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 149
+      },
+      "timestamp": 1776734926447,
+      "frame": 152
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 150
+      },
+      "timestamp": 1776734926479,
+      "frame": 153
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 151
+      },
+      "timestamp": 1776734926519,
+      "frame": 154
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 152
+      },
+      "timestamp": 1776734926553,
+      "frame": 155
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 153
+      },
+      "timestamp": 1776734926612,
+      "frame": 156
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 154
+      },
+      "timestamp": 1776734926653,
+      "frame": 157
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 155
+      },
+      "timestamp": 1776734926685,
+      "frame": 158
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 156
+      },
+      "timestamp": 1776734926719,
+      "frame": 159
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 157
+      },
+      "timestamp": 1776734926749,
+      "frame": 160
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 158
+      },
+      "timestamp": 1776734926780,
+      "frame": 161
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 159
+      },
+      "timestamp": 1776734926810,
+      "frame": 162
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 160
+      },
+      "timestamp": 1776734926840,
+      "frame": 163
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 161
+      },
+      "timestamp": 1776734926870,
+      "frame": 164
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 162
+      },
+      "timestamp": 1776734926904,
+      "frame": 165
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 163
+      },
+      "timestamp": 1776734926934,
+      "frame": 166
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 164
+      },
+      "timestamp": 1776734926962,
+      "frame": 167
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 165
+      },
+      "timestamp": 1776734926992,
+      "frame": 168
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 166
+      },
+      "timestamp": 1776734927023,
+      "frame": 169
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 167
+      },
+      "timestamp": 1776734927054,
+      "frame": 170
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 168
+      },
+      "timestamp": 1776734927084,
+      "frame": 171
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 169
+      },
+      "timestamp": 1776734927113,
+      "frame": 172
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 170
+      },
+      "timestamp": 1776734927142,
+      "frame": 173
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 171
+      },
+      "timestamp": 1776734927185,
+      "frame": 174
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 172
+      },
+      "timestamp": 1776734927217,
+      "frame": 175
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 173
+      },
+      "timestamp": 1776734927252,
+      "frame": 176
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 174
+      },
+      "timestamp": 1776734927282,
+      "frame": 177
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 175
+      },
+      "timestamp": 1776734927312,
+      "frame": 178
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 176
+      },
+      "timestamp": 1776734927340,
+      "frame": 179
+    },
+    {
+      "event": "pixels:spawned",
+      "data": {
+        "count": 4,
+        "type": "burst",
+        "position": {
+          "x": 253.16390897426754,
+          "y": 352.39473291376544
+        },
+        "color": [
+          255,
+          255,
+          200
+        ]
+      },
+      "timestamp": 1776734927370,
+      "frame": 180
+    },
+    {
+      "event": "pixels:spawned",
+      "data": {
+        "count": 4,
+        "type": "burst",
+        "position": {
+          "x": 286.83301747284827,
+          "y": 264.4193196216558
+        },
+        "color": [
+          255,
+          255,
+          200
+        ]
+      },
+      "timestamp": 1776734927371,
+      "frame": 180
+    },
+    {
+      "event": "pixels:spawned",
+      "data": {
+        "count": 4,
+        "type": "burst",
+        "position": {
+          "x": 685.5742720053345,
+          "y": 242.83457936874112
+        },
+        "color": [
+          255,
+          255,
+          200
+        ]
+      },
+      "timestamp": 1776734927371,
+      "frame": 180
+    },
+    {
+      "event": "pixels:spawned",
+      "data": {
+        "count": 4,
+        "type": "burst",
+        "position": {
+          "x": 625.9856123263016,
+          "y": 264.19127060504525
+        },
+        "color": [
+          255,
+          255,
+          200
+        ]
+      },
+      "timestamp": 1776734927372,
+      "frame": 180
+    },
+    {
+      "event": "pixels:spawned",
+      "data": {
+        "count": 4,
+        "type": "burst",
+        "position": {
+          "x": 486.50232453227045,
+          "y": 155.40854169452777
+        },
+        "color": [
+          255,
+          255,
+          200
+        ]
+      },
+      "timestamp": 1776734927372,
+      "frame": 180
+    },
+    {
+      "event": "pixels:spawned",
+      "data": {
+        "count": 4,
+        "type": "burst",
+        "position": {
+          "x": 391.5844370815903,
+          "y": 313.4274762498494
+        },
+        "color": [
+          255,
+          255,
+          200
+        ]
+      },
+      "timestamp": 1776734927372,
+      "frame": 180
+    },
+    {
+      "event": "pixels:spawned",
+      "data": {
+        "count": 4,
+        "type": "burst",
+        "position": {
+          "x": 356.69622654560953,
+          "y": 194.28048867077723
+        },
+        "color": [
+          255,
+          255,
+          200
+        ]
+      },
+      "timestamp": 1776734927373,
+      "frame": 180
+    },
+    {
+      "event": "pixels:spawned",
+      "data": {
+        "count": 4,
+        "type": "burst",
+        "position": {
+          "x": 490.7583799934387,
+          "y": 240.7729947624639
+        },
+        "color": [
+          255,
+          255,
+          200
+        ]
+      },
+      "timestamp": 1776734927373,
+      "frame": 180
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 177
+      },
+      "timestamp": 1776734927373,
+      "frame": 180
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 178
+      },
+      "timestamp": 1776734927410,
+      "frame": 181
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 179
+      },
+      "timestamp": 1776734927444,
+      "frame": 182
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 490.11059061851347,
+          "y": 236.61246182787272,
+          "startX": 490.7583799934387,
+          "startY": 240.7729947624639,
+          "targetGroundX": 491.93087168917054,
+          "targetGroundY": 238.61246182787272,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 5.169453689730163,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 490.11059061851347,
+          "y": 236.61246182787272
+        }
+      },
+      "timestamp": 1776734927477,
+      "frame": 183
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 489.6097538055107,
+          "y": 151.67787609460046,
+          "startX": 486.50232453227045,
+          "startY": 155.40854169452777,
+          "targetGroundX": 489.42963304027916,
+          "targetGroundY": 153.67787609460046,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 3.2485307685172335,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 489.6097538055107,
+          "y": 151.67787609460046
+        }
+      },
+      "timestamp": 1776734927477,
+      "frame": 183
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 180
+      },
+      "timestamp": 1776734927477,
+      "frame": 183
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 181
+      },
+      "timestamp": 1776734927511,
+      "frame": 184
+    },
+    {
+      "event": "status:ticked",
+      "data": {
+        "targetId": "butterfly_1776734920078_18"
+      },
+      "timestamp": 1776734927539,
+      "frame": 185
+    },
+    {
+      "event": "status:ticked",
+      "data": {
+        "targetId": "butterfly_1776734920080_22"
+      },
+      "timestamp": 1776734927539,
+      "frame": 185
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 486.5255651275814,
+          "y": 154.33699990870645,
+          "startX": 486.50232453227045,
+          "startY": 155.40854169452777,
+          "targetGroundX": 487.9150202225149,
+          "targetGroundY": 156.33699990870645,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 4.03348244931689,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 486.5255651275814,
+          "y": 154.33699990870645
+        }
+      },
+      "timestamp": 1776734927545,
+      "frame": 185
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 686.8351209490373,
+          "y": 243.34693128062867,
+          "startX": 685.5742720053345,
+          "startY": 242.83457936874112,
+          "targetGroundX": 688.4992393293231,
+          "targetGroundY": 245.34693128062867,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 1.0807327806068432,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 686.8351209490373,
+          "y": 243.34693128062867
+        }
+      },
+      "timestamp": 1776734927545,
+      "frame": 185
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 287.18851624514906,
+          "y": 259.1305718785112,
+          "startX": 286.83301747284827,
+          "startY": 264.4193196216558,
+          "targetGroundX": 286.15179300673304,
+          "targetGroundY": 261.1305718785112,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 5.4826196047475415,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 287.18851624514906,
+          "y": 259.1305718785112
+        }
+      },
+      "timestamp": 1776734927545,
+      "frame": 185
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 254.14631647896022,
+          "y": 347.47386716904055,
+          "startX": 253.16390897426754,
+          "startY": 352.39473291376544,
+          "targetGroundX": 253.30332556087524,
+          "targetGroundY": 349.47386716904055,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 4.719620419980318,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 254.14631647896022,
+          "y": 347.47386716904055
+        }
+      },
+      "timestamp": 1776734927545,
+      "frame": 185
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 182
+      },
+      "timestamp": 1776734927546,
+      "frame": 185
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 392.6043097237125,
+          "y": 311.70878605081697,
+          "startX": 391.5844370815903,
+          "startY": 313.4274762498494,
+          "targetGroundX": 394.30532749556005,
+          "targetGroundY": 313.70878605081697,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 0.509193555372579,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 392.6043097237125,
+          "y": 311.70878605081697
+        }
+      },
+      "timestamp": 1776734927579,
+      "frame": 186
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 627.0068108292296,
+          "y": 262.3125332243171,
+          "startX": 625.9856123263016,
+          "startY": 264.19127060504525,
+          "targetGroundX": 628.9945991413667,
+          "targetGroundY": 264.3125332243171,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 3.0520825392142443,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 627.0068108292296,
+          "y": 262.3125332243171
+        }
+      },
+      "timestamp": 1776734927579,
+      "frame": 186
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 684.1735901675002,
+          "y": 241.6652602930226,
+          "startX": 685.5742720053345,
+          "startY": 242.83457936874112,
+          "targetGroundX": 685.1768714227528,
+          "targetGroundY": 243.6652602930226,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 2.720966666177636,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 684.1735901675002,
+          "y": 241.6652602930226
+        }
+      },
+      "timestamp": 1776734927579,
+      "frame": 186
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 183
+      },
+      "timestamp": 1776734927580,
+      "frame": 186
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 489.35302569348363,
+          "y": 237.67807396519035,
+          "startX": 490.7583799934387,
+          "startY": 240.7729947624639,
+          "targetGroundX": 490.15759836420415,
+          "targetGroundY": 239.67807396519035,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 2.15096723097895,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 489.35302569348363,
+          "y": 237.67807396519035
+        }
+      },
+      "timestamp": 1776734927624,
+      "frame": 187
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 491.91691275354475,
+          "y": 238.19526246058794,
+          "startX": 490.7583799934387,
+          "startY": 240.7729947624639,
+          "targetGroundX": 492.7862993119657,
+          "targetGroundY": 240.19526246058794,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 2.574037276127351,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 491.91691275354475,
+          "y": 238.19526246058794
+        }
+      },
+      "timestamp": 1776734927624,
+      "frame": 187
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 392.62949388958515,
+          "y": 309.7114624245371,
+          "startX": 391.5844370815903,
+          "startY": 313.4274762498494,
+          "targetGroundX": 391.6101000394672,
+          "targetGroundY": 311.7114624245371,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 5.169137613112874,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 392.62949388958515,
+          "y": 309.7114624245371
+        }
+      },
+      "timestamp": 1776734927624,
+      "frame": 187
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 184
+      },
+      "timestamp": 1776734927626,
+      "frame": 187
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 355.6763794587925,
+          "y": 192.53121764340594,
+          "startX": 356.69622654560953,
+          "startY": 194.28048867077723,
+          "targetGroundX": 355.0607557164505,
+          "targetGroundY": 194.53121764340594,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 1.2546046773321045,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 355.6763794587925,
+          "y": 192.53121764340594
+        }
+      },
+      "timestamp": 1776734927674,
+      "frame": 188
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 185
+      },
+      "timestamp": 1776734927677,
+      "frame": 188
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 366.33365218378606,
+          "y": 191.892059913065,
+          "startX": 356.69622654560953,
+          "startY": 194.28048867077723,
+          "targetGroundX": 364.48362971413883,
+          "targetGroundY": 193.892059913065,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 5.101963819123297,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 366.33365218378606,
+          "y": 191.892059913065
+        }
+      },
+      "timestamp": 1776734927715,
+      "frame": 189
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 627.647015022859,
+          "y": 266.14143460461764,
+          "startX": 625.9856123263016,
+          "startY": 264.19127060504525,
+          "targetGroundX": 626.8895733969287,
+          "targetGroundY": 268.14143460461764,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 1.649026447473431,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 627.647015022859,
+          "y": 266.14143460461764
+        }
+      },
+      "timestamp": 1776734927715,
+      "frame": 189
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 695.256701682955,
+          "y": 240.2249864537873,
+          "startX": 685.5742720053345,
+          "startY": 242.83457936874112,
+          "targetGroundX": 693.3938479938358,
+          "targetGroundY": 242.2249864537873,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 4.329016787028302,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 695.256701682955,
+          "y": 240.2249864537873
+        }
+      },
+      "timestamp": 1776734927715,
+      "frame": 189
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 253.63855533637104,
+          "y": 347.61786358060255,
+          "startX": 253.16390897426754,
+          "startY": 352.39473291376544,
+          "targetGroundX": 254.38218562919644,
+          "targetGroundY": 349.61786358060255,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 6.162331890612549,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 253.63855533637104,
+          "y": 347.61786358060255
+        }
+      },
+      "timestamp": 1776734927716,
+      "frame": 189
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 186
+      },
+      "timestamp": 1776734927716,
+      "frame": 189
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 394.9011940220371,
+          "y": 309.8837641341891,
+          "startX": 391.5844370815903,
+          "startY": 313.4274762498494,
+          "targetGroundX": 393.5388476457447,
+          "targetGroundY": 311.8837641341891,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 0.8469802514643152,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 394.9011940220371,
+          "y": 309.8837641341891
+        }
+      },
+      "timestamp": 1776734927750,
+      "frame": 190
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 250.9331223124638,
+          "y": 349.47519672812837,
+          "startX": 253.16390897426754,
+          "startY": 352.39473291376544,
+          "targetGroundX": 251.2459947856143,
+          "targetGroundY": 351.47519672812837,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 1.1989185499642379,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 250.9331223124638,
+          "y": 349.47519672812837
+        }
+      },
+      "timestamp": 1776734927750,
+      "frame": 190
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 187
+      },
+      "timestamp": 1776734927750,
+      "frame": 190
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 489.1074626037106,
+          "y": 150.49973221780948,
+          "startX": 486.50232453227045,
+          "startY": 155.40854169452777,
+          "targetGroundX": 487.26068303093314,
+          "targetGroundY": 152.49973221780948,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 1.4664605734319751,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 489.1074626037106,
+          "y": 150.49973221780948
+        }
+      },
+      "timestamp": 1776734927789,
+      "frame": 191
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 249.87447357494386,
+          "y": 350.5591982871474,
+          "startX": 253.16390897426754,
+          "startY": 352.39473291376544,
+          "targetGroundX": 248.945505383797,
+          "targetGroundY": 352.5591982871474,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 6.280532218930668,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 249.87447357494386,
+          "y": 350.5591982871474
+        }
+      },
+      "timestamp": 1776734927789,
+      "frame": 191
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 188
+      },
+      "timestamp": 1776734927789,
+      "frame": 191
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 356.3850326668471,
+          "y": 189.34861296096042,
+          "startX": 356.69622654560953,
+          "startY": 194.28048867077723,
+          "targetGroundX": 357.79769281018525,
+          "targetGroundY": 191.34861296096042,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 4.4460802860957775,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 356.3850326668471,
+          "y": 189.34861296096042
+        }
+      },
+      "timestamp": 1776734927825,
+      "frame": 192
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 478.0482413138449,
+          "y": 153.44095668556383,
+          "startX": 486.50232453227045,
+          "startY": 155.40854169452777,
+          "targetGroundX": 479.0977735708654,
+          "targetGroundY": 155.44095668556383,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 1.7433808775541737,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 478.0482413138449,
+          "y": 153.44095668556383
+        }
+      },
+      "timestamp": 1776734927825,
+      "frame": 192
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 189
+      },
+      "timestamp": 1776734927826,
+      "frame": 192
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 397.37384586576377,
+          "y": 309.6258681102004,
+          "startX": 391.5844370815903,
+          "startY": 313.4274762498494,
+          "targetGroundX": 396.97201302908366,
+          "targetGroundY": 311.6258681102004,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 1.454469307501903,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 397.37384586576377,
+          "y": 309.6258681102004
+        }
+      },
+      "timestamp": 1776734927866,
+      "frame": 193
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 190
+      },
+      "timestamp": 1776734927866,
+      "frame": 193
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 191
+      },
+      "timestamp": 1776734927911,
+      "frame": 194
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 286.6774199661985,
+          "y": 264.09550840314074,
+          "startX": 286.83301747284827,
+          "startY": 264.4193196216558,
+          "targetGroundX": 288.2818581379205,
+          "targetGroundY": 266.09550840314074,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 5.395937436830171,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 286.6774199661985,
+          "y": 264.09550840314074
+        }
+      },
+      "timestamp": 1776734927950,
+      "frame": 195
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 192
+      },
+      "timestamp": 1776734927950,
+      "frame": 195
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 193
+      },
+      "timestamp": 1776734927992,
+      "frame": 196
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 194
+      },
+      "timestamp": 1776734928031,
+      "frame": 197
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 195
+      },
+      "timestamp": 1776734928070,
+      "frame": 198
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 196
+      },
+      "timestamp": 1776734928108,
+      "frame": 199
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 197
+      },
+      "timestamp": 1776734928143,
+      "frame": 200
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 198
+      },
+      "timestamp": 1776734928181,
+      "frame": 201
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 199
+      },
+      "timestamp": 1776734928216,
+      "frame": 202
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 200
+      },
+      "timestamp": 1776734928251,
+      "frame": 203
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 201
+      },
+      "timestamp": 1776734928288,
+      "frame": 204
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 202
+      },
+      "timestamp": 1776734928323,
+      "frame": 205
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 203
+      },
+      "timestamp": 1776734928360,
+      "frame": 206
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 204
+      },
+      "timestamp": 1776734928395,
+      "frame": 207
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 205
+      },
+      "timestamp": 1776734928431,
+      "frame": 208
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 206
+      },
+      "timestamp": 1776734928467,
+      "frame": 209
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 207
+      },
+      "timestamp": 1776734928507,
+      "frame": 210
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 208
+      },
+      "timestamp": 1776734928541,
+      "frame": 211
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 209
+      },
+      "timestamp": 1776734928577,
+      "frame": 212
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 210
+      },
+      "timestamp": 1776734928613,
+      "frame": 213
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 211
+      },
+      "timestamp": 1776734928648,
+      "frame": 214
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 212
+      },
+      "timestamp": 1776734928686,
+      "frame": 215
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 213
+      },
+      "timestamp": 1776734928726,
+      "frame": 216
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 214
+      },
+      "timestamp": 1776734928762,
+      "frame": 217
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 215
+      },
+      "timestamp": 1776734928798,
+      "frame": 218
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 628.9225962439552,
+          "y": 263.4769814021316,
+          "startX": 625.9856123263016,
+          "startY": 264.19127060504525,
+          "targetGroundX": 627.4475469009951,
+          "targetGroundY": 265.4769814021316,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 5.1953798252920596,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 628.9225962439552,
+          "y": 263.4769814021316
+        }
+      },
+      "timestamp": 1776734928833,
+      "frame": 219
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 216
+      },
+      "timestamp": 1776734928833,
+      "frame": 219
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 217
+      },
+      "timestamp": 1776734928867,
+      "frame": 220
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 218
+      },
+      "timestamp": 1776734928904,
+      "frame": 221
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 219
+      },
+      "timestamp": 1776734928939,
+      "frame": 222
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 220
+      },
+      "timestamp": 1776734928974,
+      "frame": 223
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 221
+      },
+      "timestamp": 1776734929010,
+      "frame": 224
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 222
+      },
+      "timestamp": 1776734929046,
+      "frame": 225
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 223
+      },
+      "timestamp": 1776734929080,
+      "frame": 226
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 224
+      },
+      "timestamp": 1776734929115,
+      "frame": 227
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 290.0472783637419,
+          "y": 265.90911684091736,
+          "startX": 286.83301747284827,
+          "startY": 264.4193196216558,
+          "targetGroundX": 289.10994496710595,
+          "targetGroundY": 267.90911684091736,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 4.438329062929077,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 290.0472783637419,
+          "y": 265.90911684091736
+        }
+      },
+      "timestamp": 1776734929148,
+      "frame": 228
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 225
+      },
+      "timestamp": 1776734929149,
+      "frame": 228
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 226
+      },
+      "timestamp": 1776734929184,
+      "frame": 229
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 227
+      },
+      "timestamp": 1776734929217,
+      "frame": 230
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 228
+      },
+      "timestamp": 1776734929251,
+      "frame": 231
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 229
+      },
+      "timestamp": 1776734929286,
+      "frame": 232
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 230
+      },
+      "timestamp": 1776734929320,
+      "frame": 233
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 231
+      },
+      "timestamp": 1776734929353,
+      "frame": 234
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 232
+      },
+      "timestamp": 1776734929386,
+      "frame": 235
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 233
+      },
+      "timestamp": 1776734929423,
+      "frame": 236
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 352.50383662041276,
+          "y": 192.84256336965754,
+          "startX": 356.69622654560953,
+          "startY": 194.28048867077723,
+          "targetGroundX": 350.6731012927368,
+          "targetGroundY": 194.84256336965754,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 1.1312554157288177,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 352.50383662041276,
+          "y": 192.84256336965754
+        }
+      },
+      "timestamp": 1776734929462,
+      "frame": 237
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 234
+      },
+      "timestamp": 1776734929462,
+      "frame": 237
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 627.8326262066141,
+          "y": 262.2810532993999,
+          "startX": 625.9856123263016,
+          "startY": 264.19127060504525,
+          "targetGroundX": 627.3651362078265,
+          "targetGroundY": 264.2810532993999,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 3.2882574968492135,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 627.8326262066141,
+          "y": 262.2810532993999
+        }
+      },
+      "timestamp": 1776734929499,
+      "frame": 238
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 235
+      },
+      "timestamp": 1776734929499,
+      "frame": 238
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 284.05938130460675,
+          "y": 262.3530951088254,
+          "startX": 286.83301747284827,
+          "startY": 264.4193196216558,
+          "targetGroundX": 286.0322739876061,
+          "targetGroundY": 264.3530951088254,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 2.5790732501930274,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 284.05938130460675,
+          "y": 262.3530951088254
+        }
+      },
+      "timestamp": 1776734929535,
+      "frame": 239
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 236
+      },
+      "timestamp": 1776734929536,
+      "frame": 239
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 237
+      },
+      "timestamp": 1776734929571,
+      "frame": 240
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 238
+      },
+      "timestamp": 1776734929605,
+      "frame": 241
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 239
+      },
+      "timestamp": 1776734929636,
+      "frame": 242
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 488.58929672338064,
+          "y": 241.47374424207064,
+          "startX": 490.7583799934387,
+          "startY": 240.7729947624639,
+          "targetGroundX": 489.10265458807345,
+          "targetGroundY": 243.47374424207064,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 4.619356969730881,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 488.58929672338064,
+          "y": 241.47374424207064
+        }
+      },
+      "timestamp": 1776734929667,
+      "frame": 243
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 240
+      },
+      "timestamp": 1776734929667,
+      "frame": 243
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 241
+      },
+      "timestamp": 1776734929699,
+      "frame": 244
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 242
+      },
+      "timestamp": 1776734929731,
+      "frame": 245
+    },
+    {
+      "event": "pixels:settled",
+      "data": {
+        "pixel": {
+          "x": 687.0143633977324,
+          "y": 242.12125011278766,
+          "startX": 685.5742720053345,
+          "startY": 242.83457936874112,
+          "targetGroundX": 687.8275820770115,
+          "targetGroundY": 244.12125011278766,
+          "vx": 0,
+          "vy": 0,
+          "color": "[circular]",
+          "type": "joy",
+          "lifetime": -1,
+          "settled": true,
+          "bounce": 0.3,
+          "friction": 0.99,
+          "size": 2,
+          "popOutDuration": 0,
+          "popOutTimer": 0,
+          "orbitAngle": 3.4558538612247918,
+          "orbitSpeed": 0,
+          "spiralRadius": 0,
+          "active": false
+        },
+        "position": {
+          "x": 687.0143633977324,
+          "y": 242.12125011278766
+        }
+      },
+      "timestamp": 1776734929764,
+      "frame": 246
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 243
+      },
+      "timestamp": 1776734929765,
+      "frame": 246
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 244
+      },
+      "timestamp": 1776734929798,
+      "frame": 247
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 245
+      },
+      "timestamp": 1776734929837,
+      "frame": 248
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 246
+      },
+      "timestamp": 1776734929877,
+      "frame": 249
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 247
+      },
+      "timestamp": 1776734929914,
+      "frame": 250
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 248
+      },
+      "timestamp": 1776734929954,
+      "frame": 251
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 249
+      },
+      "timestamp": 1776734929991,
+      "frame": 252
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 250
+      },
+      "timestamp": 1776734930027,
+      "frame": 253
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 251
+      },
+      "timestamp": 1776734930065,
+      "frame": 254
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 252
+      },
+      "timestamp": 1776734930102,
+      "frame": 255
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 253
+      },
+      "timestamp": 1776734930144,
+      "frame": 256
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 254
+      },
+      "timestamp": 1776734930183,
+      "frame": 257
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 255
+      },
+      "timestamp": 1776734930219,
+      "frame": 258
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 256
+      },
+      "timestamp": 1776734930256,
+      "frame": 259
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 257
+      },
+      "timestamp": 1776734930295,
+      "frame": 260
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 258
+      },
+      "timestamp": 1776734930332,
+      "frame": 261
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 259
+      },
+      "timestamp": 1776734930367,
+      "frame": 262
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 260
+      },
+      "timestamp": 1776734930399,
+      "frame": 263
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 261
+      },
+      "timestamp": 1776734930431,
+      "frame": 264
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 262
+      },
+      "timestamp": 1776734930464,
+      "frame": 265
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 263
+      },
+      "timestamp": 1776734930496,
+      "frame": 266
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 264
+      },
+      "timestamp": 1776734930529,
+      "frame": 267
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 265
+      },
+      "timestamp": 1776734930561,
+      "frame": 268
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 266
+      },
+      "timestamp": 1776734930593,
+      "frame": 269
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 267
+      },
+      "timestamp": 1776734930625,
+      "frame": 270
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 268
+      },
+      "timestamp": 1776734930658,
+      "frame": 271
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 269
+      },
+      "timestamp": 1776734930689,
+      "frame": 272
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 270
+      },
+      "timestamp": 1776734930720,
+      "frame": 273
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 271
+      },
+      "timestamp": 1776734930751,
+      "frame": 274
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 272
+      },
+      "timestamp": 1776734930781,
+      "frame": 275
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 273
+      },
+      "timestamp": 1776734930816,
+      "frame": 276
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 274
+      },
+      "timestamp": 1776734930850,
+      "frame": 277
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 275
+      },
+      "timestamp": 1776734930886,
+      "frame": 278
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 276
+      },
+      "timestamp": 1776734930916,
+      "frame": 279
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 277
+      },
+      "timestamp": 1776734930949,
+      "frame": 280
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 278
+      },
+      "timestamp": 1776734930980,
+      "frame": 281
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 279
+      },
+      "timestamp": 1776734931015,
+      "frame": 282
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 280
+      },
+      "timestamp": 1776734931046,
+      "frame": 283
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 281
+      },
+      "timestamp": 1776734931080,
+      "frame": 284
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 282
+      },
+      "timestamp": 1776734931112,
+      "frame": 285
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 283
+      },
+      "timestamp": 1776734931141,
+      "frame": 286
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 284
+      },
+      "timestamp": 1776734931173,
+      "frame": 287
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 285
+      },
+      "timestamp": 1776734931204,
+      "frame": 288
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 286
+      },
+      "timestamp": 1776734931235,
+      "frame": 289
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 287
+      },
+      "timestamp": 1776734931268,
+      "frame": 290
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 288
+      },
+      "timestamp": 1776734931297,
+      "frame": 291
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 289
+      },
+      "timestamp": 1776734931326,
+      "frame": 292
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 290
+      },
+      "timestamp": 1776734931356,
+      "frame": 293
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 291
+      },
+      "timestamp": 1776734931387,
+      "frame": 294
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 292
+      },
+      "timestamp": 1776734931417,
+      "frame": 295
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 293
+      },
+      "timestamp": 1776734931450,
+      "frame": 296
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 294
+      },
+      "timestamp": 1776734931483,
+      "frame": 297
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 295
+      },
+      "timestamp": 1776734931512,
+      "frame": 298
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 296
+      },
+      "timestamp": 1776734931542,
+      "frame": 299
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 297
+      },
+      "timestamp": 1776734931572,
+      "frame": 300
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 298
+      },
+      "timestamp": 1776734931601,
+      "frame": 301
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 299
+      },
+      "timestamp": 1776734931631,
+      "frame": 302
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 300
+      },
+      "timestamp": 1776734931662,
+      "frame": 303
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 301
+      },
+      "timestamp": 1776734931694,
+      "frame": 304
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 302
+      },
+      "timestamp": 1776734931724,
+      "frame": 305
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 303
+      },
+      "timestamp": 1776734931754,
+      "frame": 306
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 304
+      },
+      "timestamp": 1776734931787,
+      "frame": 307
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 305
+      },
+      "timestamp": 1776734931819,
+      "frame": 308
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 306
+      },
+      "timestamp": 1776734931848,
+      "frame": 309
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 307
+      },
+      "timestamp": 1776734931875,
+      "frame": 310
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 308
+      },
+      "timestamp": 1776734931902,
+      "frame": 311
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 309
+      },
+      "timestamp": 1776734931929,
+      "frame": 312
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 310
+      },
+      "timestamp": 1776734931955,
+      "frame": 313
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 311
+      },
+      "timestamp": 1776734931981,
+      "frame": 314
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 312
+      },
+      "timestamp": 1776734932008,
+      "frame": 315
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 313
+      },
+      "timestamp": 1776734932036,
+      "frame": 316
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 314
+      },
+      "timestamp": 1776734932063,
+      "frame": 317
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 315
+      },
+      "timestamp": 1776734932089,
+      "frame": 318
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 316
+      },
+      "timestamp": 1776734932116,
+      "frame": 319
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 317
+      },
+      "timestamp": 1776734932144,
+      "frame": 320
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 318
+      },
+      "timestamp": 1776734932170,
+      "frame": 321
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 319
+      },
+      "timestamp": 1776734932195,
+      "frame": 322
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 320
+      },
+      "timestamp": 1776734932220,
+      "frame": 323
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 321
+      },
+      "timestamp": 1776734932246,
+      "frame": 324
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 322
+      },
+      "timestamp": 1776734932272,
+      "frame": 325
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 323
+      },
+      "timestamp": 1776734932299,
+      "frame": 326
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 324
+      },
+      "timestamp": 1776734932326,
+      "frame": 327
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 325
+      },
+      "timestamp": 1776734932353,
+      "frame": 328
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 326
+      },
+      "timestamp": 1776734932381,
+      "frame": 329
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 327
+      },
+      "timestamp": 1776734932407,
+      "frame": 330
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 328
+      },
+      "timestamp": 1776734932431,
+      "frame": 331
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 329
+      },
+      "timestamp": 1776734932457,
+      "frame": 332
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 330
+      },
+      "timestamp": 1776734932482,
+      "frame": 333
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 331
+      },
+      "timestamp": 1776734932509,
+      "frame": 334
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 332
+      },
+      "timestamp": 1776734932537,
+      "frame": 335
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 333
+      },
+      "timestamp": 1776734932569,
+      "frame": 336
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 334
+      },
+      "timestamp": 1776734932600,
+      "frame": 337
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 335
+      },
+      "timestamp": 1776734932628,
+      "frame": 338
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 336
+      },
+      "timestamp": 1776734932655,
+      "frame": 339
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 337
+      },
+      "timestamp": 1776734932686,
+      "frame": 340
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 338
+      },
+      "timestamp": 1776734932724,
+      "frame": 341
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 339
+      },
+      "timestamp": 1776734932754,
+      "frame": 342
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 340
+      },
+      "timestamp": 1776734932847,
+      "frame": 343
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 341
+      },
+      "timestamp": 1776734932877,
+      "frame": 344
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 342
+      },
+      "timestamp": 1776734932906,
+      "frame": 345
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 343
+      },
+      "timestamp": 1776734932934,
+      "frame": 346
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 344
+      },
+      "timestamp": 1776734932961,
+      "frame": 347
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 345
+      },
+      "timestamp": 1776734932988,
+      "frame": 348
+    },
+    {
+      "event": "cursor:still",
+      "data": {
+        "x": 0,
+        "y": 0,
+        "frames": 346
+      },
+      "timestamp": 1776734933427,
+      "frame": 349
+    }
+  ],
+  "replayMarkers": [],
+  "debugAuditState": {
+    "lastAction": "None",
+    "lastStatus": "idle",
+    "lastMismatchCount": 0,
+    "lastRunAt": null,
+    "lastError": null,
+    "lastDetail": "No debug action has run yet",
+    "scenarioLabel": "none",
+    "snapshotLabel": "none",
+    "comparedSnapshots": "none",
+    "gameplayAuditStatus": "idle",
+    "savedAuditReports": 0,
+    "invariantFailures": 0,
+    "replaySessionLabel": "none",
+    "replaySeedLabel": "n/a"
+  },
+  "notes": {
+    "source": "f2-audit",
+    "pressureTier": "hot",
+    "lagCategory": "mixed",
+    "localHostExpected": true
+  }
+}

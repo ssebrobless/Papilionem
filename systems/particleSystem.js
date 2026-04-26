@@ -620,7 +620,6 @@ class ParticlePool {
     getParticle(x, y, color, type = 'scale') {
         // Check if we have any inactive particles available
         if (this.inactiveIndices.length === 0) {
-            console.warn(`⚠️ ParticlePool exhausted! ${this.maxSize} particles already active`);
             return null; // Pool exhausted
         }
         
@@ -760,14 +759,57 @@ class ParticleSystem {
             lastParticleCount: 0,
             renderTime: 0
         };
+        this.lastPoolExhaustionWarningAt = 0;
         
         console.log(`🎮 ParticleSystem initialized with pool size: ${poolSize}, active limit: ${this.maxParticles}`);
+    }
+
+    getPressureProfile() {
+        return gameCore?.telemetrySystem?.getPressureProfile?.()
+            || telemetrySystem?.getPressureProfile?.()
+            || {
+                tier: 'normal',
+                isHot: false,
+                isCritical: false,
+                simulationMultiplier: 1,
+                visualMultiplier: 1
+            };
+    }
+
+    getAvailableSlots() {
+        return Math.max(0, this.maxParticles - this.particles.length);
+    }
+
+    getEmissionBudget(requestedCount, type = 'scale') {
+        const pressure = this.getPressureProfile();
+        const available = this.getAvailableSlots();
+        if (available <= 0) return 0;
+
+        const typeMultiplier = type === 'joy'
+            ? (pressure.isCritical ? 0.15 : pressure.isHot ? 0.35 : pressure.isWarm ? 0.7 : 1)
+            : (pressure.isCritical ? 0.4 : pressure.isHot ? 0.6 : pressure.isWarm ? 0.82 : 1);
+        const requested = Math.max(0, Math.floor(requestedCount || 0));
+        const scaled = Math.max(0, Math.floor(requested * typeMultiplier));
+
+        if (requested > 0 && scaled === 0) {
+            return pressure.isCritical ? 0 : 1;
+        }
+
+        return Math.max(0, Math.min(available, scaled));
+    }
+
+    warnPoolExhausted() {
+        const now = Date.now();
+        if (now - this.lastPoolExhaustionWarningAt < 2500) return;
+        this.lastPoolExhaustionWarningAt = now;
+        console.warn(`⚠️ ParticlePool exhausted! ${this.particlePool.maxSize} particles already active`);
     }
     
     emit(x, y, color, count = 1, type = 'scale') {
         let lastPixel = null;
         let actualCount = 0;
-        for (let i = 0; i < count; i++) {
+        const emissionCount = this.getEmissionBudget(count, type);
+        for (let i = 0; i < emissionCount; i++) {
             if (this.particles.length < this.maxParticles) {
                 const offsetX = random(-5, 5);
                 const offsetY = random(-5, 5);
@@ -775,6 +817,9 @@ class ParticleSystem {
                 if (pixel) {
                     lastPixel = pixel;
                     actualCount++;
+                } else {
+                    this.warnPoolExhausted();
+                    break;
                 }
             }
         }
@@ -791,11 +836,13 @@ class ParticleSystem {
         }
         
         // Return the last created pixel for single emissions
-        return count === 1 ? lastPixel : null;
+        return emissionCount === 1 ? lastPixel : null;
     }
     
     emitBurst(x, y, color, count = 5) {
-        for (let i = 0; i < count; i++) {
+        const emissionCount = this.getEmissionBudget(count, 'joy');
+        let actualCount = 0;
+        for (let i = 0; i < emissionCount; i++) {
             if (this.particles.length < this.maxParticles) {
                 // Emit particles in isometric pattern using pre-allocated angles
                 const baseAngle = random(this.isometricAngles);
@@ -806,6 +853,10 @@ class ParticleSystem {
                     pixel.vx = cos(angle) * speed;
                     pixel.vy = sin(angle) * speed - 0.5;
                     pixel.size = gameConfig.particles.pixelSize; // Keep consistent size
+                    actualCount++;
+                } else {
+                    this.warnPoolExhausted();
+                    break;
                 }
             }
         }
@@ -813,7 +864,7 @@ class ParticleSystem {
         // Emit burst event
         if (typeof eventBus !== 'undefined' && typeof GameEvents !== 'undefined') {
             eventBus.emit(GameEvents.PIXELS_SPAWNED, { 
-                count, 
+                count: actualCount, 
                 type: 'burst', 
                 position: { x, y }, 
                 color 
@@ -823,7 +874,9 @@ class ParticleSystem {
     
     // Emit a fountain of particles
     emitFountain(x, y, color, count = 20, height = 3) {
-        for (let i = 0; i < count; i++) {
+        const emissionCount = this.getEmissionBudget(count, 'joy');
+        let actualCount = 0;
+        for (let i = 0; i < emissionCount; i++) {
             if (this.particles.length < this.maxParticles) {
                 const angle = random(PI * 0.3, PI * 0.7); // Upward arc
                 const speed = random(2, 4) * height / 3;
@@ -833,16 +886,31 @@ class ParticleSystem {
                     pixel.vy = -sin(angle) * speed; // Negative for upward
                     pixel.lifetime = 300 + random(100); // Longer lifetime
                     pixel.size = gameConfig.particles.pixelSize * random(0.8, 1.2);
+                    actualCount++;
+                } else {
+                    this.warnPoolExhausted();
+                    break;
                 }
             }
+        }
+
+        if (typeof eventBus !== 'undefined' && typeof GameEvents !== 'undefined' && actualCount > 0) {
+            eventBus.emit(GameEvents.PIXELS_SPAWNED, {
+                count: actualCount,
+                type: 'fountain',
+                position: { x, y },
+                color
+            });
         }
     }
     
     // Emit a spiral of particles
     emitSpiral(x, y, color, count = 16) {
-        for (let i = 0; i < count; i++) {
+        const emissionCount = this.getEmissionBudget(count, 'joy');
+        let actualCount = 0;
+        for (let i = 0; i < emissionCount; i++) {
             if (this.particles.length < this.maxParticles) {
-                const angle = (TWO_PI / count) * i;
+                const angle = (TWO_PI / Math.max(1, emissionCount)) * i;
                 const speed = 2;
                 const pixel = this.particlePool.getParticle(x, y, color, 'joy');
                 if (pixel) {
@@ -851,8 +919,21 @@ class ParticleSystem {
                     pixel.orbitAngle = angle;
                     pixel.orbitSpeed = 0.1;
                     pixel.lifetime = 200;
+                    actualCount++;
+                } else {
+                    this.warnPoolExhausted();
+                    break;
                 }
             }
+        }
+
+        if (typeof eventBus !== 'undefined' && typeof GameEvents !== 'undefined' && actualCount > 0) {
+            eventBus.emit(GameEvents.PIXELS_SPAWNED, {
+                count: actualCount,
+                type: 'spiral',
+                position: { x, y },
+                color
+            });
         }
     }
     
@@ -987,10 +1068,7 @@ class PoolManager {
             const pool = this.findOrCreatePool(pixel.x, pixel.y);
             if (pool) {
                 pool.addPixel(pixel);
-                const index = particleSystem.particles.indexOf(pixel);
-                if (index > -1) {
-                    particleSystem.particles.splice(index, 1);
-                }
+                particleSystem.particlePool?.releaseParticle?.(pixel);
             }
         }
         
@@ -1014,23 +1092,21 @@ class PoolManager {
     
     processSpawnRequests(spawnRequests, butterflies, particleSystem) {
         const maxButterflies = gameConfig.entities.maxButterflies;
-        const hardAdultCap = (typeof breedingSystem !== 'undefined') ? breedingSystem.adultHardCap : Infinity;
         
         for (let pool of spawnRequests) {
             const wildButterflyCount = butterflies.filter(butterfly => butterfly.birthSource !== 'bred').length;
-            if (wildButterflyCount < maxButterflies && butterflies.length < hardAdultCap && pool.consumeForSpawn()) {
+            if (wildButterflyCount < maxButterflies && pool.consumeForSpawn()) {
                 const spawn = pool.getSpawnPosition();
                 
                 // Create new butterfly - let personality determine colors
                 const newButterfly = new Butterfly(spawn.x, spawn.y, null);
                 butterflies.push(newButterfly);
                 
-                // Mark as encountered
-                if (typeof gameCore !== 'undefined' && gameCore.gameState) {
-                    gameCore.gameState.encounteredButterflies.add(newButterfly.personalityType);
-                    if (typeof progressionManager !== 'undefined') {
-                        progressionManager.save(gameCore.gameState);
-                    }
+                // Route legacy spawn seams through the canonical progression owner.
+                if (typeof gameCore !== 'undefined' && gameCore.gameState && typeof progressionManager !== 'undefined') {
+                    progressionManager.recordEncounter(gameCore.gameState, newButterfly.personalityType, {
+                        source: newButterfly.birthSource || 'wild'
+                    });
                 }
                 
                 // Create spawn effect using pre-allocated white color

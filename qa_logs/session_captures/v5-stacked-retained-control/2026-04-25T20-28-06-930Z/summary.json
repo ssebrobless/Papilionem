@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-stacked-retained-control\\2026-04-25T20-28-06-930Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.4574999968210856,
+      "avgRenderMs": 14.72583331267039,
+      "p95FrameMs": 26.200000286102295,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 10.069999996821085,
+      "avgRenderMs": 16.104999999205273,
+      "p95FrameMs": 32.799999952316284,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 19.183333325386048,
+      "avgRenderMs": 27.119999994834263,
+      "p95FrameMs": 59.89999985694885,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 8.445833339293797,
+      "avgRenderMs": 17.940833324193953,
+      "p95FrameMs": 36.09999990463257,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

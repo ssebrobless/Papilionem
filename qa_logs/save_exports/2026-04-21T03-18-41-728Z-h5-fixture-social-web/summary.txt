@@ -1,0 +1,20 @@
+Papilionem Save Export
+label: h5-fixture-social-web
+version: 4
+serializedAtMs: 1776741521699
+
+State
+focusedZoneId: ivy-cloister
+viewMode: focused-garden
+butterflies: 4
+flowers: 2
+caterpillars: 0
+blocks: 108
+hybridJournal: 0
+unlockedButterflyTypes: 6
+zones: 0
+sizeBytes: 163104
+
+Files
+save: C:\Users\fishe\Documents\projects\ephemera\qa_logs\save_exports\2026-04-21T03-18-41-728Z-h5-fixture-social-web\save.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\save_exports\2026-04-21T03-18-41-728Z-h5-fixture-social-web\summary.txt

@@ -1,0 +1,20 @@
+Papilionem Save Export
+label: playtest-manual
+version: 4
+serializedAtMs: 1776808563689
+
+State
+focusedZoneId: pool-heart
+viewMode: focused-garden
+butterflies: 28
+flowers: 141
+caterpillars: 0
+blocks: 108
+hybridJournal: 16
+unlockedButterflyTypes: 6
+zones: 0
+sizeBytes: 3992614
+
+Files
+save: C:\Users\fishe\Documents\projects\ephemera\qa_logs\save_exports\2026-04-21T21-56-03-846Z-playtest-manual\save.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\save_exports\2026-04-21T21-56-03-846Z-playtest-manual\summary.txt

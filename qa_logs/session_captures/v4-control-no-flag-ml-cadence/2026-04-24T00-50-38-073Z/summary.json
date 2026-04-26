@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v4-control-no-flag-ml-cadence\\2026-04-24T00-50-38-073Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 51.28301887692145,
+      "avgRenderMs": 48.20377357500904,
+      "p95FrameMs": 131.79999995231628,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 47.25045044787295,
+      "avgRenderMs": 52.486486469303166,
+      "p95FrameMs": 126.39999985694885,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 59.75416665871938,
+      "avgRenderMs": 55.330833313862485,
+      "p95FrameMs": 178.59999990463257,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 40.92416665951411,
+      "avgRenderMs": 38.57750000754992,
+      "p95FrameMs": 113.79999995231628,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v3-spread-pose-smoke-battleonly-keycompact\\2026-04-23T22-25-09-394Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 25.38367348057883,
+      "avgRenderMs": 26.6846938546823,
+      "p95FrameMs": 69.60000014305115,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 23.385833336909613,
+      "avgRenderMs": 30.0808333337307,
+      "p95FrameMs": 72.89999985694885,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 38.78333334128062,
+      "avgRenderMs": 42.376666673024495,
+      "p95FrameMs": 95.79999995231628,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 24.736666667461396,
+      "avgRenderMs": 27.320833331346513,
+      "p95FrameMs": 68.29999995231628,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    }
+  ]
+}

@@ -1,5 +1,40 @@
+function hashFlowerTypeName(value = '') {
+    let hash = 0;
+    for (const char of String(value)) {
+        hash = ((hash << 5) - hash) + char.charCodeAt(0);
+        hash |= 0;
+    }
+    return Math.abs(hash);
+}
+
+function normalizeFlowerTypeName(requestedType, canonicalTypes = []) {
+    const types = Array.isArray(canonicalTypes) && canonicalTypes.length
+        ? canonicalTypes
+        : ['daisy'];
+    if (typeof requestedType !== 'string' || !requestedType.trim().length) {
+        return random(types);
+    }
+
+    const normalizedType = requestedType.trim().toLowerCase();
+    if (types.includes(normalizedType)) {
+        return normalizedType;
+    }
+
+    const legacyMap = {
+        rose: 'daisy',
+        lily: 'tulip',
+        sunflower: 'bush'
+    };
+
+    if (legacyMap[normalizedType]) {
+        return legacyMap[normalizedType];
+    }
+
+    return types[hashFlowerTypeName(normalizedType) % types.length];
+}
+
 class Flower extends Entity {
-    constructor(x, y, isImmortal = false) {
+    constructor(x, y, isImmortal = false, options = {}) {
         super(x, y);
         
         // Unified lifecycle configuration - doubled for better gameplay
@@ -17,63 +52,24 @@ class Flower extends Entity {
         
         // Unique ID for tracking feeding cooldowns
         this.id = `flower_${Date.now()}_${Math.floor(x)}_${Math.floor(y)}_${random(1000)}`;
+        this.currentZoneId = options.currentZoneId || null;
         
         // Immortality flag for starting flowers
         this.isImmortal = isImmortal;
+        this.persistentUntilConsumed = options.persistentUntilConsumed ?? true;
+        this.consumed = false;
         
         // Flower lifecycle stages
         this.stage = 'bloom';
         this.stageTimer = 0;
         
-        // Flower type configuration
-        const flowerConfigs = {
-            daisy: {
-                size: 14,
-                stemHeight: 16,
-                petalCount: 8,
-                petalStyle: 'simple'
-            },
-            tulip: {
-                size: 15,
-                stemHeight: 18,
-                petalCount: 6,
-                petalStyle: 'cup'
-            },
-            bush: {
-                size: 12,
-                stemHeight: 6,
-                petalCount: 6,
-                petalStyle: 'cluster',
-                clusterCount: () => 3 + floor(random(3)) // 3-5 flower heads
-            },
-            lavender: {
-                size: 8,
-                stemHeight: 16, // Using default height
-                petalStyle: 'vertical',
-                stemCount: () => 3 + floor(random(3)) // 3-5 stems
-            },
-            sprout: {
-                size: 10,
-                stemHeight: 5,
-                petalCount: 5,
-                petalStyle: 'tiny'
-            }
-        };
-        
-        // Pick a random flower type and apply its configuration
-        const flowerTypes = Object.keys(flowerConfigs);
-        this.flowerType = random(flowerTypes);
-        const config = flowerConfigs[this.flowerType];
-        
-        // Apply base configuration
-        this.size = config.size;
-        this.stemHeight = config.stemHeight;
-        this.petalCount = config.petalCount || 0;
-        this.petalStyle = config.petalStyle;
-        
-        // Apply dynamic properties
-        if (config.clusterCount) this.clusterCount = config.clusterCount();
-        if (config.stemCount) this.stemCount = config.stemCount();
+        const flowerTypes = gameConfig?.entities?.flower?.types || ['daisy', 'tulip', 'sprout', 'lavender', 'bush'];
+        this.flowerType = normalizeFlowerTypeName(options.flowerType, flowerTypes);
+        this.visualStyle = 'garden-bloom';
+        this.size = 13;
+        this.stemHeight = gameConfig?.entities?.flower?.stemHeight || 16;
+        this.petalCount = 7;
+        this.petalStyle = 'garden-bloom';
         this.objectProfile = createObjectProfile({
             entityType: 'flower',
             subtype: this.flowerType,
@@ -84,19 +80,32 @@ class Flower extends Entity {
             lifecycleStage: this.stage
         });
         
-        // Vibrant colors with strong contrast against the background
-        const flowerPalettes = [
-            { petals: [255, 105, 180], center: [255, 255, 100], accent: [255, 20, 147], stemColor: [34, 139, 34] }, // Hot pink
-            { petals: [255, 69, 0], center: [255, 255, 0], accent: [255, 140, 0], stemColor: [0, 100, 0] }, // Bright orange
-            { petals: [148, 0, 211], center: [255, 255, 150], accent: [186, 85, 211], stemColor: [34, 139, 34] }, // Vivid purple
-            { petals: [255, 20, 147], center: [255, 255, 200], accent: [255, 105, 180], stemColor: [0, 128, 0] }, // Deep pink
-            { petals: [30, 144, 255], center: [255, 255, 255], accent: [0, 191, 255], stemColor: [34, 139, 34] }  // Bright blue
+        const flowerPalettes = gameConfig?.entities?.flower?.palettes || [
+            { petals: [255, 180, 120], center: [255, 240, 180] },
+            { petals: [255, 150, 200], center: [255, 255, 220] },
+            { petals: [200, 150, 255], center: [255, 230, 150] },
+            { petals: [255, 220, 150], center: [255, 255, 200] },
+            { petals: [180, 220, 255], center: [255, 255, 240] }
         ];
-        const palette = random(flowerPalettes);
+        const knownTypeIndex = flowerTypes.indexOf(this.flowerType);
+        const paletteIndex = knownTypeIndex >= 0
+            ? knownTypeIndex % flowerPalettes.length
+            : Math.floor(random(flowerPalettes.length));
+        const basePalette = flowerPalettes[paletteIndex] || flowerPalettes[0] || { petals: [255, 180, 120], center: [255, 240, 180] };
+        const palette = {
+            petals: basePalette.petals,
+            center: basePalette.center,
+            accent: basePalette.accent || [
+                Math.max(0, basePalette.petals[0] - 48),
+                Math.max(0, basePalette.petals[1] - 42),
+                Math.max(0, basePalette.petals[2] - 36)
+            ],
+            stemColor: basePalette.stemColor || [52, 138, 66]
+        };
         this.petalColor = palette.petals;
         this.centerColor = palette.center;
         this.accentColor = palette.accent;
-        this.stemColor = palette.stemColor || [34, 139, 34]; // Default green if not specified
+        this.stemColor = palette.stemColor || [34, 139, 34];
         
         this.lastVisitor = null;
         this.currentFeeder = null;
@@ -119,6 +128,7 @@ class Flower extends Entity {
         this.eggData = this.eggData || null;
         this.chrysalisData = this.chrysalisData || null;
         this.postHatchFadeTimer = this.postHatchFadeTimer || 0;
+        this.currentFeeder = this.currentFeeder || null;
     }
     
     update(gameState) {
@@ -135,12 +145,24 @@ class Flower extends Entity {
         // Update animation regardless of mortality
         this.animation.swayAngle += this.animation.swaySpeed;
         
-        // Immortal flowers have special handling
-        if (this.isImmortal) {
+        const holdAtMature = this.isImmortal || (this.persistentUntilConsumed && !this.consumed && this.occupancyState === 'normal');
+
+        // Immortal/persistent flowers have special handling
+        if (holdAtMature) {
             // Only update z-index, skip lifetime decrement
             this.updateZIndex();
-            // Lock at mature stage
-            this.stage = 'mature';
+            if (this.stage === 'bloom') {
+                this.stageTimer++;
+                if (this.stageTimer >= this.stageDurations.bloom) {
+                    this.stage = 'mature';
+                    this.objectProfile.lifecycleStage = this.stage;
+                    this.stageTimer = 0;
+                }
+            } else {
+                this.stage = 'mature';
+                this.objectProfile.lifecycleStage = this.stage;
+                this.stageTimer = 0;
+            }
         } else {
             // Occupied flowers pause their normal fade/lifecycle until the lifecycle completes
             if (this.occupancyState === 'normal' || this.postHatchFadeTimer > 0) {
@@ -158,8 +180,13 @@ class Flower extends Entity {
             this.postHatchFadeTimer--;
             if (this.postHatchFadeTimer === 0) {
                 this.occupancyState = 'normal';
+                this.objectProfile.occupancyState = 'normal';
+                this.allowedButterflyId = null;
+                this.eggData = null;
                 this.chrysalisData = null;
-                this.stage = 'dissolve';
+                this.currentFeeder = null;
+                this.stage = this.persistentUntilConsumed ? 'mature' : 'dissolve';
+                this.objectProfile.lifecycleStage = this.stage;
                 this.stageTimer = 0;
             }
         }
@@ -171,6 +198,10 @@ class Flower extends Entity {
     }
     
     nextStage() {
+        if (this.persistentUntilConsumed && this.stage === 'mature') {
+            return;
+        }
+
         const stages = ['bloom', 'mature', 'wilting', 'dissolve'];
         const currentIndex = stages.indexOf(this.stage);
         
@@ -183,6 +214,9 @@ class Flower extends Entity {
     
     checkButterflyVisits(butterflies, particleSystem) {
         for (let butterfly of butterflies) {
+            if (this.currentZoneId && butterfly.currentZoneId && butterfly.currentZoneId !== this.currentZoneId) {
+                continue;
+            }
             const dist = Math.hypot(butterfly.x - this.x, butterfly.y - this.y);
             
             if (dist < 20 && 
@@ -206,18 +240,6 @@ class Flower extends Entity {
         
         switch (interactionType) {
             case 'friendly':
-                // Friendly butterflies make flowers bloom more vibrantly
-                if (this.stage === 'mature' && frameCount % 60 === 0) {
-                    // Emit heart-shaped particles
-                    for (let i = 0; i < 3; i++) {
-                        const angle = random(TWO_PI);
-                        const dist = random(10, 20);
-                        const x = this.x + cos(angle) * dist;
-                        const y = this.y - this.stemHeight + sin(angle) * dist;
-                        const color = [255, 182, 193]; // Light pink
-                        particleSystem.emit(x, y, color, 1, 'joy');
-                    }
-                }
                 break;
                 
             case 'cautious':
@@ -233,56 +255,33 @@ class Flower extends Entity {
                 // Energetic butterflies make flowers bloom faster
                 if (this.stage === 'bloom') {
                     this.stageTimer += 60; // Speed up blooming
-                    particleSystem.emitBurst(this.x, this.y - this.stemHeight, [255, 200, 255], 5);
                 }
                 break;
                 
             case 'skittish':
             case 'cascade':
-                // Skittish butterflies create pollen explosions from excitement
-                if (random() < 0.3) {
-                    for (let i = 0; i < 5; i++) {
-                        particleSystem.emit(
-                            this.x + random(-15, 15), 
-                            this.y - this.stemHeight + random(-10, 10), 
-                            [250, 250, 200], 
-                            1, 
-                            'pollen'
-                        );
-                    }
-                }
                 break;
                 
             case 'wise':
             case 'teacher':
-                // Wise butterflies create sparkles around flowers
-                particleSystem.emitBurst(this.x, this.y - this.stemHeight, [255, 255, 255], 5);
                 break;
                 
             case 'golden':
                 // Golden butterflies make flowers golden temporarily
                 this.goldenBlessing = 300; // 5 seconds of golden state
-                particleSystem.emitSpiral(this.x, this.y - this.stemHeight, [255, 215, 0], 16);
+                if (typeof eventBus !== 'undefined') {
+                    eventBus.emit('ability:visual', {
+                        ability: 'golden',
+                        sourceId: butterfly?.id || null,
+                        x: butterfly?.x ?? this.x,
+                        y: butterfly?.y ?? this.y,
+                        durationFrames: 32
+                    });
+                }
                 break;
                 
             case 'mystic':
             case 'shimmer':
-                // Mystic butterflies create rainbow particles
-                const rainbowColors = [
-                    [255, 0, 0], [255, 127, 0], [255, 255, 0],
-                    [0, 255, 0], [0, 0, 255], [75, 0, 130], [148, 0, 211]
-                ];
-                for (let i = 0; i < 7; i++) {
-                    const angle = (TWO_PI / 7) * i;
-                    const dist = 15;
-                    particleSystem.emit(
-                        this.x + cos(angle) * dist, 
-                        this.y - this.stemHeight + sin(angle) * dist, 
-                        rainbowColors[i], 
-                        1, 
-                        'joy'
-                    );
-                }
                 break;
         }
     }
@@ -290,10 +289,11 @@ class Flower extends Entity {
     
     // Override parent's shadow drawing for soft layered shadow
     drawShadow(graphics, alpha) {
+        const shadowWidthScale = 1.05;
         graphics.noStroke();
         for (let i = 3; i > 0; i--) {
             graphics.fill(0, 0, 0, min(20 * (4 - i), alpha * 0.08 * (4 - i)));
-            const shadowSize = this.size * (1.2 + i * 0.3);
+            const shadowSize = this.size * shadowWidthScale * (1.05 + i * 0.22);
             graphics.ellipse(this.x, this.y + this.shadowOffset, shadowSize, shadowSize * 0.5);
         }
     }
@@ -305,14 +305,7 @@ class Flower extends Entity {
             alpha = map(this.stageTimer, 0, this.stageDurations.dissolve, 255, 0);
         }
         
-        // Sway afterimage — ghost copy trailing behind the current shear
         const shear = sin(this.animation.swayAngle) * this.animation.shearAmount;
-        const ghostShear = sin(this.animation.swayAngle - 1.0) * this.animation.shearAmount;
-        graphics.push();
-        graphics.translate(this.x, this.y);
-        graphics.shearX(ghostShear);
-        this.drawFlowerHead(graphics, alpha * 0.273);
-        graphics.pop();
 
         // Base position anchored to ground
         graphics.push();
@@ -331,12 +324,7 @@ class Flower extends Entity {
             this.drawLeadingGuideAura(graphics);
         }
         
-        // Draw stem(s) based on flower type
-        if (this.flowerType === 'lavender') {
-            this.drawLavenderStems(graphics, alpha);
-        } else if (this.flowerType !== 'bush' && this.flowerType !== 'sprout') {
-            this.drawStem(graphics, alpha);
-        }
+        this.drawStem(graphics, alpha);
         
         // Draw flower head(s)
         this.drawFlowerHead(graphics, alpha);
@@ -349,23 +337,35 @@ class Flower extends Entity {
         if (this.occupancyState === 'egg') {
             graphics.push();
             graphics.translate(0, -this.stemHeight);
-            graphics.stroke(0, 0, 0, alpha);
-            graphics.strokeWeight(1.5);
+            graphics.noStroke();
+            graphics.fill(0, 0, 0, alpha * 0.18);
+            graphics.ellipse(8.8, -1.2, 9.5, 8.5);
             graphics.fill(255, 255, 255, alpha);
             graphics.ellipse(8, -2, 8, 8);
+            graphics.fill(255, 245, 200, alpha * 0.9);
+            graphics.ellipse(6.8, -3.2, 2.6, 2.2);
             graphics.pop();
             return;
         }
 
         if (this.occupancyState === 'chrysalis') {
-            const sprite = this.chrysalisData?.hasHatched ? spriteManager.cocoonSprites.hatched : spriteManager.cocoonSprites.unhatched;
+            let sprite = this.chrysalisData?.hasHatched ? spriteManager.cocoonSprites.hatched : spriteManager.cocoonSprites.unhatched;
             if (!sprite) return;
 
             graphics.push();
             graphics.translate(0, -this.stemHeight + 6);
-            const scale = 0.02;
-            const w = sprite.width * scale;
-            const h = sprite.height * scale;
+            graphics.smooth();
+            const scale = 0.024;
+            let w = sprite.width * scale;
+            let h = sprite.height * scale;
+            if (spriteManager.isBakedCreatureSpritesEnabled?.()) {
+                const bakedSprite = spriteManager.getBakedCocoonSprite(this.chrysalisData?.hasHatched ? 'hatched' : 'unhatched', w, h);
+                if (bakedSprite) {
+                    sprite = bakedSprite;
+                    w = bakedSprite.width;
+                    h = bakedSprite.height;
+                }
+            }
             if (alpha < 255) {
                 graphics.tint(255, alpha);
             }
@@ -373,6 +373,7 @@ class Flower extends Entity {
             if (alpha < 255) {
                 graphics.noTint();
             }
+            graphics.noSmooth();
             graphics.pop();
         }
     }
@@ -426,6 +427,7 @@ class Flower extends Entity {
             graphics.rect(stemX - stemWidth/2 + 1, -y - 2, 1, 2);
         }
     }
+
     drawLavenderStems(graphics, alpha) {
         // Multiple thin stems for lavender - anchored at base
         for (let i = 0; i < this.stemCount; i++) {
@@ -445,41 +447,104 @@ class Flower extends Entity {
             graphics.pop();
         }
     }
+
+    drawBushStems(graphics, alpha) {
+        const sway = sinSway(this.animation.swayAngle) * this.animation.swayAmount;
+        const stemOrigins = [
+            { x: -4 + sway * 2, y: 0, length: this.stemHeight + 1 },
+            { x: 0, y: 0, length: this.stemHeight + 3 },
+            { x: 4 + sway * 2, y: 0, length: this.stemHeight + 1 }
+        ];
+
+        graphics.noStroke();
+        for (const origin of stemOrigins) {
+            for (let y = 0; y < origin.length; y += 2) {
+                const bendFactor = y / Math.max(origin.length, 1);
+                const bend = sway * bendFactor * bendFactor * 6;
+                graphics.fill(this.stemColor[0], this.stemColor[1], this.stemColor[2], alpha);
+                graphics.rect(origin.x + bend - 1, -y - 2, 2, 2);
+            }
+        }
+    }
     
     drawFlowerHead(graphics, alpha) {
         const sway = sinSway(this.animation.swayAngle) * this.animation.swayAmount;
-        
-        switch(this.flowerType) {
-            case 'daisy':
-                graphics.push();
-                // Position flower head at top of stem with sway
-                graphics.translate(sway * 6, -this.stemHeight);
-                graphics.rotate(sway * 0.3);
-                this.drawSimpleDaisy(graphics, alpha);
-                graphics.pop();
-                break;
-            case 'tulip':
-                graphics.push();
-                // Position flower head at top of stem with sway
-                graphics.translate(sway * 5, -this.stemHeight);
-                graphics.rotate(sway * 0.2);
-                this.drawSimpleTulip(graphics, alpha);
-                graphics.pop();
-                break;
-            case 'bush':
-                this.drawBushClusters(graphics, alpha);
-                break;
-            case 'lavender':
-                this.drawLavenderClusters(graphics, alpha);
-                break;
-            case 'sprout':
-                graphics.push();
-                // Sprouts don't sway much due to short stems
-                graphics.translate(0, -this.stemHeight);
-                this.drawTinySprout(graphics, alpha);
-                graphics.pop();
-                break;
+        if (this.drawBakedFlowerHead(graphics, alpha, sway)) {
+            return;
         }
+        graphics.push();
+        graphics.translate(sway * 6, -this.stemHeight);
+        graphics.rotate(sway * 0.24);
+        this.drawGardenBloom(graphics, alpha);
+        graphics.pop();
+    }
+
+    canUseBakedFlowerHead() {
+        return this.stage === 'mature'
+            && this.visualStyle === 'garden-bloom'
+            && this.petalStyle === 'garden-bloom'
+            && typeof spriteManager?.getBakedFlowerHeadData === 'function'
+            && spriteManager.isBakedFlowerHeadsEnabled?.();
+    }
+
+    drawBakedFlowerHead(graphics, alpha, sway = 0) {
+        if (!this.canUseBakedFlowerHead()) return false;
+
+        const bakedHead = spriteManager.getBakedFlowerHeadData(this, {
+            frameCount,
+            baseSize: this.size,
+            centerSize: 8
+        });
+        if (!bakedHead?.surface) return false;
+
+        const livePetalSize = this.getPetalSize();
+        const headScale = livePetalSize / Math.max(1, this.size || livePetalSize || 1);
+
+        graphics.push();
+        graphics.translate(sway * 6, -this.stemHeight);
+        graphics.rotate((sway * 0.24) + this.animation.petalPhase);
+        if (Math.abs(headScale - 1) > 0.001) {
+            graphics.scale(headScale);
+        }
+        if (alpha < 255) {
+            graphics.tint(255, alpha);
+        }
+        graphics.image(
+            bakedHead.surface,
+            -bakedHead.anchorX,
+            -bakedHead.anchorY,
+            bakedHead.drawWidth,
+            bakedHead.drawHeight
+        );
+        if (alpha < 255) {
+            graphics.noTint();
+        }
+        graphics.pop();
+        return true;
+    }
+
+    drawGardenBloom(graphics, alpha) {
+        const petalSize = this.getPetalSize();
+
+        graphics.strokeWeight(2);
+        graphics.stroke(0, 0, 0, alpha * 0.28);
+
+        for (let i = 0; i < this.petalCount; i++) {
+            const angle = (TWO_PI / this.petalCount) * i + this.animation.petalPhase;
+            const petalWave = sin(frameCount * this.animation.petalWaveSpeed + i) * 0.08 + 1;
+
+            graphics.push();
+            graphics.rotate(angle);
+            graphics.fill(this.petalColor[0], this.petalColor[1], this.petalColor[2], alpha);
+            graphics.ellipse(petalSize * 0.56, 0, petalSize * 0.92 * petalWave, petalSize * 0.42);
+            graphics.fill(this.accentColor[0], this.accentColor[1], this.accentColor[2], alpha * 0.42);
+            graphics.ellipse(petalSize * 0.66, 0, petalSize * 0.42, petalSize * 0.18);
+            graphics.fill(255, 255, 255, alpha * 0.16);
+            graphics.ellipse(petalSize * 0.72, -0.2, petalSize * 0.18, petalSize * 0.12);
+            graphics.pop();
+        }
+
+        this.drawFlowerCenter(graphics, alpha, 8);
     }
     
     drawSimpleDaisy(graphics, alpha) {
@@ -532,7 +597,7 @@ class Flower extends Entity {
         graphics.ellipse(0, 0, 6, 6);
         
     }
-    
+
     drawBushClusters(graphics, alpha) {
         const sway = sinSway(this.animation.swayAngle) * this.animation.swayAmount;
         
@@ -666,7 +731,7 @@ class Flower extends Entity {
     // Override isDead to check stage instead of lifetime
     isDead() {
         // Immortal flowers never die
-        if (this.isImmortal) return false;
+        if ((this.isImmortal || this.persistentUntilConsumed) && !this.consumed) return false;
         if (this.occupancyState === 'egg' || this.occupancyState === 'chrysalis') return false;
         
         // Normal flowers die after dissolve stage completes
@@ -702,6 +767,16 @@ class Flower extends Entity {
         this.allowedButterflyId = eggData.motherId;
         this.eggData = eggData;
         this.currentFeeder = null;
+
+        if (typeof eventBus !== 'undefined' && GameEvents?.FLOWER_EGG_LAID) {
+            eventBus.emit(GameEvents.FLOWER_EGG_LAID, {
+                flower: this,
+                flowerId: this.id,
+                motherId: eggData.motherId,
+                hatchFrame: eggData.hatchFrame,
+                lifecycleData: eggData.lifecycleData || null
+            });
+        }
     }
 
     afterButterflyFeed(butterfly) {
@@ -717,10 +792,12 @@ class Flower extends Entity {
     }
 
     consumeByCaterpillar(particleSystem) {
+        this.consumed = true;
         this.occupancyState = 'normal';
         this.objectProfile.occupancyState = 'normal';
         this.eggData = null;
         this.chrysalisData = null;
+        this.currentFeeder = null;
         this.stage = 'dissolve';
         this.objectProfile.lifecycleStage = this.stage;
         this.stageTimer = this.stageDurations.dissolve;
@@ -732,19 +809,30 @@ class Flower extends Entity {
 
     becomeChrysalisFlower(lifecycleData) {
         this.ensureLifecycleData();
+        const hybridBalance = gameConfig?.balance?.hybrid || {};
+        const minCocoonFrames = hybridBalance.cocoonHatchFrames?.min ?? (60 * 90);
+        const maxCocoonFrames = hybridBalance.cocoonHatchFrames?.max ?? (60 * 180);
         this.occupancyState = 'chrysalis';
         this.objectProfile.occupancyState = 'chrysalis';
         this.chrysalisData = {
             lifecycleData,
-            hatchFrame: frameCount + Math.floor(random(60 * 420, 60 * 600)),
+            hatchFrame: frameCount + Math.floor(random(minCocoonFrames, maxCocoonFrames)),
             hasHatched: false,
             hatchedAt: 0
         };
         this.currentFeeder = null;
+
+        if (typeof eventBus !== 'undefined' && GameEvents?.CHRYSALIS_FORMED) {
+            eventBus.emit(GameEvents.CHRYSALIS_FORMED, {
+                flower: this,
+                flowerId: this.id,
+                lifecycleData: lifecycleData || null
+            });
+        }
     }
 
     startPostHatchFade() {
-        this.postHatchFadeTimer = 90;
+        this.postHatchFadeTimer = this.persistentUntilConsumed ? 30 : 90;
     }
     
     // Check if we should show the leading guide aura

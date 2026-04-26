@@ -1,0 +1,46 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v2-memory-attribution-smoke\\2026-04-23T04-32-19-183Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 25.925471694964283,
+      "avgRenderMs": 26.15754717475963,
+      "p95FrameMs": 71,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 24.001666667064033,
+      "avgRenderMs": 31.96166665951411,
+      "p95FrameMs": 74.69999980926514,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "travel",
+      "avgUpdateMs": 23.964166659116746,
+      "avgRenderMs": 33.983333333333334,
+      "p95FrameMs": 74.79999995231628,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 38.440833334128065,
+      "avgRenderMs": 45.25249999165535,
+      "p95FrameMs": 96.20000004768372,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 24.763333320617676,
+      "avgRenderMs": 27.741666690508524,
+      "p95FrameMs": 67.60000014305115,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    }
+  ]
+}

@@ -1,14 +1,25 @@
 # Playtest Feedback Template
 
+After each outside session, copy any actionable blocker/confusion items into
+[docs/PLAYTEST-TRIAGE-LOG.md](/C:/Users/fishe/Documents/projects/ephemera/docs/PLAYTEST-TRIAGE-LOG.md).
+
 ```text
 ╔════════════════════ Session Info ════════════════════╗
-║ tester name        │                                ║
-║ date               │                                ║
-║ branch/build       │ codex/milestone-freeze-playtest ║
-║ device/browser     │                                ║
-║ used debug presets │                                ║
-╚══════════════════════════════════════════════════════╝
+║ tester name        │                                  ║
+║ date               │                                  ║
+║ branch/build       │ public-share-readiness candidate ║
+║ device/browser     │                                  ║
+║ network mode       │ host-local / same-lan            ║
+║ url used           │                                  ║
+║ startup result     │ reached title / blocked / mixed  ║
+║ used debug presets │                                  ║
+╚════════════════════════════════════════════════════════╝
 ```
+
+Session note:
+
+- if debug tools were available, record whether a session capture was exported
+  after the run and where it was saved
 
 ## Core Checks
 
@@ -60,6 +71,15 @@ expected instead   :
 steps to reproduce :
 preset used        :
 severity           : low / medium / high
+```
+
+Startup-specific findings to capture if relevant:
+
+```text
+did install work     :
+did launch work      :
+did url connect      :
+first blocker        :
 ```
 
 ## Best/Worst Moments

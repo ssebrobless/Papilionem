@@ -1,38 +1,41 @@
-# Papilionem Developer Reference
+﻿# Papilionem Developer Reference
 
 Implementation-derived technical reference for the current milestone branch.
 
 ```text
-╔════════════════════ Guidebook Scope ════════════════════╗
-║ project            │ Papilionem                        ║
-║ purpose            │ player + developer reference      ║
-║ source of truth    │ current implemented code          ║
-║ audience           │ developers, testers, collaborators ║
-╚═════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Guidebook Scope â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ project            â”‚ Papilionem                        â•‘
+â•‘ purpose            â”‚ player + developer reference      â•‘
+â•‘ source of truth    â”‚ current implemented code          â•‘
+â•‘ audience           â”‚ developers, testers, collaborators â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 ## 1. Game At A Glance
 
 ```text
-╔════════════════════ Papilionem Shape ════════════════════╗
-║ title screen                                               ║
-║  ▼                                                         ║
-║ living garden simulation                                   ║
-║  ├─ butterflies                                            ║
-║  ├─ flowers                                                ║
-║  ├─ caterpillars                                           ║
-║  ├─ memory / social / sleep systems                        ║
-║  └─ genetics / lineage / hybrids                           ║
-║  ▼                                                         ║
-║ debug + audit layer                                        ║
-║  ├─ presets                                                ║
-║  ├─ snapshots                                              ║
-║  ├─ invariants                                             ║
-║  ├─ roundtrip save/load                                    ║
-║  └─ gameplay audit                                         ║
-║  ▼                                                         ║
-║ optional battle snapshot layer                             ║
-╚═════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Papilionem Shape â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ title screen                                              â•‘
+â•‘  â–¼                                                        â•‘
+â•‘ multi-zone living garden                                  â•‘
+â•‘  â”œâ”€ butterflies / flowers / caterpillars                  â•‘
+â•‘  â”œâ”€ memory / social / sleep / teaching systems            â•‘
+â•‘  â”œâ”€ genetics / lineage / hybrids                          â•‘
+â•‘  â”œâ”€ wild ecology / release-driven uplift loop             â•‘
+â•‘  â””â”€ shelter / structure / zone-aware movement truth       â•‘
+â•‘  â–¼                                                        â•‘
+â•‘ button-first player shell                                 â•‘
+â•‘  â”œâ”€ Save / Journal / Feed / Inspect / Access              â•‘
+â•‘  â”œâ”€ Battle / Next Zone / overview toggle                  â•‘
+â•‘  â””â”€ release / roster / dialogue summaries stay live       â•‘
+â•‘  â–¼                                                        â•‘
+â•‘ debug + audit layer                                       â•‘
+â•‘  â”œâ”€ presets / snapshots / world checks                    â•‘
+â•‘  â”œâ”€ restore save / roundtrip / audit world                â•‘
+â•‘  â””â”€ replay seed / local-only verification                 â•‘
+â•‘  â–¼                                                        â•‘
+â•‘ separate top-right single-player autobattle mode          â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 Papilionem is a living-garden simulation first. Butterflies are not just visual entities; they carry:
@@ -49,29 +52,31 @@ On top of that life-sim layer, the game adds:
 
 - feeding and trust interactions
 - hybrid breeding and lineage journaling
+- hybrid-cap / release-wave ecology pressure
+- zone identity, cross-zone travel, and dialogue memory
 - accessibility/readability controls
 - debug/audit tooling
-- an isolated battle snapshot system
+- a separate single-player autobattle mode built on battle snapshots and commit-back
 
 ## 2. Core System Ownership
 
 ```text
-╔════════════════════ Owner Map ════════════════════╗
-║ GameCore                                           ║
-║  ├─ ZoneSystem       │ world zones / focus / mode  ║
-║  ├─ StatusSystem     │ timed effects / auras       ║
-║  ├─ BehaviorSystem   │ current action runtime      ║
-║  ├─ ObjectSystem     │ carry/drop/use ownership    ║
-║  ├─ SleepSystem      │ sleep transitions           ║
-║  ├─ TeachingSystem   │ packets / lessons / trust   ║
-║  ├─ BreedingSystem   │ mating / pregnancy / hatch  ║
-║  ├─ BattleSystem     │ battle snapshots / commit   ║
-║  ├─ SaveSystem       │ durable serialization        ║
-║  ├─ TelemetrySystem  │ frame/update metrics         ║
-║  ├─ RenderManager    │ visuals only                ║
-║  ├─ GameUI           │ player-facing UI            ║
-║  └─ DebugUI          │ god mode + audit tools      ║
-╚═════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Owner Map â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ GameCore                                           â•‘
+â•‘  â”œâ”€ ZoneSystem       â”‚ world zones / focus / mode  â•‘
+â•‘  â”œâ”€ StatusSystem     â”‚ timed effects / auras       â•‘
+â•‘  â”œâ”€ BehaviorSystem   â”‚ current action runtime      â•‘
+â•‘  â”œâ”€ ObjectSystem     â”‚ carry/drop/use ownership    â•‘
+â•‘  â”œâ”€ SleepSystem      â”‚ sleep transitions           â•‘
+â•‘  â”œâ”€ TeachingSystem   â”‚ packets / lessons / trust   â•‘
+â•‘  â”œâ”€ BreedingSystem   â”‚ mating / pregnancy / hatch  â•‘
+â•‘  â”œâ”€ BattleSystem     â”‚ battle snapshots / commit   â•‘
+â•‘  â”œâ”€ SaveSystem       â”‚ durable serialization        â•‘
+â•‘  â”œâ”€ TelemetrySystem  â”‚ frame/update metrics         â•‘
+â•‘  â”œâ”€ RenderManager    â”‚ visuals only                â•‘
+â•‘  â”œâ”€ GameUI           â”‚ player-facing UI            â•‘
+â•‘  â””â”€ DebugUI          â”‚ god mode + audit tools      â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 Key invariant:
@@ -92,22 +97,24 @@ Examples:
 ## 3. Game Flow
 
 ```text
-╔════════════════════ Player Flow ════════════════════╗
-║ title image                                           ║
-║  ▼ click / key                                        ║
-║ garden begins                                         ║
-║  ├─ butterflies wander                               ║
-║  ├─ player moves cursor                              ║
-║  ├─ trust / fear / feeding update                    ║
-║  ├─ sleep / teaching / breeding continue             ║
-║  └─ progression tracks discoveries                   ║
-║  ▼                                                    ║
-║ optional debug / audit                               ║
-║  ├─ load preset                                      ║
-║  ├─ inspect state                                    ║
-║  ├─ save/load verify                                 ║
-║  └─ gameplay audit                                   ║
-╚═══════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Player Flow â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ title image                                          â•‘
+â•‘  â–¼ click / key                                       â•‘
+â•‘ focused garden begins                                â•‘
+â•‘  â”œâ”€ butterflies wander / trust / feed / sleep        â•‘
+â•‘  â”œâ”€ breeding advances lineage and ecology pressure    â•‘
+â•‘  â”œâ”€ Journal / Feed / Inspect expose current truth     â•‘
+â•‘  â””â”€ zone travel and structure use stay live           â•‘
+â•‘  â–¼                                                    â•‘
+â•‘ optional debug / audit                               â•‘
+â•‘  â”œâ”€ button-driven saves / snapshots / checks         â•‘
+â•‘  â”œâ”€ audit presets and local replay seeding           â•‘
+â•‘  â””â”€ no required debug keyboard chord layer           â•‘
+â•‘  â–¼                                                    â•‘
+â•‘ optional top-right battle mode                       â•‘
+â•‘  â”œâ”€ roster-vs-garden or strongest-living fallback    â•‘
+â•‘  â””â”€ autobattle commits results back into garden      â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 At a high level:
@@ -117,48 +124,47 @@ At a high level:
 3. The garden runs at a fixed simulation delta.
 4. Butterflies respond to their internal state, the player cursor, flowers, each other, and owner-system state.
 5. Debug mode can be toggled at any time for scenario setup, replay metadata, snapshots, and audits.
+6. Battle can be entered from the top-right `Battle` mode without leaving the living garden save.
 
 ## 4. Controls
 
 ### 4.1 Normal Play Controls
 
 ```text
-╔════════════════════ Normal Controls ════════════════════╗
-║ any key / click │ fade out title screen                 ║
-║ D               │ toggle debug mode                     ║
-║ B               │ hold boundary zones overlay           ║
-║ C               │ butterfly collection / journal        ║
-║ I               │ inspect panel                         ║
-║ A               │ accessibility panel                   ║
-║ M               │ reduced motion                        ║
-║ T               │ cycle trail visibility                ║
-║ G               │ cycle background atmosphere           ║
-║ H               │ high contrast UI                      ║
-║ S               │ battle motion simplify                ║
-║ ← / →           │ collection page navigation            ║
-║ R               │ rename current hybrid in collection   ║
-╚══════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Normal Controls â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ any key / click       â”‚ fade out title screen           â•‘
+â•‘ Save / Journal / Feed â”‚ top-right button row            â•‘
+â•‘ Inspect / Access      â”‚ top-right button row            â•‘
+â•‘ Battle / Next Zone    â”‚ top-right button row            â•‘
+â•‘ D                     â”‚ toggle debug mode               â•‘
+â•‘ B                     â”‚ hold boundary zones overlay     â•‘
+â•‘ O                     â”‚ toggle overview mode            â•‘
+â•‘ â† / â†’                 â”‚ journal page navigation         â•‘
+â•‘ Escape                â”‚ cancel Inspect release checklistâ•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
+
+The live shell is button-first. Old panel hotkeys such as `C`, `I`, `A`, `M`,
+`T`, `G`, `H`, `S`, and collection rename on `R` are intentionally inactive.
 
 ### 4.2 Debug / Audit Controls
 
 ```text
-╔════════════════════ Debug Controls ════════════════════╗
-║ arrow keys        │ move debug cursor on iso grid       ║
-║ Q / E             │ cycle debug tools                   ║
-║ Space             │ place current debug tool            ║
-║ X                 │ export zone data                    ║
-║ K                 │ save game state                     ║
-║ L                 │ load game state                     ║
-║ V                 │ verify save/load roundtrip          ║
-║ N                 │ compare recent snapshots            ║
-║ P                 │ load next audit preset              ║
-║ O                 │ export audit setup                  ║
-║ U                 │ import audit setup                  ║
-║ Y                 │ run gameplay audit                  ║
-║ J                 │ reseed replay session               ║
-╚══════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Debug / Audit Entry â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ D                     â”‚ toggle debug mode                â•‘
+â•‘ debug action buttons  â”‚ spawn / hatch / labels          â•‘
+â•‘ save / restore        â”‚ button-driven in debug panel     â•‘
+â•‘ roundtrip / snapshots â”‚ button-driven in debug panel     â•‘
+â•‘ presets / audit world â”‚ button-driven in debug panel     â•‘
+â•‘ replay seed           â”‚ button-driven in debug panel     â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
+
+Current runtime note:
+
+- debug keyboard placement/tool-cycling is disabled
+- audit hotkeys listed in older docs are not consumed by the runtime
+- the debug panel remains the live surface for spawn, save, snapshot, and audit actions
 
 ### 4.3 Debug Buttons
 
@@ -172,44 +178,53 @@ The debug panel also exposes buttons for:
 - hatch all cocoons
 - place flowers for caterpillars
 - toggle sex labels
-- reset progression
-- save / load / verify roundtrip
+- `Reset Progression` for a fresh ecology-state reset
+- save / restore latest save / verify roundtrip
 - capture snapshot
-- check invariants
+- check world
 - compare snapshots
 - load / export / import audit presets
-- run gameplay audit
-- reseed replay session
+- audit world
+- start new replay seed
+
+Important meanings:
+
+- `restore latest save` reloads the single current local save snapshot
+- `check world` runs invariant checks against live state contradictions
+- `audit world` runs the broader roundtrip + snapshot + invariant bundle
+- `start new replay seed` starts a fresh deterministic local test session
 
 ## 5. World, Camera, And Rendering
 
 ```text
-╔════════════════════ World Space ════════════════════╗
-║ canvas        │ 800 x 450                           ║
-║ grid          │ 18 x 18                             ║
-║ tile          │ 18 x 9 isometric                    ║
-║ active zone   │ garden-core                         ║
-║ view modes    │ overview / focused-garden / battle  ║
-╚══════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• World Space â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ canvas        â”‚ 800 x 450                           â•‘
+â•‘ grid          â”‚ 18 x 18 isometric logic grid        â•‘
+â•‘ world layout  â”‚ land-sanctum-world                  â•‘
+â•‘ zones         â”‚ multi-zone section scenes           â•‘
+â•‘ player views  â”‚ focused-garden / battle             â•‘
+â•‘ internal view â”‚ overview remains legacy/internal    â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 Current implementation notes:
 
-- the shipped world foundation is a single-zone base layout
-- the simulation and rendering are already zone-aware
+- the shipped world is a multi-zone land sanctuary layout
+- the simulation and rendering are zone-aware
 - the render manager keeps gameplay ranges separate from visual scale
+- battle uses a separate arena asset and presentation path
 
 ### Render rules
 
 ```text
-╔════════════════════ Render Rules ════════════════════╗
-║ focused garden      │ moving background allowed       ║
-║ overview            │ moving background suppressed    ║
-║ battle              │ moving background off           ║
-║ battle              │ afterimage trails off           ║
-║ reduced motion      │ suppresses extra motion         ║
-║ trail off           │ disables decorative trails      ║
-╚═══════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Render Rules â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ focused garden      â”‚ moving background allowed       â•‘
+â•‘ overview            â”‚ moving background suppressed    â•‘
+â•‘ battle              â”‚ moving background off           â•‘
+â•‘ battle              â”‚ afterimage trails off           â•‘
+â•‘ reduced motion      â”‚ suppresses extra motion         â•‘
+â•‘ trail off           â”‚ disables decorative trails      â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 Important implementation invariant:
@@ -224,16 +239,16 @@ render never changes gameplay distance, collision, or ownership
 ### 6.1 Base Butterfly Archetypes
 
 ```text
-╔════════════════════ Archetype Roster ════════════════════╗
-║ friendly   │ common      │ warm / trusting               ║
-║ cautious   │ uncommon    │ delicate / patient            ║
-║ energetic  │ uncommon    │ fast / zippy                  ║
-║ skittish   │ rare        │ nervous / erratic             ║
-║ wise       │ rare        │ calm / teaching               ║
-║ mystic     │ epic        │ magical / sleep-comfort       ║
-║ golden     │ legendary   │ special / divine              ║
-║ hybrid     │ bred        │ inherited mix                 ║
-╚═══════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Archetype Roster â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ friendly   â”‚ common      â”‚ warm / trusting               â•‘
+â•‘ cautious   â”‚ uncommon    â”‚ delicate / patient            â•‘
+â•‘ energetic  â”‚ uncommon    â”‚ fast / zippy                  â•‘
+â•‘ skittish   â”‚ rare        â”‚ nervous / erratic             â•‘
+â•‘ wise       â”‚ rare        â”‚ calm / teaching               â•‘
+â•‘ mystic     â”‚ epic        â”‚ magical / sleep-comfort       â•‘
+â•‘ golden     â”‚ legendary   â”‚ special / divine              â•‘
+â•‘ hybrid     â”‚ bred        â”‚ inherited mix                 â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 ### 6.2 Base Trait Axes
@@ -252,17 +267,23 @@ These traits affect movement, fear response, feeding reward, and interaction fee
 ### 6.3 Ability Mapping
 
 ```text
-╔════════════════════ Ability Mapping ════════════════════╗
-║ friendly   │ Warm Welcome   │ healing + panic support    ║
-║ cautious   │ Delicate Pink  │ sparkle trail             ║
-║ energetic  │ Electric Violet│ speed zone / state boost  ║
-║ skittish   │ Nervous Jewel  │ trust cascade             ║
-║ wise       │ Ancient Scholar│ teaching aura             ║
-║ mystic     │ Twilight Dancer│ sleep comfort aura        ║
-║ golden     │ legendary      │ special crown state       ║
-║ hybrid     │ inherited      │ one chosen parent ability ║
-╚══════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Ability Mapping â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ friendly   â”‚ Warm Welcome   â”‚ healing + panic support    â•‘
+â•‘ cautious   â”‚ Delicate Pink  â”‚ sparkle trail             â•‘
+â•‘ energetic  â”‚ Electric Violetâ”‚ speed zone / state boost  â•‘
+â•‘ skittish   â”‚ Nervous Jewel  â”‚ trust cascade             â•‘
+â•‘ wise       â”‚ Ancient Scholarâ”‚ teaching aura             â•‘
+â•‘ mystic     â”‚ Twilight Dancerâ”‚ sleep comfort aura        â•‘
+â•‘ golden     â”‚ legendary      â”‚ special crown state       â•‘
+â•‘ hybrid     â”‚ inherited      â”‚ one chosen parent ability â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
+
+Current visual readability rule:
+
+- radius-based support abilities render as colored rings sized to their actual gameplay radius
+- one-shot/pulse abilities render as compact symbols instead of generic pixel bursts
+- the sparkle trail remains pixel-based because the trail itself is the gameplay surface
 
 ### 6.4 Spawn Distribution
 
@@ -283,19 +304,19 @@ A type that has already spawned at least twice gets its weight halved, and the r
 This is the deepest part of the game.
 
 ```text
-╔════════════════════ LifeSim Container ════════════════════╗
-║ identity                                                   ║
-║ drives                                                     ║
-║ emotions                                                   ║
-║ memories                                                   ║
-║ socialEdges                                                ║
-║ routines                                                   ║
-║ interpretation                                             ║
-║ distortion                                                 ║
-║ genetics                                                   ║
-║ upbringing                                                 ║
-║ lifecycle                                                  ║
-╚═════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• LifeSim Container â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ identity                                                   â•‘
+â•‘ drives                                                     â•‘
+â•‘ emotions                                                   â•‘
+â•‘ memories                                                   â•‘
+â•‘ socialEdges                                                â•‘
+â•‘ routines                                                   â•‘
+â•‘ interpretation                                             â•‘
+â•‘ distortion                                                 â•‘
+â•‘ genetics                                                   â•‘
+â•‘ upbringing                                                 â•‘
+â•‘ lifecycle                                                  â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 ### 7.1 Identity
@@ -315,16 +336,16 @@ For butterflies this usually means:
 ### 7.2 Drives
 
 ```text
-╔════════════════════ Drive Families ════════════════════╗
-║ selfMaintenance                                         ║
-║ safetyAvoidance                                         ║
-║ resourceControl                                         ║
-║ socialConnection                                        ║
-║ caregiving                                              ║
-║ exploration                                             ║
-║ statusExpression                                        ║
-║ rest                                                    ║
-╚══════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Drive Families â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ selfMaintenance                                         â•‘
+â•‘ safetyAvoidance                                         â•‘
+â•‘ resourceControl                                         â•‘
+â•‘ socialConnection                                        â•‘
+â•‘ caregiving                                              â•‘
+â•‘ exploration                                             â•‘
+â•‘ statusExpression                                        â•‘
+â•‘ rest                                                    â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 These are the long-running pressures that shape what an agent tends to prioritize.
@@ -332,17 +353,17 @@ These are the long-running pressures that shape what an agent tends to prioritiz
 ### 7.3 Emotion Channels
 
 ```text
-╔════════════════════ Emotion Channels ════════════════════╗
-║ threat                                                    ║
-║ relief                                                    ║
-║ attachment                                                ║
-║ rejection                                                 ║
-║ significance                                              ║
-║ failure                                                   ║
-║ curiosity                                                 ║
-║ agitation                                                 ║
-║ exhaustion                                                ║
-╚════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Emotion Channels â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ threat                                                    â•‘
+â•‘ relief                                                    â•‘
+â•‘ attachment                                                â•‘
+â•‘ rejection                                                 â•‘
+â•‘ significance                                              â•‘
+â•‘ failure                                                   â•‘
+â•‘ curiosity                                                 â•‘
+â•‘ agitation                                                 â•‘
+â•‘ exhaustion                                                â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 These are not a full planner by themselves. They are inputs into the simulation state and owner systems.
@@ -350,16 +371,16 @@ These are not a full planner by themselves. They are inputs into the simulation 
 ### 7.4 Memory Families
 
 ```text
-╔════════════════════ Memory Families ════════════════════╗
-║ place                                                     ║
-║ object                                                    ║
-║ interaction                                               ║
-║ outcome                                                   ║
-║ routine                                                   ║
-║ social                                                    ║
-║ danger                                                    ║
-║ care                                                      ║
-╚════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Memory Families â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ place                                                     â•‘
+â•‘ object                                                    â•‘
+â•‘ interaction                                               â•‘
+â•‘ outcome                                                   â•‘
+â•‘ routine                                                   â•‘
+â•‘ social                                                    â•‘
+â•‘ danger                                                    â•‘
+â•‘ care                                                      â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 Memory packets store:
@@ -379,16 +400,16 @@ Memory packets store:
 ### 7.5 Social Edge Families
 
 ```text
-╔════════════════════ Social Edge Families ════════════════════╗
-║ trust                                                        ║
-║ comfort                                                      ║
-║ attachment                                                   ║
-║ dependence                                                   ║
-║ rivalry                                                      ║
-║ resentment                                                   ║
-║ admiration                                                   ║
-║ protectiveness                                               ║
-╚═══════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Social Edge Families â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ trust                                                        â•‘
+â•‘ comfort                                                      â•‘
+â•‘ attachment                                                   â•‘
+â•‘ dependence                                                   â•‘
+â•‘ rivalry                                                      â•‘
+â•‘ resentment                                                   â•‘
+â•‘ admiration                                                   â•‘
+â•‘ protectiveness                                               â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 Edges are persistent relationship summaries. They are not the same thing as memories.
@@ -396,15 +417,15 @@ Edges are persistent relationship summaries. They are not the same thing as memo
 ### 7.6 Routine Families
 
 ```text
-╔════════════════════ Routine Families ════════════════════╗
-║ movement                                                  ║
-║ social                                                    ║
-║ care                                                      ║
-║ resource                                                  ║
-║ rest                                                      ║
-║ vigilance                                                 ║
-║ teaching                                                  ║
-╚═══════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Routine Families â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ movement                                                  â•‘
+â•‘ social                                                    â•‘
+â•‘ care                                                      â•‘
+â•‘ resource                                                  â•‘
+â•‘ rest                                                      â•‘
+â•‘ vigilance                                                 â•‘
+â•‘ teaching                                                  â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 Routines represent reinforced behavioral tendencies rather than one-off events.
@@ -447,17 +468,17 @@ upbringing adapts, reinforces, suppresses, or distorts over time
 ## 8. Sleep System
 
 ```text
-╔════════════════════ Sleep State Machine ════════════════════╗
-║ awake                                                        ║
-║  ▼ exhaustion threshold / forced sleep                       ║
-║ settling_sleep                                               ║
-║  ▼ settled                                                   ║
-║ normal_sleep                                                 ║
-║  ├─ recovered ───────────────▶ awake                         ║
-║  └─ oversleep pressure ─────▶ oversleeping                   ║
-║                              └─ finished ─────▶ awake        ║
-║ forced_battle_sleep ────────▶ awake when effect ends         ║
-╚═══════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Sleep State Machine â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ awake                                                        â•‘
+â•‘  â–¼ exhaustion threshold / forced sleep                       â•‘
+â•‘ settling_sleep                                               â•‘
+â•‘  â–¼ settled                                                   â•‘
+â•‘ normal_sleep                                                 â•‘
+â•‘  â”œâ”€ recovered â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–¶ awake                         â•‘
+â•‘  â””â”€ oversleep pressure â”€â”€â”€â”€â”€â–¶ oversleeping                   â•‘
+â•‘                              â””â”€ finished â”€â”€â”€â”€â”€â–¶ awake        â•‘
+â•‘ forced_battle_sleep â”€â”€â”€â”€â”€â”€â”€â”€â–¶ awake when effect ends         â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 Sleep state is owned entirely by `SleepSystem`.
@@ -488,14 +509,14 @@ Sleep state is owned entirely by `SleepSystem`.
 ### Current key tuning defaults
 
 ```text
-╔════════════════════ Sleep Balance ════════════════════╗
-║ assist strength default     │ 0.15                   ║
-║ settling duration           │ 1.5 s                  ║
-║ wake minimum sleep          │ 4 s                    ║
-║ normal recovery base        │ 0.032                  ║
-║ oversleep threshold base    │ 0.35                   ║
-║ forced sleep recovery       │ 0.014                  ║
-╚═══════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Sleep Balance â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ assist strength default     â”‚ 0.15                   â•‘
+â•‘ settling duration           â”‚ 1.5 s                  â•‘
+â•‘ wake minimum sleep          â”‚ 4 s                    â•‘
+â•‘ normal recovery base        â”‚ 0.032                  â•‘
+â•‘ oversleep threshold base    â”‚ 0.35                   â•‘
+â•‘ forced sleep recovery       â”‚ 0.014                  â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 Sleep visuals expose:
@@ -508,20 +529,20 @@ Sleep visuals expose:
 ## 9. Teaching, Trust, And Social Pacing
 
 ```text
-╔════════════════════ Teaching Flow ════════════════════╗
-║ wise aura pulse                                         ║
-║  ▼                                                      ║
-║ beginTeach(listener)                                    ║
-║  ▼                                                      ║
-║ active lesson timer                                     ║
-║  ▼                                                      ║
-║ resolve lesson                                          ║
-║  ├─ packet added                                        ║
-║  ├─ upbringing lesson added                             ║
-║  ├─ memory added                                        ║
-║  ├─ social edge adjusted                                ║
-║  └─ routine reinforced                                  ║
-╚══════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Teaching Flow â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ wise aura pulse                                         â•‘
+â•‘  â–¼                                                      â•‘
+â•‘ beginTeach(listener)                                    â•‘
+â•‘  â–¼                                                      â•‘
+â•‘ active lesson timer                                     â•‘
+â•‘  â–¼                                                      â•‘
+â•‘ resolve lesson                                          â•‘
+â•‘  â”œâ”€ packet added                                        â•‘
+â•‘  â”œâ”€ upbringing lesson added                             â•‘
+â•‘  â”œâ”€ memory added                                        â•‘
+â•‘  â”œâ”€ social edge adjusted                                â•‘
+â•‘  â””â”€ routine reinforced                                  â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 `TeachingSystem` handles:
@@ -561,35 +582,41 @@ The current milestone intentionally slows social escalation so:
 Each life-sim state includes a genetics container:
 
 ```text
-╔════════════════════ Genetics Profile ════════════════════╗
-║ source                                                     ║
-║ baselineTraits                                             ║
-║ inheritedTraits                                            ║
-║ heritageTags                                               ║
-║ lineageIds                                                 ║
-║  ├─ parents                                                ║
-║  └─ ancestors                                              ║
-╚═════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Genetics Profile â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ source                                                     â•‘
+â•‘ baselineTraits                                             â•‘
+â•‘ inheritedTraits                                            â•‘
+â•‘ heritageTags                                               â•‘
+â•‘ lineageIds                                                 â•‘
+â•‘  â”œâ”€ parents                                                â•‘
+â•‘  â””â”€ ancestors                                              â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
+
+Current shipped additions:
+
+- `mutationProfile`
+- `lineageTypes`
+- `lineageDepth`
 
 ### 10.2 Breeding Lifecycle
 
 ```text
-╔════════════════════ Breeding Lifecycle ════════════════════╗
-║ eligible male + eligible female                             ║
-║  ▼ pheromone attraction                                     ║
-║ mating state                                                ║
-║  ▼ completeMating                                           ║
-║ pregnancy assigned to female                                ║
-║  ▼ travel to valid flower                                   ║
-║ egg attached to flower                                      ║
-║  ▼ hatch timer                                              ║
-║ caterpillar                                                 ║
-║  ▼ chrysalis flower lifecycle                               ║
-║ hybrid butterfly spawn                                      ║
-║  ▼ progression journal entry                                ║
-║ named hybrid in collection                                  ║
-╚══════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Breeding Lifecycle â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ eligible male + eligible female                             â•‘
+â•‘  â–¼ pheromone attraction                                     â•‘
+â•‘ mating state                                                â•‘
+â•‘  â–¼ completeMating                                           â•‘
+â•‘ pregnancy assigned to female                                â•‘
+â•‘  â–¼ travel to valid flower                                   â•‘
+â•‘ egg attached to flower                                      â•‘
+â•‘  â–¼ hatch timer                                              â•‘
+â•‘ caterpillar                                                 â•‘
+â•‘  â–¼ chrysalis flower lifecycle                               â•‘
+â•‘ hybrid butterfly spawn                                      â•‘
+â•‘  â–¼ hybrid journal entry                                     â•‘
+â•‘ named hybrid in collection                                  â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 ### 10.3 Eligibility Rules
@@ -629,14 +656,14 @@ When the pregnant butterfly reaches a valid flower, the system attaches an egg a
 Hybrid inheritance currently works like this:
 
 ```text
-╔════════════════════ Hybrid Inheritance ════════════════════╗
-║ child sex                 │ random M/F                     ║
-║ core numeric traits       │ average of both parents        ║
-║ special ability           │ one random parent ability      ║
-║ wing donor for each wing  │ random mother/father per wing  ║
-║ colors                    │ average parent colors          ║
-║ fertility uses            │ config-owned bred value        ║
-╚═════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Hybrid Inheritance â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ child sex                 â”‚ random M/F                     â•‘
+â•‘ core numeric traits       â”‚ average of both parents        â•‘
+â•‘ special ability           â”‚ one random parent ability      â•‘
+â•‘ wing donor for each wing  â”‚ random mother/father per wing  â•‘
+â•‘ colors                    â”‚ average parent colors          â•‘
+â•‘ fertility uses            â”‚ config-owned bred value        â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 Inherited trait keys averaged:
@@ -652,47 +679,54 @@ Then:
 
 - `special` is set to the chosen inherited ability, if any
 - a `hybridGenome` stores wing donor sources plus body sex
+- mutation is treated as post-average genetics truth rather than a learned modifier
+- lineage depth, parent refs, and ancestor refs are archived for bred lines
+- lineage rarity is descriptive context only; it stays separate from encounter rarity and unlock logic
+- the shipped runtime does not use a separate hidden latent/dormant numeric trait layer
 
-### 10.6 Hybrid Progression Journal
+### 10.6 Hybrid Journal And Naming
 
-Every new hybrid gets a progression entry with:
+Every new hybrid gets a hybrid journal entry with:
 
 - id
-- name
+- personal name / display name
 - sex
 - born timestamp
 - render spec
 - parent A render spec
 - parent B render spec
 - inherited ability
+- optional one-letter disambiguator when a later living duplicate shares the same first name
 
-The player can rename hybrids in the collection UI with `R`.
+The collection UI exposes a `Rename` button on hybrid pages rather than a
+keyboard shortcut.
 
 ### 10.7 Current Hybrid Tuning Defaults
 
 ```text
-╔════════════════════ Hybrid Balance ════════════════════╗
-║ pheromone radius         │ 132                        ║
-║ mating distance          │ 16                         ║
-║ mating duration          │ 150 frames                 ║
-║ male cooldown            │ 21600 frames               ║
-║ adult hard cap           │ 50                         ║
-║ egg hatch                │ 28800-39600 frames         ║
-║ cocoon hatch             │ 28800-39600 frames         ║
-║ bred fertility uses      │ 1                          ║
-╚═══════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Hybrid Balance â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ pheromone radius         â”‚ 132                        â•‘
+â•‘ mating distance          â”‚ 16                         â•‘
+â•‘ mating duration          â”‚ 150 frames                 â•‘
+â•‘ male cooldown            â”‚ 21600 frames               â•‘
+â•‘ adult hard cap           â”‚ 150                        â•‘
+â•‘ zone soft cap            â”‚ 14                         â•‘
+â•‘ egg hatch                â”‚ 2700-5400 frames           â•‘
+â•‘ cocoon hatch             â”‚ 5400-10800 frames          â•‘
+â•‘ bred fertility uses      â”‚ 1                          â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 ## 11. Status System
 
 ```text
-╔════════════════════ Status Ownership ════════════════════╗
-║ effect families                                            ║
-║ cooldown channels                                          ║
-║ charge channels                                            ║
-║ immunity families                                          ║
-║ aggregated numeric bundle                                  ║
-╚═════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Status Ownership â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ effect families                                            â•‘
+â•‘ cooldown channels                                          â•‘
+â•‘ charge channels                                            â•‘
+â•‘ immunity families                                          â•‘
+â•‘ aggregated numeric bundle                                  â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 The status system stores:
@@ -759,19 +793,19 @@ This is a behavior ownership seam, not a full utility AI planner.
 Battle is intentionally isolated from normal garden truth.
 
 ```text
-╔════════════════════ Battle Separation ════════════════════╗
-║ live garden entities                                        ║
-║  ▼ snapshot participants                                    ║
-║ battle-local mutable truth                                  ║
-║  ├─ hp                                                      ║
-║  ├─ pressure                                                ║
-║  ├─ retreat flags                                           ║
-║  ├─ status bundle clone                                     ║
-║  ├─ cooldowns / charges                                     ║
-║  └─ commit payload                                          ║
-║  ▼ resolve                                                  ║
-║ commit selected results back to live entities               ║
-╚══════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Battle Separation â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ live garden entities                                        â•‘
+â•‘  â–¼ snapshot participants                                    â•‘
+â•‘ battle-local mutable truth                                  â•‘
+â•‘  â”œâ”€ hp                                                      â•‘
+â•‘  â”œâ”€ pressure                                                â•‘
+â•‘  â”œâ”€ retreat flags                                           â•‘
+â•‘  â”œâ”€ status bundle clone                                     â•‘
+â•‘  â”œâ”€ cooldowns / charges                                     â•‘
+â•‘  â””â”€ commit payload                                          â•‘
+â•‘  â–¼ resolve                                                  â•‘
+â•‘ commit selected results back to live entities               â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 Battle snapshots store:
@@ -799,27 +833,27 @@ Battle events include:
 - resolve
 - commit
 
-## 14. Save, Load, And Progression
+## 14. Save, Load, And Ecology State
 
 ### 14.1 Save Boundaries
 
 ```text
-╔════════════════════ Persistence Boundary ════════════════════╗
-║ persist durable truth                                         ║
-║  ├─ entities                                                  ║
-║  ├─ lifeSim                                                   ║
-║  ├─ hybrid journal                                            ║
-║  ├─ sleep durable state                                       ║
-║  ├─ teaching durable state                                    ║
-║  ├─ status/cooldown/charge/immunity                           ║
-║  └─ replay metadata                                           ║
-║                                                               ║
-║ rebuild derived state                                         ║
-║  ├─ aggregated bundles                                        ║
-║  ├─ local summaries                                           ║
-║  ├─ zone focus render context                                 ║
-║  └─ debug text / snapshots                                    ║
-╚═══════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Persistence Boundary â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ persist durable truth                                         â•‘
+â•‘  â”œâ”€ entities                                                  â•‘
+â•‘  â”œâ”€ lifeSim                                                   â•‘
+â•‘  â”œâ”€ hybrid journal                                            â•‘
+â•‘  â”œâ”€ sleep durable state                                       â•‘
+â•‘  â”œâ”€ teaching durable state                                    â•‘
+â•‘  â”œâ”€ status/cooldown/charge/immunity                           â•‘
+â•‘  â””â”€ replay metadata                                           â•‘
+â•‘                                                               â•‘
+â•‘ rebuild derived state                                         â•‘
+â•‘  â”œâ”€ aggregated bundles                                        â•‘
+â•‘  â”œâ”€ local summaries                                           â•‘
+â•‘  â”œâ”€ zone focus render context                                 â•‘
+â•‘  â””â”€ debug text / snapshots                                    â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 ### 14.2 Save format highlights
@@ -829,7 +863,7 @@ The save system serializes:
 - butterflies
 - flowers
 - caterpillars
-- progression state
+- ecology / hybrid state
 - runtime state
 - foundation systems:
   - zones
@@ -838,54 +872,68 @@ The save system serializes:
   - sleep
   - teaching
 
-### 14.3 Progression state
+### 14.3 Ecology / hybrid state
 
-Progression stores:
+The live ecology containers store:
 
-- encountered butterflies
-- collected butterflies
-- butterfly collection stats
+- `ecologyMode = wild-release-loop`
+- per-wild-butterfly mate / departure history
+- starter-pair seeding state
+- releases since respawn / total releases
+- current release batch
+- current release batch lineage / zone counts
+- wild baseline modifiers
+- release history
+- release cohort summaries / modifier highlights
+- per-wild release cohort ids
 - hybrid journal
 - next hybrid id
+- pending offspring reservations
+
+Compatibility note:
+
+- restore logic still accepts older encounter/collection-era fields when loading legacy local saves
+- unlock-shaped containers remain for compatibility with older saves and older UI expectations
+- canonical live ecology truth now belongs to `progressionManager`
 
 ## 15. Debug, Audit, And Playtesting
 
 ### 15.1 Audit Presets
 
 ```text
-╔════════════════════ Audit Presets ════════════════════╗
-║ Sleep Assist                                            ║
-║ Teaching Pair                                           ║
-║ Trust Cascade                                           ║
-║ Social Web                                              ║
-║ Hybrid Lineage                                          ║
-║ Nursery Lineage                                         ║
-╚══════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Audit Presets â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ Sleep Assist                                            â•‘
+â•‘ Teaching Pair                                           â•‘
+â•‘ Trust Cascade                                           â•‘
+â•‘ Social Web                                              â•‘
+â•‘ Hybrid Lineage                                          â•‘
+â•‘ Nursery Lineage                                         â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 ### 15.2 Audit Tools
 
 ```text
-╔════════════════════ Audit Tool Stack ════════════════════╗
-║ save / load                                               ║
-║ roundtrip verifier                                        ║
-║ snapshots                                                 ║
-║ snapshot diff                                             ║
-║ invariant checker                                         ║
-║ gameplay audit                                            ║
-║ replay reseed                                             ║
-║ event reports                                             ║
-╚════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Audit Tool Stack â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ save / restore latest save                                â•‘
+â•‘ roundtrip verifier                                        â•‘
+â•‘ snapshots / diff                                          â•‘
+â•‘ check world invariants                                    â•‘
+â•‘ audit world                                               â•‘
+â•‘ replay seed                                               â•‘
+â•‘ event reports                                             â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
-### 15.3 Gameplay Audit Meaning
+### 15.3 Audit World Meaning
 
-The combined gameplay audit currently summarizes:
+The combined `audit world` flow currently summarizes:
 
 - roundtrip save/load health
 - invariant status
 - snapshot diff status
 - current battle count involvement
+- local audit footer status back to the debug dock
 
 ### 15.4 Playtest docs
 
@@ -896,50 +944,57 @@ Related practical docs:
 
 ## 16. Accessibility And Readability
 
-Player-facing accessibility settings currently include:
+The current `Access` panel exposes:
+
+- high contrast UI
+- trail visibility
+- color mode cycle
+- color mode reset
+- UI scale
+
+Additional runtime defaults still exist in config but are not currently exposed
+as direct Access-panel buttons:
 
 - reduced motion
 - battle motion simplify
-- high contrast UI
 - colorblind-safe indicators
 - strong selection outlines
-- trail visibility: `full / reduced / off`
-- background atmosphere: `full / reduced / minimal`
+- trail visibility: `off / reduced / full`
+- background atmosphere: `full`
 - status indicator density
-- UI scale
 
 The render manager obeys these settings in normal gameplay and battle.
 
 ## 17. Developer Reference Quick Sheet
 
 ```text
-╔════════════════════ Key Files ════════════════════╗
-║ core/config.js            │ tuning / registries    ║
-║ core/entity.js            │ life-sim containers    ║
-║ core/gameCore.js          │ orchestration          ║
-║ entities/butterfly.js     │ archetypes / behavior  ║
-║ systems/sleepSystem.js    │ sleep ownership        ║
-║ systems/teachingSystem.js │ social/lesson owner    ║
-║ systems/statusSystem.js   │ modifiers/cooldowns    ║
-║ systems/breedingSystem.js │ mating + hybrids       ║
-║ systems/battleSystem.js   │ snapshot combat        ║
-║ systems/saveSystem.js     │ persistence            ║
-║ ui/gameUI.js              │ player UI              ║
-║ ui/debugUI.js             │ debug + audit tools    ║
-╚════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Key Files â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ core/config.js            â”‚ tuning / registries    â•‘
+â•‘ core/entity.js            â”‚ life-sim containers    â•‘
+â•‘ core/gameCore.js          â”‚ orchestration          â•‘
+â•‘ entities/butterfly.js     â”‚ archetypes / behavior  â•‘
+â•‘ systems/sleepSystem.js    â”‚ sleep ownership        â•‘
+â•‘ systems/teachingSystem.js â”‚ social/lesson owner    â•‘
+â•‘ systems/statusSystem.js   â”‚ modifiers/cooldowns    â•‘
+â•‘ systems/breedingSystem.js â”‚ mating + hybrids       â•‘
+â•‘ systems/battleSystem.js   â”‚ snapshot combat        â•‘
+â•‘ systems/saveSystem.js     â”‚ persistence            â•‘
+â•‘ ui/gameUI.js              â”‚ player UI              â•‘
+â•‘ ui/debugUI.js             â”‚ debug + audit tools    â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 ## 18. Suggested Reading Order
 
 ```text
-╔════════════════════ Reading Path ════════════════════╗
-║ 1. this developer reference                            ║
-║ 2. PLAYTEST.md                                         ║
-║ 3. PLAYTEST-FEEDBACK.md                                ║
-║ 4. core/config.js                                      ║
-║ 5. core/entity.js                                      ║
-║ 6. breeding / sleep / teaching / status systems        ║
-╚═════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Reading Path â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ 1. this developer reference                            â•‘
+â•‘ 2. PLAYTEST.md                                         â•‘
+â•‘ 3. PLAYTEST-FEEDBACK.md                                â•‘
+â•‘ 4. core/config.js                                      â•‘
+â•‘ 5. core/entity.js                                      â•‘
+â•‘ 6. breeding / sleep / teaching / status systems        â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 ## 19. Summary
@@ -947,9 +1002,10 @@ The render manager obeys these settings in normal gameplay and battle.
 ```text
 Papilionem currently works as:
 
-a living garden simulation
+a multi-zone living garden simulation
 with persistent internal state
-plus hybrid breeding and audit tooling
+plus a wild ecology / release-driven lineage loop, ML-backed decision layers,
+single-player autobattle, and local audit tooling
 wrapped in a player-facing and tester-facing shell
 ```
 
@@ -960,14 +1016,14 @@ That is the cleanest way to think about the game right now.
 This section is the literal tunable surface currently centralized in `core/config.js`.
 
 ```text
-╔════════════════════ Config Map ════════════════════╗
-║ rendering / canvas / grid / isometric             ║
-║ entities / particles / colorPools                 ║
-║ interaction / effects / debug                     ║
-║ accessibility / simulation                        ║
-║ balance.sleep / balance.social / balance.hybrid   ║
-║ world / registries / systems                      ║
-╚════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• Config Map â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘ rendering / canvas / grid / isometric             â•‘
+â•‘ entities / particles / colorPools                 â•‘
+â•‘ interaction / effects / debug                     â•‘
+â•‘ accessibility / simulation                        â•‘
+â•‘ balance.sleep / balance.social / balance.hybrid   â•‘
+â•‘ world / registries / systems                      â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 ```
 
 ### 20.1 Rendering
@@ -1023,6 +1079,9 @@ This section is the literal tunable surface currently centralized in `core/confi
 
 ### 20.6 Butterfly Base Config
 
+This config list still exists, but the live butterfly roster comes from the
+runtime archetype registries rather than this three-label compatibility array.
+
 | Key | Value |
 | --- | --- |
 | `entities.butterfly.size` | `12` |
@@ -1051,7 +1110,7 @@ These are implementation weights in `entities/butterfly.js`, not `core/config.js
 
 | Key | Value |
 | --- | --- |
-| `entities.flower.types` | `daisy, tulip, rose, sunflower, lily` |
+| `entities.flower.types` | `daisy, tulip, sprout, lavender, bush` |
 | `entities.flower.stemHeight` | `16` |
 | `entities.flower.stageDurations.bloom` | `1200` |
 | `entities.flower.stageDurations.mature` | `2400` |
@@ -1089,6 +1148,10 @@ These are implementation weights in `entities/butterfly.js`, not `core/config.js
 | `colorPools.gridSize` | `40` |
 
 ### 20.11 Interaction
+
+These cursor comfort/flee radii remain a compatibility-tuning surface. The live
+zone/ecology/archetype identity model comes from the zone and stat-profile
+systems rather than these three legacy labels alone.
 
 | Key | Value |
 | --- | --- |
@@ -1131,6 +1194,9 @@ These are implementation weights in `entities/butterfly.js`, not `core/config.js
 
 ### 20.14 Accessibility
 
+These are runtime defaults from `core/config.js`; the current Access panel only
+surfaces high contrast, trails, color mode/color off, and UI scale directly.
+
 | Key | Value |
 | --- | --- |
 | `accessibility.reducedMotion` | `false` |
@@ -1138,7 +1204,7 @@ These are implementation weights in `entities/butterfly.js`, not `core/config.js
 | `accessibility.highContrastUI` | `false` |
 | `accessibility.colorblindSafeIndicators` | `true` |
 | `accessibility.strongSelectionOutlines` | `true` |
-| `accessibility.trailVisibility` | `full` |
+| `accessibility.trailVisibility` | `off` |
 | `accessibility.backgroundAtmosphere` | `full` |
 | `accessibility.statusIndicatorDensity` | `simplified` |
 | `accessibility.uiScale` | `1` |
@@ -1224,29 +1290,32 @@ These are implementation weights in `entities/butterfly.js`, not `core/config.js
 | `balance.hybrid.matingDistance` | `16` |
 | `balance.hybrid.matingDurationFrames` | `150` |
 | `balance.hybrid.pheromoneCooldownFrames` | `21600` |
-| `balance.hybrid.adultHardCap` | `50` |
-| `balance.hybrid.eggHatchFrames.min` | `28800` |
-| `balance.hybrid.eggHatchFrames.max` | `39600` |
-| `balance.hybrid.cocoonHatchFrames.min` | `28800` |
-| `balance.hybrid.cocoonHatchFrames.max` | `39600` |
+| `balance.hybrid.adultHardCap` | `150` |
+| `balance.hybrid.zoneAdultSoftCap` | `14` |
+| `balance.hybrid.zoneReservationCap` | `2` |
+| `balance.hybrid.eggHatchFrames.min` | `2700` |
+| `balance.hybrid.eggHatchFrames.max` | `5400` |
+| `balance.hybrid.cocoonHatchFrames.min` | `5400` |
+| `balance.hybrid.cocoonHatchFrames.max` | `10800` |
 | `balance.hybrid.bredFertilityUses` | `1` |
 
 ### 20.19 World
 
 | Key | Value |
 | --- | --- |
-| `world.layout` | `single-zone-foundation` |
+| `world.layout` | `land-sanctum-world` |
+| `world.renderMode` | `section-scenes` |
 | `world.overviewMode` | `false` |
 | `world.viewModes` | `overview, focused-garden, battle` |
-| `world.zones[0].id` | `garden-core` |
-| `world.zones[0].label` | `Garden Core` |
-| `world.zones[0].kind` | `garden` |
-| `world.zones[0].poolAllowed` | `true` |
+| `world.zones[0].id` | `ivy-cloister` |
+| `world.zones[0].label` | `Open Land NW` |
+| `world.zones[0].kind` | `open-land` |
+| `world.zones[0].poolAllowed` | `false` |
 | `world.zones[0].bounds.minX` | `0` |
-| `world.zones[0].bounds.maxX` | `17` |
+| `world.zones[0].bounds.maxX` | `8` |
 | `world.zones[0].bounds.minY` | `0` |
-| `world.zones[0].bounds.maxY` | `17` |
-| `world.zones[0].renderProfile.movingBackgroundEffectsInFocus` | `true` |
+| `world.zones[0].bounds.maxY` | `8` |
+| `world.zones[0].renderProfile.movingBackgroundEffectsInFocus` | `false` |
 | `world.zones[0].renderProfile.movingBackgroundEffectsInOverview` | `false` |
 | `world.zones[0].renderProfile.afterimageTrailsInFocus` | `true` |
 | `world.zones[0].renderProfile.afterimageTrailsInBattle` | `false` |
@@ -1273,18 +1342,18 @@ These are behavior rules in `systems/breedingSystem.js`, not config fields.
 
 ```text
 eligible male + eligible female
-        ▼
+        â–¼
 female locks onto strongest nearby male in pheromone radius
-        ▼
+        â–¼
 distance <= matingDistance
-        ▼
+        â–¼
 mating for matingDurationFrames
-        ▼
+        â–¼
 completeMating()
-        ├─ fertility uses decremented
-        ├─ male cooldown applied
-        ├─ lifecycleData created
-        └─ pregnancy assigned to female
+        â”œâ”€ fertility uses decremented
+        â”œâ”€ male cooldown applied
+        â”œâ”€ lifecycleData created
+        â””â”€ pregnancy assigned to female
 ```
 
 Exact inheritance behavior:
@@ -1297,4 +1366,5 @@ Exact inheritance behavior:
 | wing donors | chosen independently per wing: `foreLeft`, `foreRight`, `hindLeft`, `hindRight` |
 | colors | parent primary/secondary colors averaged |
 | hybrid fertility | bred offspring get `bredFertilityUses` from config |
-| persistence | `hybridGenome`, `lineageIds`, pregnancy/lifecycle data, progression journal entry |
+| persistence | `hybridGenome`, `lineageIds`, pregnancy/lifecycle data, hybrid journal entry |
+

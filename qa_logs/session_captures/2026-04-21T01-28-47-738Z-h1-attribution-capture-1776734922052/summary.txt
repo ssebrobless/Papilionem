@@ -1,0 +1,39 @@
+Papilionem Session Capture
+session: capture_1776734922052
+label: h1-attribution
+started: 2026-04-21T01:28:42.052Z
+stopped: 2026-04-21T01:28:47.726Z
+durationMs: 5674
+
+Runtime
+pressureTier: critical
+lagCategory: render-dominant
+avgUpdateMs: 15.40
+avgRenderMs: 18.81
+avgParticleRenderMs: 0.00
+maxUpdateMs: 42.80
+maxRenderMs: 42.20
+maxParticleCount: 0
+shell: focused-garden | feed, inspect, access
+lagSummary: Render-dominant lag: render 18.81ms vs update 15.40ms, led by compositeMs.
+topUpdate: foundationMs 8.38ms | entityMs 6.37ms | foundation.lifeSimSystemMs 5.07ms | entity.butterflyUpdateMs 3.90ms
+topRender: compositeMs 11.45ms | composite.totalCompositeMs 11.42ms | composite.entitiesCompositeMs 10.52ms | entityLayerMs 6.24ms
+
+Counts
+timelineEntries: 8
+eventHistoryEntries: 250
+replayMarkers: 0
+runtimeIssues: 0
+errors: 0
+warnings: 0
+freezeSuspects: 0
+spikes: 3
+snapshots: 3
+
+State
+start: focused-garden | ivy-cloister | butterflies 12 | blocks 108
+end: focused-garden | ivy-cloister | butterflies 12 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T01-28-47-738Z-h1-attribution-capture-1776734922052\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T01-28-47-738Z-h1-attribution-capture-1776734922052\summary.txt

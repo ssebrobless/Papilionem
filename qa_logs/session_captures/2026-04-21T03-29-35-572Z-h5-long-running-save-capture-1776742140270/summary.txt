@@ -1,0 +1,39 @@
+Papilionem Session Capture
+session: capture_1776742140270
+label: h5-long-running-save
+started: 2026-04-21T03:29:00.270Z
+stopped: 2026-04-21T03:29:35.547Z
+durationMs: 35277
+
+Runtime
+pressureTier: critical
+lagCategory: render-dominant
+avgUpdateMs: 6.66
+avgRenderMs: 15.92
+avgParticleRenderMs: 0.05
+maxUpdateMs: 0.00
+maxRenderMs: 43.90
+maxParticleCount: 8
+shell: focused-garden | journal
+lagSummary: Render-dominant lag: render 15.92ms vs update 6.66ms, led by uiLayerMs.
+topUpdate: foundationMs 4.40ms | foundation.zoneEcologyCadence 3.00ms | foundation.lifeSimSystemMs 2.30ms | entityMs 2.18ms
+topRender: uiLayerMs 7.34ms | compositeMs 5.53ms | composite.totalCompositeMs 5.51ms | composite.entitiesCompositeMs 3.40ms
+
+Counts
+timelineEntries: 22
+eventHistoryEntries: 250
+replayMarkers: 0
+runtimeIssues: 0
+errors: 0
+warnings: 0
+freezeSuspects: 1
+spikes: 3
+snapshots: 9
+
+State
+start: focused-garden | ivy-cloister | butterflies 4 | blocks 108
+end: focused-garden | sun-court | butterflies 5 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T03-29-35-572Z-h5-long-running-save-capture-1776742140270\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T03-29-35-572Z-h5-long-running-save-capture-1776742140270\summary.txt

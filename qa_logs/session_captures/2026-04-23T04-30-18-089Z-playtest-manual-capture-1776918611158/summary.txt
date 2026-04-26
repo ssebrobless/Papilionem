@@ -1,0 +1,56 @@
+Papilionem Session Capture
+session: capture_1776918611158
+label: playtest-manual
+started: 2026-04-23T04:30:11.158Z
+stopped: 2026-04-23T04:30:18.075Z
+durationMs: 6917
+
+Runtime
+pressureTier: hot
+lagCategory: mixed
+avgUpdateMs: 6.39
+avgRenderMs: 13.27
+avgParticleRenderMs: 0.14
+p50FrameMs: 19.60
+p95FrameMs: 35.40
+p99FrameMs: 41.40
+maxUpdateMs: 37.70
+maxRenderMs: 0.00
+maxParticleCount: 0
+compositeCallsPerFrame: 5.48
+uiRedrawCount: 192
+debugRedrawCount: 96
+timelineDroppedCount: 0
+frameTimesDroppedCount: 0
+runtimeIssuesDroppedCount: 0
+eventHistoryDroppedCount: 0
+heapSampleCount: 3
+peakHeapUsedMB: 124.93
+heap@10sMB: 0.00
+heap@60sMB: 0.00
+heap@10mMB: 0.00
+heap@20mMB: 0.00
+heap@40mMB: 0.00
+shell: focused-garden | debug
+lagSummary: Mixed lag: update 6.39ms and render 13.27ms are both materially loaded.
+topUpdate: foundationMs 5.53ms | foundation.lifeSimSystemMs 4.57ms | foundation.zoneEcologyCadence 2.00ms | foundation.zoneEcologyRefreshApplied 0.50ms
+topRender: compositeMs 10.14ms | composite.totalCompositeMs 10.13ms | composite.entitiesCompositeMs 9.38ms | uiLayerMs 1.98ms
+
+Counts
+timelineEntries: 8
+eventHistoryEntries: 250
+replayMarkers: 1
+runtimeIssues: 0
+errors: 0
+warnings: 0
+freezeSuspects: 0
+spikes: 1
+snapshots: 3
+
+State
+start: focused-garden | ivy-cloister | butterflies 12 | blocks 108
+end: focused-garden | sun-court | butterflies 12 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-23T04-30-18-089Z-playtest-manual-capture-1776918611158\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-23T04-30-18-089Z-playtest-manual-capture-1776918611158\summary.txt

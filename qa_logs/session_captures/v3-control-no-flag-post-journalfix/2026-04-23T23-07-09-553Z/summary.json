@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v3-control-no-flag-post-journalfix\\2026-04-23T23-07-09-553Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 28.195505632443375,
+      "avgRenderMs": 29.716853937406217,
+      "p95FrameMs": 75.60000014305115,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 26.244166678190233,
+      "avgRenderMs": 33.32749999364217,
+      "p95FrameMs": 79.70000004768372,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 44.64500000874202,
+      "avgRenderMs": 33.63333333134651,
+      "p95FrameMs": 93.49999976158142,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 27.277500011523564,
+      "avgRenderMs": 30.063333328564962,
+      "p95FrameMs": 74.50000023841858,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

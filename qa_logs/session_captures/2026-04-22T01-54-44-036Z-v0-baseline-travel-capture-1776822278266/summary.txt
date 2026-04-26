@@ -1,0 +1,52 @@
+Papilionem Session Capture
+session: capture_1776822278266
+label: v0-baseline-travel
+started: 2026-04-22T01:44:38.266Z
+stopped: 2026-04-22T01:54:43.948Z
+durationMs: 605682
+
+Runtime
+pressureTier: critical
+lagCategory: render-dominant
+avgUpdateMs: 32.38
+avgRenderMs: 37.57
+avgParticleRenderMs: 0.00
+p50FrameMs: 65.00
+p95FrameMs: 86.50
+p99FrameMs: 100.60
+maxUpdateMs: 61.10
+maxRenderMs: 62.80
+maxParticleCount: 5
+compositeCallsPerFrame: 4.67
+uiRedrawCount: 4155
+debugRedrawCount: 0
+heapSampleCount: 118
+peakHeapUsedMB: 159.26
+heap@10sMB: 159.26
+heap@60sMB: 159.26
+heap@10mMB: 159.26
+heap@20mMB: 0.00
+heap@40mMB: 0.00
+shell: focused-garden | journal
+lagSummary: Render-dominant lag: render 37.57ms vs update 32.38ms, led by compositeMs.
+topUpdate: foundationMs 25.43ms | foundation.lifeSimSystemMs 20.30ms | entityMs 6.67ms | physicsMs 4.80ms
+topRender: compositeMs 14.68ms | composite.totalCompositeMs 14.67ms | composite.entitiesCompositeMs 13.62ms | uiLayerMs 11.64ms
+
+Counts
+timelineEntries: 480
+eventHistoryEntries: 250
+replayMarkers: 0
+runtimeIssues: 0
+errors: 0
+warnings: 0
+freezeSuspects: 10
+spikes: 886
+snapshots: 118
+
+State
+start: focused-garden | pool-heart | butterflies 28 | blocks 108
+end: focused-garden | sun-court | butterflies 28 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-22T01-54-44-036Z-v0-baseline-travel-capture-1776822278266\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-22T01-54-44-036Z-v0-baseline-travel-capture-1776822278266\summary.txt

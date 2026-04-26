@@ -6,9 +6,12 @@ class MainColorPool {
         // Pool location in grid coordinates
         this.gridCenter = { x: 8.5, y: 7 };
         this.gridRadius = 5; // 5 grid squares in each direction
+        this.sectionRotationDegrees = 0;
         
         // Convert to screen coordinates
         const screenCenter = gridManager.isoToScreen(this.gridCenter.x, this.gridCenter.y);
+        this.baseX = screenCenter.x;
+        this.baseY = screenCenter.y;
         this.x = screenCenter.x;
         this.y = screenCenter.y;
         
@@ -40,6 +43,27 @@ class MainColorPool {
         console.log(`🌀 Main Color Pool created at screen position (${this.x}, ${this.y})`);
     }
     
+    rotatePointForSection(point, rotationDegrees = this.sectionRotationDegrees) {
+        if (!rotationDegrees) return { ...point };
+        const centerX = gameConfig.canvas.baseWidth / 2;
+        const centerY = gameConfig.canvas.baseHeight / 2;
+        const rotationRadians = radians(rotationDegrees);
+        const dx = point.x - centerX;
+        const dy = point.y - centerY;
+
+        return {
+            x: centerX + (dx * cos(rotationRadians)) - (dy * sin(rotationRadians)),
+            y: centerY + (dx * sin(rotationRadians)) + (dy * cos(rotationRadians))
+        };
+    }
+
+    setSectionRotation(rotationDegrees = 0) {
+        this.sectionRotationDegrees = rotationDegrees || 0;
+        const rotatedCenter = this.rotatePointForSection({ x: this.baseX, y: this.baseY });
+        this.x = rotatedCenter.x;
+        this.y = rotatedCenter.y;
+    }
+
     // Update pool state and handle spawning
     update(butterflies, particleSystem) {
         const wildButterflyCount = butterflies.filter(butterfly => butterfly.birthSource !== 'bred').length;
@@ -62,8 +86,7 @@ class MainColorPool {
         // Check for butterfly spawning
         if (this.glowIntensity >= this.spawnThreshold && 
             this.spawnCooldown === 0 && 
-            wildButterflyCount < gameConfig.entities.maxButterflies &&
-            totalAdultCount < (typeof breedingSystem !== 'undefined' ? breedingSystem.adultHardCap : Infinity)) {
+            wildButterflyCount < gameConfig.entities.maxButterflies) {
             this.spawnButterfly(butterflies, particleSystem);
         }
         
@@ -210,7 +233,7 @@ class MainColorPool {
         const archways = [
             { x: 232, y: 139 },  // Left archway
             { x: 589, y: 103 },  // Right archway
-        ];
+        ].map(archway => this.rotatePointForSection(archway));
         const archway = archways[Math.floor(random(2))];
         
         // Check if we should spawn the golden butterfly
@@ -258,15 +281,11 @@ class MainColorPool {
         // Add butterfly to game
         butterflies.push(newButterfly);
         
-        // Track encountered butterfly types
-        if (typeof gameCore !== 'undefined' && gameCore.gameState) {
-            gameCore.gameState.encounteredButterflies.add(newButterfly.personalityType);
-            if (newButterfly.personalityType === 'golden') {
-                gameCore.gameState.goldenButterflySpawned = true;
-            }
-            if (typeof progressionManager !== 'undefined') {
-                progressionManager.save(gameCore.gameState);
-            }
+        // Delegate legacy pool progression to the canonical progression owner.
+        if (typeof gameCore !== 'undefined' && gameCore.gameState && typeof progressionManager !== 'undefined') {
+            progressionManager.recordEncounter(gameCore.gameState, newButterfly.personalityType, {
+                source: 'colorPool'
+            });
         }
         
         // Create spawn animation effect at pool
@@ -308,7 +327,17 @@ class MainColorPool {
     
     // Check if conditions are met to spawn the golden butterfly
     shouldSpawnGoldenButterfly() {
+        // Golden now participates in the canonical unlocked ladder and should not
+        // use the old single-special-spawn path.
+        return false;
         if (typeof gameCore === 'undefined' || !gameCore.gameState) return false;
+        if (typeof progressionManager !== 'undefined') {
+            const unlocked = progressionManager.isGoldenUnlocked?.(gameCore.gameState);
+            if (unlocked) {
+                console.log('ðŸŒŸ All butterflies collected! Golden butterfly can now spawn!');
+            }
+            return !!unlocked && !gameCore.gameState.goldenButterflySpawned;
+        }
         
         const state = gameCore.gameState;
         
@@ -714,6 +743,7 @@ class MainColorPool {
         const glowRatio = Math.max(baseGlow, this.glowIntensity / this.maxGlowIntensity);
         const pulseval = sin(this.pulseTimer) * 0.15 + 0.85;
         const progress = this.glowIntensity / this.spawnThreshold;
+        const progressPercent = Math.round(Math.min(progress * 100, 100));
 
         // Progress ring
         push();
@@ -734,18 +764,22 @@ class MainColorPool {
         }
         pop();
 
-        // Percentage text
+        // Percentage text - keep it anchored to the pool center so flowers do not crowd it
         push();
-        translate(1, 1);
+        translate(0, 8);
         textAlign(CENTER, CENTER);
+        stroke(255, 255, 255, 90);
+        strokeWeight(1);
+        fill(22, 18, 32, 158);
+        ellipse(0, 0, 42, 22);
         noStroke();
-        fill(0, 0, 0, 120);
-        ellipse(0, -60, 35, 18);
+        fill(255, 248, 228, 72);
+        ellipse(0, -2, 28, 8);
         textSize(11);
         fill(255, 255, 255, 250);
-        stroke(0, 0, 0, 150);
-        strokeWeight(0.8);
-        text(Math.round(Math.min(progress * 100, 100)) + "%", 0, -60);
+        stroke(0, 0, 0, 170);
+        strokeWeight(0.9);
+        text(`${progressPercent}%`, 0, 0);
         pop();
 
         // Spiral vortex — draw to main canvas (offset down to align with pool color)

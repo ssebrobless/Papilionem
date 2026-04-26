@@ -1,0 +1,395 @@
+{
+  "title": "Papilionem Source Book",
+  "subtitle": "Master reference for systems, contracts, plans, and player/developer guidance",
+  "outputBaseName": "PAPILIONEM-SOURCE-BOOK",
+  "chapters": [
+    {
+      "title": "Orientation",
+      "intro": "Start here for the overall shape of the game, the documentation map, and the current player and developer references.",
+      "sources": [
+        {
+          "path": "docs/README.md",
+          "title": "Documentation Map"
+        },
+        {
+          "path": "docs/PAPILIONEM-GUIDEBOOK.md",
+          "title": "Developer Reference"
+        },
+        {
+          "path": "docs/PAPILIONEM-PLAYER-GUIDE.md",
+          "title": "Player Guide"
+        }
+      ]
+    },
+    {
+      "title": "Core Contracts",
+      "intro": "These are the locked rules for the current game. When behavior drifts, these are the first places to reconcile against live code and audits.",
+      "sources": [
+        {
+          "path": "docs/GENETICS-STAT-CONTRACT.md",
+          "title": "Genetics / Stat Contract"
+        },
+        {
+          "path": "docs/COGNITION-ML-CONTRACT.md",
+          "title": "Cognition / ML Contract"
+        },
+        {
+          "path": "docs/COMMUNICATION-LANGUAGE-CONTRACT.md",
+          "title": "Communication / Language Contract"
+        },
+        {
+          "path": "docs/DIALOGUE-VOICE-CONTRACT.md",
+          "title": "Dialogue Voice Contract"
+        },
+        {
+          "path": "docs/DIALOGUE-MEMORY-RELATIONSHIP-CONTRACT.md",
+          "title": "Dialogue Memory / Relationship Contract"
+        },
+        {
+          "path": "docs/INTERNAL-SIGNAL-CONTRACT.md",
+          "title": "Internal Signal Contract"
+        },
+        {
+          "path": "docs/COGNITION-ADDENDUM-NEW-SYSTEMS.md",
+          "title": "Cognition Addendum for New Systems"
+        },
+        {
+          "path": "docs/ML-IMPLEMENTATION-CONTRACT.md",
+          "title": "ML Implementation Contract"
+        },
+        {
+          "path": "docs/WILD-ECOLOGY-RELEASE-CONTRACT.md",
+          "title": "Wild Ecology / Release Contract"
+        },
+        {
+          "path": "docs/SINGLE-PLAYER-AUTOBATTLE-CONTRACT.md",
+          "title": "Single-Player Autobattle Contract"
+        }
+      ]
+    },
+    {
+      "title": "Implementation Plans and Closure",
+      "intro": "These chapters collect the frozen execution path, the current coverage matrix, the live-versus-deferred boundary docs for the repaired runtime, the now-completed expansion record, and the active public-share readiness track.",
+      "sources": [
+        {
+          "path": "docs/ACTIVE-REPAIR-BOARD.md",
+          "title": "Active Repair Board"
+        },
+        {
+          "path": "docs/ACTIVE-POLISH-BOARD.md",
+          "title": "Active Polish Board"
+        },
+        {
+          "path": "docs/SOURCE-CHAPTER-COVERAGE-MATRIX.md",
+          "title": "Source-Chapter Coverage Matrix"
+        },
+        {
+          "path": "docs/ACTIVE-IMPLEMENTATION-BOARD.md",
+          "title": "Active Implementation Board"
+        },
+        {
+          "path": "docs/ACTIVE-EXPANSION-BOARD.md",
+          "title": "Active Expansion Board"
+        },
+        {
+          "path": "docs/REMAINING-IMPLEMENTATION-ROADMAP.md",
+          "title": "Remaining Implementation Roadmap"
+        },
+        {
+          "path": "docs/EXPANSION-EXECUTION-PLAYBOOK.md",
+          "title": "Expansion Execution Playbook"
+        },
+        {
+          "path": "docs/ACTIVE-PUBLIC-SHARE-BOARD.md",
+          "title": "Active Public-Share Board"
+        },
+        {
+          "path": "docs/ACTIVE-PLAN-REGISTRY.md",
+          "title": "Active Plan Registry"
+        },
+        {
+          "path": "docs/ACTIVE-COMPLETION-BOARD.md",
+          "title": "Active Completion Board"
+        },
+        {
+          "path": "docs/GAME-SUCCESS-CRITERIA.md",
+          "title": "Game Success Criteria"
+        },
+        {
+          "path": "docs/CURRENT-STATE-GAP-ASSESSMENT.md",
+          "title": "Current-State Gap Assessment"
+        },
+        {
+          "path": "docs/GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md",
+          "title": "Goal-Alignment Implementation Plan"
+        },
+        {
+          "path": "docs/GOAL-ALIGNMENT-REVIEW-PACKET.md",
+          "title": "Goal-Alignment Review Packet"
+        },
+        {
+          "path": "docs/ACTIVE-PLAYTEST-FOLLOWUP-BOARD.md",
+          "title": "Active Playtest Follow-Up Board"
+        },
+        {
+          "path": "docs/ACTIVE-RUNTIME-HARDENING-BOARD.md",
+          "title": "Active Runtime Hardening Board"
+        },
+        {
+          "path": "docs/ACTIVE-VISUAL-FIRST-RUNTIME-BOARD.md",
+          "title": "Active Visual-First Runtime Board"
+        },
+        {
+          "path": "docs/PUBLIC-SHARE-READINESS-ROADMAP.md",
+          "title": "Public-Share Readiness Roadmap"
+        },
+        {
+          "path": "docs/PLAYTEST-FOLLOWUP-ROADMAP.md",
+          "title": "Playtest Follow-Up Roadmap"
+        },
+        {
+          "path": "docs/RUNTIME-HARDENING-ROADMAP.md",
+          "title": "Runtime Hardening Roadmap"
+        },
+        {
+          "path": "docs/VISUAL-FIRST-RUNTIME-OPTIMIZATION-PLAN.md",
+          "title": "Visual-First Runtime Optimization Plan"
+        },
+        {
+          "path": "docs/VISUAL-FIRST-RUNTIME-OPTIMIZATION-PLAN-REFINED.md",
+          "title": "Visual-First Runtime Optimization Plan Refined"
+        },
+        {
+          "path": "docs/BASELINE.md",
+          "title": "Baseline Ledger"
+        },
+        {
+          "path": "docs/V0-5-FREE-WINS-AUDIT.md",
+          "title": "V0.5 Free-Wins Audit"
+        },
+        {
+          "path": "docs/V1-SHELL-UI-SEPARATION-AUDIT.md",
+          "title": "V1 Shell-UI Separation Audit"
+        },
+        {
+          "path": "docs/V2-MEMORY-GROWTH-AUDIT.md",
+          "title": "V2 Memory-Growth Audit"
+        },
+        {
+          "path": "docs/SPRITE-CACHE-CONTRACT.md",
+          "title": "Sprite Cache Contract"
+        },
+        {
+          "path": "docs/V3-SPRITE-BAKING-AUDIT.md",
+          "title": "V3 Sprite Baking Audit"
+        },
+        {
+          "path": "docs/V4-SIM-CADENCE-AUDIT.md",
+          "title": "V4 Sim Cadence Audit"
+        },
+        {
+          "path": "docs/V5-COMPOSITE-REDUCTION-AUDIT.md",
+          "title": "V5 Composite Reduction Audit"
+        },
+        {
+          "path": "docs/V6-WORKER-OFFLOAD-AUDIT.md",
+          "title": "V6 Worker Offload Audit"
+        },
+        {
+          "path": "docs/V7-VISUAL-RESTORATION-AUDIT.md",
+          "title": "V7 Visual Restoration Audit"
+        },
+        {
+          "path": "docs/ACTIVE-SPATIAL-UNIFICATION-BOARD.md",
+          "title": "Active Spatial Unification Board"
+        },
+        {
+          "path": "docs/SPATIAL-UNIT-CONTRACT.md",
+          "title": "Spatial Unit Contract"
+        },
+        {
+          "path": "docs/SPATIAL-BOUNDARY-EXPANSION-AUDIT.md",
+          "title": "Spatial Boundary Expansion Audit"
+        },
+        {
+          "path": "docs/DOORWAY-CORRIDOR-ALIGNMENT-AUDIT.md",
+          "title": "Doorway Corridor Alignment Audit"
+        },
+        {
+          "path": "docs/ENTITY-FOOTPRINT-UNIFICATION-AUDIT.md",
+          "title": "Entity Footprint Unification Audit"
+        },
+        {
+          "path": "docs/BLOCK-PLACEMENT-SUPPORT-UNIFICATION-AUDIT.md",
+          "title": "Block Placement + Support Unification Audit"
+        },
+        {
+          "path": "docs/SHARED-INTERACTION-SPACE-RECONCILIATION-AUDIT.md",
+          "title": "Shared Interaction-Space Reconciliation Audit"
+        },
+        {
+          "path": "docs/SPATIAL-SAVE-MIGRATION-AUDIT.md",
+          "title": "Spatial Save Migration Audit"
+        },
+        {
+          "path": "docs/SPATIAL-UNIFICATION-ROADMAP.md",
+          "title": "Spatial Unification Roadmap"
+        },
+        {
+          "path": "docs/ACTIVE-SOCIAL-COGNITION-BOARD.md",
+          "title": "Active Social-Cognition Board"
+        },
+        {
+          "path": "docs/SOCIAL-COGNITION-ROADMAP.md",
+          "title": "Social-Cognition Roadmap"
+        },
+        {
+          "path": "docs/SOCIAL-TRUTH-AUDIT.md",
+          "title": "Social Truth Audit"
+        },
+        {
+          "path": "docs/SOCIAL-MEASUREMENT-HARNESS.md",
+          "title": "Social Measurement Harness"
+        },
+        {
+          "path": "docs/SOCIAL-FAMILY-LOCK.md",
+          "title": "Social Family Lock"
+        },
+        {
+          "path": "docs/SOCIAL-MOTIVE-REBALANCE-AUDIT.md",
+          "title": "Social Motive Rebalance Audit"
+        },
+        {
+          "path": "docs/PAIR-CHEMISTRY-TEXTURE-AUDIT.md",
+          "title": "Pair Chemistry Texture Audit"
+        },
+        {
+          "path": "docs/BUTTERFLY-SOCIETY-GROUP-TONE-AUDIT.md",
+          "title": "Butterfly Society Group Tone Audit"
+        },
+        {
+          "path": "docs/DIALOGUE-BEHAVIOR-FOLLOW-THROUGH-AUDIT.md",
+          "title": "Dialogue-Behavior Follow-Through Audit"
+        },
+        {
+          "path": "docs/NEURAL-SOCIAL-SCORING-AUDIT.md",
+          "title": "Neural-Social Scoring Audit"
+        },
+        {
+          "path": "docs/SOCIAL-SURFACING-PROOF-AUDIT.md",
+          "title": "Social Surfacing Proof Audit"
+        },
+        {
+          "path": "docs/SOCIAL-SAVE-CONTINUITY-AUDIT.md",
+          "title": "Social Save Continuity Audit"
+        },
+        {
+          "path": "docs/EXTERNAL-PLAYTEST-MATRIX.md",
+          "title": "External Playtest Matrix"
+        },
+        {
+          "path": "docs/PLAYTEST-TRIAGE-LOG.md",
+          "title": "Playtest Triage Log"
+        },
+        {
+          "path": "docs/IMPLEMENTATION-PARITY-AUDIT.md",
+          "title": "Implementation Parity Audit"
+        },
+        {
+          "path": "docs/PLAYER-FACING-POLISH-AUDIT.md",
+          "title": "Player-Facing Polish Audit"
+        },
+        {
+          "path": "docs/INTENT-AND-EXCLUSIONS-LEDGER.md",
+          "title": "Intent and Exclusions Ledger"
+        },
+        {
+          "path": "docs/GRAND-PLAN-CLOSURE-ROADMAP.md",
+          "title": "Grand-Plan Closure Roadmap"
+        },
+        {
+          "path": "docs/IMPLEMENTATION-RECOVERY-PLAN.md",
+          "title": "Implementation Recovery Plan"
+        },
+        {
+          "path": "docs/SOURCE-BOOK-DESTALING-RULES.md",
+          "title": "Source-Book De-Staling Rules"
+        },
+        {
+          "path": "docs/RECOVERY-BLOCKER-LEDGER.md",
+          "title": "Recovery Blocker Ledger"
+        },
+        {
+          "path": "docs/CURRENT-SPATIAL-TRUTH.md",
+          "title": "Current Spatial Truth"
+        },
+        {
+          "path": "docs/LATER-3D-PHYSICS-IMPLEMENTATION-PLAN.md",
+          "title": "Later 3D Physics Implementation Plan"
+        },
+        {
+          "path": "docs/CLOSURE-AUDIT-MATRIX.md",
+          "title": "Closure Audit Matrix"
+        },
+        {
+          "path": "docs/COMPLETENESS-AUDIT.md",
+          "title": "Completeness Audit"
+        },
+        {
+          "path": "docs/LIFESIM-EXPRESSION-AUDIT.md",
+          "title": "Life-Sim Expression Audit"
+        }
+      ]
+    },
+    {
+      "title": "Architecture and Diagram Appendices",
+      "intro": "These appendices capture the architecture prompt pack and the derived diagram-planning docs used to communicate game shape visually.",
+      "sources": [
+        {
+          "path": "docs/GEMINI-DIAGRAM-PROMPTS.md",
+          "title": "Diagram Prompt Pack"
+        },
+        {
+          "path": "docs/DIAGRAM-ASSET-REGISTRY.md",
+          "title": "Diagram Asset Registry"
+        },
+        {
+          "path": "docs/guidebook/diagrams/README.md",
+          "title": "Diagram Save Location"
+        },
+        {
+          "path": "docs/guidebook/gemini-prompts/01-whole-game-architecture.md",
+          "title": "Whole-Game Systems Architecture"
+        },
+        {
+          "path": "docs/guidebook/gemini-prompts/02-life-sim-state-container.md",
+          "title": "Life-Sim State Container"
+        },
+        {
+          "path": "docs/guidebook/gemini-prompts/03-sleep-state-machine.md",
+          "title": "Sleep State Machine"
+        },
+        {
+          "path": "docs/guidebook/gemini-prompts/04-teaching-trust-flow.md",
+          "title": "Teaching Trust Flow"
+        },
+        {
+          "path": "docs/guidebook/gemini-prompts/05-genetics-breeding-lifecycle.md",
+          "title": "Genetics Breeding Lifecycle"
+        },
+        {
+          "path": "docs/guidebook/gemini-prompts/06-controls-ui-map.md",
+          "title": "Controls and UI Map"
+        },
+        {
+          "path": "docs/guidebook/gemini-prompts/07-save-load-audit-workflow.md",
+          "title": "Save Load Audit Workflow"
+        },
+        {
+          "path": "docs/guidebook/gemini-prompts/08-battle-snapshot-separation.md",
+          "title": "Battle Snapshot Separation"
+        }
+      ]
+    }
+  ]
+}

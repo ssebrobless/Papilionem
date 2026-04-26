@@ -1,0 +1,52 @@
+Papilionem Session Capture
+session: capture_1776811016146
+label: playtest-manual
+started: 2026-04-21T22:36:56.146Z
+stopped: 2026-04-21T22:37:33.599Z
+durationMs: 37453
+
+Runtime
+pressureTier: critical
+lagCategory: simulation-dominant
+avgUpdateMs: 26.06
+avgRenderMs: 7.73
+avgParticleRenderMs: 0.00
+p50FrameMs: 33.60
+p95FrameMs: 48.20
+p99FrameMs: 54.30
+maxUpdateMs: 47.60
+maxRenderMs: 0.00
+maxParticleCount: 0
+compositeCallsPerFrame: 5.09
+uiRedrawCount: 1068
+debugRedrawCount: 534
+heapSampleCount: 9
+peakHeapUsedMB: 188.23
+heap@10sMB: 178.66
+heap@60sMB: 0.00
+heap@10mMB: 0.00
+heap@20mMB: 0.00
+heap@40mMB: 0.00
+shell: focused-garden | debug
+lagSummary: Simulation-dominant lag: update 26.06ms vs render 7.73ms, led by foundationMs.
+topUpdate: foundationMs 20.76ms | foundation.lifeSimSystemMs 17.56ms | entityMs 5.06ms | physicsMs 3.56ms
+topRender: entityLayerMs 6.73ms | debugLayerMs 0.41ms | compositeMs 0.32ms | composite.totalCompositeMs 0.31ms
+
+Counts
+timelineEntries: 39
+eventHistoryEntries: 250
+replayMarkers: 1
+runtimeIssues: 0
+errors: 0
+warnings: 0
+freezeSuspects: 1
+spikes: 27
+snapshots: 9
+
+State
+start: focused-garden | moss-hollow | butterflies 28 | blocks 108
+end: focused-garden | moss-hollow | butterflies 28 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T22-37-33-649Z-playtest-manual-capture-1776811016146\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T22-37-33-649Z-playtest-manual-capture-1776811016146\summary.txt

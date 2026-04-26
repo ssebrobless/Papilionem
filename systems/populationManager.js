@@ -5,6 +5,7 @@ class EntityManager {
             butterflies: [],
             caterpillars: [],
             flowers: [],
+            blocks: [],
             particles: [],
             pools: []
         };
@@ -233,20 +234,18 @@ class EntityManager {
     
     // Spawn helpers
     spawnButterfly(x, y, colors) {
-        if (this.getCount('butterflies') >= this.entityLimits.butterflies ||
-            this.getCount('butterflies') >= ((typeof breedingSystem !== 'undefined') ? breedingSystem.adultHardCap : Infinity)) {
+        if (this.getCount('butterflies') >= this.entityLimits.butterflies) {
             return null;
         }
         
         const butterfly = new Butterfly(x, y, colors || null); // Allow custom colors or use personality
         this.addEntity('butterflies', butterfly);
         
-        // Mark as encountered
-        if (typeof gameCore !== 'undefined' && gameCore.gameState) {
-            gameCore.gameState.encounteredButterflies.add(butterfly.personalityType);
-            if (typeof progressionManager !== 'undefined') {
-                progressionManager.save(gameCore.gameState);
-            }
+        // Route legacy spawn seams through the canonical progression owner.
+        if (typeof gameCore !== 'undefined' && gameCore.gameState && typeof progressionManager !== 'undefined') {
+            progressionManager.recordEncounter(gameCore.gameState, butterfly.personalityType, {
+                source: butterfly.birthSource || 'wild'
+            });
         }
         
         return butterfly;

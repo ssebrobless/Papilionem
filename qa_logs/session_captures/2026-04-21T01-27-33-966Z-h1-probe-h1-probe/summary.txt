@@ -1,0 +1,39 @@
+Papilionem Session Capture
+session: h1-probe
+label: h1-probe
+started: unknown
+stopped: unknown
+durationMs: 1
+
+Runtime
+pressureTier: unknown
+lagCategory: unknown
+avgUpdateMs: 0.00
+avgRenderMs: 0.00
+avgParticleRenderMs: 0.00
+maxUpdateMs: 0.00
+maxRenderMs: 0.00
+maxParticleCount: 0
+shell: unknown
+lagSummary: n/a
+topUpdate: none
+topRender: none
+
+Counts
+timelineEntries: 0
+eventHistoryEntries: 0
+replayMarkers: 0
+runtimeIssues: 0
+errors: 0
+warnings: 0
+freezeSuspects: 0
+spikes: 0
+snapshots: 0
+
+State
+start: unknown | none | butterflies 0 | blocks 0
+end: unknown | none | butterflies 0 | blocks 0
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T01-27-33-966Z-h1-probe-h1-probe\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T01-27-33-966Z-h1-probe-h1-probe\summary.txt

@@ -1,0 +1,14 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-family-attribution-calm\\2026-04-24T18-22-09-788Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.453333328167598,
+      "avgRenderMs": 14.869166670242945,
+      "p95FrameMs": 25.299999952316284,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

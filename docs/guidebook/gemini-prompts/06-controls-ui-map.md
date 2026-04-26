@@ -9,43 +9,36 @@ Create a control map and UI layout poster for Papilionem.
 
 Group controls into:
 - title/start controls
-- normal garden controls
-- accessibility controls
-- debug controls
-- audit controls
-- collection controls
+- top-right shell buttons
+- live keyboard inputs
+- access panel controls
+- inspect actions
+- debug panel actions
+- journal / roster controls
 
 Include:
+- any key / click to leave title
+- top-right buttons: Save, Journal, Feed, Inspect, Access, Battle, Next Zone
 - D debug mode
-- B boundary zones
-- C collection
-- I inspect
-- A accessibility panel
-- M reduced motion
-- T trail visibility
-- G background atmosphere
-- H high contrast UI
-- S battle motion simplify
-- Q/E debug tool cycle
-- Space debug placement
-- K save
-- L load
-- V roundtrip verify
-- N snapshot diff
-- P next audit preset
-- O export audit setup
-- U import audit setup
-- Y gameplay audit
-- J reseed replay
-- arrow keys for collection navigation
-- R rename current hybrid
+- B boundary overlay while held
+- O overview mode toggle
+- left/right arrows for journal navigation
+- Escape to cancel Inspect release mode
+- Rename button on hybrid journal pages
+- Feed filters: Talk, Actions, Learn
+- Access controls: High contrast, Trails, Color mode, Color off, UI scale
+- Inspect actions: List, Release, Roster, Mate
+- Debug panel buttons: Save Game, Restore Save, Verify Roundtrip, Capture Snapshot, Check World, Compare Snapshots, Load Audit Preset, Export Audit Setup, Import Audit Setup, Audit World, New Replay Seed
+- note that old panel hotkeys are retired and the shell is button-first
 
 Also show the main UI regions:
 - inspect panel
 - accessibility panel
 - debug panel
 - battle HUD
-- butterfly collection notebook
+- butterfly journal
+- battle journal / roster page
+- Feed panel
 
 Make it look like a player-developer reference sheet.
 ```

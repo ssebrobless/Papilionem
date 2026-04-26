@@ -130,6 +130,36 @@ const BUTTERFLY_VARIANT_ABILITIES = {
     golden: 'golden'
 };
 
+const BUTTERFLY_ABILITY_SOURCE_VARIANTS = {
+    welcome: 'friendly',
+    sparkle: 'cautious',
+    speedzone: 'energetic',
+    cascade: 'skittish',
+    teacher: 'wise',
+    shimmer: 'mystic',
+    golden: 'golden'
+};
+
+const BUTTERFLY_VARIANT_DISPLAY_NAMES = {
+    friendly: 'WarmWelcome',
+    cautious: 'DelicatePink',
+    energetic: 'ElectricViolet',
+    skittish: 'NervousJewel',
+    wise: 'AncientScholar',
+    mystic: 'TwilightDancer',
+    golden: 'Golden'
+};
+
+const BUTTERFLY_ABILITY_VISUALS = {
+    welcome: { style: 'ring', radius: 90, durationFrames: 28 },
+    sparkle: { style: 'trail' },
+    speedzone: { style: 'ring', radius: 100, durationFrames: 32 },
+    cascade: { style: 'symbol', symbol: '🤝', fallbackSymbol: 'S', durationFrames: 30 },
+    teacher: { style: 'symbol', symbol: '📘', fallbackSymbol: 'T', durationFrames: 30 },
+    shimmer: { style: 'ring', radius: 85, durationFrames: 26 },
+    golden: { style: 'symbol', symbol: '👑', fallbackSymbol: '★', durationFrames: 32 }
+};
+
 // Original spawn percentages (golden removed - it's special unlock only)
 const BUTTERFLY_SPAWN_WEIGHTS = {
     friendly: 40,
@@ -216,19 +246,35 @@ function getRandomPersonality() {
     return 'friendly';
 }
 
+function chooseProgressionPersonality() {
+    if (typeof progressionManager !== 'undefined' && typeof gameCore !== 'undefined' && gameCore?.gameState) {
+        const chosen = progressionManager.chooseWildVariant?.(gameCore.gameState, { allowGolden: true });
+        if (chosen) {
+            return chosen;
+        }
+    }
+    return getRandomPersonality();
+}
+
 class Butterfly extends Entity {
     constructor(x, y, colors, isImmortal = false, personalityType = null, options = {}) {
         super(x, y);
         this.id = generateEntityId('butterfly');
         
         // Personality system (must be set first to get size)
-        this.personalityType = personalityType || getRandomPersonality();
+        this.personalityType = personalityType || chooseProgressionPersonality();
         this.sex = options.sex || (random() < 0.5 ? 'M' : 'F');
         this.birthSource = options.birthSource || 'wild';
         this.hybridGenome = options.hybridGenome || null;
         this.isHybrid = !!options.isHybrid || !!this.hybridGenome || this.personalityType === 'hybrid';
+        this.renderSpecCache = null;
+        this.collectionRenderSpecCache = null;
+        this.mutationProfile = options.mutationProfile || null;
         this.displayName = options.displayName || null;
+        this.personalName = options.personalName || null;
+        this.nameDisambiguator = options.nameDisambiguator || null;
         this.hybridEntryId = options.hybridEntryId || null;
+        this.currentZoneId = options.currentZoneId || null;
         this.pheromoneCooldownUntil = options.pheromoneCooldownUntil || 0;
         this.fertilityUsesRemaining = options.fertilityUsesRemaining ?? (this.birthSource === 'bred'
             ? (gameConfig?.balance?.hybrid?.bredFertilityUses ?? 1)
@@ -261,12 +307,20 @@ class Butterfly extends Entity {
         } else {
             this.personality = BUTTERFLY_PERSONALITIES[this.personalityType];
         }
-        this.traits = { ...this.personality.traits };
+        this.bodySpriteScale = this.sex === 'M' ? 0.8 : 1.0;
+        this.wingSpriteScale = this.sex === 'F' ? 1.2 : 1.0;
+        this.traits = {
+            ...this.personality.traits,
+            ...(options.customTraits || {})
+        };
         const defaultAbility = this.isHybrid
             ? null
             : (BUTTERFLY_VARIANT_ABILITIES[this.personalityType] || null);
         this.specialAbility = options.specialAbility ?? options.customAbility ?? options.customTraits?.special ?? defaultAbility;
         this.traits.special = this.specialAbility;
+        this.visualCueCooldowns = {
+            sparkleSeed: 0
+        };
         this.lifeSim = createBaseLifeSimState({
             entityType: 'butterfly',
             archetype: this.personalityType,
@@ -286,13 +340,38 @@ class Butterfly extends Entity {
                 curiosity: Math.min(1, this.traits.speed * 0.4),
                 agitation: Math.min(1, this.traits.jitteriness * 0.35)
             },
+            communication: {
+                expressiveness: Math.max(0.2, Math.min(1, 0.28 + this.traits.trustPropensity * 0.22 + this.traits.happinessBonus * 0.06)),
+                receptivity: Math.max(0.2, Math.min(1, 0.3 + this.traits.scareThreshold * 0.1)),
+                clarityBias: Math.max(-0.25, Math.min(0.25, (this.traits.trustSpeed - 1) * 0.12)),
+                lexicon: {},
+                activeSignal: null,
+                recentEmitted: [],
+                recentReceived: []
+            },
             genetics: {
                 source: this.isHybrid ? 'hybrid' : this.birthSource,
                 baselineTraits: this.traits,
-                heritageTags: [this.personalityType, this.personality.wingPattern || 'solid'].filter(Boolean)
+                inheritedTraits: options.inheritedTraits || (this.isHybrid ? this.traits : {}),
+                mutationProfile: this.mutationProfile,
+                heritageTags: (options.heritageTags || [
+                    this.personalityType,
+                    this.personality.wingPattern || 'solid',
+                    this.mutationProfile?.active ? 'mutant' : null
+                ]).filter(Boolean),
+                lineageTypes: (options.lineageTypes || [
+                    this.personalityType !== 'hybrid' ? this.personalityType : null
+                ]).filter(Boolean),
+                lineageDepth: Math.max(0, options.lineageDepth ?? (this.isHybrid ? 1 : 0)),
+                parentIds: options.parentIds || [],
+                ancestorIds: options.ancestorIds || []
+            },
+            progression: {
+                originType: this.birthSource === 'bred' ? 'bred' : 'wild'
             },
             lifecycle: {
-                stage: 'adult'
+                stage: 'adult',
+                currentZoneId: this.currentZoneId
             }
         });
         
@@ -304,6 +383,7 @@ class Butterfly extends Entity {
         this.maxEngagementTimer = 10800;
         this.criticalEngagementThreshold = 3600; // 1 minute - warning phase
         this.fadeStartThreshold = 1200; // 20 seconds - start fading
+        this.engagementDecayEnabled = false;
         
         this.shadowOffset = gameConfig.entities.heightOffset.butterfly;
         
@@ -428,10 +508,15 @@ class Butterfly extends Entity {
             currentPatience: 0,
             trustLevel: 0,
             trustGlowAlpha: 0,
+            trustDisplayTriggered: false,
+            trustRewardCooldownFrames: 0,
+            calmedByCursor: false,
+            clapFear: 0,
             followDistance: 30,
             maxFollowTime: 600,
             followingPos: null
         };
+        this.signalDecisionCooldownFrames = 0;
         
         // === VISUAL PROPERTIES ===
         this.visual = {
@@ -470,6 +555,23 @@ class Butterfly extends Entity {
             sparkleTrail: [], // For cautious butterflies
             teachingAura: false, // For wise butterflies
             trustCascadeCache: [] // Pre-allocated for skittish
+        };
+
+        this.blockInteraction = {
+            targetBlockId: null,
+            carryingBlockId: null,
+            placementTarget: null,
+            lastPlacementMode: 'ground',
+            cooldownFrames: Math.floor(random(72, 156)),
+            lastRelativeSize: 0,
+            carryFrames: 0
+        };
+
+        this.dispersal = {
+            recentSectorKeys: [],
+            recentAnchorIds: [],
+            lastRecordedSectorKey: null,
+            lastRecordedFrame: 0
         };
         
         // === SPAWN EFFECTS ===
@@ -512,6 +614,20 @@ class Butterfly extends Entity {
         if (this.state === 'normal' && (!this.movement.target || !this.movement.targetType)) {
             this.pickNewWanderTarget();
         }
+
+        if (this.state === 'normal' && !this.zoneTravel && !this.pendingPollenDropTarget) {
+            const nearbyCrowd = this.getNearbyButterflyCount(84);
+            const crowdPressure = Math.min(1, nearbyCrowd / 6);
+            const crowdRetargetFrame = 45 + (((this.id || '').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)) % 17);
+            if (
+                crowdPressure > 0.62
+                && this.movement.targetType === 'meander'
+                && frameCount % crowdRetargetFrame === 0
+            ) {
+                this.timers.wander.current = 0;
+                this.pickNewWanderTarget();
+            }
+        }
         
         // 1. Update timers first
         const timerSignals = this.timers.update();
@@ -523,11 +639,20 @@ class Butterfly extends Entity {
         this.updateFeedingCooldowns();
         
         // 4. Update visual properties
+        if (this.cursor.trustRewardCooldownFrames > 0) {
+            this.cursor.trustRewardCooldownFrames--;
+        }
+        if (this.signalDecisionCooldownFrames > 0) {
+            this.signalDecisionCooldownFrames--;
+        }
+        if (this.cursor.clapFear > 0) {
+            this.cursor.clapFear = Math.max(0, this.cursor.clapFear - 0.0008);
+        }
         if (this.timers.exclamation > 0) {
             this.visual.exclamationY -= 0.5;
         }
         if (this.cursor.trustGlowAlpha > 0 && this.cursor.currentPatience === 0) {
-            this.cursor.trustGlowAlpha = Math.max(0, this.cursor.trustGlowAlpha - 5);
+            this.cursor.trustGlowAlpha = Math.max(0, this.cursor.trustGlowAlpha - 12);
         }
 
         const sleepState = this.getSleepState();
@@ -558,16 +683,34 @@ class Butterfly extends Entity {
         this.updateWings();
         this.updateSpecialAbilities(gameState);
 
-        // 9.5 Record afterimage snapshot
-        if (frameCount % this.afterimageInterval === 0) {
-            this.afterimages.push({ x: this.x, y: this.y, wingAngle: this.visual.wingAngle });
-            if (this.afterimages.length > this.afterimageMax) {
-                this.afterimages.shift();
+        // 9.5 Record afterimage snapshot only when the current render profile can afford it
+        const trailMode = typeof renderManager !== 'undefined'
+            ? renderManager.getTrailVisibilityMode?.() || 'reduced'
+            : 'reduced';
+        if (trailMode === 'off') {
+            this.afterimages.length = 0;
+        } else {
+            const afterimageInterval = trailMode === 'reduced'
+                ? Math.max(this.afterimageInterval, 7)
+                : this.afterimageInterval;
+            const afterimageMax = trailMode === 'reduced'
+                ? Math.min(this.afterimageMax, 6)
+                : this.afterimageMax;
+            if (frameCount % afterimageInterval === 0) {
+                this.afterimages.push({ x: this.x, y: this.y, wingAngle: this.visual.wingAngle });
+                if (this.afterimages.length > afterimageMax) {
+                    this.afterimages.shift();
+                }
             }
         }
         
         // 10. Update spawn effects
         this.updateSpawnEffects(particleSystem);
+
+        const dispersalConfig = this.getDispersalConfig();
+        if (frameCount - (this.dispersal.lastRecordedFrame || 0) >= dispersalConfig.visitRecordIntervalFrames) {
+            this.recordDispersalVisit();
+        }
         
         // 11. Handle timer signals
         if (timerSignals.includes('wander') && this.state === 'normal') {
@@ -589,6 +732,18 @@ class Butterfly extends Entity {
 
     updateSleepingState(gameState, sleepState) {
         const { particleSystem } = gameState;
+        const allBlocks = gameState?.blocks || [];
+        const carriedBlock = this.getCarriedBlock(allBlocks);
+
+        if (carriedBlock) {
+            this.releaseCarriedBlockForSleep(allBlocks);
+        }
+
+        if (this.getCarriedBlock(allBlocks)) {
+            sleepSystem?.wakeEntity?.(this.id, 'carrying-block');
+            this.movement.clearTarget();
+            return;
+        }
 
         this.afterimages.length = 0;
         this.movement.target.x = this.gridPos.x;
@@ -620,8 +775,9 @@ class Butterfly extends Entity {
         this.spawnTimer--;
         const maxSpawnTimer = this.personalityType === 'golden' ? 300 : 180;
         this.spawnGlowIntensity = this.spawnTimer / maxSpawnTimer;
+        const crowdSuppression = this.getCrowdSuppressionFactor(96);
 
-        if (this.spawnTimer % 10 === 0) {
+        if (crowdSuppression > 0.36 && this.spawnTimer % 14 === 0) {
             const sparkleColor = this.personalityType === 'golden'
                 ? [255, 215, 0]
                 : [255, 255, 200];
@@ -640,11 +796,14 @@ class Butterfly extends Entity {
     getSpeed() {
         // Base speed from personality
         let speed = this.speeds.base;
+        const behaviorBiases = this.lifeSim?.derived?.behaviorBiases || {};
         
         // State-based modifiers (in priority order)
         if (this.state === 'feeding') return 0;
         if (this.state === 'mating') return 0;
-        if (this.state === 'scared') return this.speeds.flee;
+        if (this.state === 'scared') {
+            return this.speeds.flee * (1 + ((behaviorBiases.caution || 0) * 0.18));
+        }
         if (this.state === 'pregnant-travel') return this.speeds.seeking * 1.15;
         if (this.timers.postFeedingDash > 0) return this.speeds.dash;
         
@@ -658,6 +817,14 @@ class Butterfly extends Entity {
                          (this.maxHappiness - this.baselineHappiness);
             speed = speed + (this.speeds.happy - speed) * ratio;
         }
+
+        if (this.movement.targetType === 'goal') {
+            speed *= 1 + ((behaviorBiases.feedUrgency || 0) * 0.14);
+        } else if (this.movement.targetType === 'meander') {
+            speed *= Math.max(0.7, Math.min(1.32, behaviorBiases.wanderScale || 1));
+        } else {
+            speed *= 0.96 + ((behaviorBiases.socialConfidence || 0) * 0.08);
+        }
         
         const movementSpeedBonus = this.getStatusStrength('movement_speed_bonus');
         if (movementSpeedBonus > 0) {
@@ -670,6 +837,15 @@ class Butterfly extends Entity {
     // === STATE MANAGEMENT ===
     checkStateTransitions(gameState) {
         const { cursorVelocity, adjustedMouseX, adjustedMouseY, particleSystem } = gameState;
+        const caution = this.lifeSim?.derived?.behaviorBiases?.caution || 0;
+        const socialConfidence = this.lifeSim?.derived?.behaviorBiases?.socialConfidence || 0;
+        const cursorTrustBuffer = this.cursor.calmedByCursor ? 0.42 : 0.24;
+        const fearPenalty = this.cursor.clapFear * 0.55;
+        const riskProfile = this.getDecisionRiskProfile();
+        const effectiveScareThreshold = this.constants.scareThreshold * Math.max(
+            1.05,
+            1.28 + cursorTrustBuffer + (socialConfidence * 0.08) - (caution * 0.18) - fearPenalty
+        ) * (riskProfile.scareThresholdMultiplier || 1);
         
         // Check for fast cursor movement (scare response)
         if (this.timers.scareImmunity === 0 && this.state !== 'display') {
@@ -677,8 +853,9 @@ class Butterfly extends Entity {
             const dy = this.y - adjustedMouseY;
             const distToCursorSq = dx*dx + dy*dy;
             
-            if (cursorVelocity > this.constants.scareThreshold && 
-                distToCursorSq < this.constants.scareRadius * this.constants.scareRadius) {
+            const scareRadius = this.constants.scareRadius * (riskProfile.scareRadiusMultiplier || 0.72);
+            if (cursorVelocity > effectiveScareThreshold &&
+                distToCursorSq < (scareRadius * scareRadius)) {
                 if (this.state !== 'scared') {
                     this.changeState('scared', { cursorX: adjustedMouseX, cursorY: adjustedMouseY });
                 }
@@ -710,7 +887,7 @@ class Butterfly extends Entity {
         console.log(`🦋 STATE CHANGE: ${oldState} → ${newState}`);
         
         // Emit state change event
-        eventBus.emit('butterfly:stateChange', {
+        eventBus.emit(GameEvents?.BUTTERFLY_STATE_CHANGED || 'butterfly:stateChange', {
             butterfly: this,
             from: oldState,
             to: newState
@@ -725,6 +902,12 @@ class Butterfly extends Entity {
                 this.visual.exclamationY = -5;
                 this.movement.clearTarget();
                 this.setFleeTarget(data.cursorX, data.cursorY);
+                eventBus.emit(GameEvents?.COMMUNICATION_SIGNAL || 'communication:signal', {
+                    sourceId: this.id,
+                    sourceButterfly: this,
+                    signalType: 'warning_signal',
+                    intent: 'warn nearby butterflies'
+                });
                 // Reduce happiness slightly
                 const happinessLoss = 2 + random(1, 3);
                 this.happiness = Math.max(5, this.happiness - happinessLoss);
@@ -742,6 +925,11 @@ class Butterfly extends Entity {
                 this.feeding.startHappiness = this.happiness;
                 this.feeding.targetFlower = data.flower;
                 if (data.flower) {
+                    if (data.flower.currentFeeder && data.flower.currentFeeder !== this) {
+                        this.feeding.targetFlower = null;
+                        this.movement.clearTarget('goal');
+                        break;
+                    }
                     data.flower.currentFeeder = this;
                     // Position close to flower
                     const flowerGrid = gridManager.screenToIso(data.flower.x, data.flower.y);
@@ -767,42 +955,19 @@ class Butterfly extends Entity {
                 this.movement.smoothFollowTarget.y = this.gridPos.y;
                 this.movement.clearTarget();
                 this.cursor.trustGlowAlpha = 0;
-                
-                // Mark this butterfly type as collected!
-                if (!this.isHybrid && typeof gameCore !== 'undefined' && gameCore.gameState) {
-                    const wasCollected = gameCore.gameState.collectedButterflies.has(this.personalityType);
-                    gameCore.gameState.collectedButterflies.add(this.personalityType);
-                    
-                    // Also ensure it's marked as encountered (should already be, but let's be safe)
-                    gameCore.gameState.encounteredButterflies.add(this.personalityType);
-                    
-                    // Initialize collection stats if needed
-                    if (!gameCore.gameState.butterflyCollectionStats[this.personalityType]) {
-                        gameCore.gameState.butterflyCollectionStats[this.personalityType] = {
-                            firstCollectedTime: frameCount,
-                            timesCollected: 0,
-                            timesFed: 0
-                        };
-                    }
-                    
-                    gameCore.gameState.butterflyCollectionStats[this.personalityType].timesCollected++;
-                    
-                    // Emit collection event if this is the first time
-                    if (!wasCollected) {
-                        console.log(`🏆 NEW BUTTERFLY COLLECTED: ${this.personalityType}!`);
-                        eventBus.emit('butterfly:collected', {
-                            butterfly: this,
-                            type: this.personalityType,
-                            totalCollected: gameCore.gameState.collectedButterflies.size
-                        });
-                    }
-                    progressionManager.save(gameCore.gameState);
-                }
+
                 break;
 
             case 'mating':
                 this.timers.mating = this.breeding.matingTimer || 120;
                 this.movement.clearTarget();
+                eventBus.emit(GameEvents?.COMMUNICATION_SIGNAL || 'communication:signal', {
+                    sourceId: this.id,
+                    sourceButterfly: this,
+                    signalType: 'courtship_signal',
+                    intent: 'court nearby butterflies',
+                    targetId: this.breeding.partnerId || null
+                });
                 break;
 
             case 'pregnant-travel':
@@ -889,6 +1054,7 @@ class Butterfly extends Entity {
             // We've reached the target - clear it
             const wasImmediate = this.movement.targetType === 'immediate';
             const wasGoal = this.movement.targetType === 'goal';
+            this.recordDispersalVisit();
             this.movement.clearTarget();
             
             // If we're in normal state, always pick a new wander target
@@ -912,23 +1078,79 @@ class Butterfly extends Entity {
             moveY = sin(angle);
         }
         
-        // Update grid position
-        this.gridPos.x += moveX * currentSpeed;
-        this.gridPos.y += moveY * currentSpeed;
-        
-        // Constrain to bounds
-        this.gridPos.x = constrain(this.gridPos.x, 2, gridManager.bounds.maxX - 2);
-        this.gridPos.y = constrain(this.gridPos.y, 2, gridManager.bounds.maxY - 2);
-        
-        // Convert to screen space
-        const newScreenPos = gridManager.isoToScreen(this.gridPos.x, this.gridPos.y);
-        this.x = newScreenPos.x;
-        this.y = newScreenPos.y - this.shadowOffset;
+        const baseAngle = atan2(moveY, moveX);
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+        const steerOffsets = [0, 0.42, -0.42, 0.8, -0.8, 1.15, -1.15];
+        const currentGroundPoint = {
+            x: this.x || 0,
+            y: (this.y || 0) + (this.shadowOffset || 0)
+        };
+        const targetScreen = gridManager.isoToScreen(this.movement.target.x, this.movement.target.y);
+        const candidateGroundPoints = [];
+
+        for (const offset of steerOffsets) {
+            const stepAngle = baseAngle + offset;
+            const candidateGridX = this.gridPos.x + (cos(stepAngle) * currentSpeed);
+            const candidateGridY = this.gridPos.y + (sin(stepAngle) * currentSpeed);
+            const candidateScreen = gridManager.isoToScreen(candidateGridX, candidateGridY);
+            const allowDoorways = !!gameCore?.shouldAllowDoorwayTraversalForButterfly?.(this, {
+                zoneId,
+                currentPoint: currentGroundPoint,
+                targetPoint: targetScreen,
+                candidatePoint: candidateScreen
+            });
+            candidateGroundPoints.push({
+                x: candidateScreen.x,
+                y: candidateScreen.y,
+                allowDoorways
+            });
+        }
+
+        if (!candidateGroundPoints.length) {
+            return;
+        }
+
+        const resolvedMove = gameCore?.physicsSystem?.resolveButterflyMotionIntent?.(this, {
+            zoneId,
+            fromPoint: currentGroundPoint,
+            candidateGroundPoints,
+            source: this.movement.targetType || 'movement',
+            gameState: gameCore?.gameState
+        });
+
+        if (!resolvedMove?.point && candidateGroundPoints[0]) {
+            this.x = candidateGroundPoints[0].x;
+            this.y = candidateGroundPoints[0].y - this.shadowOffset;
+            this.gridPos = gridManager.screenToIso(this.x, this.y + this.shadowOffset);
+        }
+
+        if (this.pendingPollenDropTarget) {
+            const dropDistance = Math.hypot(this.x - this.pendingPollenDropTarget.x, this.y - this.pendingPollenDropTarget.y);
+            if (dropDistance < 18) {
+                gameCore?.completePollenDrop?.(this);
+            }
+        }
     }
     
     // === STATE BEHAVIOR IMPLEMENTATIONS ===
     executeNormalBehavior(gameState) {
-        const { flowers } = gameState;
+        const { flowers, blocks } = gameState;
+        const displayConfidence = this.lifeSim?.derived?.behaviorBiases?.displayConfidence || 0;
+        const socialConfidence = this.lifeSim?.derived?.behaviorBiases?.socialConfidence || 0;
+        
+        if (
+            this.timers.postFeedingCooldown === 0 &&
+            !this.lifeSim?.communication?.activeSignal &&
+            displayConfidence > 0.72 &&
+            socialConfidence > 0.4 &&
+            this.getNearbyButterflyCount(84) < 4 &&
+            random() < 0.0025
+        ) {
+            this.changeState('display', { reason: 'life-sim-expression' });
+            return;
+        }
+
+        this.maybeEmitDecisionSignal(gameState);
         
         // Always ensure we have a movement target
         if (!this.movement.target || !this.movement.targetType) {
@@ -936,25 +1158,24 @@ class Butterfly extends Entity {
             // Don't return early - continue with behavior logic
         }
         
-        // Check if we should seek flowers
-        if (this.happiness < this.baselineHappiness && this.timers.postFeedingCooldown === 0) {
-            if (this.movement.targetType === 'goal') {
-                // Check if we've reached the flower
-                const dx = this.gridPos.x - this.movement.target.x;
-                const dy = this.gridPos.y - this.movement.target.y;
-                if (dx*dx + dy*dy < 0.25) {
-                    const targetFlower = this.findFlowerAtTarget(flowers);
-                    if (targetFlower && this.isFlowerAvailable(targetFlower)) {
-                        if (this.happiness < this.baselineHappiness) {
-                            this.changeState('feeding', { flower: targetFlower });
-                        } else {
-                            this.movement.clearTarget('goal');
-                            this.pickNewWanderTarget(); // Immediately pick new target
-                        }
+        this.checkFlowerSeeking(flowers);
+
+        if (this.movement.targetType === 'goal') {
+            const lowFlowerPressure = flowers.filter(flower => this.isFlowerAvailable(flower)).length <= 2;
+            const dx = this.gridPos.x - this.movement.target.x;
+            const dy = this.gridPos.y - this.movement.target.y;
+            if (dx*dx + dy*dy < 0.25) {
+                const targetFlower = this.findFlowerAtTarget(flowers);
+                if (targetFlower && this.isFlowerAvailable(targetFlower)) {
+                    if (this.happiness < this.baselineHappiness || lowFlowerPressure) {
+                        this.changeState('feeding', { flower: targetFlower });
                     } else {
                         this.movement.clearTarget('goal');
-                        this.pickNewWanderTarget(); // Immediately pick new target
+                        this.pickNewWanderTarget();
                     }
+                } else {
+                    this.movement.clearTarget('goal');
+                    this.pickNewWanderTarget();
                 }
             }
         } else {
@@ -967,6 +1188,8 @@ class Butterfly extends Entity {
                 this.pickNewWanderTarget();
             }
         }
+
+        this.checkBlockExperimentation(blocks || []);
     }
     
     executeScaredBehavior(gameState) {
@@ -1024,6 +1247,11 @@ class Butterfly extends Entity {
         
         // Check if flower still exists
         if (!this.feeding.targetFlower || !flowers.includes(this.feeding.targetFlower)) {
+            this.changeState('normal');
+            return;
+        }
+
+        if (this.feeding.targetFlower.currentFeeder && this.feeding.targetFlower.currentFeeder !== this) {
             this.changeState('normal');
             return;
         }
@@ -1086,7 +1314,7 @@ class Butterfly extends Entity {
                     this.changeState('feeding', { flower: flower });
                     
                     // Add 20% magic pool bonus for successfully leading butterfly to flower
-                    if (typeof mainColorPool !== 'undefined') {
+                    if (typeof mainColorPool !== 'undefined' && false) {
                         const bonusAmount = mainColorPool.spawnThreshold * 0.2; // 20% of spawn threshold
                         mainColorPool.glowIntensity = Math.min(
                             mainColorPool.maxGlowIntensity, 
@@ -1160,6 +1388,20 @@ class Butterfly extends Entity {
 
         const flowerGrid = gridManager.screenToIso(flower.x, flower.y);
         this.movement.setTarget(flowerGrid.x, flowerGrid.y, 'pregnant', 11, 0);
+
+        if (gameState.particleSystem && frameCount % 10 === 0) {
+            const pixel = gameState.particleSystem.emit(
+                this.x + random(-3, 3),
+                this.y - 8 + random(-2, 2),
+                [255, 255, 255],
+                1,
+                'joy'
+            );
+            if (pixel) {
+                pixel.lifetime = 90;
+                pixel.size = Math.max(1.5, gameConfig.particles.pixelSize * 0.8);
+            }
+        }
     }
     
     // === UNIFIED PARTICLE EMISSION ===
@@ -1266,27 +1508,57 @@ class Butterfly extends Entity {
             pixel.lifetime *= config.lifetimeMultiplier;
         }
     }
+
+    getNearbyButterflyCount(radius = 72) {
+        if (typeof gameCore === 'undefined' || !gameCore?.gameState?.butterflies) return 0;
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+        let count = 0;
+        for (const butterfly of gameCore.gameState.butterflies) {
+            if (!butterfly || butterfly.id === this.id) continue;
+            const butterflyZoneId = butterfly.currentZoneId || butterfly.lifeSim?.lifecycle?.currentZoneId || null;
+            if (zoneId && butterflyZoneId && butterflyZoneId !== zoneId) continue;
+            if (dist(this.x, this.y, butterfly.x, butterfly.y) <= radius) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    getCrowdSuppressionFactor(radius = 72) {
+        const nearbyCount = this.getNearbyButterflyCount(radius);
+        if (nearbyCount <= 2) return 1;
+        if (nearbyCount <= 4) return 0.72;
+        if (nearbyCount <= 6) return 0.42;
+        return Math.max(0.02, 0.42 - ((nearbyCount - 6) * 0.1));
+    }
     
     checkParticleEmission(particleSystem) {
+        if (!particleSystem) return;
+        const crowdSuppression = this.getCrowdSuppressionFactor();
+        if (crowdSuppression <= 0.04) return;
+
         if (this.happiness > this.baselineHappiness) {
             const happinessRatio = (this.happiness - this.baselineHappiness) / 
                                   (this.maxHappiness - this.baselineHappiness);
             
-            // Base particles for pool contribution (increased for better ambient contribution)
-            const baseCount = Math.ceil(happinessRatio * 12); // Increased from 8 to 12 (50% increase)
-            this.emitParticles('happy', baseCount / 8, particleSystem);
+            // Keep ambient contribution readable during crowded long-soak scenes.
+            const baseCount = Math.max(0, Math.ceil(happinessRatio * 5 * crowdSuppression));
+            if (baseCount > 0) {
+                this.emitParticles('happy', baseCount / 10, particleSystem);
+            }
             
-            // Additional visual particles
-            const visualCount = (baseCount * 3) / 8;
-            this.emitParticles('happy_visual', visualCount / 8, particleSystem);
+            const visualCount = Math.max(0, Math.floor(baseCount * 0.5));
+            if (visualCount > 0 && crowdSuppression > 0.36) {
+                this.emitParticles('happy_visual', visualCount / 12, particleSystem);
+            }
             
-            // Special effects for very happy
-            if (this.happiness > 95 && random() < 0.3) {
+            // Reserve fountains/spirals for calmer scenes so clusters stay readable.
+            if (crowdSuppression > 0.9 && this.happiness > 97 && random() < 0.08 * crowdSuppression) {
                 particleSystem.emitFountain(this.x, this.y, random(this.colors), 20, 3);
-            } else if (this.happiness > 85 && random() < 0.2) {
+            } else if (crowdSuppression > 0.78 && this.happiness > 88 && random() < 0.06 * crowdSuppression) {
                 particleSystem.emitSpiral(this.x, this.y, random(this.colors), 12);
             }
-        } else if (this.happiness === this.baselineHappiness && random() < 0.1) {
+        } else if (crowdSuppression > 0.84 && this.happiness === this.baselineHappiness && random() < 0.02 * crowdSuppression) {
             particleSystem.emit(this.x, this.y, random(this.colors), 1, 'scale');
         }
     }
@@ -1306,55 +1578,558 @@ class Butterfly extends Entity {
         const targetX = this.gridPos.x + (awayX / dist) * fleeDistance;
         const targetY = this.gridPos.y + (awayY / dist) * fleeDistance;
         
+        const clamped = gridManager.clampGridPosToRoamArea(targetX, targetY, 8);
         this.movement.setTarget(
-            constrain(targetX, 2, gridManager.bounds.maxX - 2),
-            constrain(targetY, 2, gridManager.bounds.maxY - 2),
+            clamped.x,
+            clamped.y,
             'flee',
             10 // High priority
         );
     }
-    
+
+    getDecisionTrace() {
+        return typeof mlInferenceSystem !== 'undefined'
+            ? mlInferenceSystem.getEntityTrace?.(this.id)
+            : null;
+    }
+
+    getDecisionPolicyChoice(policyName, fallbackLabel = 'none') {
+        const trace = this.getDecisionTrace();
+        const policyTrace = trace?.traces?.[policyName] || null;
+        return {
+            label: trace?.chosenPath?.[policyName] || policyTrace?.chosen || fallbackLabel,
+            source: policyTrace?.source || trace?.source || 'heuristic-fallback',
+            confidenceScore: policyTrace?.confidence?.score || 0,
+            chosenScore: policyTrace?.chosenScore || 0,
+            trace
+        };
+    }
+
+    getDecisionRiskProfile() {
+        const choice = this.getDecisionPolicyChoice('riskPosture', 'observe');
+        const profiles = {
+            approach: {
+                scareThresholdMultiplier: 1.18,
+                scareRadiusMultiplier: 0.68,
+                trustRadiusMultiplier: 1.18,
+                maxTrustVelocity: 1.12,
+                patienceGain: 1.18,
+                patienceLossMultiplier: 0.68
+            },
+            observe: {
+                scareThresholdMultiplier: 1.02,
+                scareRadiusMultiplier: 0.72,
+                trustRadiusMultiplier: 1.0,
+                maxTrustVelocity: 0.96,
+                patienceGain: 1,
+                patienceLossMultiplier: 0.84
+            },
+            avoid: {
+                scareThresholdMultiplier: 0.88,
+                scareRadiusMultiplier: 0.82,
+                trustRadiusMultiplier: 0.72,
+                maxTrustVelocity: 0.74,
+                patienceGain: 0.52,
+                patienceLossMultiplier: 1.08
+            },
+            flee: {
+                scareThresholdMultiplier: 0.72,
+                scareRadiusMultiplier: 0.95,
+                trustRadiusMultiplier: 0.48,
+                maxTrustVelocity: 0.56,
+                patienceGain: 0.18,
+                patienceLossMultiplier: 1.34
+            }
+        };
+        return {
+            label: choice.label || 'observe',
+            source: choice.source,
+            confidenceScore: choice.confidenceScore,
+            ...(profiles[choice.label] || profiles.observe)
+        };
+    }
+
+    getDispersalConfig() {
+        return gameCore?.getButterflyDispersalConfig?.()
+            || gameConfig?.entities?.butterfly?.dispersal
+            || {
+                sectorMemoryLimit: 6,
+                anchorMemoryLimit: 6,
+                visitRecordIntervalFrames: 96
+            };
+    }
+
+    pushRecentUnique(list, value, limit = 6) {
+        if (!Array.isArray(list) || !value) return;
+        const existingIndex = list.indexOf(value);
+        if (existingIndex >= 0) {
+            list.splice(existingIndex, 1);
+        }
+        list.unshift(value);
+        if (list.length > limit) {
+            list.length = limit;
+        }
+    }
+
+    recordDispersalVisit(point = { x: this.x, y: this.y }, options = {}) {
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || gameCore?.getFocusedZoneId?.();
+        if (!zoneId || !point) return null;
+        const sectorKey = gameCore?.getZoneSectorKey?.(zoneId, point);
+        if (!sectorKey) return null;
+        if (!options.force && sectorKey === this.dispersal.lastRecordedSectorKey) {
+            return sectorKey;
+        }
+        const config = this.getDispersalConfig();
+        this.pushRecentUnique(this.dispersal.recentSectorKeys, sectorKey, config.sectorMemoryLimit || 6);
+        this.dispersal.lastRecordedSectorKey = sectorKey;
+        this.dispersal.lastRecordedFrame = frameCount;
+        return sectorKey;
+    }
+
+    rememberDispersalAnchor(anchorId) {
+        if (!anchorId) return null;
+        const config = this.getDispersalConfig();
+        this.pushRecentUnique(this.dispersal.recentAnchorIds, anchorId, config.anchorMemoryLimit || 6);
+        return anchorId;
+    }
+
+    mapDecisionSignalToCommunicationType(signalLabel, actionLabel = 'signal') {
+        switch (signalLabel) {
+            case 'calming':
+                return 'calming_signal';
+            case 'warning':
+                return 'warning_signal';
+            case 'teaching':
+                return 'teaching_signal';
+            case 'invitation':
+                if (actionLabel === 'court') return 'courtship_signal';
+                if (actionLabel === 'socialize') return 'acknowledgement_signal';
+                return 'guidance_signal';
+            default:
+                return null;
+        }
+    }
+
+    getNearbySignalRecipients(gameState, signalLabel, targetPreference, radius = 86) {
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+        const candidates = (gameCore?.getButterfliesInZone?.(zoneId) || (gameState?.butterflies || []))
+            .filter(candidate => candidate?.id && candidate.id !== this.id)
+            .map(candidate => ({
+                candidate,
+                distance: Math.hypot((candidate.x || 0) - this.x, (candidate.y || 0) - this.y),
+                edge: this.lifeSim?.socialEdges?.[candidate.id] || {}
+            }))
+            .filter(entry => entry.distance <= radius)
+            .map(entry => {
+                const edge = entry.edge || {};
+                const trust = edge.trust || 0;
+                const comfort = edge.comfort || 0;
+                const attachment = edge.attachment || 0;
+                const admiration = edge.admiration || 0;
+                const recentWarmth = edge.recentWarmth || 0;
+                const recentEase = edge.recentEase || 0;
+                const recentMutualAttention = edge.recentMutualAttention || 0;
+                const resentment = edge.resentment || 0;
+                const rejectionWeight = edge.rejectionWeight || 0;
+                const distanceWeight = Math.min(0.24, entry.distance / Math.max(120, radius * 1.4));
+                const socialScore = (
+                    trust * 0.2
+                    + comfort * 0.24
+                    + attachment * 0.18
+                    + admiration * 0.12
+                    + recentWarmth * 0.12
+                    + recentEase * 0.08
+                    + recentMutualAttention * 0.08
+                    - resentment * 0.2
+                    - rejectionWeight * 0.22
+                    - distanceWeight
+                );
+                return {
+                    ...entry,
+                    socialScore
+                };
+            })
+            .sort((left, right) => {
+                if (signalLabel === 'warning') {
+                    return left.distance - right.distance;
+                }
+                return (right.socialScore - left.socialScore) || (left.distance - right.distance);
+            });
+
+        if (!candidates.length) return [];
+
+        if (targetPreference === 'butterfly') {
+            const maxTargets = signalLabel === 'teaching'
+                ? 2
+                : signalLabel === 'warning'
+                    ? Math.min(2, Math.max(1, candidates.filter(entry => entry.distance <= 54).length))
+                    : 1;
+            return candidates.slice(0, maxTargets).map(entry => entry.candidate.id);
+        }
+
+        if (signalLabel === 'invitation') {
+            const preferred = candidates.filter(entry => entry.socialScore > -0.02 || entry.distance <= 56);
+            return (preferred.length ? preferred : candidates).slice(0, 1).map(entry => entry.candidate.id);
+        }
+
+        if (signalLabel === 'warning') {
+            const maxTargets = Math.min(2, Math.max(1, candidates.filter(entry => entry.distance <= 54).length));
+            return candidates.slice(0, maxTargets).map(entry => entry.candidate.id);
+        }
+
+        if (signalLabel === 'calming') {
+            return candidates.slice(0, 1).map(entry => entry.candidate.id);
+        }
+
+        return [];
+    }
+
+    maybeEmitDecisionSignal(gameState, options = {}) {
+        if (typeof eventBus === 'undefined' || !this.lifeSim?.communication) return false;
+        if (!options.force && this.signalDecisionCooldownFrames > 0) return false;
+        if (!options.force && this.lifeSim.communication.activeSignal) return false;
+        if (!options.force && (this.state !== 'normal' || this.isSpawning || this.zoneTravel || this.pendingPollenDropTarget)) return false;
+
+        const signalChoice = this.getDecisionPolicyChoice('signalChoice', 'quiet');
+        const actionChoice = this.getDecisionPolicyChoice('actionFamily', 'wander');
+        const targetChoice = this.getDecisionPolicyChoice('targetPreference', 'emptySpace');
+        const riskChoice = this.getDecisionPolicyChoice('riskPosture', 'observe');
+        const signalLabel = signalChoice.label || 'quiet';
+        if (signalLabel === 'quiet') return false;
+
+        const signalType = this.mapDecisionSignalToCommunicationType(signalLabel, actionChoice.label || 'signal');
+        if (!signalType) return false;
+
+        const social = this.lifeSim?.social || {};
+        const emotions = this.lifeSim?.emotions || {};
+        const behaviorBiases = this.lifeSim?.derived?.behaviorBiases || {};
+        const localSignalField = typeof communicationSystem !== 'undefined'
+            ? communicationSystem.getLocalSignalField?.(this, gameState)
+            : null;
+        const recentReceivedWarnings = (this.lifeSim.communication?.recentReceived || []).filter(entry =>
+            entry?.signalType === 'warning_signal'
+            && ((communicationSystem?.simulationClockSeconds || 0) - (entry?.atSeconds || 0)) <= 8
+        ).length;
+        const hasWarningContext = recentReceivedWarnings > 0
+            || social.activeContext === 'warning-cascade'
+            || riskChoice.label === 'flee'
+            || this.state === 'scared';
+        const warningSeverity = Math.max(
+            emotions.threat || 0,
+            (emotions.agitation || 0) * 0.82,
+            (behaviorBiases.caution || 0) * 0.74,
+            localSignalField?.warningPressure || 0,
+            social.activeContext === 'warning-cascade' ? 0.72 : 0
+        );
+        const calmSocialWindow = warningSeverity < 0.26
+            && (social.confidence || 0) + (social.belonging || 0) > 0.24;
+        const recentSignals = (this.lifeSim.communication?.recentEmitted || []).slice(0, 5);
+        const recentWarningSignals = recentSignals.filter(entry => entry?.signalType === 'warning_signal').length;
+        const recentSocialSignals = recentSignals.filter(entry =>
+            ['acknowledgement_signal', 'courtship_signal', 'calming_signal'].includes(entry?.signalType)
+        ).length;
+
+        const radius = signalLabel === 'warning'
+            ? 92
+            : signalLabel === 'teaching'
+                ? (gameConfig?.balance?.social?.teachingPulseRadius || 80)
+                : (gameConfig?.balance?.social?.trustCascadeRadius || 78);
+        const targetIds = this.getNearbySignalRecipients(gameState, signalLabel, targetChoice.label || 'emptySpace', radius);
+        if (!targetIds.length && (
+            signalType === 'teaching_signal'
+            || signalType === 'guidance_signal'
+            || signalType === 'courtship_signal'
+            || signalType === 'warning_signal'
+            || signalType === 'acknowledgement_signal'
+        ) && !options.force) {
+            return false;
+        }
+
+        if (!options.force) {
+            if (signalLabel === 'warning' && !hasWarningContext && (emotions.threat || 0) < 0.18 && (emotions.agitation || 0) < 0.18 && (behaviorBiases.caution || 0) < 0.22) {
+                return false;
+            }
+            if (signalLabel === 'warning' && warningSeverity < 0.34) {
+                return false;
+            }
+            if (signalLabel === 'invitation' && warningSeverity > 0.42) {
+                return false;
+            }
+        }
+
+        if (!options.force) {
+            const confidence = (signalChoice.confidenceScore || signalChoice.chosenScore || 0) / 100;
+            const socialOpportunity = Math.max(
+                0,
+                ((social.confidence || 0) * 0.22)
+                + ((social.belonging || 0) * 0.24)
+                + ((behaviorBiases.socialConnection || 0) * 0.2)
+                + (targetIds.length > 0 ? 0.08 : 0)
+            );
+            const baseChance = signalLabel === 'warning'
+                ? Math.max(0.0015, 0.0015 + (warningSeverity * 0.012) - (recentWarningSignals * 0.0025))
+                : signalLabel === 'calming'
+                    ? 0.006 + (socialOpportunity * 0.006) + (warningSeverity * 0.004)
+                    : signalLabel === 'teaching'
+                        ? 0.005 + ((behaviorBiases.trainingAffinity || 0) * 0.008)
+                        : 0.008 + (socialOpportunity * 0.012) + (calmSocialWindow ? 0.01 : 0) - (recentSocialSignals * 0.001);
+            const actionBoost = actionChoice.label === 'signal'
+                ? 0.012
+                : actionChoice.label === 'teach'
+                    ? 0.008
+                    : actionChoice.label === 'socialize'
+                        ? 0.008
+                        : 0;
+            const riskBoost = riskChoice.label === 'flee' && signalLabel === 'warning'
+                ? 0.008
+                : riskChoice.label === 'approach' && signalLabel === 'calming'
+                    ? 0.004
+                    : 0;
+            if (random() >= (baseChance + actionBoost + riskBoost + (confidence * 0.012))) {
+                return false;
+            }
+        }
+
+        eventBus.emit(GameEvents?.COMMUNICATION_SIGNAL || 'communication:signal', {
+            sourceId: this.id,
+            sourceButterfly: this,
+            signalType,
+            intent: signalLabel,
+            targetIds,
+            radius,
+            intensity: Math.max(0.45, Math.min(0.95, (signalChoice.chosenScore || 72) / 100)),
+            zoneId: this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null
+        });
+
+        const cooldownBySignal = {
+            calming: 150,
+            warning: 110,
+            teaching: 190,
+            invitation: 135
+        };
+        this.signalDecisionCooldownFrames = cooldownBySignal[signalLabel] || 150;
+        return true;
+    }
+
+    getSocialFollowThroughTargets(zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || gameCore?.getFocusedZoneId?.()) {
+        const followThrough = this.lifeSim?.derived?.socialEcology?.followThrough || null;
+        if (!followThrough) {
+            return {
+                followThrough: null,
+                seekPartner: null,
+                avoidPartner: null,
+                imitatePartner: null,
+                protectPartner: null
+            };
+        }
+
+        const zoneButterflies = gameCore?.getButterfliesInZone?.(zoneId) || gameCore?.getGameState?.()?.butterflies || [];
+        const resolvePartner = partnerId => zoneButterflies.find(candidate => candidate?.id === partnerId && candidate.id !== this.id) || null;
+
+        return {
+            followThrough,
+            seekPartner: resolvePartner(followThrough.seekPartnerId),
+            avoidPartner: resolvePartner(followThrough.avoidPartnerId),
+            imitatePartner: resolvePartner(followThrough.imitatePartnerId),
+            protectPartner: resolvePartner(followThrough.protectPartnerId)
+        };
+    }
+
     pickNewWanderTarget() {
+        const behaviorBiases = this.lifeSim?.derived?.behaviorBiases || {};
+        const wanderScale = Math.max(0.7, Math.min(1.35, behaviorBiases.wanderScale || 1));
+        const shelterSeeking = Math.max(0, Math.min(1, behaviorBiases.shelterSeeking || 0));
+        const nearbyCrowd = this.getNearbyButterflyCount(84);
+        const crowdPressure = Math.min(1, nearbyCrowd / 6);
+        const mlTrace = typeof mlInferenceSystem !== 'undefined' ? mlInferenceSystem.getEntityTrace?.(this.id) : null;
+        const mlTargetSource = mlTrace?.traces?.targetPreference?.source || null;
+        const prefersShelterTarget = mlTargetSource === 'ml' && mlTrace?.chosenPath?.targetPreference === 'shelter';
+        const prefersEmptySpaceTarget = mlTargetSource === 'ml' && mlTrace?.chosenPath?.targetPreference === 'emptySpace';
+        const preferOpenSpace = prefersEmptySpaceTarget || crowdPressure > 0.44;
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || gameCore?.getFocusedZoneId?.();
+        const socialTargets = this.getSocialFollowThroughTargets(zoneId);
+        const followThrough = socialTargets.followThrough || null;
+        const getGroundScreenPoint = entity => {
+            if (!entity) return null;
+            if (entity.gridPos && Number.isFinite(entity.gridPos.x) && Number.isFinite(entity.gridPos.y)) {
+                return gridManager?.isoToScreen?.(entity.gridPos.x, entity.gridPos.y) || null;
+            }
+            if (Number.isFinite(entity.x) && Number.isFinite(entity.y)) {
+                return {
+                    x: entity.x,
+                    y: entity.y + (entity.shadowOffset || 0)
+                };
+            }
+            return null;
+        };
+        const socialAnchorCandidates = {
+            protect: (socialTargets.protectPartner && (followThrough?.protectScore || 0) >= 0.28)
+                ? { partner: socialTargets.protectPartner, mode: 'protect', score: followThrough.protectScore || 0, spreadX: 20, spreadY: 16 }
+                : null,
+            seek: (socialTargets.seekPartner && (followThrough?.seekScore || 0) >= 0.28)
+                ? { partner: socialTargets.seekPartner, mode: 'seek', score: followThrough.seekScore || 0, spreadX: 26, spreadY: 20 }
+                : null,
+            imitate: (socialTargets.imitatePartner && (followThrough?.imitateScore || 0) >= 0.28)
+                ? { partner: socialTargets.imitatePartner, mode: 'imitate', score: followThrough.imitateScore || 0, spreadX: 30, spreadY: 22 }
+                : null
+        };
+        const dominantAnchor = followThrough?.dominantMode
+            ? socialAnchorCandidates[followThrough.dominantMode] || null
+            : null;
+        const socialAnchor = dominantAnchor
+            || Object.values(socialAnchorCandidates)
+                .filter(Boolean)
+                .sort((left, right) => (right?.score || 0) - (left?.score || 0))[0]
+            || null;
+        const socialAnchorPoint = socialAnchor?.partner ? getGroundScreenPoint(socialAnchor.partner) : null;
+        const socialAnchorGridPoint = socialAnchor?.partner?.gridPos
+            && Number.isFinite(socialAnchor.partner.gridPos.x)
+            && Number.isFinite(socialAnchor.partner.gridPos.y)
+            ? {
+                x: socialAnchor.partner.gridPos.x,
+                y: socialAnchor.partner.gridPos.y
+            }
+            : null;
+        const socialPreferredPoint = socialAnchorPoint
+            ? {
+                x: socialAnchorPoint.x + random(-socialAnchor.spreadX, socialAnchor.spreadX),
+                y: socialAnchorPoint.y + random(-socialAnchor.spreadY, socialAnchor.spreadY)
+            }
+            : null;
+        const socialAvoidPoints = socialTargets.avoidPartner && (followThrough?.avoidScore || 0) >= 0.3
+            ? [getGroundScreenPoint(socialTargets.avoidPartner)].filter(Boolean)
+            : [];
+        const socialFollowThroughDrive = Math.max(
+            followThrough?.seekScore || 0,
+            followThrough?.imitateScore || 0,
+            followThrough?.protectScore || 0
+        );
+        const socialAvoidance = followThrough?.avoidScore || 0;
+        const preferSocialAnchor = !!socialPreferredPoint && socialFollowThroughDrive >= 0.28;
+        const preferWideOpenSpace = preferOpenSpace || socialAvoidance >= 0.34;
+        const gridFollowSpread = socialAnchor?.mode === 'protect'
+            ? { x: 0.42, y: 0.34 }
+            : socialAnchor?.mode === 'imitate'
+                ? { x: 0.68, y: 0.52 }
+                : { x: 0.56, y: 0.42 };
+        const directSocialGridTarget = preferSocialAnchor && socialAvoidPoints.length === 0 && socialAnchor?.score >= (socialAnchor?.mode === 'imitate' ? 0.42 : 0.34) && socialAnchorGridPoint
+            ? {
+                x: constrain(
+                    socialAnchorGridPoint.x + random(-gridFollowSpread.x, gridFollowSpread.x),
+                    0.5,
+                    Math.max(0.5, (gridManager?.bounds?.maxX || 18) - 0.5)
+                ),
+                y: constrain(
+                    socialAnchorGridPoint.y + random(-gridFollowSpread.y, gridFollowSpread.y),
+                    0.5,
+                    Math.max(0.5, (gridManager?.bounds?.maxY || 18) - 0.5)
+                )
+            }
+            : null;
+
         // Golden butterflies move much more erratically and frequently
         if (this.personalityType === 'golden') {
-            // Much shorter distance targets for frantic movement
-            const angle = random(TWO_PI);
-            const distance = random(2, 4); // Shorter hops
-            const targetX = this.gridPos.x + cos(angle) * distance;
-            const targetY = this.gridPos.y + sin(angle) * distance;
-            
+            const targetPoint = directSocialGridTarget ? null : gameCore?.findBestButterflyWanderPoint?.(this, zoneId, {
+                candidateCount: 10,
+                localHop: { min: 18, max: 42 },
+                preferOpenSpace: preferWideOpenSpace,
+                preferredPoint: socialPreferredPoint,
+                preferredPointBonus: preferSocialAnchor ? 0.34 : 0.24,
+                preferredDistanceScale: preferSocialAnchor ? 140 : 180,
+                avoidPoints: socialAvoidPoints,
+                avoidRadius: socialAvoidance >= 0.42 ? 118 : 92,
+                avoidWeight: socialAvoidance >= 0.42 ? 0.4 : 0.28,
+                localCrowdRadius: 72,
+                maxDistanceForBonus: 90
+            }) || gridManager.isoToScreen(
+                this.gridPos.x + cos(random(TWO_PI)) * random(2, 4) * wanderScale,
+                this.gridPos.y + sin(random(TWO_PI)) * random(2, 4) * wanderScale
+            );
+            const clamped = directSocialGridTarget || gridManager.screenToIso(targetPoint.x, targetPoint.y);
             this.movement.setTarget(
-                constrain(targetX, 2, gridManager.bounds.maxX - 2),
-                constrain(targetY, 2, gridManager.bounds.maxY - 2),
+                clamped.x,
+                clamped.y,
                 'meander',
                 1,
-                0.3 // More wobble for erratic movement
+                0.24 + ((behaviorBiases.caution || 0) * 0.12) // More wobble for erratic movement
             );
-            this.timers.wander.duration = random(20, 40); // Change direction every 0.3-0.7 seconds
+            this.timers.wander.duration = random(20, 40) / Math.max(0.7, wanderScale); // Change direction every 0.3-0.7 seconds
         } else {
-            // Normal butterflies - pick a random destination anywhere on the map
-            const targetX = random(3, gridManager.bounds.maxX - 3);
-            const targetY = random(3, gridManager.bounds.maxY - 3);
+            // Normal butterflies pick a destination inside their current land region.
+            const targetInsetBase = prefersEmptySpaceTarget ? 26 : (preferSocialAnchor ? 24 : 34);
+            const targetInset = targetInsetBase + Math.round((shelterSeeking + (prefersShelterTarget ? 0.28 : 0)) * 14);
+            const shelterPoint = (prefersShelterTarget || shelterSeeking > 0.46)
+                ? structureSystem?.getPreferredShelterPointForEntity?.(this, zoneId)
+                : null;
+            const stronglyPreferShelter = !!shelterPoint && (prefersShelterTarget || shelterSeeking > 0.84);
+            const effectivePreferredPoint = socialPreferredPoint || shelterPoint;
+            const targetPoint = (stronglyPreferShelter ? shelterPoint : null)
+                || gameCore?.findBestButterflyWanderPoint?.(this, zoneId, {
+                    padding: targetInset,
+                    preferredPoint: effectivePreferredPoint,
+                    preferredPointBonus: preferSocialAnchor
+                        ? (socialAnchor?.mode === 'protect' ? 0.4 : socialAnchor?.mode === 'imitate' ? 0.34 : 0.36)
+                        : (!!shelterPoint ? 0.24 : 0.22),
+                    preferredDistanceScale: preferSocialAnchor ? 132 : 180,
+                    avoidPoints: socialAvoidPoints,
+                    avoidRadius: socialAvoidance >= 0.42 ? 124 : 96,
+                    avoidWeight: socialAvoidance >= 0.42 ? 0.42 : 0.3,
+                    preferShelter: !!shelterPoint,
+                    preferOpenSpace: preferWideOpenSpace,
+                    localCrowdRadius: preferWideOpenSpace ? 108 : 84,
+                    maxDistanceForBonus: 220
+                })
+                || shelterPoint
+                || gameCore?.getRandomZonePoint?.(zoneId, targetInset)
+                || gridManager.isoToScreen(random(3, gridManager.bounds.maxX - 3), random(3, gridManager.bounds.maxY - 3));
+            const targetGrid = directSocialGridTarget || gridManager.screenToIso(targetPoint.x, targetPoint.y);
             
-            this.movement.setTarget(targetX, targetY, 'meander', 1, 0.1); // Minimal wobble for cleaner movement
-            this.timers.wander.duration = random(300, 600) / this.traits.jitteriness; // 5-10 seconds for more activity
+            this.movement.setTarget(
+                targetGrid.x,
+                targetGrid.y,
+                'meander',
+                1,
+                0.08 + ((behaviorBiases.caution || 0) * 0.08)
+            );
+            this.timers.wander.duration = ((random(300, 600) / this.traits.jitteriness) / Math.max(0.75, wanderScale))
+                * (crowdPressure > 0.44 ? 0.6 : 1)
+                * (preferSocialAnchor ? 0.72 : 1)
+                * (socialAvoidance >= 0.36 ? 0.82 : 1);
         }
     }
     
     setPostFeedingDestination() {
-        const angle = random(TWO_PI);
-        const distance = random(4, 8); // Reduced distance to avoid getting stuck at boundaries
-        
-        const targetX = this.gridPos.x + cos(angle) * distance;
-        const targetY = this.gridPos.y + sin(angle) * distance;
-        
-        // Ensure target is well within bounds
-        const safeTargetX = constrain(targetX, 3, gridManager.bounds.maxX - 3);
-        const safeTargetY = constrain(targetY, 3, gridManager.bounds.maxY - 3);
-        
+        const dropTarget = this.pendingPollenDropTarget || gameCore?.planPollenDropTarget?.(this);
+        if (dropTarget?.x && dropTarget?.y) {
+            const targetGrid = gridManager.screenToIso(dropTarget.x, dropTarget.y);
+            this.movement.setTarget(
+                targetGrid.x,
+                targetGrid.y,
+                'immediate',
+                8,
+                0.06
+            );
+            this.timers.postFeedingDash = this.constants.dashDuration;
+            return;
+        }
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || gameCore?.getFocusedZoneId?.();
+        const targetPoint = gameCore?.findBestButterflyWanderPoint?.(this, zoneId, {
+            candidateCount: 12,
+            preferOpenSpace: true,
+            localCrowdRadius: 90,
+            maxDistanceForBonus: 200
+        }) || gameCore?.getRandomZonePoint?.(zoneId, 34);
+        const clamped = targetPoint
+            ? gridManager.screenToIso(targetPoint.x, targetPoint.y)
+            : gridManager.clampGridPosToRoamArea(
+                this.gridPos.x + cos(random(TWO_PI)) * random(4, 8),
+                this.gridPos.y + sin(random(TWO_PI)) * random(4, 8),
+                8
+            );
+
         this.movement.setTarget(
-            safeTargetX,
-            safeTargetY,
+            clamped.x,
+            clamped.y,
             'immediate',
             8,
             0.1 // Very low wobble for direct movement
@@ -1363,15 +2138,374 @@ class Butterfly extends Entity {
         this.timers.postFeedingDash = this.constants.dashDuration;
         
         // If the post-feeding destination is too close (butterfly at edge), pick a wander target instead
-        const dx = safeTargetX - this.gridPos.x;
-        const dy = safeTargetY - this.gridPos.y;
+        const dx = clamped.x - this.gridPos.x;
+        const dy = clamped.y - this.gridPos.y;
         if (dx*dx + dy*dy < 4) { // If destination is less than 2 grid units away
             this.pickNewWanderTarget(); // Just wander instead
         }
     }
+
+    getCarriedBlockCandidateIds() {
+        const candidateIds = new Set();
+        const localCarryId = this.blockInteraction?.carryingBlockId || null;
+        if (localCarryId) {
+            candidateIds.add(localCarryId);
+        }
+
+        const indexedCarryIds = objectSystem?.getObjectsByCarrier?.(this.id) || [];
+        for (const objectId of indexedCarryIds) {
+            if (objectId) {
+                candidateIds.add(objectId);
+            }
+        }
+
+        return candidateIds;
+    }
+
+    getCarriedBlock(blocks = []) {
+        const candidateBlocks = Array.isArray(blocks) ? blocks : [];
+        if (!candidateBlocks.length) {
+            return null;
+        }
+
+        const candidateIds = this.getCarriedBlockCandidateIds();
+        let carriedBlock = candidateBlocks.find(block => candidateIds.has(block?.id)) || null;
+
+        if (!carriedBlock) {
+            carriedBlock = candidateBlocks.find(block => block?.carriedById === this.id) || null;
+        }
+
+        if (carriedBlock?.id) {
+            this.blockInteraction.carryingBlockId = carriedBlock.id;
+            const objectState = objectSystem?.getObjectState?.(carriedBlock.id);
+            if (objectState?.carriedById !== this.id) {
+                objectSystem?.registerObject?.(carriedBlock, { type: 'block' });
+            }
+            return carriedBlock;
+        }
+
+        if (this.blockInteraction?.carryingBlockId) {
+            this.blockInteraction.carryingBlockId = null;
+        }
+
+        return null;
+    }
+
+    updateCarriedBlockPose(block) {
+        if (!block) return;
+        this.blockInteraction.lastRelativeSize = block.renderWidth / Math.max(1, this.size);
+        if (typeof block.syncCarriedPose === 'function') {
+            block.syncCarriedPose(this);
+            return;
+        }
+        const anchor = this.physics?.carry?.anchor
+            || structureSystem?.getCarryAnchorForEntity?.(this, block)
+            || null;
+        block.carriedById = this.id;
+        block.currentZoneId = this.currentZoneId || block.currentZoneId;
+        block.x = anchor?.x ?? (this.x + (block.attachedOffset?.x ?? (this.sex === 'F' ? -7 : 7)));
+        block.y = anchor?.y ?? (this.y + (block.attachedOffset?.y ?? -10));
+        block.gridPos = gridManager.screenToIso(block.x, block.y);
+        block.zIndex = (this.zIndex || 0) + (anchor?.zLift ?? 18);
+    }
+
+    chooseBlockPlacementTarget(block, blocks = []) {
+        const placement = gameCore?.findBlockPlacementTarget?.(this, block, blocks) || null;
+        this.blockInteraction.placementTarget = placement;
+        this.blockInteraction.lastPlacementMode = placement?.placementMode || 'ground';
+        if (placement?.supportBlockId) {
+            this.rememberDispersalAnchor(`block:${placement.supportBlockId}`);
+        } else if (placement) {
+            const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+            const sectorKey = zoneId ? gameCore?.getZoneSectorKey?.(zoneId, placement) : null;
+            if (sectorKey) {
+                this.rememberDispersalAnchor(`sector:${sectorKey}`);
+            }
+        }
+        if (placement) {
+            const targetGrid = gridManager.screenToIso(placement.x, placement.y);
+            this.movement.setTarget(targetGrid.x, targetGrid.y, 'immediate', 4, 0);
+        }
+        return placement;
+    }
+
+    placeCarriedBlock(block, zoneId) {
+        const zoneBlocks = gameCore?.getBlocksInZone?.(zoneId) || [];
+        let placement = gameCore?.physicsSystem?.resolveBlockPlacementRequest?.(
+            this,
+            block,
+            this.blockInteraction.placementTarget || this.chooseBlockPlacementTarget(block, zoneBlocks),
+            zoneBlocks,
+            {
+                sceneState: gameCore?.gameState,
+                safeDrop: false
+            }
+        ) || null;
+        if (!placement) {
+            placement = gameCore?.physicsSystem?.resolveBlockPlacementRequest?.(
+                this,
+                block,
+                null,
+                zoneBlocks,
+                {
+                    sceneState: gameCore?.gameState,
+                    safeDrop: true
+                }
+            ) || null;
+        }
+        if (!placement) return false;
+
+        const placed = gameCore?.physicsSystem?.applyResolvedBlockPlacement?.(
+            block,
+            placement,
+            this.id,
+            gameCore?.gameState
+        );
+        if (!placed) return false;
+
+        this.lifeSim.emotions.curiosity = Math.min(1, (this.lifeSim.emotions.curiosity || 0) + 0.028);
+        this.lifeSim.emotions.happiness = Math.min(1, (this.lifeSim.emotions.happiness || 0) + 0.018);
+        appendLifeMemory(this, 'object', {
+            subjectId: block.id,
+            valence: 0.24,
+            strength: 0.42,
+            tags: ['block', 'shelter-material', placement.placementMode || 'placed-block'],
+            metadata: {
+                zoneId,
+                relativeSize: this.blockInteraction.lastRelativeSize,
+                placementMode: placement.placementMode || 'ground',
+                stackIndex: placement.stackIndex ?? 0,
+                supportBlockId: placement.supportBlockId || null
+            }
+        });
+        gameCore?.particleSystem?.emitBurst?.(block.x, block.y - 4, [88, 232, 208], 5);
+
+        this.blockInteraction.carryingBlockId = null;
+        this.blockInteraction.targetBlockId = null;
+        this.blockInteraction.placementTarget = null;
+        this.blockInteraction.carryFrames = 0;
+        this.blockInteraction.cooldownFrames = Math.floor(random(96, 188));
+        this.pickNewWanderTarget();
+        return true;
+    }
+
+    dropCarriedBlockAtSafePlacement(block, zoneId, zoneBlocks = []) {
+        if (!block) return false;
+        const safeDrop = gameCore?.physicsSystem?.resolveBlockPlacementRequest?.(
+            this,
+            block,
+            null,
+            zoneBlocks,
+            {
+                sceneState: gameCore?.gameState,
+                safeDrop: true
+            }
+        ) || {
+            x: this.x,
+            y: this.y + 4,
+            stackIndex: 0,
+            supportBlockId: null,
+            placementMode: 'ground',
+            zoneId
+        };
+        const placed = gameCore?.physicsSystem?.applyResolvedBlockPlacement?.(
+            block,
+            safeDrop,
+            this.id,
+            gameCore?.gameState
+        );
+        if (!placed) return false;
+        this.blockInteraction.carryingBlockId = null;
+        this.blockInteraction.targetBlockId = null;
+        this.blockInteraction.placementTarget = null;
+        this.blockInteraction.carryFrames = 0;
+        this.blockInteraction.cooldownFrames = Math.max(this.blockInteraction.cooldownFrames || 0, 72);
+        return true;
+    }
+
+    releaseCarriedBlockForSleep(blocks = null) {
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+        const allBlocks = Array.isArray(blocks)
+            ? blocks
+            : (gameCore?.gameState?.blocks || []);
+        const zoneBlocks = allBlocks.filter(block => (block?.currentZoneId || null) === zoneId);
+        const carriedBlock = this.getCarriedBlock(allBlocks);
+        if (!carriedBlock) {
+            this.blockInteraction.carryingBlockId = null;
+            this.blockInteraction.placementTarget = null;
+            this.blockInteraction.carryFrames = 0;
+            return true;
+        }
+        return this.dropCarriedBlockAtSafePlacement(carriedBlock, zoneId, zoneBlocks);
+    }
+
+    checkBlockExperimentation(blocks = []) {
+        if (!Array.isArray(blocks) || blocks.length === 0) return;
+        if (this.pendingPollenDropTarget) return;
+        if (this.state !== 'normal' || this.isSpawning || this.zoneTravel) return;
+        if (this.movement.targetType === 'goal' || this.movement.targetType === 'pregnant') return;
+        const behaviorBiases = this.lifeSim?.derived?.behaviorBiases || {};
+        const objectInterest = Math.max(0, Math.min(1, behaviorBiases.objectInterest || 0));
+        const shelterSeeking = Math.max(0, Math.min(1, behaviorBiases.shelterSeeking || 0));
+        const mlTrace = typeof mlInferenceSystem !== 'undefined' ? mlInferenceSystem.getEntityTrace?.(this.id) : null;
+        const mlActionSource = mlTrace?.traces?.actionFamily?.source || null;
+        const mlTargetSource = mlTrace?.traces?.targetPreference?.source || null;
+        const prefersObjectAction = mlActionSource === 'ml' && mlTrace?.chosenPath?.actionFamily === 'buildOrUseObject';
+        const prefersBlockTarget = mlTargetSource === 'ml' && mlTrace?.chosenPath?.targetPreference === 'block';
+        const prefersShelterTarget = mlTargetSource === 'ml' && mlTrace?.chosenPath?.targetPreference === 'shelter';
+
+        if (this.blockInteraction.cooldownFrames > 0) {
+            this.blockInteraction.cooldownFrames--;
+        }
+
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+        const zoneBlocks = blocks.filter(block => block?.currentZoneId === zoneId);
+        if (!zoneBlocks.length) {
+            this.blockInteraction.targetBlockId = null;
+            this.blockInteraction.carryingBlockId = null;
+            this.blockInteraction.placementTarget = null;
+            return;
+        }
+
+        const carriedBlock = this.getCarriedBlock(blocks);
+        if (carriedBlock) {
+            this.blockInteraction.carryFrames = (this.blockInteraction.carryFrames || 0) + 1;
+            this.updateCarriedBlockPose(carriedBlock);
+            let placement = this.blockInteraction.placementTarget || this.chooseBlockPlacementTarget(carriedBlock, zoneBlocks);
+            if (placement && !structureSystem?.validatePlacementTargetForBlock?.(this, carriedBlock, placement, zoneBlocks)) {
+                placement = this.chooseBlockPlacementTarget(carriedBlock, zoneBlocks);
+            }
+            if (!placement) {
+                this.blockInteraction.cooldownFrames = 96;
+                this.dropCarriedBlockAtSafePlacement(carriedBlock, zoneId, zoneBlocks);
+                return;
+            }
+            const distanceToPlacement = Math.hypot(placement.x - this.x, placement.y - this.y);
+            if (distanceToPlacement > 16) {
+                const targetGrid = gridManager.screenToIso(placement.x, placement.y);
+                this.movement.setTarget(targetGrid.x, targetGrid.y, 'immediate', 5, 0);
+                if (this.blockInteraction.carryFrames < 42) return;
+            }
+            this.placeCarriedBlock(carriedBlock, zoneId);
+            return;
+        }
+
+        this.blockInteraction.carryFrames = 0;
+
+        let targetBlock = null;
+        if (this.blockInteraction.targetBlockId) {
+            targetBlock = zoneBlocks.find(block => block.id === this.blockInteraction.targetBlockId) || null;
+            if (targetBlock?.carriedById && targetBlock.carriedById !== this.id) {
+                this.blockInteraction.targetBlockId = null;
+                this.blockInteraction.cooldownFrames = 120;
+                targetBlock = null;
+            }
+        }
+
+        if (!targetBlock && this.blockInteraction.cooldownFrames === 0) {
+            const curiosity = this.lifeSim?.emotions?.curiosity || 0;
+            const exploration = this.lifeSim?.drives?.exploration || 0;
+            const nearbyBlock = gameCore?.chooseBestBlockForButterfly?.(
+                this,
+                zoneBlocks.filter(block => !block?.carriedById),
+                {
+                    preferShelter: prefersShelterTarget || shelterSeeking > 0.46
+                }
+            ) || null;
+            const nearbyDistance = nearbyBlock ? Math.hypot(nearbyBlock.x - this.x, nearbyBlock.y - this.y) : Infinity;
+            const nearbyOpportunity = !!nearbyBlock && nearbyDistance < 22 && (
+                objectInterest > 0.14
+                || curiosity > 0.14
+                || shelterSeeking > 0.16
+                || prefersObjectAction
+                || prefersBlockTarget
+                || prefersShelterTarget
+            );
+            const isStronglyCurious = curiosity > 0.28
+                || exploration > 0.28
+                || objectInterest > 0.28
+                || prefersObjectAction
+                || prefersBlockTarget
+                || prefersShelterTarget;
+            const interestChance = 0.0064
+                + (curiosity * 0.011)
+                + (exploration * 0.007)
+                + (objectInterest * 0.014)
+                + (shelterSeeking * 0.006)
+                + (prefersObjectAction ? 0.012 : 0)
+                + (prefersBlockTarget ? 0.009 : 0)
+                + (prefersShelterTarget ? 0.006 : 0);
+            if (nearbyBlock && (nearbyOpportunity || (isStronglyCurious && nearbyDistance < 92) || random() < interestChance)) {
+                targetBlock = nearbyBlock;
+                this.blockInteraction.targetBlockId = targetBlock.id;
+                this.rememberDispersalAnchor(`block:${targetBlock.id}`);
+                const targetGrid = gridManager.screenToIso(targetBlock.x, targetBlock.y);
+                this.movement.setTarget(targetGrid.x, targetGrid.y, 'immediate', 5, 0);
+            }
+        }
+
+        if (!targetBlock) return;
+
+        const distance = Math.hypot(targetBlock.x - this.x, targetBlock.y - this.y);
+        if (distance > 18) {
+            const targetGrid = gridManager.screenToIso(targetBlock.x, targetBlock.y);
+            this.movement.setTarget(targetGrid.x, targetGrid.y, 'immediate', 5, 0);
+            return;
+        }
+        if (!targetBlock.canBeMovedBy?.(this)) {
+            this.blockInteraction.targetBlockId = null;
+            this.blockInteraction.cooldownFrames = 96;
+            return;
+        }
+
+        const pickedUp = objectSystem?.pickupObject?.(targetBlock.id, this.id);
+        if (!pickedUp) {
+            this.blockInteraction.targetBlockId = null;
+            this.blockInteraction.cooldownFrames = 72;
+            return;
+        }
+        targetBlock.pickupBy?.(this);
+        this.blockInteraction.carryingBlockId = targetBlock.id;
+        this.blockInteraction.targetBlockId = null;
+        this.blockInteraction.carryFrames = 0;
+        this.chooseBlockPlacementTarget(targetBlock, zoneBlocks);
+        this.lifeSim.emotions.curiosity = Math.min(1, (this.lifeSim.emotions.curiosity || 0) + 0.02);
+        this.lifeSim.objectAwareness.shelterConfidence = Math.min(1, (this.lifeSim.objectAwareness?.shelterConfidence || 0) + 0.05);
+        appendLifeMemory(this, 'object', {
+            subjectId: targetBlock.id,
+            valence: 0.16,
+            strength: 0.3,
+            tags: ['block', 'shelter-material', 'carried-object'],
+            metadata: {
+                zoneId,
+                relativeSize: targetBlock.renderWidth / Math.max(1, this.size)
+            }
+        });
+        gameCore?.particleSystem?.emitBurst?.(targetBlock.x, targetBlock.y - 4, [60, 220, 230], 4);
+    }
     
     checkFlowerSeeking(flowers) {
-        if (this.happiness >= this.baselineHappiness || this.timers.postFeedingCooldown > 0) {
+        const availableFlowers = flowers.filter(f => this.isFlowerAvailable(f));
+        const feedUrgency = this.lifeSim?.derived?.behaviorBiases?.feedUrgency || 0;
+        const mlTrace = typeof mlInferenceSystem !== 'undefined' ? mlInferenceSystem.getEntityTrace?.(this.id) : null;
+        const mlActionSource = mlTrace?.traces?.actionFamily?.source || null;
+        const mlTargetSource = mlTrace?.traces?.targetPreference?.source || null;
+        const prefersFeedAction = mlActionSource === 'ml' && mlTrace?.chosenPath?.actionFamily === 'feed';
+        const prefersAvoidAction = mlActionSource === 'ml' && mlTrace?.chosenPath?.actionFamily === 'avoid';
+        const prefersFlowerTarget = mlTargetSource === 'ml' && mlTrace?.chosenPath?.targetPreference === 'flower';
+        const lowFlowerPressure = availableFlowers.length <= 2;
+        const shouldSeekFood = this.happiness < this.baselineHappiness ||
+            feedUrgency > 0.48 ||
+            (lowFlowerPressure && this.happiness < (this.baselineHappiness + 18)) ||
+            prefersFeedAction ||
+            prefersFlowerTarget;
+
+        if ((!shouldSeekFood && !prefersFlowerTarget) || this.timers.postFeedingCooldown > 0) {
+            this.movement.clearTarget('goal');
+            return;
+        }
+
+        if (prefersAvoidAction && this.happiness >= this.baselineHappiness && !prefersFlowerTarget) {
             this.movement.clearTarget('goal');
             return;
         }
@@ -1382,14 +2516,43 @@ class Butterfly extends Entity {
             if (!currentFlower || !this.isFlowerAvailable(currentFlower)) {
                 this.movement.clearTarget('goal');
             } else {
-                return; // Keep current goal
+                const currentFlowerCrowd = gameCore?.countNearbyButterflies?.(
+                    this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null,
+                    currentFlower,
+                    62,
+                    this.id
+                ) || 0;
+                const currentTargeters = gameCore?.countButterfliesTargetingFlower?.(
+                    this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null,
+                    currentFlower.id,
+                    this.id
+                ) || 0;
+                if (availableFlowers.length > 2 && (currentFlowerCrowd >= 4 || currentTargeters >= 2)) {
+                    this.movement.clearTarget('goal');
+                } else {
+                    return; // Keep current goal
+                }
             }
+        }
+
+        if (this.movement.targetType === 'goal') {
+            this.movement.clearTarget('goal');
         }
         
         // Find new flower
-        const availableFlowers = flowers.filter(f => this.isFlowerAvailable(f));
         if (availableFlowers.length > 0) {
-            const targetFlower = random(availableFlowers);
+            const targetFlower = gameCore?.chooseBestFlowerForButterfly?.(this, availableFlowers, {
+                feedUrgency,
+                prefersFlowerTarget
+            }) || availableFlowers
+                .slice()
+                .sort((left, right) => {
+                    const leftDistance = Math.hypot((left.x || 0) - this.x, (left.y || 0) - this.y);
+                    const rightDistance = Math.hypot((right.x || 0) - this.x, (right.y || 0) - this.y);
+                    const leftBias = (feedUrgency * 32) + (prefersFlowerTarget ? 18 : 0);
+                    return (leftDistance - leftBias) - rightDistance;
+                })[0] || random(availableFlowers);
+            this.rememberDispersalAnchor(`flower:${targetFlower.id}`);
             const flowerGrid = gridManager.screenToIso(targetFlower.x, targetFlower.y);
             this.movement.setTarget(flowerGrid.x, flowerGrid.y, 'goal', 3);
         }
@@ -1509,16 +2672,15 @@ class Butterfly extends Entity {
             this.createTrustCascade(butterflies);
         }
         
-        // Update collection statistics if this butterfly type has been collected
-        if (!this.isHybrid && typeof gameCore !== 'undefined' && gameCore.gameState) {
-            if (gameCore.gameState.collectedButterflies.has(this.personalityType) &&
-                gameCore.gameState.butterflyCollectionStats[this.personalityType]) {
-                gameCore.gameState.butterflyCollectionStats[this.personalityType].timesFed++;
-            }
-        }
-
         if (this.feeding.targetFlower && typeof this.feeding.targetFlower.afterButterflyFeed === 'function') {
             this.feeding.targetFlower.afterButterflyFeed(this);
+        }
+
+        if (this.feeding.targetFlower?.id) {
+            objectSystem?.recordInteraction?.(this.feeding.targetFlower.id, 'fed from', this.id, {
+                flowerType: this.feeding.targetFlower.flowerType || null,
+                zoneId: this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null
+            });
         }
         
         // Emit feeding event
@@ -1526,6 +2688,10 @@ class Butterfly extends Entity {
             butterfly: this,
             flower: this.feeding.targetFlower
         });
+
+        if (typeof gameCore !== 'undefined') {
+            gameCore.planPollenDropTarget?.(this);
+        }
         
         // Reset engagement timer on successful feeding (only if fewer than 4 butterflies)
         const butterflyCount = gameCore?.gameState?.butterflies?.length || 0;
@@ -1541,19 +2707,19 @@ class Butterfly extends Entity {
         const dx = this.x - cursorX;
         const dy = this.y - cursorY;
         const distToCursorSq = dx*dx + dy*dy;
-        
-        // Check if cursor is within interest radius
-        if (distToCursorSq <= this.cursor.interestRadius * this.cursor.interestRadius) {
-            // Check if another butterfly is already being interacted with
-            if (!this.canInteractWithCursor(gameState.butterflies || [])) {
-                this.resetCursorInteraction();
-                return;
-            }
-            
+
+        const trustRadius = this.cursor.interestRadius * 1.45;
+        if (distToCursorSq <= trustRadius * trustRadius) {
             const distToCursor = Math.sqrt(distToCursorSq);
             this.evaluateCursorPresence(cursorVelocity, cursorX, cursorY, distToCursor, particleSystem);
         } else {
-            this.resetCursorInteraction();
+            if (!this.cursor.calmedByCursor && this.cursor.currentPatience > 0) {
+                const patienceLoss = this.personalityType === 'golden' ? 0.14 : 0.3;
+                this.cursor.currentPatience = Math.max(0, this.cursor.currentPatience - patienceLoss);
+                if (this.cursor.currentPatience === 0) {
+                    this.cursor.trustDisplayTriggered = false;
+                }
+            }
         }
     }
     
@@ -1619,35 +2785,48 @@ class Butterfly extends Entity {
     
     evaluateCursorPresence(cursorVelocity, cursorX, cursorY, distance, particleSystem) {
         let cursorState = 'neutral';
-        
-        // Golden butterflies have special interaction zones
-        if (this.personalityType === 'golden') {
-            // Golden butterflies ignore cursor velocity completely - only distance matters
-            if (distance < this.cursor.interestRadius * 0.9) {
-                cursorState = 'attracting';
-            }
-            // Golden butterflies cannot be scared by any cursor velocity - they're persistent
-        } else {
-            // Normal butterfly interaction
-            if (cursorVelocity > this.constants.scareThreshold) {
-                cursorState = 'scaring';
-            } else if (cursorVelocity < 0.5 && distance < this.cursor.interestRadius * 0.7) {
-                cursorState = 'attracting';
-            }
+
+        const riskProfile = this.getDecisionRiskProfile();
+        const trustRadius = this.cursor.interestRadius * 1.45 * (riskProfile.trustRadiusMultiplier || 1);
+        const clapFearPenalty = this.cursor.clapFear * 1.25;
+        const scareThreshold = Math.max(
+            1.4,
+            (this.constants.scareThreshold + 1.25 - clapFearPenalty) * (riskProfile.scareThresholdMultiplier || 1)
+        );
+        const fleeBiasTriggered = riskProfile.label === 'flee'
+            && distance < this.constants.scareRadius * 0.95
+            && (
+                cursorVelocity > scareThreshold * 0.72
+                || this.cursor.clapFear > 0.22
+                || (this.lifeSim?.emotions?.threat || 0) > 0.72
+            );
+
+        if ((distance < this.constants.scareRadius * (riskProfile.scareRadiusMultiplier || 0.72) && cursorVelocity > scareThreshold && !this.cursor.calmedByCursor)
+            || fleeBiasTriggered) {
+            cursorState = 'scaring';
+        } else if (
+            !this.cursor.calmedByCursor
+            && cursorVelocity < (riskProfile.maxTrustVelocity || 0.9)
+            && distance < trustRadius
+            && (riskProfile.patienceGain || 0) > 0.2
+        ) {
+            cursorState = 'attracting';
         }
         
         switch (cursorState) {
             case 'scaring':
-                this.resetCursorInteraction();
+                this.resetCursorInteraction({ startled: true });
                 break;
             case 'attracting':
                 this.buildCursorTrust(cursorX, cursorY, particleSystem);
                 break;
             case 'neutral':
-                if (this.cursor.currentPatience > 0) {
-                    // Golden butterflies lose patience more slowly
-                    const patienceLoss = this.personalityType === 'golden' ? 0.2 : 0.5;
+                if (!this.cursor.calmedByCursor && this.cursor.currentPatience > 0) {
+                    const patienceLoss = (this.personalityType === 'golden' ? 0.14 : 0.32) * (riskProfile.patienceLossMultiplier || 1);
                     this.cursor.currentPatience = Math.max(0, this.cursor.currentPatience - patienceLoss);
+                    if (this.cursor.currentPatience < this.cursor.patienceRequired * 0.65) {
+                        this.cursor.trustDisplayTriggered = false;
+                    }
                 }
                 break;
         }
@@ -1662,14 +2841,42 @@ class Butterfly extends Entity {
     }
     
     buildCursorTrust(cursorX, cursorY, particleSystem) {
-        this.cursor.currentPatience++;
+        if (this.cursor.trustRewardCooldownFrames > 0 || this.cursor.calmedByCursor) {
+            return;
+        }
+        const riskProfile = this.getDecisionRiskProfile();
+        if (riskProfile.label === 'flee' && ((this.cursor.clapFear || 0) > 0.26 || (this.lifeSim?.emotions?.threat || 0) > 0.74)) {
+            this.resetCursorInteraction({ startled: true });
+            return;
+        }
+        this.cursor.currentPatience += (riskProfile.patienceGain || 1);
         this.cursor.trustGlowAlpha = Math.min(255, (this.cursor.currentPatience / this.cursor.patienceRequired) * 255);
         
-        if (this.cursor.currentPatience >= this.cursor.patienceRequired && this.state !== 'following') {
-            this.changeState('following', { cursorX: cursorX, cursorY: cursorY });
+        if (this.cursor.currentPatience >= this.cursor.patienceRequired && !this.cursor.trustDisplayTriggered) {
+            this.cursor.trustDisplayTriggered = true;
             this.cursor.trustLevel = Math.min(100, this.cursor.trustLevel + 10);
+            this.cursor.calmedByCursor = true;
+            this.cursor.clapFear = Math.max(0, this.cursor.clapFear - 0.15);
+            this.happiness = Math.min(this.maxHappiness, this.happiness + 6);
+            if (this.lifeSim?.emotions) {
+                this.lifeSim.emotions.relief = Math.min(1, (this.lifeSim.emotions.relief || 0) + 0.08);
+                this.lifeSim.emotions.attachment = Math.min(1, (this.lifeSim.emotions.attachment || 0) + 0.06);
+                this.lifeSim.emotions.significance = Math.min(1, (this.lifeSim.emotions.significance || 0) + 0.03);
+            }
+            if (this.lifeSim?.playerInteraction) {
+                this.lifeSim.playerInteraction.calmedByCursor = true;
+                this.lifeSim.playerInteraction.startledByCursor = false;
+                this.lifeSim.playerInteraction.cursorTrust = Math.min(1, (this.lifeSim.playerInteraction.cursorTrust || 0) + 0.12);
+                this.lifeSim.playerInteraction.cursorFear = Math.max(0, (this.lifeSim.playerInteraction.cursorFear || 0) - 0.08);
+            }
+            appendLifeMemory(this, 'interaction', {
+                subjectId: 'player_cursor',
+                valence: 0.32,
+                strength: 0.46,
+                tags: ['player', 'cursor', 'trust']
+            });
             
-            // Reset engagement timer when butterfly starts following (only if fewer than 4 butterflies)
+            // Cursor trust still matters socially, but explicit inspect control now owns guiding.
             const butterflyCount = gameCore?.gameState?.butterflies?.length || 0;
             this.resetEngagement(butterflyCount);
             
@@ -1677,14 +2884,111 @@ class Butterfly extends Entity {
                 butterfly: this,
                 reason: 'cursorTrust'
             });
+            eventBus.emit(GameEvents?.COMMUNICATION_SIGNAL || 'communication:signal', {
+                sourceId: this.id,
+                sourceButterfly: this,
+                signalType: 'trust_display',
+                intent: 'build trust',
+                targetId: 'player_cursor',
+                targetLabel: 'player cursor'
+            });
             
             particleSystem.emitBurst(this.x, this.y, random(this.colors), 3);
+            this.cursor.currentPatience = this.cursor.patienceRequired;
+            this.cursor.trustGlowAlpha = 120;
+            this.cursor.trustRewardCooldownFrames = 120;
         }
     }
-    
-    resetCursorInteraction() {
+
+    canReceivePetInteraction() {
+        return !!this.cursor.calmedByCursor && !this.isSpawning && !this.zoneTravel && this.state !== 'scared';
+    }
+
+    receivePetInteraction(gameState = {}) {
+        if (!this.canReceivePetInteraction()) return false;
+        this.happiness = Math.min(this.maxHappiness, this.happiness + 3.5);
+        this.cursor.trustLevel = Math.min(100, (this.cursor.trustLevel || 0) + 6);
+        this.cursor.trustGlowAlpha = Math.max(this.cursor.trustGlowAlpha || 0, 120);
+        this.cursor.trustRewardCooldownFrames = Math.max(this.cursor.trustRewardCooldownFrames || 0, 24);
+        if (this.lifeSim?.emotions) {
+            this.lifeSim.emotions.relief = Math.min(1, (this.lifeSim.emotions.relief || 0) + 0.1);
+            this.lifeSim.emotions.attachment = Math.min(1, (this.lifeSim.emotions.attachment || 0) + 0.08);
+            this.lifeSim.emotions.significance = Math.min(1, (this.lifeSim.emotions.significance || 0) + 0.04);
+        }
+        if (this.lifeSim?.playerInteraction) {
+            this.lifeSim.playerInteraction.cursorTrust = Math.min(1, (this.lifeSim.playerInteraction.cursorTrust || 0) + 0.08);
+            this.lifeSim.playerInteraction.petHistory = (this.lifeSim.playerInteraction.petHistory || 0) + 1;
+            this.lifeSim.playerInteraction.lastPetAtSeconds = lifeSimSystem?.simulationClockSeconds ?? null;
+        }
+        appendLifeMemory(this, 'interaction', {
+            subjectId: 'player_cursor',
+            valence: 0.38,
+            strength: 0.42,
+            tags: ['player', 'pet', 'comfort']
+        });
+        eventBus?.emit?.('cursor:pet', {
+            butterflyId: this.id,
+            x: this.x,
+            y: this.y - 6,
+            colors: this.colors?.[0] || [140, 255, 140]
+        });
+        return true;
+    }
+
+    receiveClapInteraction(gameState = {}) {
+        if (this.isSpawning || this.zoneTravel) return false;
+        const cursorX = gameState.adjustedMouseX ?? this.x;
+        const cursorY = gameState.adjustedMouseY ?? this.y;
+        if (typeof sleepSystem !== 'undefined' && sleepSystem.isSleeping?.(this.id)) {
+            sleepSystem.wakeEntity(this.id, 'cursor-clap');
+        }
+        if (this.lifeSim?.emotions) {
+            this.lifeSim.emotions.threat = Math.min(1, (this.lifeSim.emotions.threat || 0) + 0.22);
+            this.lifeSim.emotions.agitation = Math.min(1, (this.lifeSim.emotions.agitation || 0) + 0.16);
+            this.lifeSim.emotions.relief = Math.max(0, (this.lifeSim.emotions.relief || 0) - 0.08);
+            this.lifeSim.emotions.attachment = Math.max(0, (this.lifeSim.emotions.attachment || 0) - 0.05);
+        }
+        this.cursor.calmedByCursor = false;
+        this.cursor.clapFear = Math.min(1, (this.cursor.clapFear || 0) + 0.18);
         this.cursor.currentPatience = 0;
-        if (this.state === 'following') {
+        this.cursor.trustGlowAlpha = 0;
+        this.cursor.trustDisplayTriggered = false;
+        this.happiness = Math.max(4, this.happiness - 3);
+        if (this.lifeSim?.playerInteraction) {
+            this.lifeSim.playerInteraction.calmedByCursor = false;
+            this.lifeSim.playerInteraction.startledByCursor = true;
+            this.lifeSim.playerInteraction.cursorFear = Math.min(1, (this.lifeSim.playerInteraction.cursorFear || 0) + 0.14);
+            this.lifeSim.playerInteraction.clapStartleHistory = (this.lifeSim.playerInteraction.clapStartleHistory || 0) + 1;
+            this.lifeSim.playerInteraction.lastClapAtSeconds = lifeSimSystem?.simulationClockSeconds ?? null;
+        }
+        appendLifeMemory(this, 'danger', {
+            subjectId: 'player_cursor',
+            valence: -0.3,
+            strength: 0.44,
+            tags: ['player', 'clap', 'startled']
+        });
+        this.changeState('scared', { cursorX, cursorY });
+        eventBus?.emit?.('cursor:clap', {
+            butterflyId: this.id,
+            x: this.x,
+            y: this.y - 4
+        });
+        return true;
+    }
+    
+    resetCursorInteraction(options = {}) {
+        if (options.startled) {
+            this.cursor.calmedByCursor = false;
+            this.cursor.clapFear = Math.min(1, (this.cursor.clapFear || 0) + 0.05);
+            if (this.lifeSim?.playerInteraction) {
+                this.lifeSim.playerInteraction.calmedByCursor = false;
+                this.lifeSim.playerInteraction.startledByCursor = true;
+                this.lifeSim.playerInteraction.cursorFear = Math.min(1, (this.lifeSim.playerInteraction.cursorFear || 0) + 0.04);
+            }
+        }
+        this.cursor.currentPatience = 0;
+        this.cursor.trustDisplayTriggered = false;
+        if (this.state === 'following' && !gameUI?.isExplicitGuidanceActiveFor?.(this.id)) {
             this.changeState('normal');
         }
     }
@@ -1732,8 +3036,14 @@ class Butterfly extends Entity {
             this.spawnGlowIntensity = this.spawnTimer / maxSpawnTimer;
         }
 
-        // Manually decrement engagement timer (skip super.update to avoid updateZIndex with out-of-bounds gridPos)
-        if (this.engagementTimer > 0) this.engagementTimer--;
+        // Keep depth sorting current during spawn flight without using the old neglect timer.
+        this.updateZIndex();
+    }
+
+    updateZIndex() {
+        const baseGridY = this.gridPos?.y ?? 0;
+        const baseGridX = this.gridPos?.x ?? 0;
+        this.zIndex = (baseGridY * 1000) + baseGridX + 320;
     }
 
     // === VISUAL UPDATES ===
@@ -1774,23 +3084,29 @@ class Butterfly extends Entity {
     
     
     getRenderSpec() {
-        return {
-            personalityType: this.personalityType,
-            baseType: this.personalityType,
-            sex: this.sex,
-            isHybrid: this.isHybrid,
-            hybridGenome: this.hybridGenome
-        };
+        if (!this.renderSpecCache) {
+            this.renderSpecCache = Object.freeze({
+                personalityType: this.personalityType,
+                baseType: this.personalityType,
+                sex: this.sex,
+                isHybrid: this.isHybrid,
+                hybridGenome: this.hybridGenome
+            });
+        }
+        return this.renderSpecCache;
     }
 
     getCollectionRenderSpec() {
-        return {
-            personalityType: this.personalityType,
-            baseType: this.personalityType,
-            sex: this.sex,
-            isHybrid: this.isHybrid,
-            hybridGenome: this.hybridGenome
-        };
+        if (!this.collectionRenderSpecCache) {
+            this.collectionRenderSpecCache = Object.freeze({
+                personalityType: this.personalityType,
+                baseType: this.personalityType,
+                sex: this.sex,
+                isHybrid: this.isHybrid,
+                hybridGenome: this.hybridGenome
+            });
+        }
+        return this.collectionRenderSpecCache;
     }
 
     getFlattenedWingSource(wingKey) {
@@ -1806,6 +3122,56 @@ class Butterfly extends Entity {
 
     getSpecialAbility() {
         return this.specialAbility ?? this.traits.special ?? null;
+    }
+
+    getAbilitySourceVariant(ability = this.getSpecialAbility()) {
+        return BUTTERFLY_ABILITY_SOURCE_VARIANTS[ability] || this.personalityType || 'friendly';
+    }
+
+    getAbilityVisualPalette(ability = this.getSpecialAbility()) {
+        const sourceVariant = this.getAbilitySourceVariant(ability);
+        const palette = BUTTERFLY_PERSONALITIES[sourceVariant]?.colors;
+        if (Array.isArray(palette) && palette.length >= 2) {
+            return {
+                primaryColor: [...palette[0]],
+                secondaryColor: [...palette[1]]
+            };
+        }
+        return {
+            primaryColor: [...(this.colors?.[0] || [255, 255, 255])],
+            secondaryColor: [...(this.colors?.[1] || this.colors?.[0] || [255, 255, 255])]
+        };
+    }
+
+    getAbilityVisualProfile(ability = this.getSpecialAbility()) {
+        const profile = BUTTERFLY_ABILITY_VISUALS[ability] || { style: 'symbol', symbol: '✦', fallbackSymbol: '*', durationFrames: 24 };
+        return {
+            ...profile,
+            ability
+        };
+    }
+
+    emitAbilityVisual(ability = this.getSpecialAbility(), overrides = {}) {
+        if (!ability || typeof eventBus === 'undefined') return;
+
+        const visual = this.getAbilityVisualProfile(ability);
+        if (visual.style === 'trail') return;
+
+        const palette = this.getAbilityVisualPalette(ability);
+        eventBus.emit('ability:visual', {
+            ability,
+            sourceId: this.id,
+            x: this.x,
+            y: this.y,
+            visualStyle: visual.style,
+            abilityRadius: visual.radius ?? null,
+            durationFrames: visual.durationFrames || 24,
+            symbol: visual.symbol || null,
+            fallbackSymbol: visual.fallbackSymbol || null,
+            primaryColor: palette.primaryColor,
+            secondaryColor: palette.secondaryColor,
+            ...overrides
+        });
     }
 
     getStatusBundle() {
@@ -1866,11 +3232,17 @@ class Butterfly extends Entity {
     }
 
     getBodySpriteScale() {
-        return this.sex === 'M' ? 0.8 : 1.0;
+        return this.bodySpriteScale;
     }
 
     getWingSpriteScale() {
-        return this.sex === 'F' ? 1.2 : 1.0;
+        return this.wingSpriteScale;
+    }
+
+    shouldUseBakedCreatureSprites() {
+        return gameConfig.rendering.useSprites
+            && spriteManager.loaded
+            && spriteManager.isBakedCreatureSpritesEnabled?.();
     }
 
     hasRenderableWings() {
@@ -1879,14 +3251,36 @@ class Butterfly extends Entity {
             && spriteManager.hasRenderableSpec(this.getRenderSpec());
     }
 
+    getVariantDisplayName() {
+        if (this.displayName) return this.displayName;
+        if (this.personalName) {
+            return this.nameDisambiguator
+                ? `${this.personalName} ${this.nameDisambiguator}.`
+                : this.personalName;
+        }
+        if (this.isHybrid) return 'Hybrid';
+        return BUTTERFLY_VARIANT_DISPLAY_NAMES[this.personalityType] || this.personalityType || 'Butterfly';
+    }
+
+    getCanonicalLabel(options = {}) {
+        const includeSex = !!options.includeSex;
+        const baseLabel = this.getVariantDisplayName();
+        if (!includeSex) return baseLabel;
+        return `${baseLabel}(${this.sex || '?'})`;
+    }
+
     getDisplayName() {
-        return this.displayName || (this.isHybrid ? 'Hybrid' : this.personalityType);
+        return this.getVariantDisplayName();
     }
 
     // Override parent's draw to add following connection
     draw(graphics) {
+        const renderContext = typeof renderManager !== 'undefined'
+            ? renderManager.getRenderContext?.() || {}
+            : {};
+        const inBattle = !!renderContext.battleActive;
         // Draw following connection line first (behind everything)
-        if (this.state === 'following' && this.cursor.followingPos) {
+        if (!inBattle && this.state === 'following' && this.cursor.followingPos) {
             this.drawFollowingConnection(graphics);
         }
         
@@ -1926,8 +3320,21 @@ class Butterfly extends Entity {
     }
     
     // Override parent's shadow drawing for custom butterfly shadow
+    getVisualScale(renderContext = null) {
+        const context = renderContext || (typeof renderManager !== 'undefined'
+            ? renderManager.getRenderContext?.() || {}
+            : {});
+        const baseScale = gameConfig.rendering.butterflyVisualScale;
+        if (context?.battleActive) {
+            return baseScale * (gameConfig?.battle?.presentation?.fieldEntityScale || 1);
+        }
+        return baseScale;
+    }
+
     drawShadow(graphics, alpha) {
-        const vs = gameConfig.rendering.butterflyVisualScale;
+        const sleepState = this.getSleepState?.();
+        if (sleepState?.subtype) return;
+        const vs = this.getVisualScale();
         graphics.noStroke();
         graphics.fill(0, 0, 0, min(50, alpha * 0.2));
         graphics.ellipse(this.x, this.y + this.shadowOffset, this.size * 0.8 * vs, this.size * 0.4 * vs);
@@ -1936,15 +3343,20 @@ class Butterfly extends Entity {
     // Override parent's entity drawing
     drawAfterimages(graphics) {
         if (this.afterimages.length === 0) return;
+        if (typeof renderManager !== 'undefined' && renderManager.getRenderContext?.().battleActive) return;
         if (typeof renderManager !== 'undefined' && !renderManager.shouldRenderAfterimageTrails()) return;
         const trailMode = typeof renderManager !== 'undefined'
             ? renderManager.getTrailVisibilityMode?.() || 'full'
             : 'full';
+        const smoothSprites = typeof renderManager !== 'undefined'
+            ? !!renderManager.shouldUseSmoothedButterflySprites?.()
+            : false;
         const startIndex = trailMode === 'reduced'
             ? Math.max(0, this.afterimages.length - Math.ceil(this.afterimages.length / 2))
             : 0;
 
         const useSprites = this.hasRenderableWings();
+        const renderSpec = useSprites ? this.getRenderSpec() : null;
 
         for (let i = startIndex; i < this.afterimages.length; i++) {
             const ghost = this.afterimages[i];
@@ -1963,24 +3375,25 @@ class Butterfly extends Entity {
             graphics.noStroke();
 
             if (useSprites) {
+                if (smoothSprites) graphics.smooth();
                 graphics.tint(255, ghostAlpha);
 
-                this.drawSpriteBody(graphics);
-                this.drawSpriteAntennae(graphics);
+                this.drawSpriteBody(graphics, renderSpec);
+                this.drawSpriteAntennae(graphics, renderSpec);
 
                 graphics.push();
                 graphics.rotate(wingTilt);
 
                 const hindFlap = sinWing(ghost.wingAngle - 0.6);
                 const hindSpread = map(hindFlap, -1, 1, 0.35, 0.95);
-                this.drawSpriteWing(graphics, 'hindLeft', hindSpread);
-                this.drawSpriteWing(graphics, 'hindRight', hindSpread);
-                this.drawSpriteWing(graphics, 'foreLeft', wingSpread);
-                this.drawSpriteWing(graphics, 'foreRight', wingSpread);
+                this.drawSpriteWing(graphics, 'hindLeft', hindSpread, renderSpec, false);
+                this.drawSpriteWing(graphics, 'hindRight', hindSpread, renderSpec, false);
+                this.drawSpriteWing(graphics, 'foreLeft', wingSpread, renderSpec, false);
+                this.drawSpriteWing(graphics, 'foreRight', wingSpread, renderSpec, false);
 
                 graphics.pop();
                 graphics.noTint();
-                graphics.noSmooth();
+                if (smoothSprites) graphics.noSmooth();
             } else {
                 graphics.push();
                 graphics.rotate(wingTilt);
@@ -2000,61 +3413,38 @@ class Butterfly extends Entity {
 
     drawEntity(graphics, alpha) {
         const sleepState = this.getSleepState();
+        const renderContext = typeof renderManager !== 'undefined'
+            ? renderManager.getRenderContext?.() || {}
+            : {};
+        const inBattle = !!renderContext.battleActive;
+        const trackButterflyComponentCosts = !!renderContext.trackButterflyComponentCosts;
+        const nowMs = trackButterflyComponentCosts
+            ? (() => (typeof performance !== 'undefined' ? performance.now() : Date.now()))
+            : null;
+        const recordComponentCost = (metricKey, startMs) => {
+            if (!trackButterflyComponentCosts || startMs == null || typeof renderManager === 'undefined') return;
+            renderManager.accumulateEntityComponentRenderCost?.(metricKey, nowMs() - startMs);
+        };
+        const visualScale = this.getVisualScale(renderContext);
 
         // Draw afterimage trail behind the main butterfly
-        if (!sleepState?.subtype) {
+        if (!sleepState?.subtype && !inBattle) {
+            const afterimageStart = trackButterflyComponentCosts ? nowMs() : null;
             this.drawAfterimages(graphics);
+            recordComponentCost('entityFamilyButterflyAfterimageMs', afterimageStart);
         }
+
+        const sleepVisual = typeof sleepSystem !== 'undefined' ? sleepSystem.getVisualState(this.id) : null;
+        const useSprites = this.hasRenderableWings();
+        const renderSpec = useSprites ? this.getRenderSpec() : null;
 
         // Draw butterfly at current position
         graphics.push();
-        const sleepVisual = typeof sleepSystem !== 'undefined' ? sleepSystem.getVisualState(this.id) : null;
         graphics.translate(this.x, this.y + (sleepVisual?.yOffset || 0));
         if (sleepVisual?.tilt) {
             graphics.rotate(sleepVisual.tilt);
         }
-        graphics.scale(gameConfig.rendering.butterflyVisualScale);
-        
-        // Draw warning effect if butterfly needs attention
-        if (this.needsAttention() && !this.isImmortal) {
-            this.drawWarningEffect(graphics, alpha);
-        }
-        
-        // Draw spawn glow effect if newly spawned
-        if (this.spawnGlowIntensity > 0) {
-            this.drawSpawnGlow(graphics, alpha);
-        }
-        
-        // Draw happiness aura/glow behind butterfly
-        this.drawHappinessAura(graphics, alpha);
-        
-        // Special golden crown/halo for legendary butterfly
-        if (this.personalityType === 'golden') {
-            graphics.push();
-            graphics.noStroke();
-            const goldenPulse = sinFrame(frameCount, 0.05) * 0.2 + 0.8;
-            
-            // Crown/halo effect above butterfly
-            graphics.fill(255, 215, 0, 150 * goldenPulse);
-            graphics.ellipse(0, -10, 20 * goldenPulse, 8 * goldenPulse);
-            
-            // Three crown points
-            for (let i = -1; i <= 1; i++) {
-                graphics.push();
-                graphics.translate(i * 6, -12);
-                graphics.rotate(i * 0.2);
-                graphics.fill(255, 215, 0, 200 * goldenPulse);
-                graphics.beginShape();
-                graphics.vertex(0, 0);
-                graphics.vertex(-2, -4);
-                graphics.vertex(0, -6);
-                graphics.vertex(2, -4);
-                graphics.endShape(CLOSE);
-                graphics.pop();
-            }
-            
-            graphics.pop();
-        }
+        graphics.scale(visualScale);
         
         const wingFlap = sinWing(this.visual.wingAngle);
         const wingSpread = map(wingFlap, -1, 1, 0.4, 1);
@@ -2063,66 +3453,89 @@ class Butterfly extends Entity {
         graphics.noStroke();
 
         // Choose sprite or procedural rendering
-        const useSprites = this.hasRenderableWings();
+        const smoothSprites = typeof renderManager !== 'undefined'
+            ? !!renderManager.shouldUseSmoothedButterflySprites?.()
+            : false;
 
         if (useSprites) {
+            if (smoothSprites) graphics.smooth();
             // Apply alpha for fading butterflies
             if (alpha < 255) {
                 graphics.tint(255, alpha);
             }
 
             // --- BODY (bottom layer — behind wings) ---
-            this.drawSpriteBody(graphics);
+            const bodyStart = trackButterflyComponentCosts ? nowMs() : null;
+            this.drawSpriteBody(graphics, renderSpec);
+            recordComponentCost('entityFamilyButterflyBodyMs', bodyStart);
 
             // --- ANTENNAE (middle layer — between body and wings) ---
-            this.drawSpriteAntennae(graphics);
+            const antennaStart = trackButterflyComponentCosts ? nowMs() : null;
+            this.drawSpriteAntennae(graphics, renderSpec);
+            recordComponentCost('entityFamilyButterflyAntennaMs', antennaStart);
 
             // --- WINGS (top layer, inside wingTilt rotation) ---
+            const wingStart = trackButterflyComponentCosts ? nowMs() : null;
             graphics.push();
             graphics.rotate(wingTilt);
 
             // Hindwings first (behind forewings) with 0.6 rad phase lag (~0.2s at normal speed)
             const hindFlap = sinWing(this.visual.wingAngle - 0.6);
             const hindSpread = map(hindFlap, -1, 1, 0.35, 0.95);
-            this.drawSpriteWing(graphics, 'hindLeft', hindSpread);
-            this.drawSpriteWing(graphics, 'hindRight', hindSpread);
+            this.drawSpriteWing(graphics, 'hindLeft', hindSpread, renderSpec, inBattle);
+            this.drawSpriteWing(graphics, 'hindRight', hindSpread, renderSpec, inBattle);
 
             // Forewings on top with primary timing
-            this.drawSpriteWing(graphics, 'foreLeft', wingSpread);
-            this.drawSpriteWing(graphics, 'foreRight', wingSpread);
+            this.drawSpriteWing(graphics, 'foreLeft', wingSpread, renderSpec, inBattle);
+            this.drawSpriteWing(graphics, 'foreRight', wingSpread, renderSpec, inBattle);
 
             graphics.pop();
+            recordComponentCost('entityFamilyButterflyWingMs', wingStart);
 
             // Remove tint and restore pixel-art rendering
             if (alpha < 255) {
                 graphics.noTint();
             }
-            graphics.noSmooth();
+            if (smoothSprites) graphics.noSmooth();
         } else {
             // Fallback: original procedural rendering
+            const wingStart = trackButterflyComponentCosts ? nowMs() : null;
             graphics.push();
             graphics.rotate(wingTilt);
             this.drawStardewWing(graphics, -1, wingSpread); // Left wing
             this.drawStardewWing(graphics, 1, wingSpread);  // Right wing
             graphics.pop();
+            recordComponentCost('entityFamilyButterflyWingMs', wingStart);
 
             // Draw body on top
+            const bodyStart = trackButterflyComponentCosts ? nowMs() : null;
             this.drawBody(graphics);
+            recordComponentCost('entityFamilyButterflyBodyMs', bodyStart);
         }
         
         // Draw exclamation mark popup if active
-        if (this.timers.exclamation > 0) {
+        const overlayStart = trackButterflyComponentCosts ? nowMs() : null;
+        if (!inBattle && this.timers.exclamation > 0) {
             this.drawExclamation(graphics);
         }
         
         // Draw trust building indicator
-        if (this.cursor.trustGlowAlpha > 0) {
+        if (!inBattle && this.cursor.trustGlowAlpha > 0) {
             this.drawTrustIndicator(graphics);
         }
 
-        if (sleepState?.subtype) {
+        if (!inBattle && typeof communicationSystem !== 'undefined') {
+            communicationSystem.drawSignalIndicator(graphics, this, alpha);
+        }
+
+        if (!inBattle && sleepState?.subtype) {
             this.drawSleepIndicator(graphics, sleepState, alpha);
         }
+
+        if (typeof gameUI !== 'undefined' && gameUI.isInspectLockedToEntity?.(this.id)) {
+            this.drawLockedInspectIndicator(graphics);
+        }
+        recordComponentCost('entityFamilyButterflyOverlayMs', overlayStart);
         
         graphics.pop();
     }
@@ -2135,9 +3548,6 @@ class Butterfly extends Entity {
             ? [170, 190, 255]
             : [220, 230, 255];
 
-        graphics.fill(indicatorColor[0], indicatorColor[1], indicatorColor[2], alpha * 0.22);
-        graphics.ellipse(0, 9, 18, 7);
-
         if (sleepState.subtype !== 'settling_sleep') {
             graphics.fill(indicatorColor[0], indicatorColor[1], indicatorColor[2], alpha * 0.85);
             graphics.textAlign(CENTER, CENTER);
@@ -2149,18 +3559,40 @@ class Butterfly extends Entity {
 
         graphics.pop();
     }
+
+    drawLockedInspectIndicator(graphics) {
+        graphics.push();
+        graphics.noFill();
+
+        const highContrast = !!gameUI?.accessibilitySettings?.highContrastUI;
+        if (highContrast) {
+            graphics.stroke(255, 255, 255, 240);
+            graphics.strokeWeight(2.5);
+        } else {
+            graphics.stroke(110, 245, 170, 220);
+            graphics.strokeWeight(2.5);
+        }
+
+        graphics.ellipse(0, 8, 28, 16);
+        graphics.pop();
+    }
     
     // Draw happiness aura/glow behind butterfly
     drawHappinessAura(graphics, alpha) {
+        const crowdSuppression = this.getCrowdSuppressionFactor(92);
+        if (crowdSuppression <= 0.05) {
+            return;
+        }
+
         // Add shimmer effect for mystic butterflies
-        if (this.personalityType === 'mystic') {
+        if (this.personalityType === 'mystic' && crowdSuppression > 0.42) {
             const shimmerTime = frameCount * 0.1;
-            const shimmerAlpha = (sin(shimmerTime) * 0.3 + 0.7) * alpha;
+            const shimmerAlpha = (sin(shimmerTime) * 0.3 + 0.7) * alpha * crowdSuppression;
             graphics.push();
             graphics.noStroke();
             // Iridescent shimmer layers
             for (let i = 3; i > 0; i--) {
-                const size = 30 * (i / 3);
+                const size = 30 * (i / 3) * Math.max(0.7, crowdSuppression);
                 const layerAlpha = shimmerAlpha * 0.3 / i;
                 const hue = (shimmerTime * 50 + i * 60) % 360;
                 // Convert HSB to RGB approximation
@@ -2196,8 +3628,8 @@ class Butterfly extends Entity {
             if (this.happiness < this.baselineHappiness) {
                 // Draw more obvious dark purple aura for unhappy butterflies
                 const sadnessRatio = (this.baselineHappiness - this.happiness) / this.baselineHappiness;
-                const auraSize = 25 + sadnessRatio * 15;
-                const auraAlpha = min(60 * sadnessRatio, alpha * 0.8);
+                const auraSize = (25 + sadnessRatio * 15) * Math.max(0.68, crowdSuppression);
+                const auraAlpha = min(60 * sadnessRatio, alpha * 0.8) * crowdSuppression;
                 
                 graphics.push();
                 graphics.noStroke();
@@ -2214,8 +3646,8 @@ class Butterfly extends Entity {
         
         // Aura grows larger and brighter with happiness
         const maxAuraSize = 45;
-        const auraSize = 20 + happinessRatio * maxAuraSize;
-        const auraAlpha = min(50 + happinessRatio * 100, alpha * 0.9);
+        const auraSize = (20 + happinessRatio * maxAuraSize) * Math.max(0.62, crowdSuppression);
+        const auraAlpha = min(50 + happinessRatio * 100, alpha * 0.9) * crowdSuppression;
         
         // Use butterfly's colors for the aura
         const auraColor = this.colors[0]; // Use primary wing color
@@ -2238,7 +3670,7 @@ class Butterfly extends Entity {
         }
         
         // Add a subtle pulse effect for very happy butterflies
-        if (happinessRatio > 0.8) {
+        if (happinessRatio > 0.8 && crowdSuppression > 0.55) {
             const pulse = sinFrame(frameCount, 0.1) * 0.2 + 0.8;
             const pulseSize = auraSize * pulse;
             graphics.fill(255, 255, 255, auraAlpha * 0.3 * pulse);
@@ -2250,9 +3682,10 @@ class Butterfly extends Entity {
     
     // Sprite-based wing rendering using anchor-point positioning
     // wingKey: 'foreLeft', 'foreRight', 'hindLeft', 'hindRight'
-    drawSpriteWing(graphics, wingKey, spread) {
-        const piece = spriteManager.getWingPieceForSpec(this.getRenderSpec(), wingKey);
-        if (!piece) return;
+    drawSpriteWing(graphics, wingKey, spread, renderSpec = null, battleActive = null) {
+        const spec = renderSpec || this.getRenderSpec();
+        const rawPiece = spriteManager.getWingPieceForSpec(spec, wingKey);
+        if (!rawPiece) return;
 
         const anchor = spriteManager.anchors.wings[wingKey];
         const relAnchor = spriteManager.anchors.wingsRelative[wingKey];
@@ -2274,12 +3707,43 @@ class Butterfly extends Entity {
         }
 
         // Wing piece dimensions in game-space (using wing scale)
-        const pieceW = piece.width * ws;
-        const pieceH = piece.height * ws;
+        let piece = rawPiece;
+        let pieceW = rawPiece.width * ws;
+        let pieceH = rawPiece.height * ws;
+        let anchorX = relAnchor.x * ws;
+        let anchorY = relAnchor.y * ws;
+        let bakedPoseUsed = false;
+        if (this.shouldUseBakedCreatureSprites()) {
+            const bakedPose = spriteManager.shouldUseBakedWingPose?.(wingKey, spread, battleActive)
+                ? spriteManager.getBakedWingPoseData(spec, wingKey, ws, spread)
+                : null;
+            if (bakedPose?.surface) {
+                piece = bakedPose.surface;
+                pieceW = bakedPose.drawWidth;
+                pieceH = bakedPose.drawHeight;
+                anchorX = bakedPose.anchorX;
+                anchorY = bakedPose.anchorY;
+                bakedPoseUsed = true;
+            } else {
+                const bakedPiece = spriteManager.getBakedWingPieceData(spec, wingKey, ws);
+                if (bakedPiece?.surface) {
+                    piece = bakedPiece.surface;
+                    pieceW = bakedPiece.drawWidth;
+                    pieceH = bakedPiece.drawHeight;
+                    anchorX = bakedPiece.anchorX;
+                    anchorY = bakedPiece.anchorY;
+                }
+            }
+        }
 
         // Position so the wing's anchor pixel aligns with the body connection
-        const drawX = bodyConnX - (relAnchor.x * ws);
-        const drawY = bodyConnY - (relAnchor.y * ws);
+        const drawX = bodyConnX - anchorX;
+        const drawY = bodyConnY - anchorY;
+
+        if (bakedPoseUsed) {
+            graphics.image(piece, drawX, drawY, pieceW, pieceH);
+            return;
+        }
 
         graphics.push();
         graphics.scale(spread, 1); // 3D flap: X-axis compression toward body center
@@ -2288,19 +3752,20 @@ class Butterfly extends Entity {
     }
 
     // Sprite-based body rendering — drawn centered using unified scale
-    drawSpriteBody(graphics) {
+    drawSpriteBody(graphics, renderSpec = null) {
         if (!spriteManager.hasBody()) {
             return this.drawBody(graphics);
         }
 
         const s = ((this.size * spriteManager.SPRITE_SCALE) / 1080) * this.getBodySpriteScale();
+        const bodySprite = spriteManager.body;
         const bodyW = spriteManager.body.width * s;
         const bodyH = spriteManager.body.height * s;
-        graphics.image(spriteManager.body, -bodyW / 2, -bodyH / 2, bodyW, bodyH);
+        graphics.image(bodySprite, -bodyW / 2, -bodyH / 2, bodyW, bodyH);
     }
 
     // Sprite-based antenna rendering with anchor-point positioning and sway
-    drawSpriteAntennae(graphics) {
+    drawSpriteAntennae(graphics, renderSpec = null) {
         if (!spriteManager.hasAntenna()) return;
 
         const s = ((this.size * spriteManager.SPRITE_SCALE) / 1080) * this.getBodySpriteScale();
@@ -2525,16 +3990,25 @@ class Butterfly extends Entity {
         graphics.push();
         
         const pulse = sinFrame(frameCount, 0.1) * 0.2 + 0.8;
+        const crowdSuppression = this.getCrowdSuppressionFactor(84);
+        if (crowdSuppression <= 0.08 && this.personalityType !== 'golden') {
+            graphics.pop();
+            return;
+        }
         // Golden butterflies get full opacity indicators for easier tracking
-        const alpha = this.personalityType === 'golden' ? 255 * pulse : this.cursor.trustGlowAlpha * pulse;
+        const alpha = (this.personalityType === 'golden' ? 210 * pulse : this.cursor.trustGlowAlpha * pulse) * crowdSuppression;
         
         // Use special symbols for golden butterfly
         const isGolden = this.personalityType === 'golden';
+        const activelyBuilding = this.cursor.currentPatience > 0;
+        const symbolCount = activelyBuilding
+            ? (crowdSuppression < 0.55 ? 1 : (crowdSuppression < 0.8 ? 2 : 3))
+            : 1;
         
         // Draw small symbols floating up
-        for (let i = 0; i < 3; i++) {
-            const angle = (TWO_PI / 3) * i + frameCount * 0.02;
-            const distance = 15 + sin(frameCount * 0.05 + i) * 5;
+        for (let i = 0; i < symbolCount; i++) {
+            const angle = (TWO_PI / Math.max(symbolCount, 1)) * i + frameCount * (activelyBuilding ? 0.02 : 0.006);
+            const distance = 12 + sin(frameCount * 0.05 + i) * 4 * crowdSuppression;
             const x = cos(angle) * distance;
             const y = sin(angle) * distance - 10;
             
@@ -2590,25 +4064,27 @@ class Butterfly extends Entity {
                 // Background circle for context
                 graphics.stroke(255, 215, 0, 100);
                 graphics.strokeWeight(2);
-                graphics.arc(0, 0, 35, 35, 0, TWO_PI);
+                graphics.arc(0, 0, 28, 28, 0, TWO_PI);
                 
                 // Progress arc
                 graphics.stroke(255, 215, 0, 255); // Full opacity
                 graphics.strokeWeight(4);
                 const arcEnd = map(progress, 0, 1, 0, TWO_PI);
-                graphics.arc(0, 0, 35, 35, -HALF_PI, -HALF_PI + arcEnd);
+                graphics.arc(0, 0, 28, 28, -HALF_PI, -HALF_PI + arcEnd);
                 
                 // Add pulsing outer ring for dramatic effect
-                const outerPulse = sin(frameCount * 0.15) * 0.3 + 0.7;
-                graphics.stroke(255, 255, 100, 150 * outerPulse);
-                graphics.strokeWeight(2);
-                graphics.arc(0, 0, 45, 45, -HALF_PI, -HALF_PI + arcEnd);
+                if (crowdSuppression > 0.9) {
+                    const outerPulse = sin(frameCount * 0.15) * 0.3 + 0.7;
+                    graphics.stroke(255, 255, 100, 150 * outerPulse * crowdSuppression);
+                    graphics.strokeWeight(1.5);
+                    graphics.arc(0, 0, 38, 38, -HALF_PI, -HALF_PI + arcEnd);
+                }
             } else {
                 // Normal butterfly progress bar
-                graphics.strokeWeight(2);
+                graphics.strokeWeight(1.5);
                 graphics.stroke(100, 255, 100, alpha * 0.5);
                 const arcEnd = map(progress, 0, 1, 0, TWO_PI);
-                graphics.arc(0, 0, 30, 30, -HALF_PI, -HALF_PI + arcEnd);
+                graphics.arc(0, 0, 24, 24, -HALF_PI, -HALF_PI + arcEnd);
             }
         }
         
@@ -2793,6 +4269,9 @@ class Butterfly extends Entity {
         if (!ability) return;
         
         const { butterflies, particleSystem } = gameState;
+        if (this.visualCueCooldowns.sparkleSeed > 0) {
+            this.visualCueCooldowns.sparkleSeed--;
+        }
         
         switch (ability) {
             case 'welcome':
@@ -2818,12 +4297,16 @@ class Butterfly extends Entity {
             case 'shimmer':
                 this.updateSleepAssistAura(butterflies);
                 break;
+
+            case 'golden':
+                break;
         }
     }
 
     updateWarmWelcomeAura(butterflies) {
         if (this.happiness <= this.baselineHappiness) return;
 
+        let affectedCount = 0;
         for (const butterfly of butterflies) {
             if (butterfly === this || !butterfly?.id) continue;
 
@@ -2847,18 +4330,29 @@ class Butterfly extends Entity {
                 `welcome_panic_${this.id}_${butterfly.id}`,
                 { ability: 'welcome', radius: 90 }
             );
+            affectedCount++;
+        }
+
+        if (affectedCount > 0 && frameCount % 24 === 0) {
+            this.emitAbilityVisual('welcome');
         }
     }
     
     // Cautious butterfly - leaves sparkle trail when happy
     updateSparkleTrail(particleSystem) {
         if (this.happiness <= this.baselineHappiness) return;
+        const crowdSuppression = this.getCrowdSuppressionFactor(90);
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+        if (crowdSuppression <= 0.08) {
+            this.abilities.sparkleTrail.length = 0;
+            return;
+        }
         
         // Add current position to trail
         this.abilities.sparkleTrail.push({
             x: this.x,
             y: this.y,
-            life: 60 // 1 second
+            life: crowdSuppression < 0.5 ? 36 : 60 // Shorter-lived in busy scenes
         });
         
         // Update and emit sparkles from trail
@@ -2867,7 +4361,7 @@ class Butterfly extends Entity {
             sparkle.life--;
             
             // Emit sparkle particle every few frames
-            if (sparkle.life % 10 === 0) {
+            if (crowdSuppression > 0.35 && sparkle.life % (crowdSuppression < 0.6 ? 14 : 10) === 0) {
                 const pixel = particleSystem.emit(
                     sparkle.x + random(-3, 3),
                     sparkle.y + random(-3, 3),
@@ -2887,8 +4381,16 @@ class Butterfly extends Entity {
         }
         
         // Limit trail length
-        if (this.abilities.sparkleTrail.length > 30) {
+        const maxTrailLength = crowdSuppression < 0.5 ? 12 : 20;
+        if (this.abilities.sparkleTrail.length > maxTrailLength) {
             this.abilities.sparkleTrail.shift();
+        }
+
+        if (zoneId && this.visualCueCooldowns.sparkleSeed <= 0 && this.abilities.sparkleTrail.length >= 8 && random() < 0.01) {
+            const anchor = this.abilities.sparkleTrail[0];
+            if (gameCore?.queuePollenPlanting?.(this.id, zoneId, anchor.x, anchor.y, { source: 'sparkle-trail' })) {
+                this.visualCueCooldowns.sparkleSeed = 360;
+            }
         }
     }
     
@@ -2919,13 +4421,7 @@ class Butterfly extends Entity {
 
         if (affectedCount > 0) {
             this.setAbilityCooldown('speedzone_pulse', 5, { durationSeconds: 5 });
-            eventBus.emit('speedzone:created', {
-                sourceId: this.id,
-                x: this.x,
-                y: this.y,
-                radius: 100,
-                affectedCount
-            });
+            this.emitAbilityVisual('speedzone');
         }
     }
     
@@ -2940,12 +4436,15 @@ class Butterfly extends Entity {
         this.abilities.teachingAura = true;
         
         if (this.getAbilityCooldownRemaining('teaching_pulse') <= 0) {
-            eventBus.emit('teaching:pulse', {
-                teacherId: this.id,
-                x: this.x,
-                y: this.y,
-                radius: teachingPulseRadius
-            });
+            if (typeof eventBus !== 'undefined') {
+                eventBus.emit('teaching:pulse', {
+                    teacherId: this.id,
+                    x: this.x,
+                    y: this.y,
+                    radius: teachingPulseRadius
+                });
+            }
+            this.emitAbilityVisual('teacher', { abilityRadius: teachingPulseRadius });
             this.setAbilityCooldown('teaching_pulse', 2, { durationSeconds: 2 });
         }
 
@@ -2990,12 +4489,17 @@ class Butterfly extends Entity {
         
         // Visual feedback - green wave with affected butterflies
         if (this.abilities.trustCascadeCache.length > 0) {
-            eventBus.emit('trust:cascade', {
-                sourceId: this.id,
-                x: this.x,
-                y: this.y,
-                radius: gameConfig?.balance?.social?.trustCascadeRadius ?? 150,
-                butterflies: this.abilities.trustCascadeCache
+            if (typeof eventBus !== 'undefined') {
+                eventBus.emit('trust:cascade', {
+                    sourceId: this.id,
+                    x: this.x,
+                    y: this.y,
+                    radius: gameConfig?.balance?.social?.trustCascadeRadius ?? 150,
+                    butterflies: this.abilities.trustCascadeCache
+                });
+            }
+            this.emitAbilityVisual('cascade', {
+                abilityRadius: gameConfig?.balance?.social?.trustCascadeRadius ?? 150
             });
         }
     }
@@ -3036,6 +4540,10 @@ class Butterfly extends Entity {
                 `shimmer_recovery_${this.id}_${butterfly.id}`,
                 { ability: 'shimmer', radius: 85 }
             );
+        }
+
+        if (frameCount % 30 === 0) {
+            this.emitAbilityVisual('shimmer');
         }
     }
     

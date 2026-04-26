@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-native-composite-control\\2026-04-24T23-55-18-611Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 10.555000007152557,
+      "avgRenderMs": 23.12416665951411,
+      "p95FrameMs": 46.30000019073486,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.611666677395503,
+      "avgRenderMs": 25.35916666587194,
+      "p95FrameMs": 47.5,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 31.640000007549922,
+      "avgRenderMs": 40.08083333770434,
+      "p95FrameMs": 108.80000019073486,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 11.847499998410543,
+      "avgRenderMs": 25.385000002384185,
+      "p95FrameMs": 57,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-nosmooth-control\\2026-04-25T13-47-02-838Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.833333341280619,
+      "avgRenderMs": 15.595000008742014,
+      "p95FrameMs": 27,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.293333329757054,
+      "avgRenderMs": 17.33833332856496,
+      "p95FrameMs": 31.59999990463257,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 20.626666667064033,
+      "avgRenderMs": 29.77833331624667,
+      "p95FrameMs": 63.299999952316284,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 9.481666662295659,
+      "avgRenderMs": 18.458333339293798,
+      "p95FrameMs": 37.5,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

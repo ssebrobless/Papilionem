@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-guide-dom-candidate\\2026-04-24T04-15-22-948Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 7.133333327372869,
+      "avgRenderMs": 24.95166666905085,
+      "p95FrameMs": 36.09999990463257,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 6.86583333214124,
+      "avgRenderMs": 26.217499995231627,
+      "p95FrameMs": 38.799999952316284,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 23.61499999562899,
+      "avgRenderMs": 32.755833355585736,
+      "p95FrameMs": 65.29999995231628,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 11.144166666269303,
+      "avgRenderMs": 27.27333333293597,
+      "p95FrameMs": 47.09999990463257,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

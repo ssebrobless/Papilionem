@@ -1,0 +1,455 @@
+{
+  "generatedAt": "2026-04-22T01:16:37.038Z",
+  "captureDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\2026-04-21T22-37-33-649Z-playtest-manual-capture-1776811016146",
+  "captureLabel": "playtest-manual",
+  "durationMs": 37453,
+  "dialogueRecordCount": 345,
+  "motiveDistribution": [
+    {
+      "label": "warning",
+      "count": 123
+    },
+    {
+      "label": "acknowledgement",
+      "count": 79
+    },
+    {
+      "label": "comfort",
+      "count": 61
+    },
+    {
+      "label": "teaching",
+      "count": 58
+    },
+    {
+      "label": "companionship",
+      "count": 12
+    },
+    {
+      "label": "shared-observation",
+      "count": 9
+    },
+    {
+      "label": "other",
+      "count": 2
+    },
+    {
+      "label": "admiration",
+      "count": 1
+    }
+  ],
+  "talkModeDistribution": [
+    {
+      "label": "multi_target",
+      "count": 182
+    },
+    {
+      "label": "single_target",
+      "count": 163
+    }
+  ],
+  "followThroughStateDistribution": [
+    {
+      "label": "acting",
+      "count": 123
+    },
+    {
+      "label": "heard",
+      "count": 114
+    },
+    {
+      "label": "considering",
+      "count": 58
+    },
+    {
+      "label": "held",
+      "count": 37
+    },
+    {
+      "label": "lingering",
+      "count": 9
+    },
+    {
+      "label": "held-at-distance",
+      "count": 2
+    },
+    {
+      "label": "repair-open",
+      "count": 2
+    }
+  ],
+  "resolvedAddresseeDistribution": [
+    {
+      "label": "Alice",
+      "count": 24
+    },
+    {
+      "label": "Ian",
+      "count": 20
+    },
+    {
+      "label": "Bella",
+      "count": 17
+    },
+    {
+      "label": "DelicatePink",
+      "count": 16
+    },
+    {
+      "label": "ElectricViolet",
+      "count": 10
+    },
+    {
+      "label": "How",
+      "count": 1
+    }
+  ],
+  "pairDistinctness": {
+    "metric": "Jensen-Shannon divergence over resolved single-target pair motive distributions",
+    "minimumPairRecords": 3,
+    "resolvedPairCount": 11,
+    "resolvedDialogueCount": 51,
+    "unresolvedSingleTargetCount": 75,
+    "averageJsDivergence": 0.5392,
+    "medianJsDivergence": 0.4591,
+    "mostDistinctPairs": [
+      {
+        "leftPair": "Adrian(M) -> Ian",
+        "rightPair": "AncientScholar(F) -> ElectricViolet",
+        "jsDivergence": 1
+      },
+      {
+        "leftPair": "Adrian(M) -> Ian",
+        "rightPair": "Wyatt(M) -> DelicatePink",
+        "jsDivergence": 1
+      },
+      {
+        "leftPair": "AncientScholar(F) -> Bella",
+        "rightPair": "Wyatt(M) -> DelicatePink",
+        "jsDivergence": 1
+      },
+      {
+        "leftPair": "AncientScholar(F) -> ElectricViolet",
+        "rightPair": "Bella(F) -> Ian",
+        "jsDivergence": 1
+      },
+      {
+        "leftPair": "AncientScholar(F) -> ElectricViolet",
+        "rightPair": "Wyatt(M) -> DelicatePink",
+        "jsDivergence": 1
+      },
+      {
+        "leftPair": "Bella(F) -> Ian",
+        "rightPair": "Wyatt(M) -> DelicatePink",
+        "jsDivergence": 1
+      },
+      {
+        "leftPair": "Easton(M) -> DelicatePink",
+        "rightPair": "Ian(M) -> Alice",
+        "jsDivergence": 1
+      },
+      {
+        "leftPair": "Easton(M) -> DelicatePink",
+        "rightPair": "WarmWelcome(M) -> Bella",
+        "jsDivergence": 1
+      }
+    ],
+    "leastDistinctPairs": [
+      {
+        "leftPair": "Ian(M) -> Alice",
+        "rightPair": "Wyatt(M) -> Ian",
+        "jsDivergence": 0
+      },
+      {
+        "leftPair": "Ian(M) -> Alice",
+        "rightPair": "Adrian(M) -> Ian",
+        "jsDivergence": 0
+      },
+      {
+        "leftPair": "WarmWelcome(M) -> Bella",
+        "rightPair": "Wyatt(M) -> Alice",
+        "jsDivergence": 0
+      },
+      {
+        "leftPair": "WarmWelcome(M) -> Bella",
+        "rightPair": "Wyatt(M) -> Ian",
+        "jsDivergence": 0
+      },
+      {
+        "leftPair": "WarmWelcome(M) -> Bella",
+        "rightPair": "Adrian(M) -> Ian",
+        "jsDivergence": 0
+      },
+      {
+        "leftPair": "Wyatt(M) -> Alice",
+        "rightPair": "Wyatt(M) -> Ian",
+        "jsDivergence": 0
+      },
+      {
+        "leftPair": "Wyatt(M) -> Alice",
+        "rightPair": "Adrian(M) -> Ian",
+        "jsDivergence": 0
+      },
+      {
+        "leftPair": "Wyatt(M) -> Ian",
+        "rightPair": "Adrian(M) -> Ian",
+        "jsDivergence": 0
+      }
+    ],
+    "topResolvedPairs": [
+      {
+        "pairKey": "Easton(M) -> DelicatePink",
+        "recordCount": 9,
+        "topMotives": [
+          {
+            "label": "warning",
+            "count": 9
+          }
+        ]
+      },
+      {
+        "pairKey": "Ian(M) -> Alice",
+        "recordCount": 5,
+        "topMotives": [
+          {
+            "label": "acknowledgement",
+            "count": 5
+          }
+        ]
+      },
+      {
+        "pairKey": "WarmWelcome(M) -> Bella",
+        "recordCount": 5,
+        "topMotives": [
+          {
+            "label": "acknowledgement",
+            "count": 5
+          }
+        ]
+      },
+      {
+        "pairKey": "Wyatt(M) -> Alice",
+        "recordCount": 5,
+        "topMotives": [
+          {
+            "label": "acknowledgement",
+            "count": 5
+          }
+        ]
+      },
+      {
+        "pairKey": "Wyatt(M) -> Ian",
+        "recordCount": 5,
+        "topMotives": [
+          {
+            "label": "acknowledgement",
+            "count": 5
+          }
+        ]
+      },
+      {
+        "pairKey": "Adrian(M) -> Ian",
+        "recordCount": 4,
+        "topMotives": [
+          {
+            "label": "acknowledgement",
+            "count": 4
+          }
+        ]
+      },
+      {
+        "pairKey": "AncientScholar(F) -> Bella",
+        "recordCount": 4,
+        "topMotives": [
+          {
+            "label": "acknowledgement",
+            "count": 3
+          },
+          {
+            "label": "companionship",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "pairKey": "AncientScholar(F) -> ElectricViolet",
+        "recordCount": 4,
+        "topMotives": [
+          {
+            "label": "companionship",
+            "count": 2
+          },
+          {
+            "label": "shared-observation",
+            "count": 2
+          }
+        ]
+      },
+      {
+        "pairKey": "Bella(F) -> Ian",
+        "recordCount": 4,
+        "topMotives": [
+          {
+            "label": "acknowledgement",
+            "count": 3
+          },
+          {
+            "label": "other",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "pairKey": "Wyatt(M) -> Bella",
+        "recordCount": 3,
+        "topMotives": [
+          {
+            "label": "companionship",
+            "count": 2
+          },
+          {
+            "label": "acknowledgement",
+            "count": 1
+          }
+        ]
+      },
+      {
+        "pairKey": "Wyatt(M) -> DelicatePink",
+        "recordCount": 3,
+        "topMotives": [
+          {
+            "label": "warning",
+            "count": 3
+          }
+        ]
+      }
+    ]
+  },
+  "followThroughProxy": {
+    "windowMinutes": 5,
+    "methodology": "Uses the capture-owned followThroughState marker as the current proxy for visible follow-through until later event-linked timing proof lands.",
+    "anchoringResidueCount": 345,
+    "visibleFollowThroughCount": 173,
+    "visibleFollowThroughRate": 0.501,
+    "visibleStates": [
+      "acting",
+      "held",
+      "held-at-distance",
+      "lingering",
+      "repair-open"
+    ],
+    "weakestStates": [
+      {
+        "label": "heard",
+        "count": 114
+      },
+      {
+        "label": "considering",
+        "count": 58
+      }
+    ],
+    "strongestVisibleExamples": [
+      {
+        "sourceLabel": "Wyatt(M)",
+        "addresseeLabel": "Bella",
+        "motiveFamily": "companionship",
+        "residueType": "warm-company",
+        "followThroughState": "held",
+        "phrase": "Bella, how are you holding up; I wanted to know how this quiet ground is sitting with you; I would rather ask than assume."
+      },
+      {
+        "sourceLabel": "Wyatt(M)",
+        "addresseeLabel": "Bella",
+        "motiveFamily": "companionship",
+        "residueType": "warm-company",
+        "followThroughState": "held",
+        "phrase": "Bella, you alright beside me; I did not want to let this part of the quiet ground pass without checking on you; I wanted to hear your read."
+      },
+      {
+        "sourceLabel": "Easton(M)",
+        "addresseeLabel": "Bella",
+        "motiveFamily": "shared-observation",
+        "residueType": "shared-observation",
+        "followThroughState": "lingering",
+        "phrase": "Bella, do you notice this too the pressure shifted before we even crossed the drill line drip."
+      },
+      {
+        "sourceLabel": "Easton(M)",
+        "addresseeLabel": null,
+        "motiveFamily": "companionship",
+        "residueType": "warm-company",
+        "followThroughState": "held",
+        "phrase": "Are you still with me here I did not want to let this part of the training floor pass without checking on you."
+      },
+      {
+        "sourceLabel": "Easton(M)",
+        "addresseeLabel": "Bella",
+        "motiveFamily": "shared-observation",
+        "residueType": "shared-observation",
+        "followThroughState": "lingering",
+        "phrase": "Bella, look at this for a second; this edge of the training floor is calmer than the rest of it; I wanted to share that with you."
+      },
+      {
+        "sourceLabel": "Easton(M)",
+        "addresseeLabel": null,
+        "motiveFamily": "companionship",
+        "residueType": "warm-company",
+        "followThroughState": "held",
+        "phrase": "Are you still with me here; I wanted to know how this training floor is sitting with you; I would rather ask than assume."
+      },
+      {
+        "sourceLabel": "ElectricViolet(M)",
+        "addresseeLabel": "Bella",
+        "motiveFamily": "shared-observation",
+        "residueType": "shared-observation",
+        "followThroughState": "lingering",
+        "phrase": "Bella, the garden feels different right here this edge of the training floor is calmer than the rest of it."
+      },
+      {
+        "sourceLabel": "Ariana(F)",
+        "addresseeLabel": null,
+        "motiveFamily": "shared-observation",
+        "residueType": "shared-observation",
+        "followThroughState": "lingering",
+        "phrase": "Do you notice this too; the pressure shifted before we even crossed the drill line; it feels better when we catch the same thing."
+      },
+      {
+        "sourceLabel": "AncientScholar(F)",
+        "addresseeLabel": "Bella",
+        "motiveFamily": "companionship",
+        "residueType": "warm-company",
+        "followThroughState": "held",
+        "phrase": "Bella, are you still with me here; I did not want to let this part of the training floor pass without checking on you; I wanted to hear your read."
+      },
+      {
+        "sourceLabel": "Ian(M)",
+        "addresseeLabel": null,
+        "motiveFamily": "warning",
+        "residueType": "protective-warning",
+        "followThroughState": "acting",
+        "phrase": "Stay clear of that side something in that part of the low ground does not feel stable!"
+      },
+      {
+        "sourceLabel": "Ian(M)",
+        "addresseeLabel": null,
+        "motiveFamily": "warning",
+        "residueType": "protective-warning",
+        "followThroughState": "acting",
+        "phrase": "Okay I will stay off the covered edge."
+      },
+      {
+        "sourceLabel": "Ian(M)",
+        "addresseeLabel": null,
+        "motiveFamily": "warning",
+        "residueType": "protective-warning",
+        "followThroughState": "acting",
+        "phrase": "Back away from the covered edge the air shifted too sharply for that to be harmless!"
+      }
+    ]
+  },
+  "measurementNotes": [
+    "Resolved pairs currently depend on addressee extraction from the emitted phrase because the live capture format does not yet persist explicit target labels on every dialogue residue.",
+    "Unresolved single-target lines remain visible in the output so the next social phases can decide whether target persistence itself needs to widen.",
+    "The follow-through rate is a proxy over life-sim-owned followThroughState, not a UI-derived guess."
+  ]
+}

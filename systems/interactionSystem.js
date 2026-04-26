@@ -78,117 +78,15 @@ class InteractionSystem {
     
     // Draw interaction UI elements
     drawInteractionHints(graphics) {
-        // Draw cursor state indicator first (underneath other indicators)
+        // Keep only the current cursor-state indicator used by the modern shell.
         this.drawCursorStateIndicator(graphics);
-        
-        // Draw hover progress indicator when hovering a butterfly
-        if (this.hoveredButterfly && this.hoverFrames > 0 && !this.hoverTriggered) {
-            const progress = this.hoverFrames / this.stillFramesRequired;
-            
-            // Draw a subtle progress ring around the cursor
-            graphics.push();
-            graphics.noFill();
-            graphics.strokeWeight(2);
-            
-            // Fading in circle
-            const alpha = map(progress, 0, 0.3, 0, 100);
-            graphics.stroke(255, 255, 255, alpha);
-            graphics.ellipse(this.adjustedMouseX, this.adjustedMouseY, this.cursorZoneRadius * 2);
-            
-            // Progress arc
-            if (progress > 0.1) {
-                graphics.stroke(255, 255, 255, 120);
-                const startAngle = -PI/2;
-                const endAngle = startAngle + (progress * TWO_PI);
-                graphics.arc(
-                    this.adjustedMouseX, 
-                    this.adjustedMouseY, 
-                    this.cursorZoneRadius * 2 - 4, 
-                    this.cursorZoneRadius * 2 - 4,
-                    startAngle,
-                    endAngle
-                );
-            }
-            
-            graphics.pop();
-        } else if (this.isGentle() && !this.hoveredButterfly && this.currentCursorState === 'neutral') {
-            // Draw gentle cursor zone when still but not hovering anything (only if not showing other states)
-            graphics.noFill();
-            graphics.stroke(255, 255, 255, 30);
-            graphics.strokeWeight(1);
-            const radius = this.cursorZoneRadius + sinFrame(frameCount, 0.05) * 5;
-            graphics.ellipse(this.adjustedMouseX, this.adjustedMouseY, radius * 2);
-        }
     }
     
     // Check for butterfly interactions
     checkButterflyInteractions(butterflies) {
-        // Find butterflies within range
-        const nearbyButterflies = this.getEntitiesInRange(butterflies);
-        
-        // Check if we're still hovering the same butterfly
-        if (this.hoveredButterfly && nearbyButterflies.includes(this.hoveredButterfly)) {
-            // Still hovering the same butterfly
-            if (this.isGentle()) {
-                this.hoverFrames++;
-                
-                // Check if we've hovered long enough and haven't triggered yet
-                if (this.hoverFrames >= this.stillFramesRequired && !this.hoverTriggered) {
-                    this.hoverTriggered = true;
-                    
-                    // Trigger the display animation
-                    this.hoveredButterfly.startDisplay();
-                    
-                    // Emit event
-                    eventBus.emit(GameEvents.GENTLE_HOVER, { 
-                        butterfly: this.hoveredButterfly,
-                        duration: this.hoverFrames
-                    });
-                    
-                    eventBus.emit(GameEvents.BUTTERFLY_DISPLAY, { 
-                        butterfly: this.hoveredButterfly 
-                    });
-                }
-            } else {
-                // Cursor is moving, reset hover
-                this.resetHover();
-            }
-        } else {
-            // Either no butterfly nearby or switched to a different one
-            this.resetHover();
-            
-            // Start tracking a new butterfly if there's one nearby
-            if (nearbyButterflies.length > 0 && this.isGentle()) {
-                // Pick the closest butterfly
-                let closestButterfly = nearbyButterflies[0];
-                let closestDist = closestButterfly.distanceTo(this.adjustedMouseX, this.adjustedMouseY);
-                
-                for (let butterfly of nearbyButterflies) {
-                    const dist = butterfly.distanceTo(this.adjustedMouseX, this.adjustedMouseY);
-                    if (dist < closestDist) {
-                        closestDist = dist;
-                        closestButterfly = butterfly;
-                    }
-                }
-                
-                // Only start hovering if butterfly hasn't been hovered recently
-                if (!closestButterfly.hasBeenHovered) {
-                    this.hoveredButterfly = closestButterfly;
-                    this.hoverFrames = 0;
-                    this.hoverTriggered = false;
-                }
-            }
-        }
-        
-        // Reset butterflies that are no longer being hovered
-        for (let butterfly of butterflies) {
-            if (butterfly !== this.hoveredButterfly && butterfly.hasBeenHovered) {
-                const dist = butterfly.distanceTo(this.adjustedMouseX, this.adjustedMouseY);
-                if (dist > this.cursorZoneRadius * 2) {
-                    butterfly.resetHoverState();
-                }
-            }
-        }
+        // The old gentle-hover display loop was retired during the overhaul.
+        // Keep the method so the rest of the runtime can call it safely.
+        this.resetHover();
     }
     
     // Reset hover tracking

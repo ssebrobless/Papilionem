@@ -1,20 +1,39 @@
 // Minimal p5.js sketch - delegates to GameCore for all game logic
-let backgroundImage;
+let landBackgroundImage;
+let battleArenaBackgroundImage;
 let titleImage;
-let foliageImage;
-let groundWaveImage;
-let spawnCoverImage;
+let doorwayCoverImage;
+let blockSpriteImage;
 let showTitleScreen = true;
 let titleFadeAlpha = 255;
 let titleFading = false;
 const TITLE_FADE_PER_SECOND = 180;
+let lastSketchFrameError = null;
+let lastSketchFrameErrorAtMs = 0;
+
+function applyCanvasPerformanceProfile(targetWidth = gameConfig.canvas.targetWidth, targetHeight = gameConfig.canvas.targetHeight) {
+    const performanceConfig = gameConfig.performance?.canvas || {};
+    const deviceDensity = typeof displayDensity === 'function'
+        ? displayDensity()
+        : (window?.devicePixelRatio || 1);
+    const safeDensity = Math.max(1, Number(deviceDensity) || 1);
+    const totalPixels = Math.max(1, targetWidth) * Math.max(1, targetHeight) * safeDensity * safeDensity;
+    const densityCap = totalPixels >= (performanceConfig.highResolutionPixelThreshold || 1600000)
+        ? (performanceConfig.largeCanvasPixelDensityCap || 1.5)
+        : (performanceConfig.defaultPixelDensityCap || 2);
+    pixelDensity(Math.max(1, Math.min(safeDensity, densityCap)));
+}
+
+if (typeof window !== 'undefined') {
+    window.applyCanvasPerformanceProfile = applyCanvasPerformanceProfile;
+}
 
 function preload() {
-    backgroundImage = loadImage('background2.png');
+    landBackgroundImage = loadImage('assets/base-land-map.png');
+    battleArenaBackgroundImage = loadImage('assets/battle-mode-arena-map.png');
     titleImage = loadImage('assets/newtitle.png');
-    foliageImage = loadImage('assets/ephemera-background-moving-leaves-effect.png');
-    groundWaveImage = loadImage('assets/ephemera-background-waving-effect.png');
-    spawnCoverImage = loadImage('assets/ephemera-background-spawn covers.png');
+    doorwayCoverImage = loadImage('assets/base-land-doorway-cover.png');
+    blockSpriteImage = loadImage('assets/block-papilionem.png');
     spriteManager.preloadAssets();
 }
 
@@ -23,6 +42,9 @@ function setup() {
     
     const canvas = createCanvas(gameConfig.canvas.targetWidth, gameConfig.canvas.targetHeight);
     canvas.parent(container);
+    if (canvas?.elt) {
+        canvas.elt.oncontextmenu = () => false;
+    }
     
     // The default 2D renderer already handles text smoothing; p5's setAttributes
     // helper is for WEBGL contexts and spams warnings when used with createGraphics layers.
@@ -30,34 +52,35 @@ function setup() {
     // Set target frame rate to 60 FPS
     frameRate(60);
     
-    // Use pixel density of 1 for better performance
-    // (displayDensity() can be 2 on retina displays, causing 4x pixel rendering)
-    pixelDensity(2);
+    // Keep butterfly and UI detail readable without letting large browser windows
+    // explode the backing canvas cost on high-DPI displays.
+    applyCanvasPerformanceProfile(gameConfig.canvas.targetWidth, gameConfig.canvas.targetHeight);
     
     // Keep pixel art aesthetic with nearest neighbor scaling for sprites only
     // Don't apply noSmooth() globally to allow better text rendering
     // Individual elements will apply noSmooth() as needed
     
-    // Initialize sprite assets (wing slicing + transparency processing)
-    spriteManager.initialize();
+    Promise.resolve(spriteManager.initialize()).then(() => {
+        // Initialize spawn cover overlay (stone archways)
+        if (doorwayCoverImage) {
+            renderManager.setSpawnCoverImage(doorwayCoverImage);
+        }
+        if (battleArenaBackgroundImage) {
+            renderManager.setBattleBackgroundImage(battleArenaBackgroundImage);
+        }
 
-    // Initialize foliage overlay (leaf rustling effect)
-    if (foliageImage) {
-        renderManager.setFoliageImage(foliageImage);
-    }
+        renderManager.setWorldSectionLibrary({
+            land: {
+                background: landBackgroundImage,
+                foliage: null,
+                groundWave: null,
+                spawnCover: doorwayCoverImage
+            }
+        });
 
-    // Initialize ground wave overlay (grass waving effect)
-    if (groundWaveImage) {
-        renderManager.setGroundWaveImage(groundWaveImage);
-    }
-
-    // Initialize spawn cover overlay (stone archways)
-    if (spawnCoverImage) {
-        renderManager.setSpawnCoverImage(spawnCoverImage);
-    }
-
-    // Initialize game systems
-    gameCore.initialize(backgroundImage).then(() => {
+        // Initialize game systems
+        return gameCore.initialize(landBackgroundImage);
+    }).then(() => {
         console.log('Game fully initialized');
         // Handle initial window resize after initialization completes
         // Use setTimeout to ensure all initialization is fully complete
@@ -72,44 +95,86 @@ function setup() {
 }
 
 function draw() {
-    // Update game only if title screen is not showing or is fading
-    if (!showTitleScreen || titleFading) {
-        gameCore.update();
-    }
-    
-    // Always draw the game for cross-fade effect
-    gameCore.draw();
-    
-    // Draw title screen on top if active
-    if (showTitleScreen) {
-        // Draw title image centered
-        if (titleImage) {
-            push();
-            imageMode(CENTER);
-            tint(255, titleFadeAlpha);
-            
-            // Draw image to fill entire canvas
-            image(titleImage, width / 2, height / 2, width, height);
-            pop();
+    try {
+        // Update game only if title screen is not showing or is fading
+        if (!showTitleScreen || titleFading) {
+            gameCore.update();
         }
-        
-        // Handle fade out
-        if (titleFading) {
-            const fadeStep = TITLE_FADE_PER_SECOND * Math.max(0, deltaTime || 0) / 1000;
-            titleFadeAlpha -= fadeStep;
-            if (titleFadeAlpha <= 0) {
-                titleFadeAlpha = 0;
-                showTitleScreen = false;
-                titleFading = false;
+
+        // Always draw the game for cross-fade effect
+        gameCore.draw();
+
+        // Draw title screen on top if active
+        if (showTitleScreen) {
+            // Draw title image centered
+            if (titleImage) {
+                push();
+                imageMode(CENTER);
+                tint(255, titleFadeAlpha);
+
+                // Draw image to fill entire canvas
+                image(titleImage, width / 2, height / 2, width, height);
+                pop();
+            }
+
+            // Handle fade out
+            if (titleFading) {
+                const fadeStep = TITLE_FADE_PER_SECOND * Math.max(0, deltaTime || 0) / 1000;
+                titleFadeAlpha -= fadeStep;
+                if (titleFadeAlpha <= 0) {
+                    titleFadeAlpha = 0;
+                    showTitleScreen = false;
+                    titleFading = false;
+                }
             }
         }
+
+        applyCanvasAccessibilityStyle();
+        lastSketchFrameError = null;
+    } catch (error) {
+        const now = Date.now();
+        const message = error?.message || String(error || 'frame failure');
+        lastSketchFrameError = {
+            message,
+            stage: 'sketch-draw',
+            atMs: now
+        };
+        if ((now - lastSketchFrameErrorAtMs) >= 1200) {
+            lastSketchFrameErrorAtMs = now;
+            console.error('Sketch frame failure:', error);
+            gameCore?.telemetrySystem?.recordRuntimeIssue?.('sketch-frame-error', {
+                message,
+                stack: error?.stack || null,
+                stage: 'sketch-draw',
+                frame: typeof frameCount === 'number' ? frameCount : null
+            });
+        }
+        drawSketchRuntimeOverlay(lastSketchFrameError);
     }
+}
+
+function drawSketchRuntimeOverlay(errorSummary = null) {
+    if (!errorSummary) return;
+    push();
+    noStroke();
+    fill(10, 10, 14, 214);
+    rect(20, 20, Math.min(width - 40, 380), 82, 12);
+    fill(255, 214, 168);
+    textAlign(LEFT, TOP);
+    textSize(14);
+    text('Runtime hiccup captured', 36, 34);
+    fill(236);
+    textSize(11);
+    const detail = (errorSummary.message || 'frame error').slice(0, 96);
+    text(`The last good frame was kept visible.\n${detail}`, 36, 56);
+    pop();
 }
 
 function windowResized() {
     // Only delegate to GameCore if it's initialized
     if (gameCore && gameCore.isInitialized()) {
         gameCore.handleWindowResize();
+        applyCanvasPerformanceProfile(width, height);
     } else {
         console.log('Sketch: Skipping window resize - GameCore not ready');
     }
@@ -127,13 +192,17 @@ function mousePressed() {
         // Check debug UI god mode buttons first
         if (typeof debugUI !== 'undefined' && debugUI.enabled) {
             if (debugUI.handleMouseClick(mouseX, mouseY)) {
-                return; // Button handled the click
+                return false; // Button handled the click
             }
         }
         
         // Handle normal game mouse input
-        gameCore.handleMousePressed();
+        if (gameCore.handleMousePressed(mouseButton)) {
+            return false;
+        }
     }
+
+    if (mouseButton === RIGHT) return false;
 }
 
 function keyPressed() {
@@ -146,13 +215,27 @@ function keyPressed() {
     // Only process key input if title screen is not showing
     if (!showTitleScreen) {
         // Delegate to GameCore
-        gameCore.handleKeyPressed(key, keyCode);
+        if (gameCore.handleKeyPressed(key, keyCode)) {
+            return false;
+        }
     }
+}
+
+function mouseWheel(event) {
+    if (!showTitleScreen) {
+        return gameCore.handleMouseWheel(event);
+    }
+    return true;
 }
 
 // Global helper function to check if screen coordinates are within the playable area
 // Used by various systems for boundary checking
 function isWithinPlayableArea(x, y) {
+    const roamPolygon = gameConfig?.world?.mapGeometry?.roamPolygon;
+    if (Array.isArray(roamPolygon) && typeof gridManager?.isPointInPolygon === 'function') {
+        return gridManager.isPointInPolygon({ x, y }, roamPolygon);
+    }
+
     // Use gridManager if available
     if (typeof gridManager !== 'undefined' && gridManager.screenToIso) {
         const gridPos = gridManager.screenToIso(x, y);
@@ -171,4 +254,26 @@ function isWithinPlayableArea(x, y) {
     // Check if within diamond bounds (simplified)
     const maxDist = 250; // Approximate playable area radius
     return Math.abs(relX) + Math.abs(relY * 2) < maxDist;
+}
+
+function applyCanvasAccessibilityStyle() {
+    const canvasElements = Array.from(document.querySelectorAll('canvas'));
+    if (canvasElements.length === 0) return;
+    const settings = typeof gameUI !== 'undefined' && gameUI.getAccessibilitySettings
+        ? gameUI.getAccessibilitySettings()
+        : {};
+    const mode = settings.colorblindMode || 'off';
+    const filters = {
+        off: 'none',
+        protanopia: 'sepia(0.18) saturate(0.82) hue-rotate(-18deg) contrast(1.03)',
+        deuteranopia: 'sepia(0.12) saturate(0.78) hue-rotate(22deg) contrast(1.02)',
+        tritanopia: 'sepia(0.08) saturate(0.9) hue-rotate(88deg) contrast(1.02)',
+        monochrome: 'grayscale(1) contrast(1.08)'
+    };
+    const nextFilter = filters[mode] || 'none';
+    for (const canvasEl of canvasElements) {
+        if (canvasEl.style.filter !== nextFilter) {
+            canvasEl.style.filter = nextFilter;
+        }
+    }
 }

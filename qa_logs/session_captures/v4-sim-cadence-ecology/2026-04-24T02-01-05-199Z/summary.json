@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v4-sim-cadence-ecology\\2026-04-24T02-01-05-199Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 31.333928572280065,
+      "avgRenderMs": 63.8017856989588,
+      "p95FrameMs": 114.39999985694885,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 27.201724130531836,
+      "avgRenderMs": 69.6568965459692,
+      "p95FrameMs": 125.89999985694885,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 38.40916667381922,
+      "avgRenderMs": 75.13750001192093,
+      "p95FrameMs": 192.80000019073486,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 24.945833325386047,
+      "avgRenderMs": 53.79583333730697,
+      "p95FrameMs": 137.29999995231628,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

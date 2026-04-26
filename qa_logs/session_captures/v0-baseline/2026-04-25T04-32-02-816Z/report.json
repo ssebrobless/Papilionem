@@ -1,0 +1,18 @@
+{
+  "auditId": "2026-04-25T04-32-02-816Z",
+  "startedAt": "2026-04-25T04:32:02.817Z",
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0-baseline\\2026-04-25T04-32-02-816Z",
+  "screenshotDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_screenshots\\v0_baseline\\2026-04-25T04-32-02-816Z",
+  "server": {
+    "reused": true,
+    "pid": null,
+    "port": 3000
+  },
+  "saveSource": null,
+  "lanes": [],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "overall": "fail",
+  "url": "http://127.0.0.1:3000/",
+  "error": "Error: Provided save export path does not exist: C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-owner-bounds-candidate\n    at resolveSavePath (C:\\Users\\fishe\\Documents\\projects\\ephemera\\scripts\\run-v0-baseline.js:161:11)\n    at run (C:\\Users\\fishe\\Documents\\projects\\ephemera\\scripts\\run-v0-baseline.js:540:22)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)"
+}

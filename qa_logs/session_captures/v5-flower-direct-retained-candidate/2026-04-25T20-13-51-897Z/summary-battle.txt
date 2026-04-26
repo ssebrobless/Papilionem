@@ -1,0 +1,58 @@
+Papilionem Session Capture
+session: capture_1777148048688
+label: v0-baseline-battle
+started: 2026-04-25T20:14:08.688Z
+stopped: 2026-04-25T20:14:19.794Z
+durationMs: 11106
+
+Runtime
+pressureTier: critical
+lagCategory: render-dominant
+avgUpdateMs: 18.91
+avgRenderMs: 27.28
+avgParticleRenderMs: 0.05
+p50FrameMs: 55.80
+p95FrameMs: 65.50
+p99FrameMs: 90.90
+maxUpdateMs: 68.40
+maxRenderMs: 40.70
+maxParticleCount: 9
+compositeCallsPerFrame: 4.24
+uiRedrawCount: 131
+debugRedrawCount: 0
+timelineDroppedCount: 0
+frameTimesDroppedCount: 0
+runtimeIssuesDroppedCount: 0
+eventHistoryDroppedCount: 0
+heapSampleCount: 4
+peakHeapUsedMB: 159.26
+heap@10sMB: 159.26
+heap@60sMB: 0.00
+heap@10mMB: 0.00
+heap@20mMB: 0.00
+heap@40mMB: 0.00
+spriteCache: 0/0 | est 0.00MB | hits 0/0
+spriteTop: none
+shell: focused-garden | clean shell
+lagSummary: Render-dominant lag: render 27.28ms vs update 18.91ms, led by entityFamilyBlockCompositeWidth.
+topUpdate: foundation.zoneEcologyCadence 30.00ms | foundation.mlCadenceIntervalFrames 28.87ms | foundation.lifeSimCadenceIntervalFrames 24.00ms | foundation.lifeSimDeepUpdatedCount 19.48ms
+topRender: entityFamilyBlockCompositeWidth 223.25ms | entityFamilyButterflyCompositeWidth 178.03ms | entityFamilyBlockCompositeHeight 86.45ms | entityFamilyButterflyCompositeHeight 70.88ms
+
+Counts
+timelineEntries: 148
+eventHistoryEntries: 250
+replayMarkers: 0
+runtimeIssues: 96
+errors: 125
+warnings: 0
+freezeSuspects: 0
+spikes: 13
+snapshots: 4
+
+State
+start: focused-garden | pool-heart | butterflies 28 | blocks 108
+end: focused-garden | pool-heart | butterflies 28 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-25T20-14-19-891Z-v0-baseline-battle-capture-1777148048688\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-25T20-14-19-891Z-v0-baseline-battle-capture-1777148048688\summary.txt

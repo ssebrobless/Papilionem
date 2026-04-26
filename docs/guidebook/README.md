@@ -25,9 +25,9 @@ guidebook/
 - [C:\Users\fishe\Documents\projects\ephemera\docs\guidebook\DEVELOPER-REFERENCE.md](C:\Users\fishe\Documents\projects\ephemera\docs\guidebook\DEVELOPER-REFERENCE.md)
   System reference, tunable logic, Mermaid diagrams, and implementation details.
 - [C:\Users\fishe\Documents\projects\ephemera\docs\guidebook\PAPILIONEM-COMPLETE-GUIDEBOOK.html](C:\Users\fishe\Documents\projects\ephemera\docs\guidebook\PAPILIONEM-COMPLETE-GUIDEBOOK.html)
-  The compiled HTML guidebook.
+  Legacy compiled HTML guidebook package. The canonical reading copy is now the source book in `docs/source-book/`.
 - [C:\Users\fishe\Documents\projects\ephemera\docs\guidebook\PAPILIONEM-COMPLETE-GUIDEBOOK.pdf](C:\Users\fishe\Documents\projects\ephemera\docs\guidebook\PAPILIONEM-COMPLETE-GUIDEBOOK.pdf)
-  The compiled multi-page PDF guidebook.
+  Legacy compiled PDF guidebook package. The canonical reading copy is now the source book in `docs/source-book/`.
 
 ## Diagram Sources
 
@@ -52,6 +52,6 @@ visual-supplement/
 ## Recommended Reading Order
 
 1. Read the player guide for the plain-language overview.
-2. Read the complete guidebook PDF for the full organized reference.
+2. Read the source-book PDF in `docs/source-book/` for the canonical organized reference.
 3. Use the developer reference when you want exact system logic or Mermaid diagrams.
 4. Use the visual supplement plates when you want to connect implementation details to the actual sprite assets.

@@ -249,7 +249,7 @@ flowchart TB
         P["P next audit preset"]
         O["O export audit setup"]
         U["U import audit setup"]
-        Y["Y gameplay audit"]
+        Y["Y audit world"]
         J["J reseed replay"]
     end
 
@@ -299,7 +299,7 @@ flowchart LR
         I["snapshot capture"]
         J["snapshot diff"]
         K["invariant checker"]
-        L["gameplay audit"]
+        L["audit world"]
         M["audit report storage"]
         N["replay metadata / reseed"]
     end

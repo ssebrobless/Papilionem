@@ -1,0 +1,466 @@
+{
+  "auditId": "2026-04-25T20-40-16-746Z",
+  "startedAt": "2026-04-25T20:40:16.747Z",
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-live-promotion-candidate\\2026-04-25T20-40-16-746Z",
+  "screenshotDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_screenshots\\v0_baseline\\2026-04-25T20-40-16-746Z",
+  "server": {
+    "reused": true,
+    "pid": null,
+    "port": 3000
+  },
+  "saveSource": {
+    "kind": "real-export",
+    "savePath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\save_exports\\2026-04-22T21-44-34-355Z-v0-5-derived-real\\save.json",
+    "summary": {
+      "focusedZoneId": "pool-heart",
+      "viewMode": "focused-garden",
+      "butterflyCount": 28,
+      "flowerCount": 141,
+      "caterpillarCount": 0,
+      "blockCount": 108,
+      "hybridJournalCount": 16
+    }
+  },
+  "lanes": [
+    {
+      "lane": "calm",
+      "durationMs": 6000,
+      "output": {
+        "capturePath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-live-promotion-candidate\\2026-04-25T20-40-16-746Z\\capture-calm.json",
+        "summaryPath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-live-promotion-candidate\\2026-04-25T20-40-16-746Z\\summary-calm.txt"
+      },
+      "summary": {
+        "sessionId": "capture_1777149621232",
+        "label": "v0-baseline-calm",
+        "startedAt": "2026-04-25T20:40:21.232Z",
+        "stoppedAt": "2026-04-25T20:40:27.284Z",
+        "durationMs": 6052,
+        "totalTimelineEntries": 8,
+        "totalEventHistoryEntries": 250,
+        "replayMarkerCount": 0,
+        "runtimeIssueCount": 2,
+        "errorCount": 2,
+        "warningCount": 0,
+        "freezeSuspectCount": 0,
+        "spikeCount": 1,
+        "snapshotCount": 3,
+        "maxUpdateMs": 33.299999952316284,
+        "maxRenderMs": 0,
+        "maxParticleCount": 0,
+        "p50FrameMs": 20.100000143051147,
+        "p95FrameMs": 25.99999976158142,
+        "p99FrameMs": 27.40000009536743,
+        "compositeCallsPerFrame": 6.166666666666667,
+        "uiRedrawCount": 22,
+        "debugRedrawCount": 0,
+        "timelineDroppedCount": 0,
+        "frameTimesDroppedCount": 0,
+        "runtimeIssuesDroppedCount": 0,
+        "eventHistoryDroppedCount": 0,
+        "heapSampleCount": 3,
+        "peakHeapUsedMB": 159.26361083984375,
+        "heapMilestones": {
+          "tenSeconds": null,
+          "sixtySeconds": null,
+          "tenMinutes": null,
+          "twentyMinutes": null,
+          "fortyMinutes": null
+        },
+        "avgUpdateMs": 6.94166667064031,
+        "avgRenderMs": 13.215833328167598,
+        "avgParticleRenderMs": 0.10500001509984334,
+        "pressureTier": "critical",
+        "lagCategory": "mixed",
+        "lagSummary": "Mixed lag: update 6.94ms and render 13.22ms are both materially loaded.",
+        "shellSummary": "focused-garden | clean shell",
+        "spriteCacheEntryCount": 0,
+        "spriteCacheMaxEntries": 0,
+        "spriteCacheEstimatedSurfaceMB": 0,
+        "spriteCacheCacheHits": 0,
+        "spriteCacheCacheMisses": 0,
+        "spriteCacheTopFamilies": [],
+        "topUpdateContributors": [
+          {
+            "label": "foundation.mlCadenceIntervalFrames",
+            "ms": 48
+          },
+          {
+            "label": "foundation.zoneEcologyCadence",
+            "ms": 30
+          },
+          {
+            "label": "foundation.mlCadenceSkippedCount",
+            "ms": 27.333333333333332
+          },
+          {
+            "label": "foundation.lifeSimCadenceSkippedCount",
+            "ms": 26.741666666666667
+          }
+        ],
+        "topRenderContributors": [
+          {
+            "label": "entityFamilyButterflyCompositeWidth",
+            "ms": 508.075
+          },
+          {
+            "label": "entityFamilyButterflyCompositeHeight",
+            "ms": 202.64166666666668
+          },
+          {
+            "label": "composite.flowersDirectCount",
+            "ms": 36
+          },
+          {
+            "label": "compositeMs",
+            "ms": 11.004999999205271
+          }
+        ],
+        "startViewMode": "focused-garden",
+        "endViewMode": "focused-garden",
+        "startZoneId": "pool-heart",
+        "endZoneId": "pool-heart",
+        "startButterflies": 28,
+        "endButterflies": 28,
+        "startBlocks": 108,
+        "endBlocks": 108
+      }
+    },
+    {
+      "lane": "shell",
+      "durationMs": 6000,
+      "output": {
+        "capturePath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-live-promotion-candidate\\2026-04-25T20-40-16-746Z\\capture-shell.json",
+        "summaryPath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-live-promotion-candidate\\2026-04-25T20-40-16-746Z\\summary-shell.txt"
+      },
+      "summary": {
+        "sessionId": "capture_1777149627435",
+        "label": "v0-baseline-shell",
+        "startedAt": "2026-04-25T20:40:27.435Z",
+        "stoppedAt": "2026-04-25T20:40:33.552Z",
+        "durationMs": 6117,
+        "totalTimelineEntries": 21,
+        "totalEventHistoryEntries": 250,
+        "replayMarkerCount": 0,
+        "runtimeIssueCount": 15,
+        "errorCount": 15,
+        "warningCount": 0,
+        "freezeSuspectCount": 0,
+        "spikeCount": 1,
+        "snapshotCount": 3,
+        "maxUpdateMs": 72.5,
+        "maxRenderMs": 0,
+        "maxParticleCount": 0,
+        "p50FrameMs": 24.100000143051147,
+        "p95FrameMs": 30,
+        "p99FrameMs": 32.09999990463257,
+        "compositeCallsPerFrame": 5.993670886075949,
+        "uiRedrawCount": 32,
+        "debugRedrawCount": 0,
+        "timelineDroppedCount": 0,
+        "frameTimesDroppedCount": 0,
+        "runtimeIssuesDroppedCount": 0,
+        "eventHistoryDroppedCount": 0,
+        "heapSampleCount": 3,
+        "peakHeapUsedMB": 159.26361083984375,
+        "heapMilestones": {
+          "tenSeconds": null,
+          "sixtySeconds": null,
+          "tenMinutes": null,
+          "twentyMinutes": null,
+          "fortyMinutes": null
+        },
+        "avgUpdateMs": 9.39166665871938,
+        "avgRenderMs": 14.868333325783412,
+        "avgParticleRenderMs": 0.06666666269302368,
+        "pressureTier": "critical",
+        "lagCategory": "render-dominant",
+        "lagSummary": "Render-dominant lag: render 14.87ms vs update 9.39ms, led by entityFamilyButterflyCompositeWidth.",
+        "shellSummary": "focused-garden | clean shell",
+        "spriteCacheEntryCount": 0,
+        "spriteCacheMaxEntries": 0,
+        "spriteCacheEstimatedSurfaceMB": 0,
+        "spriteCacheCacheHits": 0,
+        "spriteCacheCacheMisses": 0,
+        "spriteCacheTopFamilies": [],
+        "topUpdateContributors": [
+          {
+            "label": "foundation.mlCadenceIntervalFrames",
+            "ms": 48
+          },
+          {
+            "label": "foundation.zoneEcologyCadence",
+            "ms": 30
+          },
+          {
+            "label": "foundation.mlCadenceSkippedCount",
+            "ms": 26.275
+          },
+          {
+            "label": "foundation.lifeSimCadenceSkippedCount",
+            "ms": 25.733333333333334
+          }
+        ],
+        "topRenderContributors": [
+          {
+            "label": "entityFamilyButterflyCompositeWidth",
+            "ms": 539.1083333333333
+          },
+          {
+            "label": "entityFamilyButterflyCompositeHeight",
+            "ms": 210.86666666666667
+          },
+          {
+            "label": "composite.flowersDirectCount",
+            "ms": 36
+          },
+          {
+            "label": "compositeMs",
+            "ms": 11.093333325783412
+          }
+        ],
+        "startViewMode": "focused-garden",
+        "endViewMode": "focused-garden",
+        "startZoneId": "pool-heart",
+        "endZoneId": "pool-heart",
+        "startButterflies": 28,
+        "endButterflies": 28,
+        "startBlocks": 108,
+        "endBlocks": 108
+      }
+    },
+    {
+      "lane": "battle",
+      "durationMs": 8000,
+      "output": {
+        "capturePath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-live-promotion-candidate\\2026-04-25T20-40-16-746Z\\capture-battle.json",
+        "summaryPath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-live-promotion-candidate\\2026-04-25T20-40-16-746Z\\summary-battle.txt"
+      },
+      "summary": {
+        "sessionId": "capture_1777149633746",
+        "label": "v0-baseline-battle",
+        "startedAt": "2026-04-25T20:40:33.746Z",
+        "stoppedAt": "2026-04-25T20:40:44.565Z",
+        "durationMs": 10819,
+        "totalTimelineEntries": 139,
+        "totalEventHistoryEntries": 250,
+        "replayMarkerCount": 0,
+        "runtimeIssueCount": 96,
+        "errorCount": 116,
+        "warningCount": 0,
+        "freezeSuspectCount": 0,
+        "spikeCount": 13,
+        "snapshotCount": 4,
+        "maxUpdateMs": 74.40000009536743,
+        "maxRenderMs": 41.5,
+        "maxParticleCount": 6,
+        "p50FrameMs": 58.19999980926514,
+        "p95FrameMs": 65.70000004768372,
+        "p99FrameMs": 112.09999990463257,
+        "compositeCallsPerFrame": 4.456375838926174,
+        "uiRedrawCount": 122,
+        "debugRedrawCount": 0,
+        "timelineDroppedCount": 0,
+        "frameTimesDroppedCount": 0,
+        "runtimeIssuesDroppedCount": 0,
+        "eventHistoryDroppedCount": 0,
+        "heapSampleCount": 3,
+        "peakHeapUsedMB": 159.26361083984375,
+        "heapMilestones": {
+          "tenSeconds": {
+            "atMs": 1777149643821,
+            "usedMB": 159.26361083984375,
+            "totalMB": 159.26361083984375
+          },
+          "sixtySeconds": null,
+          "tenMinutes": null,
+          "twentyMinutes": null,
+          "fortyMinutes": null
+        },
+        "avgUpdateMs": 21.338333332538603,
+        "avgRenderMs": 29.071666675806046,
+        "avgParticleRenderMs": 0.06833334565162659,
+        "pressureTier": "critical",
+        "lagCategory": "render-dominant",
+        "lagSummary": "Render-dominant lag: render 29.07ms vs update 21.34ms, led by entityFamilyButterflyCompositeWidth.",
+        "shellSummary": "focused-garden | clean shell",
+        "spriteCacheEntryCount": 0,
+        "spriteCacheMaxEntries": 0,
+        "spriteCacheEstimatedSurfaceMB": 0,
+        "spriteCacheCacheHits": 0,
+        "spriteCacheCacheMisses": 0,
+        "spriteCacheTopFamilies": [],
+        "topUpdateContributors": [
+          {
+            "label": "foundation.zoneEcologyCadence",
+            "ms": 30
+          },
+          {
+            "label": "foundation.mlCadenceIntervalFrames",
+            "ms": 27.7
+          },
+          {
+            "label": "foundation.lifeSimCadenceIntervalFrames",
+            "ms": 24
+          },
+          {
+            "label": "foundation.lifeSimDeepUpdatedCount",
+            "ms": 20.833333333333332
+          }
+        ],
+        "topRenderContributors": [
+          {
+            "label": "entityFamilyButterflyCompositeWidth",
+            "ms": 152.10833333333332
+          },
+          {
+            "label": "entityFamilyButterflyCompositeHeight",
+            "ms": 55.791666666666664
+          },
+          {
+            "label": "entityLayerMs",
+            "ms": 14.512499982118607
+          },
+          {
+            "label": "uiLayerMs",
+            "ms": 10.644166662295659
+          }
+        ],
+        "startViewMode": "focused-garden",
+        "endViewMode": "focused-garden",
+        "startZoneId": "pool-heart",
+        "endZoneId": "pool-heart",
+        "startButterflies": 28,
+        "endButterflies": 28,
+        "startBlocks": 108,
+        "endBlocks": 108
+      }
+    },
+    {
+      "lane": "soak40",
+      "durationMs": 12000,
+      "output": {
+        "capturePath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-live-promotion-candidate\\2026-04-25T20-40-16-746Z\\capture-soak40.json",
+        "summaryPath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-live-promotion-candidate\\2026-04-25T20-40-16-746Z\\summary-soak40.txt"
+      },
+      "summary": {
+        "sessionId": "capture_1777149644812",
+        "label": "v0-baseline-soak40",
+        "startedAt": "2026-04-25T20:40:44.812Z",
+        "stoppedAt": "2026-04-25T20:41:01.074Z",
+        "durationMs": 16262,
+        "totalTimelineEntries": 38,
+        "totalEventHistoryEntries": 250,
+        "replayMarkerCount": 0,
+        "runtimeIssueCount": 25,
+        "errorCount": 25,
+        "warningCount": 0,
+        "freezeSuspectCount": 0,
+        "spikeCount": 2,
+        "snapshotCount": 5,
+        "maxUpdateMs": 0,
+        "maxRenderMs": 56.40000009536743,
+        "maxParticleCount": 4,
+        "p50FrameMs": 25.300000190734863,
+        "p95FrameMs": 33.89999985694885,
+        "p99FrameMs": 44.700000047683716,
+        "compositeCallsPerFrame": 5.7894736842105265,
+        "uiRedrawCount": 202,
+        "debugRedrawCount": 0,
+        "timelineDroppedCount": 0,
+        "frameTimesDroppedCount": 0,
+        "runtimeIssuesDroppedCount": 0,
+        "eventHistoryDroppedCount": 0,
+        "heapSampleCount": 5,
+        "peakHeapUsedMB": 159.26361083984375,
+        "heapMilestones": {
+          "tenSeconds": {
+            "atMs": 1777149654860,
+            "usedMB": 159.26361083984375,
+            "totalMB": 159.26361083984375
+          },
+          "sixtySeconds": null,
+          "tenMinutes": null,
+          "twentyMinutes": null,
+          "fortyMinutes": null
+        },
+        "avgUpdateMs": 10.076666675011317,
+        "avgRenderMs": 16.495000018676123,
+        "avgParticleRenderMs": 0.08583328525225321,
+        "pressureTier": "critical",
+        "lagCategory": "render-dominant",
+        "lagSummary": "Render-dominant lag: render 16.50ms vs update 10.08ms, led by entityFamilyButterflyCompositeWidth.",
+        "shellSummary": "focused-garden | clean shell",
+        "spriteCacheEntryCount": 0,
+        "spriteCacheMaxEntries": 0,
+        "spriteCacheEstimatedSurfaceMB": 0,
+        "spriteCacheCacheHits": 0,
+        "spriteCacheCacheMisses": 0,
+        "spriteCacheTopFamilies": [],
+        "topUpdateContributors": [
+          {
+            "label": "foundation.mlCadenceIntervalFrames",
+            "ms": 48
+          },
+          {
+            "label": "foundation.zoneEcologyCadence",
+            "ms": 30
+          },
+          {
+            "label": "foundation.mlCadenceSkippedCount",
+            "ms": 25.616666666666667
+          },
+          {
+            "label": "foundation.lifeSimCadenceSkippedCount",
+            "ms": 25.05
+          }
+        ],
+        "topRenderContributors": [
+          {
+            "label": "entityFamilyButterflyCompositeWidth",
+            "ms": 537.1166666666667
+          },
+          {
+            "label": "entityFamilyButterflyCompositeHeight",
+            "ms": 214.91666666666666
+          },
+          {
+            "label": "composite.flowersDirectCount",
+            "ms": 39.53333333333333
+          },
+          {
+            "label": "compositeMs",
+            "ms": 12.130833345651627
+          }
+        ],
+        "startViewMode": "focused-garden",
+        "endViewMode": "focused-garden",
+        "startZoneId": "pool-heart",
+        "endZoneId": "pool-heart",
+        "startButterflies": 28,
+        "endButterflies": 28,
+        "startBlocks": 108,
+        "endBlocks": 108
+      }
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "overall": "pass",
+  "url": "http://127.0.0.1:3000/",
+  "import": {
+    "restored": true,
+    "focusedZoneId": "pool-heart",
+    "viewMode": "focused-garden",
+    "butterflies": 28,
+    "flowers": 141,
+    "caterpillars": 0,
+    "blocks": 108,
+    "hybridJournalCount": 16,
+    "zoneIds": [
+      "ivy-cloister",
+      "sun-court",
+      "moss-hollow",
+      "pool-heart"
+    ]
+  }
+}

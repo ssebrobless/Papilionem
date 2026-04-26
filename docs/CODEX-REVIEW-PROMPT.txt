@@ -1,0 +1,81 @@
+============================ BEGIN PROMPT ============================
+
+You are reviewing a goal-alignment review that another AI (Claude)
+performed on the Papilionem butterfly-society life-sim's planning layer
+on 2026-04-26.
+
+The project lives at: C:\Users\fishe\Documents\projects\ephemera\
+
+Claude's full audit record (reasoning, evidence, edits, sources) is at:
+  docs/CLAUDE-REVIEW-AUDIT-2026-04-26.md
+
+Read that file first. It points to everything else.
+
+Hard invariants the project must preserve (do not let Claude's edits
+violate any of these):
+  - one-owner-per-truth across runtime, spatial, and social tracks
+  - ML scores choices, never owns durable state (feelings, memories,
+    bonds, lineage)
+  - UI never owns truth
+  - frozen child boards (v0-v8a, s0-s8, n0-n8) are never reopened
+    without a named contradiction
+  - long-running saves are sacred; no save wipes to simplify proof
+  - success target = "believable butterfly society", NOT
+    "indistinguishable from real humans"
+
+Your task: read the audit doc, then read the 5 docs Claude edited and
+the audit reports they reference. Decide:
+
+  1. Is Claude's verdict ("structurally strong, calibration-mixed")
+     well supported?
+  2. Are Claude's modified findings defensible? Specifically:
+     - runtime / visual quality downgraded from "mostly aligned" to
+       "partially aligned"
+     - dialogue (g5) early-start in Stage A based on f5/f6 evidence
+     - ML value proof (g6) expanded to include cost-vs-value
+     - acceptance bar (g0-bar) declared a one-time precondition
+     - g4 ambient-observation early-start in Stage A
+  3. Are there real findings Claude missed?
+  4. Are any of Claude's edits over-reaching, sloppy, or do any of
+     them violate the hard invariants above?
+  5. Did Claude correctly distinguish acceptance gaps from
+     implementation gaps from outside-evidence gaps?
+  6. Are the audit data points Claude cites accurate? Spot-check at
+     least one cited audit JSON.
+
+Edited docs to review:
+  - docs/GOAL-ALIGNMENT-REVIEW-PACKET.md (added "Claude Review
+    Integration" section near the bottom)
+  - docs/GAME-SUCCESS-CRITERIA.md (added "Acceptance Bar" section
+    before "Final Rule")
+  - docs/CURRENT-STATE-GAP-ASSESSMENT.md (status table downgrade for
+    runtime; pillar 7 telemetry caveat; pillar 6 cost-vs-value
+    sub-blocker)
+  - docs/GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md (added g0-bar
+    precondition; expanded g6; expanded parallel-safe shape with
+    g4/g5 early-start)
+  - docs/ACTIVE-PLAN-REGISTRY.md (added "Goal-Alignment Next Move"
+    section)
+
+Audit reports cited as evidence:
+  - qa_screenshots/h5_long_running_save_smoothness_audit/
+    2026-04-26T03-59-40-141Z/report.json
+  - qa_screenshots/a6_live_dispersal_audit/
+    2026-04-24T02-22-07-620Z/report.json
+  - qa_screenshots/n6_neural_social_scoring_audit/
+    2026-04-26T04-03-47-795Z/report.json
+  - qa_screenshots/f5_f6_social_depth_audit/
+    2026-04-26T17-01-36-382Z/report.json
+
+Do NOT change docs. Write your conclusions back as a structured review
+under these headings:
+  - agree
+  - partial agree (and why)
+  - disagree (and why)
+  - missing
+  - recommendations
+
+Reference specific docs and audit reports by path when challenging
+Claude's reasoning. Cite the JSON field that supports your point.
+
+============================= END PROMPT =============================

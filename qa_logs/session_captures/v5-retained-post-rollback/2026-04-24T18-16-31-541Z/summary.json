@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-retained-post-rollback\\2026-04-24T18-16-31-541Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.276666659116745,
+      "avgRenderMs": 14.47999999721845,
+      "p95FrameMs": 25.09999966621399,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.837499992052715,
+      "avgRenderMs": 15.544166670242946,
+      "p95FrameMs": 30.300000190734863,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 18.447499998410542,
+      "avgRenderMs": 26.74083333214124,
+      "p95FrameMs": 61,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 8.519999992847442,
+      "avgRenderMs": 17.07333332101504,
+      "p95FrameMs": 33.5,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

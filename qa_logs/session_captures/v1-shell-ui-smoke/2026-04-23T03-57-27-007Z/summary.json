@@ -1,0 +1,46 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v1-shell-ui-smoke\\2026-04-23T03-57-27-007Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 23.934821428997175,
+      "avgRenderMs": 24.846428571002825,
+      "p95FrameMs": 66.79999995231628,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 22.38249999880791,
+      "avgRenderMs": 25.78166667620341,
+      "p95FrameMs": 57.19999980926514,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "travel",
+      "avgUpdateMs": 22.90666667222977,
+      "avgRenderMs": 25.065833336114885,
+      "p95FrameMs": 62.49999976158142,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 37.36416666507721,
+      "avgRenderMs": 41.795833331346515,
+      "p95FrameMs": 98.90000009536743,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 24.235833340883254,
+      "avgRenderMs": 28.42083334128062,
+      "p95FrameMs": 67.10000014305115,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    }
+  ]
+}

@@ -3,7 +3,7 @@ class EventBus {
     constructor() {
         this.events = new Map();
         this.history = [];
-        this.maxHistorySize = 100;
+        this.maxHistorySize = 250;
     }
     
     // Subscribe to an event
@@ -106,6 +106,10 @@ class EventBus {
         }
         return [...this.history];
     }
+
+    clearHistory() {
+        this.history = [];
+    }
     
     // Get all registered events
     getRegisteredEvents() {
@@ -126,15 +130,20 @@ const GameEvents = {
     BUTTERFLY_DIED: 'butterfly:died',
     BUTTERFLY_SCARED: 'butterfly:scared',
     BUTTERFLY_DISPLAY: 'butterfly:display',
+    BUTTERFLY_STATE_CHANGED: 'butterfly:stateChanged',
     BUTTERFLY_VISITED_FLOWER: 'butterfly:visitedFlower',
     BUTTERFLY_DROPPED_PIXELS: 'butterfly:droppedPixels',
     
     // Flower events
-    FLOWER_PLANTED: 'flower:planted',
     FLOWER_BLOOMED: 'flower:bloomed',
     FLOWER_MATURED: 'flower:matured',
     FLOWER_WILTED: 'flower:wilted',
     FLOWER_DIED: 'flower:died',
+    FLOWER_EGG_LAID: 'flower:eggLaid',
+    CHRYSALIS_FORMED: 'lifecycle:chrysalisFormed',
+    CATERPILLAR_HATCHED: 'lifecycle:caterpillarHatched',
+    HYBRID_BORN: 'lifecycle:hybridBorn',
+    TRUST_CASCADE_OCCURRED: 'social:trustCascade',
     
     // Pixel/Particle events
     PIXELS_SPAWNED: 'pixels:spawned',
@@ -142,14 +151,10 @@ const GameEvents = {
     
     // Pool events
     POOL_CREATED: 'pool:created',
-    POOL_READY: 'pool:ready',
-    POOL_SPAWNING: 'pool:spawning',
-    POOLS_MERGED: 'pools:merged',
     
     // Interaction events
     CURSOR_STILL: 'cursor:still',
     CURSOR_MOVING: 'cursor:moving',
-    GENTLE_HOVER: 'interaction:gentleHover',
     PLANT_ATTEMPTED: 'interaction:plantAttempted',
     
     // System events
@@ -165,10 +170,17 @@ const GameEvents = {
     SLEEP_ASSIST_REQUESTED: 'sleep:assistRequested',
     TEACHING_STARTED: 'teaching:started',
     TEACHING_COMPLETED: 'teaching:completed',
+    TRAINING_DRILL_STARTED: 'training:drillStarted',
+    TRAINING_DRILL_COMPLETED: 'training:drillCompleted',
+    COMMUNICATION_SIGNAL: 'communication:signal',
+    DIALOGUE_SPOKEN: 'communication:dialogueSpoken',
+    ZONE_TRAVEL_STARTED: 'zone:travelStarted',
+    ZONE_TRAVEL_COMPLETED: 'zone:travelCompleted',
     OBJECT_PICKED_UP: 'object:pickedUp',
     OBJECT_DROPPED: 'object:dropped',
     OBJECT_DELIVERED: 'object:delivered',
     OBJECT_CONSUMED: 'object:consumed',
+    BATTLE_ACTION_OCCURRED: 'battle:actionOccurred',
     BATTLE_SNAPSHOT_CREATED: 'battle:snapshotCreated',
     BATTLE_COMMITTED: 'battle:committed',
     REPLAY_SESSION_STARTED: 'replay:sessionStarted',
@@ -192,23 +204,5 @@ function setupEcosystemEvents() {
         // Flower handles special interactions directly now
     });
     
-    // When pixels settle, check for pool creation
-    eventBus.on(GameEvents.PIXELS_SETTLED, (data) => {
-        const { pixels } = data;
-        // Pool manager will handle this
-    });
-    
-    // When pool is ready, start pulsing
-    eventBus.on(GameEvents.POOL_READY, (data) => {
-        const { pool } = data;
-        // Pool will handle its own pulsing
-    });
-    
-    // When gentle hover detected, trigger butterfly display
-    eventBus.on(GameEvents.GENTLE_HOVER, (data) => {
-        const { butterfly } = data;
-        if (butterfly && butterfly.state !== 'display') {
-            eventBus.emit(GameEvents.BUTTERFLY_DISPLAY, { butterfly });
-        }
-    });
+    // Legacy prototype pool and gentle-hover chains were retired in the overhaul.
 }

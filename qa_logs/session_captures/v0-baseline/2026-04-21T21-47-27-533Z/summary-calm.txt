@@ -1,0 +1,52 @@
+Papilionem Session Capture
+session: capture_1776808050760
+label: v0-baseline-calm
+started: 2026-04-21T21:47:30.760Z
+stopped: 2026-04-21T21:47:36.814Z
+durationMs: 6054
+
+Runtime
+pressureTier: critical
+lagCategory: mixed
+avgUpdateMs: 3.01
+avgRenderMs: 10.73
+avgParticleRenderMs: 0.10
+p50FrameMs: 13.50
+p95FrameMs: 14.70
+p99FrameMs: 17.40
+maxUpdateMs: 0.00
+maxRenderMs: 0.00
+maxParticleCount: 0
+compositeCallsPerFrame: 4.49
+uiRedrawCount: 263
+debugRedrawCount: 0
+heapSampleCount: 3
+peakHeapUsedMB: 141.14
+heap@10sMB: 0.00
+heap@60sMB: 0.00
+heap@10mMB: 0.00
+heap@20mMB: 0.00
+heap@40mMB: 0.00
+shell: focused-garden | guide
+lagSummary: Mixed lag: update 3.01ms and render 10.73ms are both materially loaded.
+topUpdate: foundation.zoneEcologyCadence 3.00ms | foundationMs 1.87ms | foundation.lifeSimSystemMs 1.30ms | entityMs 1.07ms
+topRender: compositeMs 9.37ms | composite.totalCompositeMs 9.37ms | composite.entitiesCompositeMs 8.75ms | entityLayerMs 0.91ms
+
+Counts
+timelineEntries: 5
+eventHistoryEntries: 250
+replayMarkers: 0
+runtimeIssues: 0
+errors: 0
+warnings: 0
+freezeSuspects: 0
+spikes: 0
+snapshots: 3
+
+State
+start: focused-garden | ivy-cloister | butterflies 4 | blocks 108
+end: focused-garden | ivy-cloister | butterflies 4 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T21-47-36-827Z-v0-baseline-calm-capture-1776808050760\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T21-47-36-827Z-v0-baseline-calm-capture-1776808050760\summary.txt

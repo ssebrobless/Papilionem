@@ -1,0 +1,14 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v8a-runtime-proof\\2026-04-26T00-54-01-948Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 10.426666667064032,
+      "avgRenderMs": 12.736666681369146,
+      "p95FrameMs": 27.200000047683716,
+      "peakHeapUsedMB": 202.178955078125,
+      "pressureTier": "critical"
+    }
+  ]
+}

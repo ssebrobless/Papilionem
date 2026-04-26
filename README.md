@@ -1,74 +1,82 @@
-# Ephemera
+# Papilionem
 
-An interactive digital art piece exploring themes of fragility and beauty through pixel butterflies in an impressionistic garden.
+Papilionem is a painted butterfly-garden life sim built in p5.js. The current build combines a real-time garden, breeding and hybrid inheritance, sleep and social systems, section-based world navigation, debug/audit tooling, and a compiled source book that serves as the main reading copy for the project.
 
-## Running the Game
+## Run
 
-1. Open `index.html` in a web browser
-2. Or run a local server: `python -m http.server 8000` and visit http://localhost:8000
-
-## Core Mechanics
-
-- **Gentle Hover**: Keep cursor still near butterflies to see them display and release joy pixels
-- **Movement**: Slow movements lead butterflies, fast movements scare them
-- **Flowers**: Collect 5 pollen pixels (white) then click to plant flowers
-- **Color Pools**: Pixels accumulate and pulse, spawning new butterflies after 3 seconds
-- **Ecosystem**: Butterflies → Pixels → Pools → New Butterflies + Pollen → Flowers
-
-## Controls
-
-### Game Mode
-- Move cursor slowly to interact gently with butterflies
-- Click to plant flowers (requires 5 pollen)
-- Watch as the garden creates its own living ecosystem
-- Hold B to visualize elastic boundary zones
-
-### Debug Mode (Press D)
-- **Arrow Keys**: Move cursor with isometric movement
-- **Q/E**: Change tool (butterfly, flower, walkable, blocked)
-- **Space**: Place entity or toggle tile state
-- **X**: Export tile data to console
-
-## Debug/Builder Features
-
-The debug mode features a **simplified isometric tile system**:
-
-### Tile States
-- **Walkable** (Green): Mark tiles where entities can move/exist
-- **Blocked** (Red): Mark tiles that should be avoided
-
-### Entity Placement
-- **Butterfly**: Places a butterfly at cursor (can float above any tile)
-- **Flower**: Places a flower at cursor (respects tile states)
-
-This simplified system lets you define which isometric grid positions look good when occupied by entities. Butterflies float above the grid while ground entities respect the walkable/blocked states.
-
-### Configuring Playable Boundaries
-
-The isometric grid uses a fine-grained coordinate system (18x18) aligned with the background image. To adjust the playable area, edit `config.isoBounds` in `sketch.js`:
-
-```javascript
-isoBounds: {
-    maxX: 18,   // Maximum X coordinate (right edge)
-    maxY: 18    // Maximum Y coordinate (bottom edge)
-}
+```powershell
+npm install
+npm run playtest
 ```
 
-The grid is automatically offset to align with the background image using `config.gridOffset`. Each visible diamond tile contains 4 smaller grid positions for precise entity placement.
+Then open:
 
-## Butterfly Behavior
+- `http://127.0.0.1:3000/` on the host machine
+- `http://<host-ip>:3000/` on another device on the same local network, if you are intentionally sharing a local-host playtest
 
-Butterflies have a sophisticated elastic boundary system:
-- **Inside Grid**: Normal movement and reactions
-- **Near Edge**: Can flee beyond boundaries when scared
-- **Outside Grid**: Face directional resistance - moving away is harder than returning
-- **Far Outside**: Strong elastic pull brings them back naturally
+Current validated path:
 
-The resistance system creates natural, believable movement where butterflies can temporarily escape but always drift back to the garden.
+- Node `18+`
+- desktop Chromium-family browser
 
-## Development Status
+## What Is In The Build
 
-Core mechanics and debug tools complete. Remaining polish:
-- Visual effects (bloom, dithering, light trails)
-- Pool merging mechanic
-- Rare color combinations
+- butterfly personalities, traits, trust, fear, and displays
+- sleep, settling, oversleep, and sleep assist behaviors
+- eggs, caterpillars, chrysalis, hybrids, and lineage tracking
+- social memory, teaching pulses, trust cascades, and lifecycle feed events
+- save/load, autosave, debug audits, snapshots, and roundtrip verification
+- section-based world shell with overview and focused-zone travel
+- accessibility, inspect, journal, feed, and save controls in the player UI
+
+## Main Controls
+
+- `Save`, `Journal`, `Feed`, `Inspect`, `Access`: top-right UI buttons
+- `Overview`, `Next Zone`: world navigation controls when multi-zone travel is available
+- `D`: toggle debug mode
+- `B`: hold boundary overlay
+- `O`: toggle overview map mode
+
+Important current truth:
+
+- the main shell is button-first
+- older panel hotkeys such as `C`, `I`, and `A` are not the live way to open those surfaces
+
+## Repo Guide
+
+```text
+core/       game state, rendering, progression, sprite loading
+entities/   butterflies, flowers, caterpillars
+systems/    breeding, sleep, teaching, zones, save, battle, effects
+ui/         player UI, collection UI, debug UI
+assets/     butterfly, background, cocoon, caterpillar, and title art
+docs/       guidebook, diagrams, and reference docs
+scripts/    guidebook and audit helpers
+```
+
+## Reference Docs
+
+- [Primary Source Book PDF](C:/Users/fishe/Documents/projects/ephemera/docs/source-book/PAPILIONEM-SOURCE-BOOK.pdf)
+- [Primary Source Book Markdown](C:/Users/fishe/Documents/projects/ephemera/docs/source-book/PAPILIONEM-SOURCE-BOOK.md)
+- [Source-Book Workflow](C:/Users/fishe/Documents/projects/ephemera/docs/source-book/README.md)
+- [Documentation Map](C:/Users/fishe/Documents/projects/ephemera/docs/README.md)
+- [Public-Share Board](C:/Users/fishe/Documents/projects/ephemera/docs/ACTIVE-PUBLIC-SHARE-BOARD.md)
+- [Public-Share Roadmap](C:/Users/fishe/Documents/projects/ephemera/docs/PUBLIC-SHARE-READINESS-ROADMAP.md)
+
+## Documentation Workflow
+
+```text
+author / update source docs in docs/
+              │
+              ▼
+run `npm run build:source-book`
+              │
+              ▼
+refresh the primary source-book PDF / HTML / Markdown
+```
+
+The source book is now the major master reading copy for the repo.
+
+## Repo Hygiene Note
+
+The runtime still uses a few inherited asset filenames for butterfly body/antenna and environmental layers. Those files are still relevant because the live build references them directly. Public-facing repo branding and stale root-level leftovers are being cleaned so the repo surface matches Papilionem instead of the older fork.

@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-blocks-layer-candidate\\2026-04-25T19-40-58-367Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 7.163333318630854,
+      "avgRenderMs": 15.794166668256123,
+      "p95FrameMs": 27.90000009536743,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 8.752499997615814,
+      "avgRenderMs": 17.67666666706403,
+      "p95FrameMs": 32.19999980926514,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 21.246666673819224,
+      "avgRenderMs": 30.025,
+      "p95FrameMs": 63.799999952316284,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 10.62250000834465,
+      "avgRenderMs": 19.164166673024496,
+      "p95FrameMs": 40.700000047683716,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

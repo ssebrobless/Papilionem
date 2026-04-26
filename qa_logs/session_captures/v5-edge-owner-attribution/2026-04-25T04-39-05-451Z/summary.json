@@ -1,0 +1,14 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-edge-owner-attribution\\2026-04-25T04-39-05-451Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 5.985833323001861,
+      "avgRenderMs": 14.360833336909613,
+      "p95FrameMs": 24.699999809265137,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

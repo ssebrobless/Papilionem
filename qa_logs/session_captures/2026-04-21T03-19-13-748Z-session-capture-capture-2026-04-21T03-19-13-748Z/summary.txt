@@ -1,0 +1,39 @@
+Papilionem Session Capture
+session: unknown
+label: session-capture
+started: unknown
+stopped: unknown
+durationMs: 0
+
+Runtime
+pressureTier: critical
+lagCategory: mixed
+avgUpdateMs: 5.27
+avgRenderMs: 10.13
+avgParticleRenderMs: 0.09
+maxUpdateMs: 0.00
+maxRenderMs: 0.00
+maxParticleCount: 0
+shell: focused-garden | feed, inspect
+lagSummary: Mixed lag: update 5.27ms and render 10.13ms are both materially loaded.
+topUpdate: foundationMs 4.32ms | foundation.zoneEcologyCadence 3.00ms | foundation.lifeSimSystemMs 2.41ms | foundation.mlInferenceSystemMs 1.15ms
+topRender: compositeMs 5.21ms | composite.totalCompositeMs 5.20ms | composite.entitiesCompositeMs 4.50ms | entityLayerMs 1.95ms
+
+Counts
+timelineEntries: 0
+eventHistoryEntries: 0
+replayMarkers: 0
+runtimeIssues: 0
+errors: 0
+warnings: 0
+freezeSuspects: 0
+spikes: 0
+snapshots: 0
+
+State
+start: focused-garden | ivy-cloister | butterflies 5 | blocks 108
+end: focused-garden | ivy-cloister | butterflies 5 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T03-19-13-748Z-session-capture-capture-2026-04-21T03-19-13-748Z\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T03-19-13-748Z-session-capture-capture-2026-04-21T03-19-13-748Z\summary.txt

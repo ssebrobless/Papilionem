@@ -1,0 +1,449 @@
+{
+  "auditId": "2026-04-25T01-06-18-944Z",
+  "startedAt": "2026-04-25T01:06:18.946Z",
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0-baseline\\2026-04-25T01-06-18-944Z",
+  "screenshotDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_screenshots\\v0_baseline\\2026-04-25T01-06-18-944Z",
+  "server": {
+    "reused": true,
+    "pid": null,
+    "port": 3000
+  },
+  "saveSource": {
+    "kind": "real-export",
+    "savePath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\save_exports\\2026-04-22T21-44-34-355Z-v0-5-derived-real\\save.json",
+    "summary": {
+      "focusedZoneId": "pool-heart",
+      "viewMode": "focused-garden",
+      "butterflyCount": 28,
+      "flowerCount": 141,
+      "caterpillarCount": 0,
+      "blockCount": 108,
+      "hybridJournalCount": 16
+    }
+  },
+  "lanes": [
+    {
+      "lane": "calm",
+      "durationMs": 6000,
+      "output": {
+        "capturePath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0-baseline\\2026-04-25T01-06-18-944Z\\capture-calm.json",
+        "summaryPath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0-baseline\\2026-04-25T01-06-18-944Z\\summary-calm.txt"
+      },
+      "summary": {
+        "sessionId": "capture_1777079183549",
+        "label": "v0-baseline-calm",
+        "startedAt": "2026-04-25T01:06:23.549Z",
+        "stoppedAt": "2026-04-25T01:06:29.589Z",
+        "durationMs": 6040,
+        "totalTimelineEntries": 63,
+        "totalEventHistoryEntries": 250,
+        "replayMarkerCount": 0,
+        "runtimeIssueCount": 52,
+        "errorCount": 57,
+        "warningCount": 0,
+        "freezeSuspectCount": 0,
+        "spikeCount": 1,
+        "snapshotCount": 3,
+        "maxUpdateMs": 40.09999990463257,
+        "maxRenderMs": 0,
+        "maxParticleCount": 0,
+        "p50FrameMs": 9.5,
+        "p95FrameMs": 14.09999966621399,
+        "p99FrameMs": 15.700000047683716,
+        "compositeCallsPerFrame": 0,
+        "uiRedrawCount": 0,
+        "debugRedrawCount": 0,
+        "timelineDroppedCount": 0,
+        "frameTimesDroppedCount": 0,
+        "runtimeIssuesDroppedCount": 0,
+        "eventHistoryDroppedCount": 0,
+        "heapSampleCount": 3,
+        "peakHeapUsedMB": 227.92816162109375,
+        "heapMilestones": {
+          "tenSeconds": null,
+          "sixtySeconds": null,
+          "tenMinutes": null,
+          "twentyMinutes": null,
+          "fortyMinutes": null
+        },
+        "avgUpdateMs": 12.117499999205272,
+        "avgRenderMs": 0.521666657924652,
+        "avgParticleRenderMs": 0,
+        "pressureTier": "critical",
+        "lagCategory": "simulation-dominant",
+        "lagSummary": "Simulation-dominant lag: update 12.12ms vs render 0.52ms, led by foundation.mlCadenceIntervalFrames.",
+        "shellSummary": "focused-garden | clean shell",
+        "spriteCacheEntryCount": 0,
+        "spriteCacheMaxEntries": 0,
+        "spriteCacheEstimatedSurfaceMB": 0,
+        "spriteCacheCacheHits": 0,
+        "spriteCacheCacheMisses": 0,
+        "spriteCacheTopFamilies": [],
+        "topUpdateContributors": [
+          {
+            "label": "foundation.mlCadenceIntervalFrames",
+            "ms": 48
+          },
+          {
+            "label": "foundation.zoneEcologyCadence",
+            "ms": 30
+          },
+          {
+            "label": "foundation.mlCadenceSkippedCount",
+            "ms": 24.5
+          },
+          {
+            "label": "foundation.lifeSimCadenceIntervalFrames",
+            "ms": 24
+          }
+        ],
+        "topRenderContributors": [],
+        "startViewMode": "focused-garden",
+        "endViewMode": "focused-garden",
+        "startZoneId": "pool-heart",
+        "endZoneId": "pool-heart",
+        "startButterflies": 28,
+        "endButterflies": 28,
+        "startBlocks": 108,
+        "endBlocks": 108
+      }
+    },
+    {
+      "lane": "shell",
+      "durationMs": 6000,
+      "output": {
+        "capturePath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0-baseline\\2026-04-25T01-06-18-944Z\\capture-shell.json",
+        "summaryPath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0-baseline\\2026-04-25T01-06-18-944Z\\summary-shell.txt"
+      },
+      "summary": {
+        "sessionId": "capture_1777079189653",
+        "label": "v0-baseline-shell",
+        "startedAt": "2026-04-25T01:06:29.653Z",
+        "stoppedAt": "2026-04-25T01:06:35.720Z",
+        "durationMs": 6067,
+        "totalTimelineEntries": 47,
+        "totalEventHistoryEntries": 250,
+        "replayMarkerCount": 0,
+        "runtimeIssueCount": 36,
+        "errorCount": 41,
+        "warningCount": 0,
+        "freezeSuspectCount": 0,
+        "spikeCount": 1,
+        "snapshotCount": 3,
+        "maxUpdateMs": 34.59999990463257,
+        "maxRenderMs": 0,
+        "maxParticleCount": 0,
+        "p50FrameMs": 12.700000047683716,
+        "p95FrameMs": 19.299999713897705,
+        "p99FrameMs": 21.90000009536743,
+        "compositeCallsPerFrame": 0,
+        "uiRedrawCount": 0,
+        "debugRedrawCount": 0,
+        "timelineDroppedCount": 0,
+        "frameTimesDroppedCount": 0,
+        "runtimeIssuesDroppedCount": 0,
+        "eventHistoryDroppedCount": 0,
+        "heapSampleCount": 3,
+        "peakHeapUsedMB": 227.92816162109375,
+        "heapMilestones": {
+          "tenSeconds": null,
+          "sixtySeconds": null,
+          "tenMinutes": null,
+          "twentyMinutes": null,
+          "fortyMinutes": null
+        },
+        "avgUpdateMs": 11.54249999920527,
+        "avgRenderMs": 0.6225000043710073,
+        "avgParticleRenderMs": 0,
+        "pressureTier": "critical",
+        "lagCategory": "mixed",
+        "lagSummary": "Mixed lag: update 11.54ms and render 0.62ms are both materially loaded.",
+        "shellSummary": "focused-garden | clean shell",
+        "spriteCacheEntryCount": 0,
+        "spriteCacheMaxEntries": 0,
+        "spriteCacheEstimatedSurfaceMB": 0,
+        "spriteCacheCacheHits": 0,
+        "spriteCacheCacheMisses": 0,
+        "spriteCacheTopFamilies": [],
+        "topUpdateContributors": [
+          {
+            "label": "foundation.mlCadenceIntervalFrames",
+            "ms": 48
+          },
+          {
+            "label": "foundation.zoneEcologyCadence",
+            "ms": 30
+          },
+          {
+            "label": "foundation.mlCadenceSkippedCount",
+            "ms": 25.416666666666668
+          },
+          {
+            "label": "foundation.lifeSimCadenceSkippedCount",
+            "ms": 24.875
+          }
+        ],
+        "topRenderContributors": [],
+        "startViewMode": "focused-garden",
+        "endViewMode": "focused-garden",
+        "startZoneId": "pool-heart",
+        "endZoneId": "pool-heart",
+        "startButterflies": 28,
+        "endButterflies": 28,
+        "startBlocks": 108,
+        "endBlocks": 108
+      }
+    },
+    {
+      "lane": "battle",
+      "durationMs": 8000,
+      "output": {
+        "capturePath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0-baseline\\2026-04-25T01-06-18-944Z\\capture-battle.json",
+        "summaryPath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0-baseline\\2026-04-25T01-06-18-944Z\\summary-battle.txt"
+      },
+      "summary": {
+        "sessionId": "capture_1777079195772",
+        "label": "v0-baseline-battle",
+        "startedAt": "2026-04-25T01:06:35.772Z",
+        "stoppedAt": "2026-04-25T01:06:46.836Z",
+        "durationMs": 11064,
+        "totalTimelineEntries": 139,
+        "totalEventHistoryEntries": 250,
+        "replayMarkerCount": 0,
+        "runtimeIssueCount": 96,
+        "errorCount": 115,
+        "warningCount": 0,
+        "freezeSuspectCount": 1,
+        "spikeCount": 13,
+        "snapshotCount": 4,
+        "maxUpdateMs": 68.29999995231628,
+        "maxRenderMs": 48.80000019073486,
+        "maxParticleCount": 4,
+        "p50FrameMs": 65.30000019073486,
+        "p95FrameMs": 70.39999985694885,
+        "p99FrameMs": 108.29999995231628,
+        "compositeCallsPerFrame": 2.3728813559322033,
+        "uiRedrawCount": 105,
+        "debugRedrawCount": 0,
+        "timelineDroppedCount": 0,
+        "frameTimesDroppedCount": 0,
+        "runtimeIssuesDroppedCount": 0,
+        "eventHistoryDroppedCount": 0,
+        "heapSampleCount": 4,
+        "peakHeapUsedMB": 227.92816162109375,
+        "heapMilestones": {
+          "tenSeconds": {
+            "atMs": 1777079205800,
+            "usedMB": 227.92816162109375,
+            "totalMB": 289.9169921875
+          },
+          "sixtySeconds": null,
+          "tenMinutes": null,
+          "twentyMinutes": null,
+          "fortyMinutes": null
+        },
+        "avgUpdateMs": 18.724166663487754,
+        "avgRenderMs": 16.331666670242946,
+        "avgParticleRenderMs": 0.0999999463558197,
+        "pressureTier": "critical",
+        "lagCategory": "simulation-dominant",
+        "lagSummary": "Simulation-dominant lag: update 18.72ms vs render 16.33ms, led by foundation.mlCadenceIntervalFrames.",
+        "shellSummary": "focused-garden | clean shell",
+        "spriteCacheEntryCount": 0,
+        "spriteCacheMaxEntries": 0,
+        "spriteCacheEstimatedSurfaceMB": 0,
+        "spriteCacheCacheHits": 0,
+        "spriteCacheCacheMisses": 0,
+        "spriteCacheTopFamilies": [],
+        "topUpdateContributors": [
+          {
+            "label": "foundation.mlCadenceIntervalFrames",
+            "ms": 36.56666666666667
+          },
+          {
+            "label": "foundation.zoneEcologyCadence",
+            "ms": 30
+          },
+          {
+            "label": "foundation.lifeSimCadenceIntervalFrames",
+            "ms": 24
+          },
+          {
+            "label": "foundation.zoneEcologyMaxStaleFrames",
+            "ms": 18.3
+          }
+        ],
+        "topRenderContributors": [
+          {
+            "label": "entityLayerMs",
+            "ms": 8.941666666666666
+          },
+          {
+            "label": "uiLayerMs",
+            "ms": 6.582499994834264
+          },
+          {
+            "label": "entityFamilyButterflyWingMs",
+            "ms": 1.7024999956289928
+          },
+          {
+            "label": "compositeMs",
+            "ms": 0.4375000019868215
+          }
+        ],
+        "startViewMode": "focused-garden",
+        "endViewMode": "focused-garden",
+        "startZoneId": "pool-heart",
+        "endZoneId": "pool-heart",
+        "startButterflies": 28,
+        "endButterflies": 28,
+        "startBlocks": 108,
+        "endBlocks": 108
+      }
+    },
+    {
+      "lane": "soak40",
+      "durationMs": 12000,
+      "output": {
+        "capturePath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0-baseline\\2026-04-25T01-06-18-944Z\\capture-soak40.json",
+        "summaryPath": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0-baseline\\2026-04-25T01-06-18-944Z\\summary-soak40.txt"
+      },
+      "summary": {
+        "sessionId": "capture_1777079207022",
+        "label": "v0-baseline-soak40",
+        "startedAt": "2026-04-25T01:06:47.022Z",
+        "stoppedAt": "2026-04-25T01:07:03.113Z",
+        "durationMs": 16091,
+        "totalTimelineEntries": 133,
+        "totalEventHistoryEntries": 250,
+        "replayMarkerCount": 0,
+        "runtimeIssueCount": 96,
+        "errorCount": 120,
+        "warningCount": 0,
+        "freezeSuspectCount": 0,
+        "spikeCount": 2,
+        "snapshotCount": 5,
+        "maxUpdateMs": 61.299999952316284,
+        "maxRenderMs": 0,
+        "maxParticleCount": 0,
+        "p50FrameMs": 10.5,
+        "p95FrameMs": 13.600000381469727,
+        "p99FrameMs": 14.899999856948853,
+        "compositeCallsPerFrame": 0,
+        "uiRedrawCount": 0,
+        "debugRedrawCount": 0,
+        "timelineDroppedCount": 0,
+        "frameTimesDroppedCount": 0,
+        "runtimeIssuesDroppedCount": 0,
+        "eventHistoryDroppedCount": 0,
+        "heapSampleCount": 5,
+        "peakHeapUsedMB": 227.92816162109375,
+        "heapMilestones": {
+          "tenSeconds": {
+            "atMs": 1777079217050,
+            "usedMB": 227.92816162109375,
+            "totalMB": 289.9169921875
+          },
+          "sixtySeconds": null,
+          "tenMinutes": null,
+          "twentyMinutes": null,
+          "fortyMinutes": null
+        },
+        "avgUpdateMs": 9.650000007947286,
+        "avgRenderMs": 0.5074999988079071,
+        "avgParticleRenderMs": 0.09999990463256836,
+        "pressureTier": "critical",
+        "lagCategory": "mixed",
+        "lagSummary": "Mixed lag: update 9.65ms and render 0.51ms are both materially loaded.",
+        "shellSummary": "focused-garden | clean shell",
+        "spriteCacheEntryCount": 0,
+        "spriteCacheMaxEntries": 0,
+        "spriteCacheEstimatedSurfaceMB": 0,
+        "spriteCacheCacheHits": 0,
+        "spriteCacheCacheMisses": 0,
+        "spriteCacheTopFamilies": [],
+        "topUpdateContributors": [
+          {
+            "label": "foundation.mlCadenceIntervalFrames",
+            "ms": 48
+          },
+          {
+            "label": "foundation.zoneEcologyCadence",
+            "ms": 30
+          },
+          {
+            "label": "foundation.mlCadenceSkippedCount",
+            "ms": 25.091666666666665
+          },
+          {
+            "label": "foundation.lifeSimCadenceSkippedCount",
+            "ms": 24.566666666666666
+          }
+        ],
+        "topRenderContributors": [
+          {
+            "label": "particleRenderMs",
+            "ms": 0.09999990463256836
+          }
+        ],
+        "startViewMode": "focused-garden",
+        "endViewMode": "focused-garden",
+        "startZoneId": "pool-heart",
+        "endZoneId": "pool-heart",
+        "startButterflies": 28,
+        "endButterflies": 28,
+        "startBlocks": 108,
+        "endBlocks": 108
+      }
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)",
+    "RenderManager frame failure: this.getOrCreateRegionLayer is not a function TypeError: this.getOrCreateRegionLayer is not a function\n    at RenderManager.drawEntitiesLayer (http://127.0.0.1:3000/core/renderManager.js:1326:48)\n    at RenderManager.render (http://127.0.0.1:3000/core/renderManager.js:1105:44)\n    at GameCore.draw (http://127.0.0.1:3000/core/gameCore.js:4570:52)\n    at draw (http://127.0.0.1:3000/sketch.js:105:18)\n    at e.default.redraw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:542441)\n    at _draw (https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js:2:462354)"
+  ],
+  "overall": "pass",
+  "url": "http://127.0.0.1:3000/",
+  "import": {
+    "restored": true,
+    "focusedZoneId": "pool-heart",
+    "viewMode": "focused-garden",
+    "butterflies": 28,
+    "flowers": 141,
+    "caterpillars": 0,
+    "blocks": 108,
+    "hybridJournalCount": 16,
+    "zoneIds": [
+      "ivy-cloister",
+      "sun-court",
+      "moss-hollow",
+      "pool-heart"
+    ]
+  }
+}

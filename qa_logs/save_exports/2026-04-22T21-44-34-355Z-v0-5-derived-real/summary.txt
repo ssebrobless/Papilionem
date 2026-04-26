@@ -1,0 +1,20 @@
+Papilionem Save Export
+label: v0-5-derived-real
+version: 4
+serializedAtMs: 1776894274170
+
+State
+focusedZoneId: pool-heart
+viewMode: focused-garden
+butterflies: 28
+flowers: 141
+caterpillars: 0
+blocks: 108
+hybridJournal: 16
+unlockedButterflyTypes: 6
+zones: 0
+sizeBytes: 4000288
+
+Files
+save: C:\Users\fishe\Documents\projects\ephemera\qa_logs\save_exports\2026-04-22T21-44-34-355Z-v0-5-derived-real\save.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\save_exports\2026-04-22T21-44-34-355Z-v0-5-derived-real\summary.txt

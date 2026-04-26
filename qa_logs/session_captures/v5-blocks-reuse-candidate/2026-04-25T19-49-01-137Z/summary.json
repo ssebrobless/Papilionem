@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-blocks-reuse-candidate\\2026-04-25T19-49-01-137Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.893333327770233,
+      "avgRenderMs": 14.467499993244807,
+      "p95FrameMs": 25.699999809265137,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.203333324193954,
+      "avgRenderMs": 15.980833329757054,
+      "p95FrameMs": 31.40000009536743,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 20.521666673819222,
+      "avgRenderMs": 25.8641666551431,
+      "p95FrameMs": 58.299999713897705,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 9.440000003576278,
+      "avgRenderMs": 17.608333333333334,
+      "p95FrameMs": 36,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

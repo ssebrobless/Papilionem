@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v3-posebucket16-post-journalfix\\2026-04-23T23-08-13-173Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 28.127777785725065,
+      "avgRenderMs": 29.067777774069043,
+      "p95FrameMs": 75.5,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 25.704166666666666,
+      "avgRenderMs": 32.3474999944369,
+      "p95FrameMs": 79.09999990463257,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 44.34666666785876,
+      "avgRenderMs": 31.89083333214124,
+      "p95FrameMs": 88.60000014305115,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 26.02249999841054,
+      "avgRenderMs": 28.992499989271163,
+      "p95FrameMs": 73.5,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

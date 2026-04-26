@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-nosmooth-candidate\\2026-04-25T13-47-02-859Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.4708333293596905,
+      "avgRenderMs": 15.60416665673256,
+      "p95FrameMs": 27.200000047683716,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 10.287500013907751,
+      "avgRenderMs": 17.162499980131784,
+      "p95FrameMs": 32.90000009536743,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 19.36333332657814,
+      "avgRenderMs": 26.173333344856896,
+      "p95FrameMs": 61,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 8.984166665871937,
+      "avgRenderMs": 18.97416667143504,
+      "p95FrameMs": 38.200000286102295,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

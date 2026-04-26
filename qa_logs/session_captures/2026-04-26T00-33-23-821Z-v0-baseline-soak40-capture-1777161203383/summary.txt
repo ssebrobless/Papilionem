@@ -1,0 +1,60 @@
+Papilionem Session Capture
+session: capture_1777161203383
+label: v0-baseline-soak40
+started: 2026-04-25T23:53:23.383Z
+stopped: 2026-04-26T00:33:23.703Z
+durationMs: 2400320
+
+Runtime
+pressureTier: critical
+lagCategory: mixed
+avgUpdateMs: 8.65
+avgRenderMs: 12.60
+avgParticleRenderMs: 0.06
+p50FrameMs: 19.20
+p95FrameMs: 25.80
+p99FrameMs: 28.90
+maxUpdateMs: 0.00
+maxRenderMs: 36.80
+maxParticleCount: 3
+compositeCallsPerFrame: 5.77
+uiRedrawCount: 10628
+debugRedrawCount: 0
+timelineDroppedCount: 0
+frameTimesDroppedCount: 0
+runtimeIssuesDroppedCount: 0
+eventHistoryDroppedCount: 0
+heapSampleCount: 479
+peakHeapUsedMB: 307.08
+heap@10sMB: 189.78
+heap@60sMB: 189.78
+heap@10mMB: 307.08
+heap@20mMB: 307.08
+heap@40mMB: 0.00
+spriteCache: 0/0 | est 0.00MB | hits 0/0
+spriteTop: none
+shell: focused-garden | clean shell
+lagSummary: Mixed lag: update 8.65ms and render 12.60ms are both materially loaded.
+topUpdate: foundation.mlCadenceIntervalFrames 48.00ms | foundation.zoneEcologyCadence 30.00ms | foundation.mlCadenceSkippedCount 27.39ms | foundation.lifeSimCadenceSkippedCount 26.85ms
+topRender: entityFamilyButterflyCompositeWidth 393.94ms | entityFamilyButterflyCompositeHeight 283.48ms | behindEntityFamilyButterflyCompositeWidth 147.10ms | composite.flowersDirectCount 42.00ms
+
+Counts
+timelineEntries: 480
+eventHistoryEntries: 250
+replayMarkers: 0
+runtimeIssues: 96
+runtimeIssueErrors: 0
+runtimeIssueWarnings: 96
+errors: 0
+warnings: 3248
+freezeSuspects: 53
+spikes: 61
+snapshots: 480
+
+State
+start: focused-garden | ivy-cloister | butterflies 29 | blocks 108
+end: focused-garden | pool-heart | butterflies 30 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-26T00-33-23-821Z-v0-baseline-soak40-capture-1777161203383\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-26T00-33-23-821Z-v0-baseline-soak40-capture-1777161203383\summary.txt

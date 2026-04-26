@@ -1,0 +1,46 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v8a-runtime-proof\\2026-04-25T23-18-10-528Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 7.397499992450078,
+      "avgRenderMs": 13.063333332538605,
+      "p95FrameMs": 28,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.04416667620341,
+      "avgRenderMs": 13.578333330154418,
+      "p95FrameMs": 28,
+      "peakHeapUsedMB": 189.78118896484375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "travel",
+      "avgUpdateMs": 14.24083334604899,
+      "avgRenderMs": 13.300833334525427,
+      "p95FrameMs": 32.200000286102295,
+      "peakHeapUsedMB": 189.78118896484375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 22.56166665951411,
+      "avgRenderMs": 24.05916667977969,
+      "p95FrameMs": 70.49999976158142,
+      "peakHeapUsedMB": 189.78118896484375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 8.65166666507721,
+      "avgRenderMs": 12.603333330154419,
+      "p95FrameMs": 25.799999952316284,
+      "peakHeapUsedMB": 307.0831298828125,
+      "pressureTier": "critical"
+    }
+  ]
+}

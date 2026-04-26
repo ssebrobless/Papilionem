@@ -11,7 +11,7 @@ Show these major regions:
 - GameCore orchestration in the center
 - World/render/UI on one side
 - Life-simulation systems on another side
-- Breeding/genetics/progression on another side
+- Breeding/genetics/ecology loop on another side
 - Debug/audit/save systems on another side
 - Battle snapshot layer clearly separated from normal garden truth
 

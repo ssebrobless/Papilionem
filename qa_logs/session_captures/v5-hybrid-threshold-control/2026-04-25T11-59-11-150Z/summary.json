@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-hybrid-threshold-control\\2026-04-25T11-59-11-150Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 7.299166679382324,
+      "avgRenderMs": 16.744166668256124,
+      "p95FrameMs": 29.90000009536743,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.50333333214124,
+      "avgRenderMs": 18.0783333281676,
+      "p95FrameMs": 34.299999952316284,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 22.739999993642172,
+      "avgRenderMs": 28.324166663487752,
+      "p95FrameMs": 66.89999985694885,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 10.40833332935969,
+      "avgRenderMs": 19.399166655540466,
+      "p95FrameMs": 41.09999990463257,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    }
+  ]
+}

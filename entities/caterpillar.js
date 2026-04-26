@@ -1,14 +1,16 @@
 class Caterpillar extends Entity {
-    constructor(x, y, lifecycleData = {}) {
+    constructor(x, y, lifecycleData = {}, options = {}) {
         super(x, y);
         this.id = generateEntityId('caterpillar');
+        this.currentZoneId = options.currentZoneId || lifecycleData.currentZoneId || null;
         this.shadowOffset = 1;
-        this.size = 12;
+        this.size = 24;
         this.lifecycleData = lifecycleData;
         this.phase = 'seekingFood';
         this.phaseStartedAt = frameCount;
-        this.phaseTimeout = 60 * 180; // 3 minutes
-        this.speed = 0.35;
+        this.phaseTimeout = 60 * 300; // 5 minutes
+        this.minimumLarvalFrames = 60 * 40;
+        this.speed = 0.18;
         this.targetFlower = null;
         this.dead = false;
         this.animationFrames = [0, 1, 2, 1];
@@ -37,7 +39,8 @@ class Caterpillar extends Entity {
                 heritageTags: ['caterpillar']
             },
             lifecycle: {
-                stage: 'larval'
+                stage: 'larval',
+                currentZoneId: this.currentZoneId
             }
         });
     }
@@ -46,6 +49,10 @@ class Caterpillar extends Entity {
         if (this.dead) return;
         this.lifeSim.lifecycle.ageTicks++;
         this.lifeSim.lifecycle.stage = this.phase;
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || this.lifecycleData?.currentZoneId || null;
+        const interactionSpace = (typeof gameCore !== 'undefined' && gameCore?.getCaterpillarInteractionSpace)
+            ? gameCore.getCaterpillarInteractionSpace(zoneId, { entity: this })
+            : null;
 
         this.acquireTarget(gameState.flowers || []);
         if (!this.targetFlower) {
@@ -61,7 +68,7 @@ class Caterpillar extends Entity {
         const dy = this.targetFlower.y - this.y;
         const dist = Math.hypot(dx, dy);
 
-        if (dist <= 8) {
+        if (dist <= (interactionSpace?.reachRadius || 8)) {
             this.onReachFlower(gameState);
             this.updateZIndex();
             return;
@@ -75,8 +82,13 @@ class Caterpillar extends Entity {
 
         const moveX = dx / Math.max(dist, 0.001);
         const moveY = dy / Math.max(dist, 0.001);
-        this.x += moveX * this.speed;
-        this.y += moveY * this.speed;
+        const nextX = this.x + moveX * this.speed;
+        const nextY = this.y + moveY * this.speed;
+        const clampedPoint = zoneId && typeof gameCore !== 'undefined' && gameCore?.clampPlacementPointInZone
+            ? gameCore.clampPlacementPointInZone(zoneId, nextX, nextY, interactionSpace?.clampPadding || 8)
+            : { x: nextX, y: nextY };
+        this.x = clampedPoint.x;
+        this.y = clampedPoint.y;
         this.gridPos = gridManager.screenToIso(this.x, this.y);
         this.updateZIndex();
     }
@@ -88,8 +100,23 @@ class Caterpillar extends Entity {
 
         this.targetFlower = null;
         let bestDistance = Infinity;
+        const searchingForChrysalis = this.phase === 'seekingChrysalis';
+        const canSeekChrysalisNow = !searchingForChrysalis || (frameCount - this.phaseStartedAt >= this.minimumLarvalFrames);
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || this.lifecycleData?.currentZoneId || null;
+
+        if (searchingForChrysalis && !canSeekChrysalisNow) {
+            return;
+        }
 
         for (const flower of flowers) {
+            if (
+                zoneId
+                && typeof gameCore !== 'undefined'
+                && gameCore?.getEntityZoneId
+                && gameCore.getEntityZoneId(flower, zoneId) !== zoneId
+            ) {
+                continue;
+            }
             if (!flower.canHostCaterpillar(this.phase)) continue;
             const distance = Math.hypot(flower.x - this.x, flower.y - this.y);
             if (distance < bestDistance) {
@@ -131,22 +158,27 @@ class Caterpillar extends Entity {
         graphics.translate(this.x, this.y);
 
         if (frame) {
-            const s = (this.size * 1.2) / 1080;
+            const s = (this.size * 1.7) / 1080;
+            const drawFrame = frame;
             const w = frame.width * s;
             const h = frame.height * s;
+            const drawX = -w / 2;
+            const drawY = -h / 2;
             if (alpha < 255) {
                 graphics.tint(255, alpha);
             }
-            graphics.image(frame, -w / 2, -h / 2, w, h);
+            graphics.image(drawFrame, drawX, drawY, w, h);
             if (alpha < 255) {
                 graphics.noTint();
             }
         } else {
             graphics.noStroke();
-            graphics.fill(90, 180, 70, alpha);
-            graphics.ellipse(0, 0, 14, 8);
-            graphics.fill(60, 120, 50, alpha);
-            graphics.ellipse(5, 0, 8, 6);
+            graphics.fill(122, 216, 92, alpha);
+            graphics.ellipse(0, 0, 20, 11);
+            graphics.fill(74, 142, 48, alpha);
+            graphics.ellipse(7, 0, 12, 8);
+            graphics.fill(38, 64, 24, alpha);
+            graphics.ellipse(-6, 0, 4, 4);
         }
 
         graphics.pop();

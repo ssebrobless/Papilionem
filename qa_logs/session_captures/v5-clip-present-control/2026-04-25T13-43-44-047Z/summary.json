@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-clip-present-control\\2026-04-25T13-43-44-047Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.354166668653488,
+      "avgRenderMs": 15.340833340088526,
+      "p95FrameMs": 26,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.932500008742014,
+      "avgRenderMs": 17.102500009536744,
+      "p95FrameMs": 32.5,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 19.55499999523163,
+      "avgRenderMs": 28.340000001589456,
+      "p95FrameMs": 60.69999980926514,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 8.91333334048589,
+      "avgRenderMs": 18.621666659911472,
+      "p95FrameMs": 37.299999952316284,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

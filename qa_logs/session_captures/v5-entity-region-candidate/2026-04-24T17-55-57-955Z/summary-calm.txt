@@ -1,0 +1,58 @@
+Papilionem Session Capture
+session: capture_1777053363583
+label: v0-baseline-calm
+started: 2026-04-24T17:56:03.583Z
+stopped: 2026-04-24T17:56:09.650Z
+durationMs: 6067
+
+Runtime
+pressureTier: critical
+lagCategory: render-dominant
+avgUpdateMs: 6.22
+avgRenderMs: 14.34
+avgParticleRenderMs: 0.12
+p50FrameMs: 20.90
+p95FrameMs: 24.60
+p99FrameMs: 26.00
+maxUpdateMs: 31.50
+maxRenderMs: 0.00
+maxParticleCount: 0
+compositeCallsPerFrame: 5.15
+uiRedrawCount: 24
+debugRedrawCount: 0
+timelineDroppedCount: 0
+frameTimesDroppedCount: 0
+runtimeIssuesDroppedCount: 0
+eventHistoryDroppedCount: 0
+heapSampleCount: 3
+peakHeapUsedMB: 159.26
+heap@10sMB: 0.00
+heap@60sMB: 0.00
+heap@10mMB: 0.00
+heap@20mMB: 0.00
+heap@40mMB: 0.00
+spriteCache: 0/0 | est 0.00MB | hits 0/0
+spriteTop: none
+shell: focused-garden | clean shell
+lagSummary: Render-dominant lag: render 14.34ms vs update 6.22ms, led by compositeMs.
+topUpdate: foundation.mlCadenceIntervalFrames 48.00ms | foundation.zoneEcologyCadence 30.00ms | foundation.mlCadenceSkippedCount 27.41ms | foundation.lifeSimCadenceSkippedCount 26.83ms
+topRender: compositeMs 8.46ms | composite.totalCompositeMs 8.45ms | composite.entitiesCompositeMs 8.28ms | entityLayerMs 5.31ms
+
+Counts
+timelineEntries: 7
+eventHistoryEntries: 250
+replayMarkers: 0
+runtimeIssues: 1
+errors: 1
+warnings: 0
+freezeSuspects: 0
+spikes: 1
+snapshots: 3
+
+State
+start: focused-garden | pool-heart | butterflies 28 | blocks 108
+end: focused-garden | pool-heart | butterflies 28 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-24T17-56-09-670Z-v0-baseline-calm-capture-1777053363583\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-24T17-56-09-670Z-v0-baseline-calm-capture-1777053363583\summary.txt

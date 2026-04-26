@@ -1,0 +1,30 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v3-cache-attribution-smoke\\2026-04-23T17-19-29-691Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 34.687837835904716,
+      "avgRenderMs": 35.65810809908687,
+      "p95FrameMs": 93,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 32.70833333134651,
+      "avgRenderMs": 39.42833333214124,
+      "p95FrameMs": 101.00000023841858,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 47.15666666825612,
+      "avgRenderMs": 52.683333339293796,
+      "p95FrameMs": 129,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

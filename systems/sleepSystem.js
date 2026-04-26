@@ -172,6 +172,11 @@ class SleepSystem {
     canEntitySleep(entity) {
         if (!entity || entity.isSpawning) return false;
         if (entity.constructor?.name === 'Flower') return false;
+        const allBlocks = gameCore?.gameState?.blocks || [];
+        const carriedBlock = typeof entity.getCarriedBlock === 'function'
+            ? entity.getCarriedBlock(allBlocks)
+            : null;
+        if (carriedBlock || entity.blockInteraction?.carryingBlockId) return false;
 
         const blockedStates = new Set(['scared', 'feeding', 'following', 'mating', 'pregnant-travel']);
         return !blockedStates.has(entity.state);
@@ -223,14 +228,32 @@ class SleepSystem {
         const forcedSleepStrength = this.getStatusStrength(entity.id, 'forced_sleep');
         const forcedSleepImmune = this.getStatusStrength(entity.id, 'forced_sleep_immunity') > 0
             || (typeof statusSystem !== 'undefined' && statusSystem.hasImmunity(entity.id, 'forced_sleep'));
+        const socialEcology = entity?.lifeSim?.derived?.socialEcology || {};
+        const roostSupport = this.clamp01(
+            (socialEcology?.roosting?.score || 0) * 0.28
+            + Math.min(0.16, (socialEcology?.roosting?.supportCount || 0) * 0.04)
+        );
+        const warningPressure = this.clamp01((socialEcology?.warning?.score || 0) * 0.24);
 
-        state.sleepComfort = this.clamp01(comfortAssist + comfortBonus);
-        state.wakeDrive = this.clamp01(0.4 + (1 - state.exhaustion) * 0.5 - wakeResistance * 0.1);
+        state.sleepComfort = this.clamp01(comfortAssist + comfortBonus + roostSupport);
+        state.wakeDrive = this.clamp01(0.4 + (1 - state.exhaustion) * 0.5 - wakeResistance * 0.1 - roostSupport * 0.12 + warningPressure * 0.08);
 
         const restDrive = this.clamp01(entity?.lifeSim?.drives?.rest ?? state.sleepPressure ?? 0.2);
         const insomniaBias = this.clamp01(entity?.lifeSim?.distortion?.insomniaBias ?? 0);
         const oversleepBias = this.clamp01(entity?.lifeSim?.distortion?.oversleepBias ?? state.oversleepHabit ?? 0);
-        const canSleep = this.canEntitySleep(entity);
+        const allBlocks = gameCore?.gameState?.blocks || [];
+        const isCarryingForSleep = () => {
+            const carriedBlock = typeof entity.getCarriedBlock === 'function'
+                ? entity.getCarriedBlock(allBlocks)
+                : null;
+            return !!(carriedBlock || entity.blockInteraction?.carryingBlockId);
+        };
+        const releaseCarryForSleepAttempt = () => {
+            if (!isCarryingForSleep()) return false;
+            entity.releaseCarriedBlockForSleep?.(allBlocks);
+            return isCarryingForSleep();
+        };
+        let canSleep = this.canEntitySleep(entity);
 
         if (!state.subtype) {
             const passiveGain =
@@ -243,18 +266,37 @@ class SleepSystem {
                 tuning.settleThresholdFloor ?? 0.28,
                 (tuning.settleThresholdBase ?? 0.62) +
                 insomniaBias * (tuning.settleThresholdInsomniaMultiplier ?? 0.08) -
-                state.sleepComfort * (tuning.settleThresholdComfortMultiplier ?? 0.05)
+                state.sleepComfort * (tuning.settleThresholdComfortMultiplier ?? 0.05) +
+                warningPressure * 0.04 -
+                roostSupport * 0.06
             );
             const shouldForceSleep = forcedSleepStrength > 0 && !forcedSleepImmune;
+            if (shouldForceSleep || state.exhaustion >= settleThreshold) {
+                if (!canSleep && isCarryingForSleep()) {
+                    const stillCarrying = releaseCarryForSleepAttempt();
+                    canSleep = this.canEntitySleep(entity);
+                    if (stillCarrying || !canSleep) {
+                        this.syncStateToEntity(entity, state);
+                        return state;
+                    }
+                }
+            }
             if (canSleep && (shouldForceSleep || state.exhaustion >= settleThreshold)) {
                 this.setSleepSubtype(entity.id, shouldForceSleep ? 'forced_battle_sleep' : 'settling_sleep', shouldForceSleep ? 'forced-sleep' : 'exhaustion-threshold');
             }
         } else if (state.subtype === 'settling_sleep') {
             if (!canSleep) {
-                this.wakeEntity(entity.id, 'sleep-interrupted');
+                if (isCarryingForSleep()) {
+                    releaseCarryForSleepAttempt();
+                    canSleep = this.canEntitySleep(entity);
+                }
+                if (!canSleep) {
+                    this.wakeEntity(entity.id, 'sleep-interrupted');
+                }
             } else {
                 state.settlingSeconds += deltaSeconds;
-                if (state.settlingSeconds >= (tuning.settlingDurationSeconds ?? 1.5)) {
+                const settlingDuration = Math.max(0.8, (tuning.settlingDurationSeconds ?? 1.5) - roostSupport * 0.25 + warningPressure * 0.1);
+                if (state.settlingSeconds >= settlingDuration) {
                     this.setSleepSubtype(entity.id, 'normal_sleep', 'settled');
                 }
             }
@@ -263,7 +305,7 @@ class SleepSystem {
             const recoveryRate = (
                 (tuning.normalRecoveryBaseRate ?? 0.032) +
                 state.sleepComfort * (tuning.normalRecoveryComfortMultiplier ?? 0.014)
-            ) * recoveryMultiplier;
+            ) * recoveryMultiplier * (1 + roostSupport * 0.12);
             state.exhaustion = this.clamp01(state.exhaustion - recoveryRate * deltaSeconds);
             state.oversleepPressure = this.clamp01(
                 state.oversleepPressure +
@@ -273,7 +315,9 @@ class SleepSystem {
             const wakeThreshold = Math.max(
                 tuning.wakeThresholdFloor ?? 0.08,
                 (tuning.wakeThresholdBase ?? 0.18) -
-                wakeResistance * (tuning.wakeThresholdResistanceMultiplier ?? 0.03)
+                wakeResistance * (tuning.wakeThresholdResistanceMultiplier ?? 0.03) +
+                warningPressure * 0.04 -
+                roostSupport * 0.03
             );
             if (forcedSleepStrength <= 0 && state.exhaustion <= wakeThreshold && state.asleepSeconds >= (tuning.wakeMinimumSleepSeconds ?? 4)) {
                 if (state.oversleepPressure > (tuning.oversleepThresholdBase ?? 0.35) + oversleepBias * (tuning.oversleepThresholdBiasMultiplier ?? 0.15)) {
@@ -312,6 +356,16 @@ class SleepSystem {
     serializeDurableState() {
         const serialized = {};
         for (const [entityId, state] of this.sleepStateByEntityId.entries()) {
+            const entity = [
+                ...(gameCore?.gameState?.butterflies || []),
+                ...(gameCore?.gameState?.caterpillars || [])
+            ].find(item => item?.id === entityId);
+            if (entity?.lifeSim?.drives) {
+                state.sleepPressure = this.clamp01(entity.lifeSim.drives.rest ?? state.sleepPressure);
+            }
+            if (entity?.lifeSim?.distortion) {
+                state.oversleepHabit = this.clamp01(entity.lifeSim.distortion.oversleepBias ?? state.oversleepHabit);
+            }
             serialized[entityId] = {
                 subtype: state.subtype,
                 exhaustion: state.exhaustion,

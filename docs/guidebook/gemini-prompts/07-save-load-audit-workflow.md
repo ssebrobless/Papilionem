@@ -19,7 +19,7 @@ Show these nodes:
 - snapshot capture
 - snapshot diff
 - invariant checker
-- gameplay audit
+- audit world
 - audit report storage
 - replay metadata / reseed
 

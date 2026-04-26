@@ -1,0 +1,46 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v0.5-flag-isolation\\2026-04-22T21-36-57-211Z\\asyncImageDecode\\2026-04-22T21-37-56-425Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 27.757894736842104,
+      "avgRenderMs": 27.271578964434173,
+      "p95FrameMs": 75.09999966621399,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 25.294999998807906,
+      "avgRenderMs": 32.40166667501132,
+      "p95FrameMs": 77.89999985694885,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "travel",
+      "avgUpdateMs": 24.510833328962327,
+      "avgRenderMs": 34.273333342870075,
+      "p95FrameMs": 83.99999976158142,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 38.63333332339923,
+      "avgRenderMs": 44.161666651566826,
+      "p95FrameMs": 96.79999995231628,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 24.12249999642372,
+      "avgRenderMs": 27.181666672229767,
+      "p95FrameMs": 67.10000014305115,
+      "peakHeapUsedMB": 124.93133544921875,
+      "pressureTier": "critical"
+    }
+  ]
+}

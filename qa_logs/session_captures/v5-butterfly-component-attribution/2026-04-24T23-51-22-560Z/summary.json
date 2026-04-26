@@ -1,0 +1,22 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-butterfly-component-attribution\\2026-04-24T23-51-22-560Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 9.236666651566823,
+      "avgRenderMs": 20.285833338896435,
+      "p95FrameMs": 40.90000009536743,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 8.302499991655349,
+      "avgRenderMs": 21.42083332737287,
+      "p95FrameMs": 41.59999990463257,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    }
+  ]
+}

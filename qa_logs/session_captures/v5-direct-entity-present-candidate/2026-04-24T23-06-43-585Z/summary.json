@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-direct-entity-present-candidate\\2026-04-24T23-06-43-585Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 8.65666665037473,
+      "avgRenderMs": 19.36583334604899,
+      "p95FrameMs": 39.09999990463257,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.108333337306977,
+      "avgRenderMs": 21.358333333333334,
+      "p95FrameMs": 42.799999952316284,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 28.711666667461394,
+      "avgRenderMs": 37.715000013510384,
+      "p95FrameMs": 94.00000023841858,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 13.74416666229566,
+      "avgRenderMs": 21.0924999833107,
+      "p95FrameMs": 50.39999985694885,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

@@ -46,11 +46,22 @@ class SpriteManager {
         this.antenna = null;        // p5.Image - antennae (1080x1080)
         this.rawWings = { M: {}, F: {} };
         this.wings = { M: {}, F: {} };
+        this.wingAtlas = { M: {}, F: {} };
         this.cocoonSprites = {
             unhatched: null,
             hatched: null
         };
         this.caterpillarFrames = [];
+        this.bakedSpriteCache = new Map();
+        this.bakedSpriteCacheStats = {
+            hits: 0,
+            misses: 0,
+            insertions: 0,
+            evictions: 0,
+            evictedEstimatedSurfaceMB: 0
+        };
+        this.sourceAlphaBounds = new WeakMap();
+        this.assetDecodeMode = 'preload-image';
         this.SPRITE_SCALE = 1.0;    // Global scale multiplier for tuning
 
         // Anchor point system — pixel coordinates from source PNGs
@@ -82,10 +93,85 @@ class SpriteManager {
         };
     }
 
+    shouldUseAsyncImageDecode() {
+        return !!(
+            gameConfig?.performance?.flags?.asyncImageDecode
+            && typeof fetch === 'function'
+            && typeof createImageBitmap === 'function'
+            && typeof createGraphics === 'function'
+        );
+    }
+
+    loadImageAsPromise(assetPath) {
+        return new Promise((resolve, reject) => {
+            loadImage(assetPath, resolve, reject);
+        });
+    }
+
+    async decodeBitmapToP5Image(assetPath) {
+        const response = await fetch(assetPath);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch sprite asset: ${assetPath}`);
+        }
+        const blob = await response.blob();
+        const bitmap = await createImageBitmap(blob);
+        const graphics = createGraphics(bitmap.width, bitmap.height);
+        graphics.pixelDensity(1);
+        graphics.clear();
+        graphics.drawingContext.drawImage(bitmap, 0, 0);
+        const image = graphics.get();
+        if (typeof bitmap.close === 'function') {
+            bitmap.close();
+        }
+        if (typeof graphics.remove === 'function') {
+            graphics.remove();
+        }
+        return image;
+    }
+
+    async loadSpriteImage(assetPath) {
+        if (this.shouldUseAsyncImageDecode()) {
+            try {
+                this.assetDecodeMode = 'async-image-decode';
+                return await this.decodeBitmapToP5Image(assetPath);
+            } catch (error) {
+                console.warn('SpriteManager: async image decode fell back to loadImage', {
+                    assetPath,
+                    message: error?.message || String(error)
+                });
+            }
+        }
+        this.assetDecodeMode = 'preload-image';
+        return await this.loadImageAsPromise(assetPath);
+    }
+
+    async ensureAssetsLoaded() {
+        if (this.body && this.antenna && this.caterpillarFrames.length) return;
+
+        this.body = await this.loadSpriteImage(SPRITE_BASE_PATH + 'papilionem-butterfly-body.png');
+        this.antenna = await this.loadSpriteImage(SPRITE_BASE_PATH + 'papilionem-butterfly-antenna.png');
+
+        for (const [personality, variants] of Object.entries(WING_FILE_MAP)) {
+            this.rawWings.M[personality] = await this.loadSpriteImage(SPRITE_BASE_PATH + variants.M);
+            this.rawWings.F[personality] = await this.loadSpriteImage(SPRITE_BASE_PATH + variants.F);
+        }
+
+        this.cocoonSprites.unhatched = await this.loadSpriteImage('assets/cocoons/cocoon-unhatched.png');
+        this.cocoonSprites.hatched = await this.loadSpriteImage('assets/cocoons/cocoon-hatched.png');
+        this.caterpillarFrames = [
+            await this.loadSpriteImage('assets/caterpillars/caterpillar-crawl1.png'),
+            await this.loadSpriteImage('assets/caterpillars/caterpillar-crawl2.png'),
+            await this.loadSpriteImage('assets/caterpillars/caterpillar-crawl3.png')
+        ];
+    }
+
     // Called from p5 preload() - loads all raw images
     preloadAssets() {
-        this.body = loadImage(SPRITE_BASE_PATH + 'ephemera-butterfly-body-.png');
-        this.antenna = loadImage(SPRITE_BASE_PATH + 'ephemera-butterfly-antenna.png');
+        if (this.shouldUseAsyncImageDecode()) {
+            return;
+        }
+        this.body = loadImage(SPRITE_BASE_PATH + 'papilionem-butterfly-body.png');
+        this.antenna = loadImage(SPRITE_BASE_PATH + 'papilionem-butterfly-antenna.png');
 
         for (const [personality, variants] of Object.entries(WING_FILE_MAP)) {
             this.rawWings.M[personality] = loadImage(SPRITE_BASE_PATH + variants.M);
@@ -102,7 +188,18 @@ class SpriteManager {
     }
 
     // Called from setup() after preload completes - slices wings and processes transparency
-    initialize() {
+    async initialize() {
+        await this.ensureAssetsLoaded();
+        this.clearBakedSpriteCache();
+        this.sourceAlphaBounds = new WeakMap();
+        this.wingAtlas = { M: {}, F: {} };
+        this.getSourceAlphaBounds(this.body);
+        this.getSourceAlphaBounds(this.antenna);
+        this.getSourceAlphaBounds(this.cocoonSprites.unhatched);
+        this.getSourceAlphaBounds(this.cocoonSprites.hatched);
+        for (const frame of this.caterpillarFrames) {
+            this.getSourceAlphaBounds(frame);
+        }
         for (const sex of ['M', 'F']) {
             for (const [personality, rawImg] of Object.entries(this.rawWings[sex])) {
                 const w = rawImg.width;
@@ -117,8 +214,16 @@ class SpriteManager {
                 this._removeBlackBackground(foreRight);
                 this._removeBlackBackground(hindLeft);
                 this._removeBlackBackground(hindRight);
-
-                this.wings[sex][personality] = { foreLeft, foreRight, hindLeft, hindRight };
+                const wingPieces = { foreLeft, foreRight, hindLeft, hindRight };
+                this.wings[sex][personality] = wingPieces;
+                this.wingAtlas[sex][personality] = {};
+                for (const [wingKey, piece] of Object.entries(wingPieces)) {
+                    const bounds = this.getSourceAlphaBounds(piece);
+                    this.wingAtlas[sex][personality][wingKey] = {
+                        image: piece.get(bounds.x, bounds.y, bounds.width, bounds.height),
+                        bounds
+                    };
+                }
             }
         }
 
@@ -126,6 +231,694 @@ class SpriteManager {
         this.loaded = true;
 
         console.log('SpriteManager: Initialized -', Object.keys(this.wings.M).length * 2, 'sexed wing sets loaded');
+    }
+
+    isBakedCreatureSpritesEnabled() {
+        return !!(
+            gameConfig?.performance?.flags?.bakedCreatureSprites
+            && typeof createGraphics === 'function'
+        );
+    }
+
+    isBakedFlowerHeadsEnabled() {
+        return !!(
+            gameConfig?.performance?.flags?.bakedFlowerHeads
+            && typeof createGraphics === 'function'
+        );
+    }
+
+    getMaxBakedSpriteCount() {
+        return Math.max(1, gameConfig?.performance?.cache?.maxBakedSprites || 256);
+    }
+
+    normalizeBakedSpriteDimension(value) {
+        return Math.max(1, Math.round(value || 0));
+    }
+
+    quantizeBakedSpriteDimension(value, step = 2) {
+        const normalized = this.normalizeBakedSpriteDimension(value);
+        return Math.max(step, Math.round(normalized / step) * step);
+    }
+
+    getWingDimensionStep() {
+        return Math.max(1, gameConfig?.performance?.cache?.wingDimensionStep || 4);
+    }
+
+    getWingSpreadBucketCount() {
+        return Math.max(
+            4,
+            gameConfig?.performance?.cache?.wingPoseSpreadBuckets
+            || gameConfig?.performance?.cache?.wingSpreadBuckets
+            || 12
+        );
+    }
+
+    getWingPoseSpreadDelta() {
+        return Math.max(0, gameConfig?.performance?.cache?.wingPoseSpreadDelta || 0.16);
+    }
+
+    getFlowerWaveBucketCount() {
+        return Math.max(4, gameConfig?.performance?.cache?.flowerWaveBuckets || 12);
+    }
+
+    normalizeColorSignature(color, fallback = '0-0-0') {
+        if (!Array.isArray(color) || color.length < 3) return fallback;
+        return color
+            .slice(0, 3)
+            .map(channel => this.normalizeBakedSpriteDimension(channel))
+            .join('-');
+    }
+
+    quantizeFlowerWavePhase(phase) {
+        const bucketCount = this.getFlowerWaveBucketCount();
+        const twoPi = typeof TWO_PI === 'number' ? TWO_PI : (Math.PI * 2);
+        const normalized = ((Number(phase) || 0) % twoPi + twoPi) % twoPi;
+        const bucketIndex = Math.max(
+            0,
+            Math.min(bucketCount - 1, Math.round((normalized / twoPi) * (bucketCount - 1)))
+        );
+        const quantized = (bucketIndex / Math.max(1, bucketCount - 1)) * twoPi;
+        return {
+            bucketIndex,
+            phase: Number(quantized.toFixed(4))
+        };
+    }
+
+    shouldUseBakedWingPose(wingKey, spread, battleActiveOverride = null) {
+        if (!this.isBakedCreatureSpritesEnabled()) return false;
+        if (!Number.isFinite(spread)) return false;
+        const battleOnly = gameConfig?.performance?.cache?.wingPoseBattleOnly !== false;
+        if (battleOnly) {
+            const battleActive = battleActiveOverride === null
+                ? !!renderManager?.getRenderContext?.().battleActive
+                : !!battleActiveOverride;
+            if (!battleActive) {
+                return false;
+            }
+        }
+        const foreOnly = gameConfig?.performance?.cache?.wingPoseForeOnly !== false;
+        if (foreOnly && !String(wingKey || '').startsWith('fore')) {
+            return false;
+        }
+        return Math.abs(spread - 1) >= this.getWingPoseSpreadDelta();
+    }
+
+    quantizeWingSpread(spread) {
+        const clamped = Math.max(0.3, Math.min(1, Number(spread) || 1));
+        const bucketCount = this.getWingSpreadBucketCount();
+        const normalized = (clamped - 0.3) / 0.7;
+        const bucketIndex = Math.max(0, Math.min(bucketCount - 1, Math.round(normalized * (bucketCount - 1))));
+        const quantized = 0.3 + ((bucketIndex / Math.max(1, bucketCount - 1)) * 0.7);
+        return Number(quantized.toFixed(4));
+    }
+
+    getWingSourceSignature(spec, wingKey) {
+        const donor = spec?.hybridGenome?.wingDonors?.[wingKey];
+        if (donor?.personalityType) {
+            return `${wingKey}:${donor.personalityType}:${donor.sex || spec?.sex || 'F'}`;
+        }
+
+        const sex = spec?.sex || 'F';
+        const personalityType = spec?.personalityType === 'hybrid'
+            ? (spec?.baseType || 'friendly')
+            : (spec?.personalityType || 'friendly');
+        return `${wingKey}:${personalityType}:${sex}`;
+    }
+
+    getAppearanceKey(spec) {
+        const sex = spec?.sex || 'F';
+        const personalityType = spec?.personalityType || 'friendly';
+        const baseType = personalityType === 'hybrid'
+            ? (spec?.baseType || 'friendly')
+            : (spec?.baseType || personalityType);
+        const wingSignature = ['foreLeft', 'foreRight', 'hindLeft', 'hindRight']
+            .map(wingKey => this.getWingSourceSignature(spec, wingKey))
+            .join('|');
+        return [
+            `sex=${sex}`,
+            `personality=${personalityType}`,
+            `base=${baseType}`,
+            `wings=${wingSignature}`
+        ].join('|');
+    }
+
+    clearBakedSpriteCache() {
+        for (const entry of this.bakedSpriteCache.values()) {
+            entry?.surface?.remove?.();
+        }
+        this.bakedSpriteCache.clear();
+        this.bakedSpriteCacheStats = {
+            hits: 0,
+            misses: 0,
+            insertions: 0,
+            evictions: 0,
+            evictedEstimatedSurfaceMB: 0
+        };
+    }
+
+    getBakedCacheFamily(key) {
+        const family = String(key || '').split('|')[0] || 'unknown';
+        return family || 'unknown';
+    }
+
+    getBakedCacheDimensions(key, entry = null) {
+        const drawWidth = Number(entry?.drawWidth || entry?.surface?.width || 0);
+        const drawHeight = Number(entry?.drawHeight || entry?.surface?.height || 0);
+        if (drawWidth > 0 && drawHeight > 0) {
+            return {
+                width: drawWidth,
+                height: drawHeight
+            };
+        }
+        const match = String(key || '').match(/(\d+)x(\d+)$/);
+        if (!match) {
+            return { width: 0, height: 0 };
+        }
+        return {
+            width: Number(match[1] || 0),
+            height: Number(match[2] || 0)
+        };
+    }
+
+    estimateBakedSurfaceMB(surface) {
+        const width = Number(surface?.width || 0);
+        const height = Number(surface?.height || 0);
+        if (width <= 0 || height <= 0) return 0;
+        return (width * height * 4) / (1024 * 1024);
+    }
+
+    getBakedSpriteCacheTelemetry() {
+        const stats = this.bakedSpriteCacheStats || {};
+        const familyTotals = {};
+        let estimatedSurfaceMB = 0;
+        for (const [key, entry] of this.bakedSpriteCache.entries()) {
+            const family = entry?.cacheFamily || this.getBakedCacheFamily(key);
+            const dimensions = this.getBakedCacheDimensions(key, entry);
+            const familyBucket = familyTotals[family] || {
+                family,
+                entryCount: 0,
+                estimatedSurfaceMB: 0,
+                uniqueSizes: new Set(),
+                maxWidth: 0,
+                maxHeight: 0
+            };
+            familyBucket.entryCount += 1;
+            const surfaceMB = Number(entry?.estimatedSurfaceMB || this.estimateBakedSurfaceMB(entry?.surface) || 0);
+            familyBucket.estimatedSurfaceMB += surfaceMB;
+            estimatedSurfaceMB += surfaceMB;
+            if (dimensions.width > 0 && dimensions.height > 0) {
+                familyBucket.uniqueSizes.add(`${dimensions.width}x${dimensions.height}`);
+                familyBucket.maxWidth = Math.max(familyBucket.maxWidth, dimensions.width);
+                familyBucket.maxHeight = Math.max(familyBucket.maxHeight, dimensions.height);
+            }
+            familyTotals[family] = familyBucket;
+        }
+
+        const families = Object.values(familyTotals)
+            .map(family => ({
+                family: family.family,
+                entryCount: family.entryCount,
+                estimatedSurfaceMB: Number(family.estimatedSurfaceMB.toFixed(4)),
+                uniqueSizeCount: family.uniqueSizes.size,
+                maxWidth: family.maxWidth,
+                maxHeight: family.maxHeight
+            }))
+            .sort((left, right) => {
+                if (right.estimatedSurfaceMB !== left.estimatedSurfaceMB) {
+                    return right.estimatedSurfaceMB - left.estimatedSurfaceMB;
+                }
+                return right.entryCount - left.entryCount;
+            });
+
+        return {
+            enabled: this.isBakedCreatureSpritesEnabled(),
+            entryCount: this.bakedSpriteCache.size,
+            maxEntries: this.getMaxBakedSpriteCount(),
+            estimatedSurfaceMB: Number(estimatedSurfaceMB.toFixed(4)),
+            cacheHits: Number(stats.hits || 0),
+            cacheMisses: Number(stats.misses || 0),
+            insertions: Number(stats.insertions || 0),
+            evictions: Number(stats.evictions || 0),
+            evictedEstimatedSurfaceMB: Number((stats.evictedEstimatedSurfaceMB || 0).toFixed(4)),
+            families,
+            topFamilies: families.slice(0, 4).map(entry => ({ ...entry }))
+        };
+    }
+
+    getSourceAlphaBounds(image) {
+        if (!image) {
+            return { x: 0, y: 0, width: 0, height: 0 };
+        }
+
+        const cached = this.sourceAlphaBounds.get(image);
+        if (cached) return cached;
+
+        image.loadPixels();
+        const data = image.pixels || [];
+        let minX = image.width;
+        let minY = image.height;
+        let maxX = -1;
+        let maxY = -1;
+
+        for (let y = 0; y < image.height; y += 1) {
+            for (let x = 0; x < image.width; x += 1) {
+                const alpha = data[((y * image.width) + x) * 4 + 3];
+                if (alpha > 0) {
+                    if (x < minX) minX = x;
+                    if (y < minY) minY = y;
+                    if (x > maxX) maxX = x;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+
+        const bounds = maxX >= minX && maxY >= minY
+            ? {
+                x: minX,
+                y: minY,
+                width: (maxX - minX) + 1,
+                height: (maxY - minY) + 1
+            }
+            : {
+                x: 0,
+                y: 0,
+                width: image.width,
+                height: image.height
+            };
+        this.sourceAlphaBounds.set(image, bounds);
+        return bounds;
+    }
+
+    expandBounds(bounds, image, padding = 1) {
+        if (!bounds || !image) {
+            return { x: 0, y: 0, width: 0, height: 0 };
+        }
+        const x = Math.max(0, bounds.x - padding);
+        const y = Math.max(0, bounds.y - padding);
+        const maxX = Math.min(image.width, bounds.x + bounds.width + padding);
+        const maxY = Math.min(image.height, bounds.y + bounds.height + padding);
+        return {
+            x,
+            y,
+            width: Math.max(1, maxX - x),
+            height: Math.max(1, maxY - y)
+        };
+    }
+
+    createBakedSurface(width, height, drawFn, options = {}) {
+        const { smooth = false } = options;
+        const bakedWidth = this.normalizeBakedSpriteDimension(width);
+        const bakedHeight = this.normalizeBakedSpriteDimension(height);
+        const surface = createGraphics(bakedWidth, bakedHeight);
+        surface.pixelDensity(1);
+        surface.clear();
+        if (smooth) {
+            surface.smooth();
+            if (surface.drawingContext) {
+                surface.drawingContext.imageSmoothingEnabled = true;
+            }
+        } else {
+            surface.noSmooth();
+            if (surface.drawingContext) {
+                surface.drawingContext.imageSmoothingEnabled = false;
+            }
+        }
+        drawFn(surface, bakedWidth, bakedHeight);
+        return surface;
+    }
+
+    getCachedBakedEntry(key, buildFn) {
+        return this.getCachedBakedEntryIfEnabled(this.isBakedCreatureSpritesEnabled(), key, buildFn);
+    }
+
+    getCachedBakedEntryIfEnabled(enabled, key, buildFn) {
+        if (!enabled) return null;
+
+        const existing = this.bakedSpriteCache.get(key);
+        if (existing) {
+            this.bakedSpriteCacheStats.hits = Number(this.bakedSpriteCacheStats.hits || 0) + 1;
+            this.bakedSpriteCache.delete(key);
+            this.bakedSpriteCache.set(key, existing);
+            return existing;
+        }
+        this.bakedSpriteCacheStats.misses = Number(this.bakedSpriteCacheStats.misses || 0) + 1;
+
+        const entry = buildFn();
+        if (!entry?.surface) return null;
+        entry.cacheKey = key;
+        entry.cacheFamily = entry.cacheFamily || this.getBakedCacheFamily(key);
+        entry.estimatedSurfaceMB = Number(
+            (entry.estimatedSurfaceMB || this.estimateBakedSurfaceMB(entry.surface) || 0).toFixed(4)
+        );
+
+        this.bakedSpriteCache.set(key, entry);
+        this.bakedSpriteCacheStats.insertions = Number(this.bakedSpriteCacheStats.insertions || 0) + 1;
+        while (this.bakedSpriteCache.size > this.getMaxBakedSpriteCount()) {
+            const oldestKey = this.bakedSpriteCache.keys().next().value;
+            if (oldestKey == null) break;
+            const oldest = this.bakedSpriteCache.get(oldestKey);
+            this.bakedSpriteCacheStats.evictions = Number(this.bakedSpriteCacheStats.evictions || 0) + 1;
+            this.bakedSpriteCacheStats.evictedEstimatedSurfaceMB = Number(this.bakedSpriteCacheStats.evictedEstimatedSurfaceMB || 0)
+                + Number(oldest?.estimatedSurfaceMB || this.estimateBakedSurfaceMB(oldest?.surface) || 0);
+            oldest?.surface?.remove?.();
+            this.bakedSpriteCache.delete(oldestKey);
+        }
+        return entry;
+    }
+
+    getCachedBakedSurface(key, buildFn) {
+        return this.getCachedBakedSurfaceIfEnabled(this.isBakedCreatureSpritesEnabled(), key, buildFn);
+    }
+
+    getCachedBakedSurfaceIfEnabled(enabled, key, buildFn) {
+        const entry = this.getCachedBakedEntryIfEnabled(enabled, key, () => {
+            const surface = buildFn();
+            return surface ? { surface } : null;
+        });
+        return entry?.surface || null;
+    }
+
+    getBakedFlowerHeadData(flower, options = {}) {
+        if (!this.isBakedFlowerHeadsEnabled() || !flower) return null;
+
+        const petalCount = Math.max(3, Math.round(flower.petalCount || 7));
+        const baseSize = this.normalizeBakedSpriteDimension(options.baseSize || flower.size || 13);
+        const centerSize = this.normalizeBakedSpriteDimension(options.centerSize || 8);
+        const waveSpeed = Number(options.waveSpeed || flower?.animation?.petalWaveSpeed || 0.02);
+        const waveInfo = this.quantizeFlowerWavePhase(
+            options.wavePhase ?? (((options.frameCount ?? frameCount ?? 0) * waveSpeed) || 0)
+        );
+        const petalColorKey = this.normalizeColorSignature(options.petalColor || flower.petalColor);
+        const accentColorKey = this.normalizeColorSignature(options.accentColor || flower.accentColor);
+        const centerColorKey = this.normalizeColorSignature(options.centerColor || flower.centerColor);
+        const padding = Math.max(8, Math.ceil(baseSize * 0.92));
+        const drawWidth = this.normalizeBakedSpriteDimension((baseSize * 2.4) + (padding * 2));
+        const drawHeight = this.normalizeBakedSpriteDimension((baseSize * 2.1) + (padding * 2));
+        const cacheKey = `flower-head|type=${flower.flowerType || 'garden-bloom'}|petals=${petalCount}|size=${baseSize}|center=${centerSize}|petal=${petalColorKey}|accent=${accentColorKey}|centerColor=${centerColorKey}|wave=${waveInfo.bucketIndex}|${drawWidth}x${drawHeight}`;
+        return this.getCachedBakedEntryIfEnabled(true, cacheKey, () => ({
+            cacheFamily: 'flower-head',
+            drawWidth,
+            drawHeight,
+            anchorX: drawWidth / 2,
+            anchorY: drawHeight / 2,
+            surface: this.createBakedSurface(
+                drawWidth,
+                drawHeight,
+                (surface, bakedWidth, bakedHeight) => {
+                    const centerX = bakedWidth / 2;
+                    const centerY = bakedHeight / 2;
+                    const petalColor = options.petalColor || flower.petalColor || [255, 180, 120];
+                    const accentColor = options.accentColor || flower.accentColor || [210, 140, 100];
+                    const centerColor = options.centerColor || flower.centerColor || [255, 240, 180];
+
+                    surface.push();
+                    surface.translate(centerX, centerY);
+                    surface.strokeWeight(2);
+                    surface.stroke(0, 0, 0, 255 * 0.28);
+
+                    for (let i = 0; i < petalCount; i += 1) {
+                        const angle = (TWO_PI / petalCount) * i;
+                        const petalWave = sin(waveInfo.phase + i) * 0.08 + 1;
+
+                        surface.push();
+                        surface.rotate(angle);
+                        surface.fill(petalColor[0], petalColor[1], petalColor[2], 255);
+                        surface.ellipse(baseSize * 0.56, 0, baseSize * 0.92 * petalWave, baseSize * 0.42);
+                        surface.fill(accentColor[0], accentColor[1], accentColor[2], 255 * 0.42);
+                        surface.ellipse(baseSize * 0.66, 0, baseSize * 0.42, baseSize * 0.18);
+                        surface.fill(255, 255, 255, 255 * 0.16);
+                        surface.ellipse(baseSize * 0.72, -0.2, baseSize * 0.18, baseSize * 0.12);
+                        surface.pop();
+                    }
+
+                    surface.noStroke();
+                    surface.fill(centerColor[0], centerColor[1], centerColor[2], 255);
+                    surface.ellipse(0, 0, centerSize, centerSize);
+                    surface.fill(0, 0, 0, 255 * 0.2);
+                    const dotCount = Math.min(5, Math.floor(centerSize / 2));
+                    for (let i = 0; i < dotCount; i += 1) {
+                        const angle = (TWO_PI / dotCount) * i;
+                        const radius = centerSize * 0.25;
+                        surface.ellipse(cos(angle) * radius, sin(angle) * radius, 2, 2);
+                    }
+                    surface.pop();
+                },
+                { smooth: true }
+            )
+        }));
+    }
+
+    getBakedBodySprite(spec, targetWidth, targetHeight) {
+        if (!this.body) return null;
+        const bakedWidth = this.normalizeBakedSpriteDimension(targetWidth);
+        const bakedHeight = this.normalizeBakedSpriteDimension(targetHeight);
+        const cacheKey = `body|${spec?.sex || 'F'}|${bakedWidth}x${bakedHeight}`;
+        return this.getCachedBakedSurface(cacheKey, () => this.createBakedSurface(
+            bakedWidth,
+            bakedHeight,
+            surface => surface.image(this.body, 0, 0, bakedWidth, bakedHeight)
+        ));
+    }
+
+    getBakedBodySpriteData(spec, targetScale) {
+        if (!this.body) return null;
+        const bounds = this.expandBounds(this.getSourceAlphaBounds(this.body), this.body, 2);
+        const drawWidth = this.normalizeBakedSpriteDimension(bounds.width * targetScale);
+        const drawHeight = this.normalizeBakedSpriteDimension(bounds.height * targetScale);
+        const xScale = drawWidth / Math.max(1, bounds.width);
+        const yScale = drawHeight / Math.max(1, bounds.height);
+        const cacheKey = `body-trimmed|${drawWidth}x${drawHeight}`;
+        return this.getCachedBakedEntry(cacheKey, () => ({
+            surface: this.createBakedSurface(
+                drawWidth,
+                drawHeight,
+                renderSurface => renderSurface.image(
+                    this.body,
+                    0,
+                    0,
+                    drawWidth,
+                    drawHeight,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height
+                )
+            ),
+            drawWidth,
+            drawHeight,
+            bounds,
+            offsetX: (-this.body.width * xScale / 2) + (bounds.x * xScale),
+            offsetY: (-this.body.height * yScale / 2) + (bounds.y * yScale)
+        }));
+    }
+
+    getBakedAntennaSprite(spec, targetWidth, targetHeight) {
+        if (!this.antenna) return null;
+        const bakedWidth = this.normalizeBakedSpriteDimension(targetWidth);
+        const bakedHeight = this.normalizeBakedSpriteDimension(targetHeight);
+        const cacheKey = `antenna|${spec?.sex || 'F'}|${bakedWidth}x${bakedHeight}`;
+        return this.getCachedBakedSurface(cacheKey, () => this.createBakedSurface(
+            bakedWidth,
+            bakedHeight,
+            surface => surface.image(this.antenna, 0, 0, bakedWidth, bakedHeight)
+        ));
+    }
+
+    getBakedAntennaSpriteData(spec, targetScale) {
+        if (!this.antenna) return null;
+        const bounds = this.expandBounds(this.getSourceAlphaBounds(this.antenna), this.antenna, 2);
+        const drawWidth = this.normalizeBakedSpriteDimension(bounds.width * targetScale);
+        const drawHeight = this.normalizeBakedSpriteDimension(bounds.height * targetScale);
+        const xScale = drawWidth / Math.max(1, bounds.width);
+        const yScale = drawHeight / Math.max(1, bounds.height);
+        const antennaAnchors = this.anchors?.antenna || {};
+        const cacheKey = `antenna-trimmed|${drawWidth}x${drawHeight}`;
+        return this.getCachedBakedEntry(cacheKey, () => ({
+            surface: this.createBakedSurface(
+                drawWidth,
+                drawHeight,
+                renderSurface => renderSurface.image(
+                    this.antenna,
+                    0,
+                    0,
+                    drawWidth,
+                    drawHeight,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height
+                )
+            ),
+            drawWidth,
+            drawHeight,
+            bounds,
+            anchors: {
+                left: antennaAnchors.left
+                    ? {
+                        x: (antennaAnchors.left.onAntenna.x - bounds.x) * xScale,
+                        y: (antennaAnchors.left.onAntenna.y - bounds.y) * yScale
+                    }
+                    : { x: 0, y: 0 },
+                right: antennaAnchors.right
+                    ? {
+                        x: (antennaAnchors.right.onAntenna.x - bounds.x) * xScale,
+                        y: (antennaAnchors.right.onAntenna.y - bounds.y) * yScale
+                    }
+                    : { x: 0, y: 0 }
+            }
+        }));
+    }
+
+    getBakedWingPiece(spec, wingKey, targetWidth, targetHeight) {
+        const piece = this.getWingPieceForSpec(spec, wingKey);
+        if (!piece) return null;
+        const bakedWidth = this.normalizeBakedSpriteDimension(targetWidth);
+        const bakedHeight = this.normalizeBakedSpriteDimension(targetHeight);
+        const cacheKey = `wing|${this.getAppearanceKey(spec)}|${this.getWingSourceSignature(spec, wingKey)}|${bakedWidth}x${bakedHeight}`;
+        return this.getCachedBakedSurfaceIfEnabled(this.isBakedCreatureSpritesEnabled(), cacheKey, () => this.createBakedSurface(
+            bakedWidth,
+            bakedHeight,
+            surface => surface.image(piece, 0, 0, bakedWidth, bakedHeight)
+        ));
+    }
+
+    getBakedWingPieceData(spec, wingKey, targetScale) {
+        const atlasEntry = this.isSpriteAtlasEnabled() ? this.getWingAtlasPieceForSpec(spec, wingKey) : null;
+        const piece = atlasEntry?.image || this.getWingPieceForSpec(spec, wingKey);
+        if (!piece) return null;
+
+        const bounds = atlasEntry?.bounds || this.getSourceAlphaBounds(piece);
+        const relAnchor = this.anchors?.wingsRelative?.[wingKey];
+        const dimensionStep = this.getWingDimensionStep();
+        const drawWidth = this.quantizeBakedSpriteDimension(bounds.width * targetScale, dimensionStep);
+        const drawHeight = this.quantizeBakedSpriteDimension(bounds.height * targetScale, dimensionStep);
+        const xScale = drawWidth / Math.max(1, bounds.width);
+        const yScale = drawHeight / Math.max(1, bounds.height);
+        const cacheKey = `wing-trimmed|${atlasEntry ? 'atlas' : 'raw'}|${this.getAppearanceKey(spec)}|${this.getWingSourceSignature(spec, wingKey)}|${drawWidth}x${drawHeight}`;
+        return this.getCachedBakedEntryIfEnabled(this.isBakedCreatureSpritesEnabled(), cacheKey, () => ({
+            surface: this.createBakedSurface(
+                drawWidth,
+                drawHeight,
+                renderSurface => atlasEntry
+                    ? renderSurface.image(piece, 0, 0, drawWidth, drawHeight)
+                    : renderSurface.image(
+                        piece,
+                        0,
+                        0,
+                        drawWidth,
+                        drawHeight,
+                        bounds.x,
+                        bounds.y,
+                        bounds.width,
+                        bounds.height
+                    )
+            ),
+            drawWidth,
+            drawHeight,
+            bounds,
+            anchorX: relAnchor ? (relAnchor.x - bounds.x) * xScale : 0,
+            anchorY: relAnchor ? (relAnchor.y - bounds.y) * yScale : 0
+        }));
+    }
+
+    getBakedWingPoseData(spec, wingKey, targetScale, spread = 1) {
+        const atlasEntry = this.isSpriteAtlasEnabled() ? this.getWingAtlasPieceForSpec(spec, wingKey) : null;
+        const piece = atlasEntry?.image || this.getWingPieceForSpec(spec, wingKey);
+        if (!piece) return null;
+
+        const bounds = atlasEntry?.bounds || this.getSourceAlphaBounds(piece);
+        const relAnchor = this.anchors?.wingsRelative?.[wingKey];
+        const spreadBucket = this.quantizeWingSpread(spread);
+        const dimensionStep = this.getWingDimensionStep();
+        const drawWidth = this.quantizeBakedSpriteDimension(bounds.width * targetScale * spreadBucket, dimensionStep);
+        const drawHeight = this.quantizeBakedSpriteDimension(bounds.height * targetScale, dimensionStep);
+        const xScale = drawWidth / Math.max(1, bounds.width);
+        const yScale = drawHeight / Math.max(1, bounds.height);
+        const cacheKey = `wing-pose|${atlasEntry ? 'atlas' : 'raw'}|${this.getAppearanceKey(spec)}|${this.getWingSourceSignature(spec, wingKey)}|spread=${spreadBucket}|${drawWidth}x${drawHeight}`;
+        return this.getCachedBakedEntryIfEnabled(this.isBakedCreatureSpritesEnabled(), cacheKey, () => ({
+            surface: this.createBakedSurface(
+                drawWidth,
+                drawHeight,
+                renderSurface => atlasEntry
+                    ? renderSurface.image(piece, 0, 0, drawWidth, drawHeight)
+                    : renderSurface.image(
+                        piece,
+                        0,
+                        0,
+                        drawWidth,
+                        drawHeight,
+                        bounds.x,
+                        bounds.y,
+                        bounds.width,
+                        bounds.height
+                    )
+            ),
+            drawWidth,
+            drawHeight,
+            bounds,
+            spreadBucket,
+            anchorX: relAnchor ? (relAnchor.x - bounds.x) * xScale : 0,
+            anchorY: relAnchor ? (relAnchor.y - bounds.y) * yScale : 0
+        }));
+    }
+
+
+    getBakedCaterpillarFrame(frameIndex, targetWidth, targetHeight) {
+        const frame = this.caterpillarFrames?.[frameIndex];
+        if (!frame) return null;
+        const bakedWidth = this.normalizeBakedSpriteDimension(targetWidth);
+        const bakedHeight = this.normalizeBakedSpriteDimension(targetHeight);
+        const cacheKey = `caterpillar|frame=${frameIndex}|${bakedWidth}x${bakedHeight}`;
+        return this.getCachedBakedSurface(cacheKey, () => this.createBakedSurface(
+            bakedWidth,
+            bakedHeight,
+            surface => surface.image(frame, 0, 0, bakedWidth, bakedHeight)
+        ));
+    }
+
+    getBakedCaterpillarFrameData(frameIndex, targetScale) {
+        const frame = this.caterpillarFrames?.[frameIndex];
+        if (!frame) return null;
+
+        const bounds = this.expandBounds(this.getSourceAlphaBounds(frame), frame, 1);
+        const drawWidth = this.normalizeBakedSpriteDimension(bounds.width * targetScale);
+        const drawHeight = this.normalizeBakedSpriteDimension(bounds.height * targetScale);
+        const cacheKey = `caterpillar-trimmed|frame=${frameIndex}|${drawWidth}x${drawHeight}`;
+        return this.getCachedBakedEntry(cacheKey, () => ({
+            surface: this.createBakedSurface(
+                drawWidth,
+                drawHeight,
+                renderSurface => renderSurface.image(
+                    frame,
+                    0,
+                    0,
+                    drawWidth,
+                    drawHeight,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height
+                )
+            ),
+            drawWidth,
+            drawHeight,
+            bounds,
+            offsetX: (-frame.width * targetScale / 2) + (bounds.x * targetScale),
+            offsetY: (-frame.height * targetScale / 2) + (bounds.y * targetScale)
+        }));
+    }
+
+    getBakedCocoonSprite(state, targetWidth, targetHeight) {
+        const sprite = state === 'hatched' ? this.cocoonSprites.hatched : this.cocoonSprites.unhatched;
+        if (!sprite) return null;
+        const bakedWidth = this.normalizeBakedSpriteDimension(targetWidth);
+        const bakedHeight = this.normalizeBakedSpriteDimension(targetHeight);
+        const cacheKey = `cocoon|${state}|${bakedWidth}x${bakedHeight}`;
+        return this.getCachedBakedSurface(cacheKey, () => this.createBakedSurface(
+            bakedWidth,
+            bakedHeight,
+            surface => surface.image(sprite, 0, 0, bakedWidth, bakedHeight)
+        ));
     }
 
     // Convert near-black pixels to transparent
@@ -174,6 +967,25 @@ class SpriteManager {
     hasRenderableSpec(spec) {
         const wingKeys = ['foreLeft', 'foreRight', 'hindLeft', 'hindRight'];
         return wingKeys.every(wingKey => !!this.getWingPieceForSpec(spec, wingKey));
+    }
+
+    isSpriteAtlasEnabled() {
+        return !!gameConfig?.performance?.flags?.spriteAtlas;
+    }
+
+    getWingAtlasPieceForSpec(spec, wingKey) {
+        if (!spec) return null;
+
+        if (spec.hybridGenome?.wingDonors?.[wingKey]) {
+            const donor = spec.hybridGenome.wingDonors[wingKey];
+            return this.wingAtlas?.[donor.sex]?.[donor.personalityType]?.[wingKey] || null;
+        }
+
+        const sex = spec.sex || 'F';
+        const personalityType = spec.personalityType === 'hybrid'
+            ? (spec.baseType || 'friendly')
+            : spec.personalityType;
+        return this.wingAtlas?.[sex]?.[personalityType]?.[wingKey] || null;
     }
 }
 

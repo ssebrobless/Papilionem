@@ -47,7 +47,7 @@
 <body>
 <main>
   <section class="page">
-    <div class="hero"><div class="hero-grid"><div><h1>Papilionem Complete Guidebook</h1><p class="cover-note">Built from the current implemented milestone branch on 2026-04-12.</p><p>This guidebook is meant to do two jobs at once:</p><ul><li>teach an average player or tester how the game works</li><li>preserve the exact internal logic, tuning, and system boundaries for future reference</li></ul><div class="callout"><strong>Important note:</strong> when this guide talks about the game's neuro layer, it does <em>not</em> mean a machine-learning neural network. Papilionem uses a simulated life-model made of drives, emotions, memory, social edges, routines, interpretation, distortion, genetics, and lifecycle state.</div></div><div class="shape-box">Guidebook shape
+    <div class="hero"><div class="hero-grid"><div><h1>Papilionem Complete Guidebook</h1><p class="cover-note">Built from the current implemented milestone branch on 2026-04-17.</p><p>This guidebook is meant to do two jobs at once:</p><ul><li>teach an average player or tester how the game works</li><li>preserve the exact internal logic, tuning, and system boundaries for future reference</li></ul><div class="callout"><strong>Important note:</strong> when this guide talks about the game's neuro layer, it does <em>not</em> mean a machine-learning neural network. Papilionem uses a simulated life-model made of drives, emotions, memory, social edges, routines, interpretation, distortion, genetics, and lifecycle state.</div></div><div class="shape-box">Guidebook shape
 page 1: table of contents
 part 1: how to play and read the garden
 part 2: how the living simulation works
@@ -463,7 +463,7 @@ flowchart TB
     </tbody>
   </table>
 </section></section>
-  <section id="progression"><h2>12. Progression, Collection, And Hybrid Journaling</h2><div class="diagram"><div class="mermaid">
+  <section id="progression"><h2>12. Progression And Hybrid Journaling</h2><div class="diagram"><div class="mermaid">
 flowchart LR
     Encounter["Encounter butterfly"]
     Collect["Collection stats update"]
@@ -475,15 +475,17 @@ flowchart LR
     Encounter --> Collect
     Breed --> Journal --> Rename --> Save
     Collect --> Save
-</div></div><p>The progression layer turns the simulation into an archive. It stores encountered butterflies, collected butterflies, collection stats, hybrid journal entries, and the next hybrid id. The journal also supports renaming hybrids so discoveries feel personal and trackable.</p>
+</div></div><p>The progression layer now follows the breeding-gated ladder. Friendly starts unlocked, same-type child success unlocks the next type in order, each unlock seeds a new male and female into every zone, and wild butterflies shift into mixed-lineage breeding before eventually leaving after three successful hybrid pairings. The journal still stores hybrid lineage entries and the next hybrid id so discoveries remain personal and persistent.</p>
 <section class="config-block">
   <h4>Progression storage</h4>
   <table class="kv-table">
     <thead><tr><th>Setting</th><th>Value</th></tr></thead>
     <tbody>
-      <tr><td><code>encounteredButterflies</code></td><td><code>set of seen types</code></td></tr>
-<tr><td><code>collectedButterflies</code></td><td><code>set of collected types</code></td></tr>
-<tr><td><code>butterflyCollectionStats</code></td><td><code>aggregate collection stats</code></td></tr>
+      <tr><td><code>unlockedButterflyTypes</code></td><td><code>currently unlocked base types in canonical order</code></td></tr>
+<tr><td><code>unlockHistory</code></td><td><code>ordered unlock events with source type and timestamp</code></td></tr>
+<tr><td><code>starterPairsSeeded</code></td><td><code>per-zone starter pair seeding truth</code></td></tr>
+<tr><td><code>perTypeUnlockStatus</code></td><td><code>per-type same-type completion and unlock state</code></td></tr>
+<tr><td><code>perWildButterflyProgress</code></td><td><code>per-wild butterfly same-type and hybrid progression</code></td></tr>
 <tr><td><code>hybridJournal</code></td><td><code>ordered hybrid entry list</code></td></tr>
 <tr><td><code>nextHybridId</code></td><td><code>next journal id counter</code></td></tr>
     </tbody>
@@ -539,8 +541,8 @@ flowchart LR
     <tbody>
       <tr><td><code>butterfly wing base path</code></td><td><code>assets/butterflies/</code></td></tr>
 <tr><td><code>wing file organization</code></td><td><code>separate male/female full wing composites per archetype</code></td></tr>
-<tr><td><code>body sprite</code></td><td><code>ephemera-butterfly-body-.png</code></td></tr>
-<tr><td><code>antenna sprite</code></td><td><code>ephemera-butterfly-antenna.png</code></td></tr>
+<tr><td><code>body sprite</code></td><td><code>papilionem-butterfly-body.png</code></td></tr>
+<tr><td><code>antenna sprite</code></td><td><code>papilionem-butterfly-antenna.png</code></td></tr>
 <tr><td><code>cocoon sprites</code></td><td><code>assets/cocoons/cocoon-unhatched.png and cocoon-hatched.png</code></td></tr>
 <tr><td><code>caterpillar frames</code></td><td><code>assets/caterpillars/caterpillar-crawl1/2/3.png</code></td></tr>
 <tr><td><code>wing split point</code></td><td><code>x=900, y=600</code></td></tr>
@@ -617,8 +619,11 @@ flowchart LR
   <table class="kv-table">
     <thead><tr><th>Setting</th><th>Value</th></tr></thead>
     <tbody>
-      <tr><td><code>maxButterflies</code></td><td><code>12</code></td></tr>
-<tr><td><code>maxFlowers</code></td><td><code>6</code></td></tr>
+      <tr><td><code>maxButterflies</code></td><td><code>500</code></td></tr>
+<tr><td><code>wildTargetCount</code></td><td><code>6</code></td></tr>
+<tr><td><code>maxFlowers</code></td><td><code>10</code></td></tr>
+<tr><td><code>blocksPerZone</code></td><td><code>20</code></td></tr>
+<tr><td><code>placementEdgeInset</code></td><td><code>22</code></td></tr>
 <tr><td><code>heightOffset.butterfly</code></td><td><code>10</code></td></tr>
 <tr><td><code>heightOffset.flower</code></td><td><code>0</code></td></tr>
 <tr><td><code>heightOffset.pixel</code></td><td><code>0</code></td></tr>
@@ -637,6 +642,12 @@ flowchart LR
 <tr><td><code>flower.stageDurations.wilting</code></td><td><code>1200</code></td></tr>
 <tr><td><code>flower.stageDurations.dissolve</code></td><td><code>360</code></td></tr>
 <tr><td><code>flower.palettes</code></td><td><code>{&quot;petals&quot;:[255,180,120],&quot;center&quot;:[255,240,180]}, {&quot;petals&quot;:[255,150,200],&quot;center&quot;:[255,255,220]}, {&quot;petals&quot;:[200,150,255],&quot;center&quot;:[255,230,150]}, {&quot;petals&quot;:[255,220,150],&quot;center&quot;:[255,255,200]}, {&quot;petals&quot;:[180,220,255],&quot;center&quot;:[255,255,240]}</code></td></tr>
+<tr><td><code>block.renderWidth</code></td><td><code>18</code></td></tr>
+<tr><td><code>block.renderHeight</code></td><td><code>18</code></td></tr>
+<tr><td><code>block.scatterColumns</code></td><td><code>5</code></td></tr>
+<tr><td><code>block.scatterRows</code></td><td><code>4</code></td></tr>
+<tr><td><code>block.interactionRadius</code></td><td><code>18</code></td></tr>
+<tr><td><code>block.shelterThresholdBlocks</code></td><td><code>6</code></td></tr>
     </tbody>
   </table>
 </section>
@@ -646,7 +657,7 @@ flowchart LR
   <table class="kv-table">
     <thead><tr><th>Setting</th><th>Value</th></tr></thead>
     <tbody>
-      <tr><td><code>maxParticles</code></td><td><code>100</code></td></tr>
+      <tr><td><code>maxParticles</code></td><td><code>80</code></td></tr>
 <tr><td><code>gravity</code></td><td><code>0.1</code></td></tr>
 <tr><td><code>pixelSize</code></td><td><code>2</code></td></tr>
 <tr><td><code>bounce</code></td><td><code>0.3</code></td></tr>
@@ -655,6 +666,8 @@ flowchart LR
 <tr><td><code>types.scale.fadeSpeed</code></td><td><code>0</code></td></tr>
 <tr><td><code>types.joy.lifetime</code></td><td><code>255</code></td></tr>
 <tr><td><code>types.joy.fadeSpeed</code></td><td><code>2</code></td></tr>
+<tr><td><code>types.pollen.lifetime</code></td><td><code>180</code></td></tr>
+<tr><td><code>types.pollen.fadeSpeed</code></td><td><code>3</code></td></tr>
 <tr><td><code>types.stress.lifetime</code></td><td><code>180</code></td></tr>
 <tr><td><code>types.stress.fadeSpeed</code></td><td><code>3</code></td></tr>
 <tr><td><code>types.happy.lifetime</code></td><td><code>-1</code></td></tr>
@@ -670,11 +683,7 @@ flowchart LR
   <table class="kv-table">
     <thead><tr><th>Setting</th><th>Value</th></tr></thead>
     <tbody>
-      <tr><td><code>radius</code></td><td><code>20</code></td></tr>
-<tr><td><code>requiredPixels</code></td><td><code>50</code></td></tr>
-<tr><td><code>pulseSpeed</code></td><td><code>0.1</code></td></tr>
-<tr><td><code>spawnDelay</code></td><td><code>180</code></td></tr>
-<tr><td><code>gridSize</code></td><td><code>40</code></td></tr>
+      
     </tbody>
   </table>
 </section>
@@ -844,12 +853,24 @@ flowchart LR
 <tr><td><code>matingDistance</code></td><td><code>16</code></td></tr>
 <tr><td><code>matingDurationFrames</code></td><td><code>150</code></td></tr>
 <tr><td><code>pheromoneCooldownFrames</code></td><td><code>21600</code></td></tr>
-<tr><td><code>adultHardCap</code></td><td><code>50</code></td></tr>
-<tr><td><code>eggHatchFrames.min</code></td><td><code>28800</code></td></tr>
-<tr><td><code>eggHatchFrames.max</code></td><td><code>39600</code></td></tr>
-<tr><td><code>cocoonHatchFrames.min</code></td><td><code>28800</code></td></tr>
-<tr><td><code>cocoonHatchFrames.max</code></td><td><code>39600</code></td></tr>
+<tr><td><code>adultHardCap</code></td><td><code>500</code></td></tr>
+<tr><td><code>zoneAdultSoftCap</code></td><td><code>500</code></td></tr>
+<tr><td><code>zoneReservationCap</code></td><td><code>2</code></td></tr>
+<tr><td><code>matingFreezePressure</code></td><td><code>0.82</code></td></tr>
+<tr><td><code>zoneFreezePressure</code></td><td><code>0.9</code></td></tr>
+<tr><td><code>minZoneFlowersForBreeding</code></td><td><code>2</code></td></tr>
+<tr><td><code>eggHatchFrames.min</code></td><td><code>2700</code></td></tr>
+<tr><td><code>eggHatchFrames.max</code></td><td><code>5400</code></td></tr>
+<tr><td><code>cocoonHatchFrames.min</code></td><td><code>5400</code></td></tr>
+<tr><td><code>cocoonHatchFrames.max</code></td><td><code>10800</code></td></tr>
 <tr><td><code>bredFertilityUses</code></td><td><code>1</code></td></tr>
+<tr><td><code>mutationChance</code></td><td><code>0.2</code></td></tr>
+<tr><td><code>majorMutationChance</code></td><td><code>0.06</code></td></tr>
+<tr><td><code>mutationDeltaMin</code></td><td><code>0.08</code></td></tr>
+<tr><td><code>mutationDeltaMax</code></td><td><code>0.24</code></td></tr>
+<tr><td><code>majorMutationDeltaMin</code></td><td><code>0.18</code></td></tr>
+<tr><td><code>majorMutationDeltaMax</code></td><td><code>0.42</code></td></tr>
+<tr><td><code>maxMutatedTraits</code></td><td><code>2</code></td></tr>
     </tbody>
   </table>
 </section>
@@ -859,10 +880,25 @@ flowchart LR
   <table class="kv-table">
     <thead><tr><th>Setting</th><th>Value</th></tr></thead>
     <tbody>
-      <tr><td><code>layout</code></td><td><code>single-zone-foundation</code></td></tr>
+      <tr><td><code>layout</code></td><td><code>land-sanctum-world</code></td></tr>
+<tr><td><code>renderMode</code></td><td><code>section-scenes</code></td></tr>
 <tr><td><code>overviewMode</code></td><td><code>false</code></td></tr>
 <tr><td><code>viewModes</code></td><td><code>overview, focused-garden, battle</code></td></tr>
-<tr><td><code>zones</code></td><td><code>{&quot;id&quot;:&quot;garden-core&quot;,&quot;label&quot;:&quot;Garden Core&quot;,&quot;kind&quot;:&quot;garden&quot;,&quot;poolAllowed&quot;:true,&quot;doorwayIds&quot;:[],&quot;adjacentZoneIds&quot;:[],&quot;bounds&quot;:{&quot;minX&quot;:0,&quot;maxX&quot;:17,&quot;minY&quot;:0,&quot;maxY&quot;:17},&quot;renderProfile&quot;:{&quot;movingBackgroundEffectsInFocus&quot;:true,&quot;movingBackgroundEffectsInOverview&quot;:false,&quot;afterimageTrailsInFocus&quot;:true,&quot;afterimageTrailsInBattle&quot;:false}}</code></td></tr>
+<tr><td><code>mapGeometry.sourceSize.width</code></td><td><code>5504</code></td></tr>
+<tr><td><code>mapGeometry.sourceSize.height</code></td><td><code>3072</code></td></tr>
+<tr><td><code>mapGeometry.roamPolygon</code></td><td><code>{&quot;x&quot;:417.1511627906977,&quot;y&quot;:101.07421875}, {&quot;x&quot;:784.8837209302326,&quot;y&quot;:266.6015625}, {&quot;x&quot;:784.8837209302326,&quot;y&quot;:395.5078125}, {&quot;x&quot;:0.14534883720930233,&quot;y&quot;:395.5078125}, {&quot;x&quot;:0.14534883720930233,&quot;y&quot;:301.7578125}</code></td></tr>
+<tr><td><code>mapGeometry.doorwayPassages.left.path.x</code></td><td><code>239.82558139534885</code></td></tr>
+<tr><td><code>mapGeometry.doorwayPassages.left.path.y</code></td><td><code>124.51171874999999</code></td></tr>
+<tr><td><code>mapGeometry.doorwayPassages.left.spawn.x</code></td><td><code>203.48837209302326</code></td></tr>
+<tr><td><code>mapGeometry.doorwayPassages.left.spawn.y</code></td><td><code>131.8359375</code></td></tr>
+<tr><td><code>mapGeometry.doorwayPassages.right.path.x</code></td><td><code>559.593023255814</code></td></tr>
+<tr><td><code>mapGeometry.doorwayPassages.right.path.y</code></td><td><code>109.86328125</code></td></tr>
+<tr><td><code>mapGeometry.doorwayPassages.right.spawn.x</code></td><td><code>610.4651162790698</code></td></tr>
+<tr><td><code>mapGeometry.doorwayPassages.right.spawn.y</code></td><td><code>124.51171874999999</code></td></tr>
+<tr><td><code>mapGeometry.doorwayAvoidPolygons</code></td><td><code>{&quot;x&quot;:257.81993816286206,&quot;y&quot;:92.32160963984862}, {&quot;x&quot;:174.42904824272864,&quot;y&quot;:109.13008588937554}, {&quot;x&quot;:185.49401532551002,&quot;y&quot;:164.02604661015138}, {&quot;x&quot;:268.8849052456435,&quot;y&quot;:147.21757036062445}, {&quot;x&quot;:528.782393898241,&quot;y&quot;:130.12914216411514}, {&quot;x&quot;:625.7803413983313,&quot;y&quot;:158.05935472552505}, {&quot;x&quot;:641.2757456366428,&quot;y&quot;:104.24585783588486}, {&quot;x&quot;:544.2777981365525,&quot;y&quot;:76.31564527447495}</code></td></tr>
+<tr><td><code>mapGeometry.uiReserveTop</code></td><td><code>301.7578125</code></td></tr>
+<tr><td><code>doorways</code></td><td><code>{&quot;id&quot;:&quot;ivy-left-to-moss&quot;,&quot;label&quot;:&quot;Open Land NW -&gt; Open Land SW&quot;,&quot;fromZoneId&quot;:&quot;ivy-cloister&quot;,&quot;toZoneId&quot;:&quot;moss-hollow&quot;,&quot;grid&quot;:{&quot;x&quot;:4,&quot;y&quot;:8},&quot;fromAnchor&quot;:{&quot;x&quot;:239.82558139534885,&quot;y&quot;:124.51171874999999,&quot;direction&quot;:&quot;left&quot;},&quot;toAnchor&quot;:{&quot;x&quot;:203.48837209302326,&quot;y&quot;:131.8359375,&quot;direction&quot;:&quot;left&quot;}}, {&quot;id&quot;:&quot;ivy-right-to-sun&quot;,&quot;label&quot;:&quot;Open Land NW -&gt; Training Grounds&quot;,&quot;fromZoneId&quot;:&quot;ivy-cloister&quot;,&quot;toZoneId&quot;:&quot;sun-court&quot;,&quot;grid&quot;:{&quot;x&quot;:11,&quot;y&quot;:4},&quot;fromAnchor&quot;:{&quot;x&quot;:559.593023255814,&quot;y&quot;:109.86328125,&quot;direction&quot;:&quot;right&quot;},&quot;toAnchor&quot;:{&quot;x&quot;:610.4651162790698,&quot;y&quot;:124.51171874999999,&quot;direction&quot;:&quot;right&quot;}}, {&quot;id&quot;:&quot;sun-left-to-ivy&quot;,&quot;label&quot;:&quot;Training Grounds -&gt; Open Land NW&quot;,&quot;fromZoneId&quot;:&quot;sun-court&quot;,&quot;toZoneId&quot;:&quot;ivy-cloister&quot;,&quot;grid&quot;:{&quot;x&quot;:10,&quot;y&quot;:4},&quot;fromAnchor&quot;:{&quot;x&quot;:239.82558139534885,&quot;y&quot;:124.51171874999999,&quot;direction&quot;:&quot;left&quot;},&quot;toAnchor&quot;:{&quot;x&quot;:203.48837209302326,&quot;y&quot;:131.8359375,&quot;direction&quot;:&quot;left&quot;}}, {&quot;id&quot;:&quot;sun-right-to-pool&quot;,&quot;label&quot;:&quot;Training Grounds -&gt; Open Land SE&quot;,&quot;fromZoneId&quot;:&quot;sun-court&quot;,&quot;toZoneId&quot;:&quot;pool-heart&quot;,&quot;grid&quot;:{&quot;x&quot;:14,&quot;y&quot;:7},&quot;fromAnchor&quot;:{&quot;x&quot;:559.593023255814,&quot;y&quot;:109.86328125,&quot;direction&quot;:&quot;right&quot;},&quot;toAnchor&quot;:{&quot;x&quot;:610.4651162790698,&quot;y&quot;:124.51171874999999,&quot;direction&quot;:&quot;right&quot;}}, {&quot;id&quot;:&quot;pool-left-to-moss&quot;,&quot;label&quot;:&quot;Open Land SE -&gt; Open Land SW&quot;,&quot;fromZoneId&quot;:&quot;pool-heart&quot;,&quot;toZoneId&quot;:&quot;moss-hollow&quot;,&quot;grid&quot;:{&quot;x&quot;:9,&quot;y&quot;:12},&quot;fromAnchor&quot;:{&quot;x&quot;:239.82558139534885,&quot;y&quot;:124.51171874999999,&quot;direction&quot;:&quot;left&quot;},&quot;toAnchor&quot;:{&quot;x&quot;:203.48837209302326,&quot;y&quot;:131.8359375,&quot;direction&quot;:&quot;left&quot;}}, {&quot;id&quot;:&quot;pool-right-to-sun&quot;,&quot;label&quot;:&quot;Open Land SE -&gt; Training Grounds&quot;,&quot;fromZoneId&quot;:&quot;pool-heart&quot;,&quot;toZoneId&quot;:&quot;sun-court&quot;,&quot;grid&quot;:{&quot;x&quot;:14,&quot;y&quot;:10},&quot;fromAnchor&quot;:{&quot;x&quot;:559.593023255814,&quot;y&quot;:109.86328125,&quot;direction&quot;:&quot;right&quot;},&quot;toAnchor&quot;:{&quot;x&quot;:610.4651162790698,&quot;y&quot;:124.51171874999999,&quot;direction&quot;:&quot;right&quot;}}, {&quot;id&quot;:&quot;moss-left-to-ivy&quot;,&quot;label&quot;:&quot;Open Land SW -&gt; Open Land NW&quot;,&quot;fromZoneId&quot;:&quot;moss-hollow&quot;,&quot;toZoneId&quot;:&quot;ivy-cloister&quot;,&quot;grid&quot;:{&quot;x&quot;:4,&quot;y&quot;:13},&quot;fromAnchor&quot;:{&quot;x&quot;:239.82558139534885,&quot;y&quot;:124.51171874999999,&quot;direction&quot;:&quot;left&quot;},&quot;toAnchor&quot;:{&quot;x&quot;:203.48837209302326,&quot;y&quot;:131.8359375,&quot;direction&quot;:&quot;left&quot;}}, {&quot;id&quot;:&quot;moss-right-to-pool&quot;,&quot;label&quot;:&quot;Open Land SW -&gt; Open Land SE&quot;,&quot;fromZoneId&quot;:&quot;moss-hollow&quot;,&quot;toZoneId&quot;:&quot;pool-heart&quot;,&quot;grid&quot;:{&quot;x&quot;:8,&quot;y&quot;:13},&quot;fromAnchor&quot;:{&quot;x&quot;:559.593023255814,&quot;y&quot;:109.86328125,&quot;direction&quot;:&quot;right&quot;},&quot;toAnchor&quot;:{&quot;x&quot;:610.4651162790698,&quot;y&quot;:124.51171874999999,&quot;direction&quot;:&quot;right&quot;}}</code></td></tr>
+<tr><td><code>zones</code></td><td><code>{&quot;id&quot;:&quot;ivy-cloister&quot;,&quot;label&quot;:&quot;Open Land NW&quot;,&quot;kind&quot;:&quot;open-land&quot;,&quot;poolAllowed&quot;:false,&quot;doorwayIds&quot;:[&quot;ivy-left-to-moss&quot;,&quot;ivy-right-to-sun&quot;],&quot;adjacentZoneIds&quot;:[&quot;sun-court&quot;,&quot;moss-hollow&quot;],&quot;bounds&quot;:{&quot;minX&quot;:0,&quot;maxX&quot;:8,&quot;minY&quot;:0,&quot;maxY&quot;:8},&quot;renderProfile&quot;:{&quot;movingBackgroundEffectsInFocus&quot;:false,&quot;movingBackgroundEffectsInOverview&quot;:false,&quot;afterimageTrailsInFocus&quot;:true,&quot;afterimageTrailsInBattle&quot;:false,&quot;overlayTint&quot;:[121,145,96,42],&quot;assetSet&quot;:&quot;land&quot;,&quot;rotationDegrees&quot;:0,&quot;overviewSlot&quot;:{&quot;col&quot;:0,&quot;row&quot;:0},&quot;screenRegion&quot;:{&quot;minX&quot;:46.51162790697674,&quot;minY&quot;:125.97656250000001,&quot;maxX&quot;:359.01162790697674,&quot;maxY&quot;:284.1796875}},&quot;ecologyProfile&quot;:{&quot;preferredPersonalities&quot;:[&quot;friendly&quot;,&quot;cautious&quot;,&quot;wise&quot;],&quot;toleratedPersonalities&quot;:[&quot;curious&quot;,&quot;hybrid&quot;,&quot;golden&quot;],&quot;preferredFlowerTypes&quot;:[&quot;daisy&quot;,&quot;tulip&quot;,&quot;sprout&quot;],&quot;communicationStyle&quot;:&quot;open-land-calm&quot;,&quot;migrationAffinity&quot;:{&quot;sun-court&quot;:0.44,&quot;moss-hollow&quot;:0.36,&quot;pool-heart&quot;:0.2}}}, {&quot;id&quot;:&quot;sun-court&quot;,&quot;label&quot;:&quot;Training Grounds&quot;,&quot;kind&quot;:&quot;training&quot;,&quot;poolAllowed&quot;:false,&quot;doorwayIds&quot;:[&quot;sun-left-to-ivy&quot;,&quot;sun-right-to-pool&quot;],&quot;adjacentZoneIds&quot;:[&quot;ivy-cloister&quot;,&quot;pool-heart&quot;],&quot;bounds&quot;:{&quot;minX&quot;:9,&quot;maxX&quot;:17,&quot;minY&quot;:0,&quot;maxY&quot;:8},&quot;renderProfile&quot;:{&quot;movingBackgroundEffectsInFocus&quot;:false,&quot;movingBackgroundEffectsInOverview&quot;:false,&quot;afterimageTrailsInFocus&quot;:true,&quot;afterimageTrailsInBattle&quot;:false,&quot;overlayTint&quot;:[184,148,80,46],&quot;assetSet&quot;:&quot;land&quot;,&quot;rotationDegrees&quot;:0,&quot;overviewSlot&quot;:{&quot;col&quot;:1,&quot;row&quot;:0},&quot;screenRegion&quot;:{&quot;minX&quot;:415.6976744186046,&quot;minY&quot;:106.93359375,&quot;maxX&quot;:734.0116279069767,&quot;maxY&quot;:257.8125}},&quot;ecologyProfile&quot;:{&quot;preferredPersonalities&quot;:[&quot;energetic&quot;,&quot;wise&quot;,&quot;skittish&quot;],&quot;toleratedPersonalities&quot;:[&quot;brave&quot;,&quot;hybrid&quot;,&quot;friendly&quot;],&quot;preferredFlowerTypes&quot;:[&quot;tulip&quot;,&quot;lavender&quot;],&quot;communicationStyle&quot;:&quot;loud-training&quot;,&quot;migrationAffinity&quot;:{&quot;ivy-cloister&quot;:0.35,&quot;pool-heart&quot;:0.4,&quot;moss-hollow&quot;:0.25}}}, {&quot;id&quot;:&quot;moss-hollow&quot;,&quot;label&quot;:&quot;Open Land SW&quot;,&quot;kind&quot;:&quot;open-land&quot;,&quot;poolAllowed&quot;:false,&quot;doorwayIds&quot;:[&quot;moss-left-to-ivy&quot;,&quot;moss-right-to-pool&quot;],&quot;adjacentZoneIds&quot;:[&quot;ivy-cloister&quot;,&quot;pool-heart&quot;],&quot;bounds&quot;:{&quot;minX&quot;:0,&quot;maxX&quot;:8,&quot;minY&quot;:9,&quot;maxY&quot;:17},&quot;renderProfile&quot;:{&quot;movingBackgroundEffectsInFocus&quot;:false,&quot;movingBackgroundEffectsInOverview&quot;:false,&quot;afterimageTrailsInFocus&quot;:true,&quot;afterimageTrailsInBattle&quot;:false,&quot;overlayTint&quot;:[86,116,88,40],&quot;assetSet&quot;:&quot;land&quot;,&quot;rotationDegrees&quot;:0,&quot;overviewSlot&quot;:{&quot;col&quot;:0,&quot;row&quot;:1},&quot;screenRegion&quot;:{&quot;minX&quot;:43.604651162790695,&quot;minY&quot;:275.390625,&quot;maxX&quot;:356.1046511627907,&quot;maxY&quot;:389.6484375}},&quot;ecologyProfile&quot;:{&quot;preferredPersonalities&quot;:[&quot;brave&quot;,&quot;cautious&quot;],&quot;toleratedPersonalities&quot;:[&quot;skittish&quot;,&quot;hybrid&quot;,&quot;friendly&quot;],&quot;preferredFlowerTypes&quot;:[&quot;sprout&quot;,&quot;bush&quot;],&quot;communicationStyle&quot;:&quot;open-land-watchful&quot;,&quot;migrationAffinity&quot;:{&quot;ivy-cloister&quot;:0.31,&quot;pool-heart&quot;:0.45,&quot;sun-court&quot;:0.24}}}, {&quot;id&quot;:&quot;pool-heart&quot;,&quot;label&quot;:&quot;Open Land SE&quot;,&quot;kind&quot;:&quot;open-land&quot;,&quot;poolAllowed&quot;:false,&quot;doorwayIds&quot;:[&quot;pool-left-to-moss&quot;,&quot;pool-right-to-sun&quot;],&quot;adjacentZoneIds&quot;:[&quot;sun-court&quot;,&quot;moss-hollow&quot;],&quot;bounds&quot;:{&quot;minX&quot;:9,&quot;maxX&quot;:17,&quot;minY&quot;:9,&quot;maxY&quot;:17},&quot;renderProfile&quot;:{&quot;movingBackgroundEffectsInFocus&quot;:false,&quot;movingBackgroundEffectsInOverview&quot;:false,&quot;afterimageTrailsInFocus&quot;:true,&quot;afterimageTrailsInBattle&quot;:false,&quot;overlayTint&quot;:[108,132,104,40],&quot;assetSet&quot;:&quot;land&quot;,&quot;rotationDegrees&quot;:0,&quot;overviewSlot&quot;:{&quot;col&quot;:1,&quot;row&quot;:1},&quot;screenRegion&quot;:{&quot;minX&quot;:441.86046511627904,&quot;minY&quot;:275.390625,&quot;maxX&quot;:747.093023255814,&quot;maxY&quot;:389.6484375}},&quot;ecologyProfile&quot;:{&quot;preferredPersonalities&quot;:[&quot;friendly&quot;,&quot;mystic&quot;,&quot;curious&quot;],&quot;toleratedPersonalities&quot;:[&quot;wise&quot;,&quot;hybrid&quot;,&quot;golden&quot;],&quot;preferredFlowerTypes&quot;:[&quot;bush&quot;,&quot;daisy&quot;,&quot;lavender&quot;],&quot;communicationStyle&quot;:&quot;open-land-echoing&quot;,&quot;migrationAffinity&quot;:{&quot;sun-court&quot;:0.38,&quot;moss-hollow&quot;:0.34,&quot;ivy-cloister&quot;:0.28}}}</code></td></tr>
     </tbody>
   </table>
 </section>

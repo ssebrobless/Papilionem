@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v4-control-no-flag-ecology-current\\2026-04-24T02-04-15-704Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 46.58947369090298,
+      "avgRenderMs": 46,
+      "p95FrameMs": 116.5,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 44.417391316787054,
+      "avgRenderMs": 50.63391305260036,
+      "p95FrameMs": 121.5,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 59.46500000158946,
+      "avgRenderMs": 51.811666683355966,
+      "p95FrameMs": 158.90000009536743,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 43.57583333651225,
+      "avgRenderMs": 42.72499999801318,
+      "p95FrameMs": 120.59999990463257,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

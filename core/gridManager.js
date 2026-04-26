@@ -1,7 +1,10 @@
-// Centralized grid management system
+// Centralized spatial management system. The legacy 18x18 isometric grid still
+// powers debug overlays and coordinate conversion helpers, while live
+// section-scene placement and movement clamp against screen-space roam
+// geometry.
 class GridManager {
     constructor() {
-        // Restore original working grid parameters
+        // Legacy/debug grid parameters.
         this.gridSize = 16;  // Original working value
         this.gridWidth = 18;
         this.gridHeight = 18;
@@ -26,6 +29,8 @@ class GridManager {
             path: [],
             water: []
         };
+
+        this.worldGeometry = gameConfig?.world?.mapGeometry || null;
     }
     
     // Convert screen coordinates to isometric grid coordinates  
@@ -87,6 +92,314 @@ class GridManager {
                gridX <= this.bounds.maxX && 
                gridY >= this.bounds.minY && 
                gridY <= this.bounds.maxY;
+    }
+
+    getWorldGeometry() {
+        return this.worldGeometry || gameConfig?.world?.mapGeometry || null;
+    }
+
+    getDoorwayAvoidPolygons() {
+        return this.getWorldGeometry()?.doorwayAvoidPolygons || [];
+    }
+
+    getPlacementEdgeInset() {
+        const configuredInset = gameConfig?.entities?.placementEdgeInset;
+        if (Number.isFinite(configuredInset) && configuredInset > 0) {
+            return configuredInset;
+        }
+        const butterflySize = gameConfig?.entities?.butterfly?.size || 12;
+        const butterflyScale = gameConfig?.rendering?.butterflyVisualScale || 1;
+        return Math.max(18, Math.round(butterflySize * butterflyScale * 1.2));
+    }
+
+    isPointInPolygon(point, polygon) {
+        if (!point || !Array.isArray(polygon) || polygon.length < 3) return false;
+        let inside = false;
+        for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+            const xi = polygon[i].x;
+            const yi = polygon[i].y;
+            const xj = polygon[j].x;
+            const yj = polygon[j].y;
+            const intersects = ((yi > point.y) !== (yj > point.y))
+                && (point.x < ((xj - xi) * (point.y - yi)) / ((yj - yi) || 0.00001) + xi);
+            if (intersects) inside = !inside;
+        }
+        return inside;
+    }
+
+    getClosestPointOnSegment(point, segmentStart, segmentEnd) {
+        const vx = segmentEnd.x - segmentStart.x;
+        const vy = segmentEnd.y - segmentStart.y;
+        const wx = point.x - segmentStart.x;
+        const wy = point.y - segmentStart.y;
+        const segmentLengthSq = (vx * vx) + (vy * vy);
+        const ratio = segmentLengthSq > 0
+            ? constrain(((wx * vx) + (wy * vy)) / segmentLengthSq, 0, 1)
+            : 0;
+        return {
+            x: segmentStart.x + (vx * ratio),
+            y: segmentStart.y + (vy * ratio)
+        };
+    }
+
+    getClosestPointOnRoamBorder(point) {
+        const polygon = this.getWorldGeometry()?.roamPolygon;
+        if (!Array.isArray(polygon) || polygon.length < 3) return point;
+
+        let bestPoint = polygon[0];
+        let bestDistanceSq = Infinity;
+        for (let i = 0; i < polygon.length; i++) {
+            const start = polygon[i];
+            const end = polygon[(i + 1) % polygon.length];
+            const candidate = this.getClosestPointOnSegment(point, start, end);
+            const dx = candidate.x - point.x;
+            const dy = candidate.y - point.y;
+            const distanceSq = (dx * dx) + (dy * dy);
+            if (distanceSq < bestDistanceSq) {
+                bestDistanceSq = distanceSq;
+                bestPoint = candidate;
+            }
+        }
+        return bestPoint;
+    }
+
+    getDistanceToRoamBorder(point) {
+        const closestPoint = this.getClosestPointOnRoamBorder(point);
+        return Math.hypot(point.x - closestPoint.x, point.y - closestPoint.y);
+    }
+
+    enforceRoamBorderInset(point, inset = 0, options = {}) {
+        if (!point || inset <= 0) return point;
+        const polygon = this.getWorldGeometry()?.roamPolygon;
+        if (!Array.isArray(polygon) || polygon.length < 3) return point;
+
+        let candidate = { ...point };
+        for (let step = 0; step < 12; step++) {
+            const insideRoam = this.isPointInFreeRoamArea(candidate, options);
+            const borderDistance = this.getDistanceToRoamBorder(candidate);
+            if (insideRoam && borderDistance >= inset) {
+                return candidate;
+            }
+
+            const closestPoint = this.getClosestPointOnRoamBorder(candidate);
+            let dx = candidate.x - closestPoint.x;
+            let dy = candidate.y - closestPoint.y;
+            let magnitude = Math.hypot(dx, dy);
+
+            if (magnitude < 0.0001) {
+                const center = this.getRoamPolygonCenter();
+                dx = center.x - candidate.x;
+                dy = center.y - candidate.y;
+                magnitude = Math.hypot(dx, dy) || 1;
+            }
+
+            const pushDistance = Math.max(1, inset - borderDistance + 1);
+            candidate = {
+                x: candidate.x + (dx / magnitude) * pushDistance,
+                y: candidate.y + (dy / magnitude) * pushDistance
+            };
+
+            if (!this.isPointInPolygon(candidate, polygon)) {
+                candidate = this.clampScreenPointToRoamArea(candidate.x, candidate.y, 0, {
+                    ...options,
+                    edgeInset: 0
+                });
+            }
+
+            if (!options.allowDoorways) {
+                candidate = this.nudgePointOutOfDoorwayAvoidance(candidate, inset);
+            }
+        }
+
+        return candidate;
+    }
+
+    isPointInDoorwayAvoidanceZone(point) {
+        const avoidPolygons = this.getDoorwayAvoidPolygons();
+        return avoidPolygons.some(polygon => this.isPointInPolygon(point, polygon));
+    }
+
+    isPointInFreeRoamArea(point, options = {}) {
+        const allowDoorways = !!options.allowDoorways;
+        const polygon = this.getWorldGeometry()?.roamPolygon;
+        if (!Array.isArray(polygon) || polygon.length < 3) return true;
+        if (!this.isPointInPolygon(point, polygon)) return false;
+        if (allowDoorways) return true;
+        return !this.isPointInDoorwayAvoidanceZone(point);
+    }
+
+    nudgePointOutOfDoorwayAvoidance(point, padding = 0) {
+        if (!this.isPointInDoorwayAvoidanceZone(point)) return point;
+        const center = this.getRoamPolygonCenter();
+        let candidate = { ...point };
+        for (let step = 0; step < 24; step++) {
+            const dx = center.x - candidate.x;
+            const dy = center.y - candidate.y;
+            const mag = Math.hypot(dx, dy) || 1;
+            candidate = {
+                x: candidate.x + (dx / mag) * (6 + padding * 0.35),
+                y: candidate.y + (dy / mag) * (6 + padding * 0.35)
+            };
+            if (this.isPointInFreeRoamArea(candidate)) {
+                return candidate;
+            }
+        }
+        return candidate;
+    }
+
+    clampScreenPointToRoamArea(x, y, padding = 0, options = {}) {
+        const geometry = this.getWorldGeometry();
+        const polygon = geometry?.roamPolygon;
+        const point = { x, y };
+        const edgeInset = Math.max(0, options?.edgeInset || 0);
+        if (!Array.isArray(polygon) || polygon.length < 3) return point;
+        if (this.isPointInFreeRoamArea(point, options)) {
+            return edgeInset > 0
+                ? this.enforceRoamBorderInset(point, edgeInset, options)
+                : point;
+        }
+
+        let bestPoint = polygon[0];
+        let bestDistanceSq = Infinity;
+        for (let i = 0; i < polygon.length; i++) {
+            const start = polygon[i];
+            const end = polygon[(i + 1) % polygon.length];
+            const candidate = this.getClosestPointOnSegment(point, start, end);
+            const dx = candidate.x - point.x;
+            const dy = candidate.y - point.y;
+            const distanceSq = (dx * dx) + (dy * dy);
+            if (distanceSq < bestDistanceSq) {
+                bestDistanceSq = distanceSq;
+                bestPoint = candidate;
+            }
+        }
+
+        if (padding <= 0) {
+            return options.allowDoorways ? bestPoint : this.nudgePointOutOfDoorwayAvoidance(bestPoint, padding);
+        }
+
+        const center = this.getRoamPolygonCenter();
+        const offsetX = center.x - bestPoint.x;
+        const offsetY = center.y - bestPoint.y;
+        const mag = Math.hypot(offsetX, offsetY) || 1;
+        const paddedPoint = {
+            x: bestPoint.x + (offsetX / mag) * padding,
+            y: bestPoint.y + (offsetY / mag) * padding
+        };
+        const freePoint = options.allowDoorways ? paddedPoint : this.nudgePointOutOfDoorwayAvoidance(paddedPoint, padding);
+        return edgeInset > 0
+            ? this.enforceRoamBorderInset(freePoint, edgeInset, options)
+            : freePoint;
+    }
+
+    clampGridPosToRoamArea(gridX, gridY, padding = 4) {
+        const screenPos = this.isoToScreen(gridX, gridY);
+        const clampedScreen = this.clampScreenPointToRoamArea(screenPos.x, screenPos.y + padding, padding);
+        return this.screenToIso(clampedScreen.x, clampedScreen.y);
+    }
+
+    getRoamPolygonCenter() {
+        const polygon = this.getWorldGeometry()?.roamPolygon || [];
+        if (!polygon.length) {
+            return { x: gameConfig.canvas.baseWidth / 2, y: gameConfig.canvas.baseHeight / 2 };
+        }
+        const sum = polygon.reduce((acc, point) => {
+            acc.x += point.x;
+            acc.y += point.y;
+            return acc;
+        }, { x: 0, y: 0 });
+        return {
+            x: sum.x / polygon.length,
+            y: sum.y / polygon.length
+        };
+    }
+
+    getZoneScreenRegion(zoneId) {
+        const zone = (gameConfig?.world?.zones || []).find(entry => entry.id === zoneId);
+        return zone?.renderProfile?.screenRegion || null;
+    }
+
+    getSectionPlacementRegion() {
+        const configured = gameConfig?.world?.mapGeometry?.placementRegion;
+        if (configured?.minX < configured?.maxX && configured?.minY < configured?.maxY) {
+            return { ...configured };
+        }
+
+        const polygon = gameConfig?.world?.mapGeometry?.roamPolygon || [];
+        if (!Array.isArray(polygon) || polygon.length < 3) return null;
+
+        const bounds = polygon.reduce((acc, point) => ({
+            minX: Math.min(acc.minX, point.x),
+            minY: Math.min(acc.minY, point.y),
+            maxX: Math.max(acc.maxX, point.x),
+            maxY: Math.max(acc.maxY, point.y)
+        }), {
+            minX: Infinity,
+            minY: Infinity,
+            maxX: -Infinity,
+            maxY: -Infinity
+        });
+
+        return {
+            minX: bounds.minX + 18,
+            minY: bounds.minY + 18,
+            maxX: bounds.maxX - 18,
+            maxY: bounds.maxY - 18
+        };
+    }
+
+    isUsingSharedSectionPlacementRegion() {
+        return gameConfig?.world?.renderMode === 'section-scenes';
+    }
+
+    getZonePlacementRegion(zoneId) {
+        if (this.isUsingSharedSectionPlacementRegion()) {
+            return this.getSectionPlacementRegion() || this.getZoneScreenRegion(zoneId);
+        }
+        return this.getZoneScreenRegion(zoneId);
+    }
+
+    getZoneRegionCenter(zoneId) {
+        const region = this.getZonePlacementRegion(zoneId);
+        if (!region) return null;
+        return {
+            x: (region.minX + region.maxX) / 2,
+            y: (region.minY + region.maxY) / 2
+        };
+    }
+
+    getRandomPointInZone(zoneId, padding = 28, maxAttempts = 40, options = {}) {
+        const region = this.getZonePlacementRegion(zoneId);
+        if (!region) return null;
+        const edgeInset = Math.max(0, options?.edgeInset || 0);
+
+        const minX = region.minX + padding;
+        const maxX = region.maxX - padding;
+        const minY = region.minY + padding;
+        const maxY = region.maxY - padding;
+        if (minX >= maxX || minY >= maxY) return this.getZoneRegionCenter(zoneId);
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const point = {
+                x: random(minX, maxX),
+                y: random(minY, maxY)
+            };
+            if (this.isPointInFreeRoamArea(point)) {
+                const adjustedPoint = edgeInset > 0
+                    ? this.enforceRoamBorderInset(point, edgeInset, options)
+                    : point;
+                if (this.isPointInFreeRoamArea(adjustedPoint, options) && this.getDistanceToRoamBorder(adjustedPoint) >= Math.max(0, edgeInset - 1)) {
+                    return adjustedPoint;
+                }
+            }
+        }
+
+        return this.clampScreenPointToRoamArea(
+            (region.minX + region.maxX) / 2,
+            (region.minY + region.maxY) / 2,
+            8,
+            options
+        );
     }
     
     // Constrain a grid position to bounds

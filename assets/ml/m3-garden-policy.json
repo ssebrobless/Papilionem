@@ -1,0 +1,267 @@
+{
+  "schemaVersion": "m3-linear-policy-v1",
+  "modelVersionId": "m3-garden-policy-v1",
+  "runtime": "local-static-policy",
+  "backend": "linear-policy-json",
+  "trainedFrom": "heuristic-imitation-plus-curated-garden-scenarios-v2",
+  "policies": {
+    "actionFamily": {
+      "labels": [
+        "wander",
+        "feed",
+        "socialize",
+        "signal",
+        "teach",
+        "court",
+        "rest",
+        "avoid",
+        "buildOrUseObject",
+        "battlePosture"
+      ],
+      "bias": {
+        "wander": -0.15,
+        "feed": -0.35,
+        "socialize": -0.42,
+        "signal": -0.58,
+        "teach": -0.72,
+        "court": -0.78,
+        "rest": -0.4,
+        "avoid": -0.52,
+        "buildOrUseObject": -0.62,
+        "battlePosture": -0.9
+      },
+      "weights": {
+        "wander": {
+          "behavior.wanderScale": 1.15,
+          "drives.exploration": 0.72,
+          "emotions.curiosity": 0.46,
+          "world.novelty": 0.34,
+          "behavior.feedUrgency": -0.42,
+          "world.crowding": -0.18,
+          "emotions.exhaustion": -0.38,
+          "player.cursorFear": -0.24
+        },
+        "feed": {
+          "behavior.feedUrgency": 1.82,
+          "drives.resourceControl": 0.48,
+          "world.flowerAvailability": 0.72,
+          "object.flowerFamiliarity": 0.18,
+          "object.focusIsFlower": 0.26,
+          "emotions.threat": -0.32
+        },
+        "socialize": {
+          "behavior.socialConfidence": 1.05,
+          "drives.socialConnection": 0.62,
+          "social.belonging": 0.42,
+          "social.edgeAttachmentAverage": 0.22,
+          "player.cursorFear": -0.18
+        },
+        "signal": {
+          "behavior.displayConfidence": 0.86,
+          "memory.communicationActivity": 0.38,
+          "social.reputation": 0.24,
+          "emotions.significance": 0.18
+        },
+        "teach": {
+          "behavior.trainingAffinity": 1.12,
+          "social.reputation": 0.32,
+          "world.zoneIsTraining": 0.26,
+          "drives.statusExpression": 0.12
+        },
+        "court": {
+          "drives.caregiving": 0.62,
+          "emotions.attachment": 0.58,
+          "progression.lineageValue": 0.34,
+          "social.confidence": 0.16
+        },
+        "rest": {
+          "drives.rest": 1.18,
+          "emotions.exhaustion": 0.86,
+          "player.cursorFear": 0.08,
+          "world.crowding": 0.06
+        },
+        "avoid": {
+          "behavior.caution": 0.92,
+          "emotions.threat": 0.98,
+          "player.cursorFear": 0.56,
+          "interpretation.clarity": -0.18
+        },
+        "buildOrUseObject": {
+          "behavior.objectInterest": 0.98,
+          "behavior.shelterSeeking": 0.62,
+          "object.blockFamiliarity": 0.34,
+          "object.shelterConfidence": 0.28,
+          "spatial.shelterCandidate": 0.2,
+          "emotions.curiosity": 0.18
+        },
+        "battlePosture": {
+          "behavior.battleAggression": 0.96,
+          "autobattle.enemyThreat": 0.28,
+          "autobattle.targetPriority": 0.22,
+          "world.modeIsBattle": 0.16
+        }
+      }
+    },
+    "targetPreference": {
+      "labels": [
+        "flower",
+        "butterfly",
+        "block",
+        "shelter",
+        "doorway",
+        "emptySpace"
+      ],
+      "bias": {
+        "flower": -0.32,
+        "butterfly": -0.42,
+        "block": -0.58,
+        "shelter": -0.54,
+        "doorway": -0.86,
+        "emptySpace": -0.18
+      },
+      "weights": {
+        "flower": {
+          "behavior.feedUrgency": 1.1,
+          "world.flowerAvailability": 0.74,
+          "object.flowerFamiliarity": 0.28,
+          "object.focusIsFlower": 0.34,
+          "emotions.threat": -0.18
+        },
+        "butterfly": {
+          "behavior.socialConfidence": 0.94,
+          "drives.socialConnection": 0.58,
+          "social.belonging": 0.36,
+          "emotions.attachment": 0.26,
+          "player.cursorFear": -0.12
+        },
+        "block": {
+          "behavior.objectInterest": 1.04,
+          "object.blockFamiliarity": 0.42,
+          "object.focusIsBlock": 0.34,
+          "emotions.curiosity": 0.22
+        },
+        "shelter": {
+          "behavior.shelterSeeking": 1.02,
+          "object.shelterConfidence": 0.46,
+          "spatial.shelterCandidate": 0.42,
+          "spatial.obstacleDensity": 0.18,
+          "emotions.threat": 0.12
+        },
+        "doorway": {
+          "progression.encounterValue": 0.42,
+          "world.novelty": 0.28,
+          "world.modeIsGarden": 0.12
+        },
+        "emptySpace": {
+          "behavior.wanderScale": 0.88,
+          "world.novelty": 0.34,
+          "world.crowding": -0.12,
+          "emotions.curiosity": 0.16
+        }
+      }
+    },
+    "signalChoice": {
+      "labels": [
+        "calming",
+        "warning",
+        "teaching",
+        "invitation",
+        "quiet"
+      ],
+      "bias": {
+        "calming": -0.68,
+        "warning": -0.74,
+        "teaching": -0.92,
+        "invitation": -0.78,
+        "quiet": -0.28
+      },
+      "weights": {
+        "calming": {
+          "player.cursorTrust": 0.82,
+          "emotions.relief": 0.66,
+          "emotions.attachment": 0.34,
+          "behavior.socialConfidence": 0.18,
+          "player.cursorFear": -0.36,
+          "emotions.threat": -0.24
+        },
+        "warning": {
+          "emotions.threat": 1.18,
+          "player.cursorFear": 0.78,
+          "behavior.caution": 0.62,
+          "emotions.agitation": 0.24,
+          "player.cursorTrust": -0.18
+        },
+        "teaching": {
+          "behavior.trainingAffinity": 1.16,
+          "social.reputation": 0.44,
+          "world.zoneIsTraining": 0.34,
+          "memory.communicationActivity": 0.18,
+          "drives.statusExpression": 0.14
+        },
+        "invitation": {
+          "behavior.socialConfidence": 0.84,
+          "emotions.attachment": 0.46,
+          "progression.encounterValue": 0.24,
+          "player.cursorTrust": 0.22,
+          "player.cursorFear": -0.22,
+          "behavior.caution": -0.16
+        },
+        "quiet": {
+          "drives.rest": 0.68,
+          "memory.communicationActivity": -0.26,
+          "world.crowding": 0.18,
+          "player.cursorTrust": -0.12
+        }
+      }
+    },
+    "riskPosture": {
+      "labels": [
+        "approach",
+        "observe",
+        "avoid",
+        "flee"
+      ],
+      "bias": {
+        "approach": -0.56,
+        "observe": -0.28,
+        "avoid": -0.54,
+        "flee": -0.84
+      },
+      "weights": {
+        "approach": {
+          "behavior.cursorAffinity": 1.1,
+          "player.cursorTrust": 0.82,
+          "behavior.socialConfidence": 0.24,
+          "interpretation.clarity": 0.2,
+          "emotions.relief": 0.18,
+          "player.cursorFear": -0.44,
+          "emotions.threat": -0.34
+        },
+        "observe": {
+          "world.novelty": 0.34,
+          "object.affordanceIsObserve": 0.28,
+          "interpretation.clarity": 0.22,
+          "behavior.caution": 0.12,
+          "player.cursorTrust": 0.08,
+          "emotions.threat": -0.08
+        },
+        "avoid": {
+          "behavior.caution": 0.96,
+          "player.cursorFear": 0.64,
+          "emotions.threat": 0.48,
+          "emotions.rejection": 0.24,
+          "behavior.socialConfidence": -0.18,
+          "player.cursorTrust": -0.16
+        },
+        "flee": {
+          "emotions.threat": 1.16,
+          "player.cursorFear": 0.92,
+          "behavior.caution": 0.52,
+          "interpretation.anxietyBias": 0.32,
+          "world.crowding": 0.12,
+          "player.cursorTrust": -0.2
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-flower-direct-retained-candidate\\2026-04-25T20-13-51-897Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.427499987681707,
+      "avgRenderMs": 13.448333332935968,
+      "p95FrameMs": 25.199999809265137,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.4474999944369,
+      "avgRenderMs": 14.745000004768372,
+      "p95FrameMs": 30.799999952316284,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 18.914999989668527,
+      "avgRenderMs": 27.275000009934107,
+      "p95FrameMs": 65.5,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 8.442500013113023,
+      "avgRenderMs": 15.510833330949147,
+      "p95FrameMs": 32.90000009536743,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

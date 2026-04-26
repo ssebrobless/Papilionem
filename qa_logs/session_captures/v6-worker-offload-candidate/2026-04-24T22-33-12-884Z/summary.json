@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v6-worker-offload-candidate\\2026-04-24T22-33-12-884Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.469999986886978,
+      "avgRenderMs": 15.135833326975504,
+      "p95FrameMs": 26,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.80499999721845,
+      "avgRenderMs": 16.42166666785876,
+      "p95FrameMs": 32,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 20.349166677395502,
+      "avgRenderMs": 28.3875,
+      "p95FrameMs": 64.20000004768372,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 9.41416666507721,
+      "avgRenderMs": 17.872499998410543,
+      "p95FrameMs": 37.40000009536743,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

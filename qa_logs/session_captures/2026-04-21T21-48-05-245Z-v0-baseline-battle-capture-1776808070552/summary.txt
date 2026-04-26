@@ -1,0 +1,52 @@
+Papilionem Session Capture
+session: capture_1776808070552
+label: v0-baseline-battle
+started: 2026-04-21T21:47:50.552Z
+stopped: 2026-04-21T21:48:05.222Z
+durationMs: 14670
+
+Runtime
+pressureTier: critical
+lagCategory: mixed
+avgUpdateMs: 4.60
+avgRenderMs: 12.72
+avgParticleRenderMs: 0.07
+p50FrameMs: 15.40
+p95FrameMs: 21.70
+p99FrameMs: 24.90
+maxUpdateMs: 0.00
+maxRenderMs: 0.00
+maxParticleCount: 0
+compositeCallsPerFrame: 3.97
+uiRedrawCount: 442
+debugRedrawCount: 0
+heapSampleCount: 4
+peakHeapUsedMB: 141.14
+heap@10sMB: 141.14
+heap@60sMB: 0.00
+heap@10mMB: 0.00
+heap@20mMB: 0.00
+heap@40mMB: 0.00
+shell: focused-garden | journal
+lagSummary: Mixed lag: update 4.60ms and render 12.72ms are both materially loaded.
+topUpdate: foundationMs 3.36ms | foundation.zoneEcologyCadence 3.00ms | foundation.lifeSimSystemMs 1.82ms | entityMs 1.18ms
+topRender: uiLayerMs 5.61ms | compositeMs 5.25ms | composite.totalCompositeMs 5.24ms | composite.entitiesCompositeMs 3.56ms
+
+Counts
+timelineEntries: 10
+eventHistoryEntries: 250
+replayMarkers: 0
+runtimeIssues: 0
+errors: 0
+warnings: 0
+freezeSuspects: 0
+spikes: 0
+snapshots: 4
+
+State
+start: focused-garden | sun-court | butterflies 5 | blocks 108
+end: focused-garden | sun-court | butterflies 5 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T21-48-05-245Z-v0-baseline-battle-capture-1776808070552\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T21-48-05-245Z-v0-baseline-battle-capture-1776808070552\summary.txt

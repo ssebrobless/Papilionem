@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-tight-bounds-candidate\\2026-04-25T00-02-57-381Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 10.903333352009456,
+      "avgRenderMs": 23.21999999284744,
+      "p95FrameMs": 43.5,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.24916667540868,
+      "avgRenderMs": 25.14166666865349,
+      "p95FrameMs": 49.299999952316284,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 30.235833328962325,
+      "avgRenderMs": 39.2508333226045,
+      "p95FrameMs": 99.00000023841858,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 12.082500012715657,
+      "avgRenderMs": 21.850833344459534,
+      "p95FrameMs": 51.09999990463257,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

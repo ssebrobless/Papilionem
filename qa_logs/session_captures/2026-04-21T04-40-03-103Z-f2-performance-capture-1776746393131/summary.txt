@@ -1,0 +1,34 @@
+Papilionem Session Capture
+session: capture_1776746393131
+label: f2-performance
+started: 2026-04-21T04:39:53.131Z
+stopped: 2026-04-21T04:40:03.093Z
+durationMs: 9962
+
+Runtime
+pressureTier: critical
+avgUpdateMs: 6.16
+avgRenderMs: 11.67
+avgParticleRenderMs: 0.20
+maxUpdateMs: 0.00
+maxRenderMs: 0.00
+maxParticleCount: 0
+
+Counts
+timelineEntries: 7
+eventHistoryEntries: 250
+replayMarkers: 0
+runtimeIssues: 0
+errors: 0
+warnings: 0
+freezeSuspects: 0
+spikes: 0
+snapshots: 3
+
+State
+start: focused-garden | ivy-cloister | butterflies 12 | blocks 108
+end: focused-garden | sun-court | butterflies 12 | blocks 108
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T04-40-03-103Z-f2-performance-capture-1776746393131\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-21T04-40-03-103Z-f2-performance-capture-1776746393131\summary.txt

@@ -1,20 +1,22 @@
 {
-  "name": "ephemera-baghdad",
+  "name": "papilionem",
   "version": "1.0.0",
-  "description": "An interactive digital art piece exploring fragility through pixel butterflies in a painted garden",
+  "description": "A painted butterfly-garden life sim with breeding, hybrids, social systems, and section-based world exploration",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
     "playtest": "node server.js",
-    "playtest:share": "node server.js"
+    "playtest:share": "node server.js",
+    "build:source-book": "node scripts/build-source-book.js"
   },
   "dependencies": {
     "express": "^4.18.2",
+    "marked": "^15.0.7",
     "playwright": "^1.59.1"
   },
   "engines": {
-    "node": "18.x"
+    "node": ">=18"
   },
   "keywords": [
     "game",

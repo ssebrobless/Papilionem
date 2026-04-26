@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v3-spread-pose-smoke-battleonly-fastgate\\2026-04-23T20-23-21-866Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 24.496039605376744,
+      "avgRenderMs": 25.8346534790379,
+      "p95FrameMs": 67.49999976158142,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 22.421666673819225,
+      "avgRenderMs": 29.624999992052715,
+      "p95FrameMs": 70.99999976158142,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 38.29999999403954,
+      "avgRenderMs": 39.59583334724108,
+      "p95FrameMs": 91.39999985694885,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 24.37166666984558,
+      "avgRenderMs": 26.061666671435038,
+      "p95FrameMs": 67.70000004768372,
+      "peakHeapUsedMB": 168.80035400390625,
+      "pressureTier": "critical"
+    }
+  ]
+}

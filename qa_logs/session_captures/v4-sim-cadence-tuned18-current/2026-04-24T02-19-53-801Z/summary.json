@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v4-sim-cadence-tuned18-current\\2026-04-24T02-19-53-801Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 13.077528082922603,
+      "avgRenderMs": 40.51460674639498,
+      "p95FrameMs": 69.89999985694885,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 10.489166673024496,
+      "avgRenderMs": 47.17749999562899,
+      "p95FrameMs": 89.69999980926514,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 26.292499991257987,
+      "avgRenderMs": 38.69583332339923,
+      "p95FrameMs": 88.5,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 10.078333350022634,
+      "avgRenderMs": 32.08500001033147,
+      "p95FrameMs": 62.09999990463257,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

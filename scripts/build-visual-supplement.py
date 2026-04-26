@@ -130,11 +130,11 @@ def paste_center(base: Image.Image, overlay: Image.Image, box):
 
 
 def load_body():
-    return Image.open(ASSETS / "butterflies" / "ephemera-butterfly-body-.png").convert("RGBA")
+    return Image.open(ASSETS / "butterflies" / "papilionem-butterfly-body.png").convert("RGBA")
 
 
 def load_antenna():
-    return Image.open(ASSETS / "butterflies" / "ephemera-butterfly-antenna.png").convert("RGBA")
+    return Image.open(ASSETS / "butterflies" / "papilionem-butterfly-antenna.png").convert("RGBA")
 
 
 def load_wing_sheet(stem: str, sex: str):

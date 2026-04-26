@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-winglocal-candidate\\2026-04-25T11-48-40-364Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.215833332141241,
+      "avgRenderMs": 15.057499998807907,
+      "p95FrameMs": 26.899999856948853,
+      "peakHeapUsedMB": 179.290771484375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.847500004371007,
+      "avgRenderMs": 16.408333325386046,
+      "p95FrameMs": 32.60000014305115,
+      "peakHeapUsedMB": 179.290771484375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 19.434166667858758,
+      "avgRenderMs": 28.10916665593783,
+      "p95FrameMs": 64.29999995231628,
+      "peakHeapUsedMB": 179.290771484375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 9.061666657527288,
+      "avgRenderMs": 18.645833341280618,
+      "p95FrameMs": 37.89999985694885,
+      "peakHeapUsedMB": 179.290771484375,
+      "pressureTier": "critical"
+    }
+  ]
+}

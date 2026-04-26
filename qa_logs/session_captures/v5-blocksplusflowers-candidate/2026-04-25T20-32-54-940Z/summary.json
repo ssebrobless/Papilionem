@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-blocksplusflowers-candidate\\2026-04-25T20-32-54-940Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.984166663885117,
+      "avgRenderMs": 13.544166658322016,
+      "p95FrameMs": 25.200000047683716,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.328333330154418,
+      "avgRenderMs": 15.090833348035812,
+      "p95FrameMs": 30.800000190734863,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 21.2800000111262,
+      "avgRenderMs": 29.641666666666666,
+      "p95FrameMs": 63.69999980926514,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 8.712500003973643,
+      "avgRenderMs": 15.861666655540466,
+      "p95FrameMs": 34.39999985694885,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

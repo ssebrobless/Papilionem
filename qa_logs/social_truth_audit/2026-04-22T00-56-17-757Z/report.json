@@ -1,0 +1,398 @@
+{
+  "generatedAt": "2026-04-22T00:56:17.745Z",
+  "captureDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\2026-04-21T22-37-33-649Z-playtest-manual-capture-1776811016146",
+  "captureLabel": "playtest-manual",
+  "durationMs": 37453,
+  "recordCount": 345,
+  "warningShare": 0.357,
+  "acknowledgementShare": 0.229,
+  "topMotiveFamilies": [
+    {
+      "label": "warning",
+      "count": 123
+    },
+    {
+      "label": "acknowledgement",
+      "count": 79
+    },
+    {
+      "label": "comfort",
+      "count": 61
+    },
+    {
+      "label": "teaching",
+      "count": 58
+    },
+    {
+      "label": "companionship",
+      "count": 12
+    },
+    {
+      "label": "shared-observation",
+      "count": 9
+    },
+    {
+      "label": "other",
+      "count": 2
+    },
+    {
+      "label": "admiration",
+      "count": 1
+    }
+  ],
+  "topResidueTypes": [
+    {
+      "label": "protective-warning",
+      "count": 123
+    },
+    {
+      "label": "acknowledged",
+      "count": 79
+    },
+    {
+      "label": "heard-lesson",
+      "count": 58
+    },
+    {
+      "label": "comfort-heard",
+      "count": 35
+    },
+    {
+      "label": "shared-calm",
+      "count": 26
+    },
+    {
+      "label": "warm-company",
+      "count": 10
+    },
+    {
+      "label": "shared-observation",
+      "count": 9
+    },
+    {
+      "label": "accepted-repair",
+      "count": 2
+    },
+    {
+      "label": "gentle-rejection",
+      "count": 2
+    },
+    {
+      "label": "small-praise",
+      "count": 1
+    }
+  ],
+  "topStances": [
+    {
+      "label": "acknowledge",
+      "count": 196
+    },
+    {
+      "label": "comply",
+      "count": 123
+    },
+    {
+      "label": "comfort_back",
+      "count": 26
+    }
+  ],
+  "topExactPhrases": [
+    {
+      "label": "Easy now nothing urgent is moving through this side of the echoing ground.",
+      "count": 12
+    },
+    {
+      "label": "Stay with me this part of the echoing ground is steady enough for you to breathe again.",
+      "count": 11
+    },
+    {
+      "label": "Do not take that moss path the air shifted too sharply for that to be harmless!",
+      "count": 10
+    },
+    {
+      "label": "Careful near the covered wall the pattern there is breaking unevenly!",
+      "count": 7
+    },
+    {
+      "label": "Do not take that moss path something in that part of the low ground does not feel stable!",
+      "count": 7
+    },
+    {
+      "label": "Back away from the covered edge something in that part of the low ground does not feel stable!",
+      "count": 6
+    },
+    {
+      "label": "Back away from the covered edge the pattern there is breaking unevenly!",
+      "count": 6
+    },
+    {
+      "label": "Careful near the covered wall the air shifted too sharply for that to be harmless!",
+      "count": 6
+    },
+    {
+      "label": "Look closely here the change in the pressure starts before the ground looks different.",
+      "count": 6
+    },
+    {
+      "label": "Stay clear of that side the pattern there is breaking unevenly!",
+      "count": 6
+    },
+    {
+      "label": "Back away from the covered edge the air shifted too sharply for that to be harmless!",
+      "count": 5
+    },
+    {
+      "label": "Hold this shape in your head the center ring tells you where the safer line opens.",
+      "count": 5
+    }
+  ],
+  "topNormalizedPhrasePatterns": [
+    {
+      "label": "easy now nothing urgent is moving through this side of the echoing ground",
+      "count": 12
+    },
+    {
+      "label": "stay with me this part of the echoing ground is steady enough for you to breathe again",
+      "count": 11
+    },
+    {
+      "label": "do not take that moss path the air shifted too sharply for that to be harmless",
+      "count": 10
+    },
+    {
+      "label": "do not take that moss path something in that part of the low ground does not feel stable",
+      "count": 8
+    },
+    {
+      "label": "back away from the covered edge the pattern there is breaking unevenly",
+      "count": 7
+    },
+    {
+      "label": "careful near the covered wall the pattern there is breaking unevenly",
+      "count": 7
+    },
+    {
+      "label": "back away from the covered edge something in that part of the low ground does not feel stable",
+      "count": 6
+    },
+    {
+      "label": "careful near the covered wall the air shifted too sharply for that to be harmless",
+      "count": 6
+    },
+    {
+      "label": "look closely here the change in the pressure starts before the ground looks different",
+      "count": 6
+    },
+    {
+      "label": "stay clear of that side the pattern there is breaking unevenly",
+      "count": 6
+    },
+    {
+      "label": "alright i will move with you",
+      "count": 5
+    },
+    {
+      "label": "back away from the covered edge the air shifted too sharply for that to be harmless",
+      "count": 5
+    }
+  ],
+  "followThroughCounts": [
+    {
+      "label": "acting",
+      "count": 123
+    },
+    {
+      "label": "heard",
+      "count": 114
+    },
+    {
+      "label": "considering",
+      "count": 58
+    },
+    {
+      "label": "held",
+      "count": 37
+    },
+    {
+      "label": "lingering",
+      "count": 9
+    },
+    {
+      "label": "held-at-distance",
+      "count": 2
+    },
+    {
+      "label": "repair-open",
+      "count": 2
+    }
+  ],
+  "topSourceLabels": [
+    {
+      "label": "Wyatt(M)",
+      "count": 33
+    },
+    {
+      "label": "Alyssa(F)",
+      "count": 32
+    },
+    {
+      "label": "Alice(F)",
+      "count": 31
+    },
+    {
+      "label": "AncientScholar(F)",
+      "count": 24
+    },
+    {
+      "label": "Easton(M)",
+      "count": 23
+    },
+    {
+      "label": "Oliver(M)",
+      "count": 23
+    },
+    {
+      "label": "Bella(F)",
+      "count": 19
+    },
+    {
+      "label": "Ian(M)",
+      "count": 19
+    },
+    {
+      "label": "Eli(M)",
+      "count": 17
+    },
+    {
+      "label": "Ethan(M)",
+      "count": 15
+    }
+  ],
+  "underExpressedFamilies": [
+    {
+      "label": "admiration",
+      "count": 1
+    },
+    {
+      "label": "repair",
+      "count": 0
+    },
+    {
+      "label": "rivalry",
+      "count": 0
+    },
+    {
+      "label": "play",
+      "count": 0
+    },
+    {
+      "label": "flirtation",
+      "count": 0
+    }
+  ],
+  "weakFollowThroughExamples": [
+    {
+      "phrase": "Got it I will keep it in mind.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "Ethan(M)"
+    },
+    {
+      "phrase": "Alright, I heard that I will follow that.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "Kevin(M)"
+    },
+    {
+      "phrase": "Bella, I heard you I will follow that.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "ElectricViolet(M)"
+    },
+    {
+      "phrase": "Bella, got it; I will keep that in mind.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "Wyatt(M)"
+    },
+    {
+      "phrase": "Bella, got it; I know what you want from me here.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "WarmWelcome(M)"
+    },
+    {
+      "phrase": "Bella, I heard you; I am with you on that.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "WarmWelcome(M)"
+    },
+    {
+      "phrase": "Bella, I understand; I will keep that in mind.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "WarmWelcome(M)"
+    },
+    {
+      "phrase": "Bella, alright, I heard that; I know what you want from me here.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "WarmWelcome(M)"
+    },
+    {
+      "phrase": "Bella, I understand; I am with you on that.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "WarmWelcome(M)"
+    },
+    {
+      "phrase": "I understand I will follow that.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "Alyssa(F)"
+    },
+    {
+      "phrase": "Got it I will keep it in mind lit.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "Alyssa(F)"
+    },
+    {
+      "phrase": "Bella, alright, I heard that; I will keep that in mind.",
+      "motiveFamily": "acknowledgement",
+      "residueType": "acknowledged",
+      "stance": "acknowledge",
+      "followThroughState": "heard",
+      "sourceLabel": "AncientScholar(F)"
+    }
+  ],
+  "proofChecklist": [
+    "capture repeated-line / repeated-motive dominance from real play",
+    "broaden family mix away from warning-heavy loops in ordinary garden play",
+    "reduce acknowledgement-only reply saturation",
+    "show later behavior that proves anchoring residue mattered",
+    "surface distinct pair chemistry without turning UI into truth owner"
+  ]
+}

@@ -9,12 +9,15 @@ class DebugUI {
         this.walkableTiles = new Set(); // Set of "x,y" strings for walkable tiles
         this.blockedTiles = new Set();  // Set of "x,y" strings for blocked tiles
         this.showSexLabels = false;
+        this.showGridOverlay = false;
+        this.showPathOverlay = false;
         this.auditState = {
             lastAction: 'None',
             lastStatus: 'idle',
             lastMismatchCount: 0,
             lastRunAt: null,
             lastError: null,
+            lastDetail: 'No debug action has run yet',
             scenarioLabel: 'none',
             snapshotLabel: 'none',
             comparedSnapshots: 'none',
@@ -42,29 +45,32 @@ class DebugUI {
         this.godModeButtons = [
             { id: 'spawnButterfly', text: 'Spawn Butterfly', x: 10, y: 0, width: 120, height: 25 },
             { id: 'spawnFlower', text: 'Spawn Flower', x: 140, y: 0, width: 100, height: 25 },
-            { id: 'spawnPixels', text: 'Spawn Pixels', x: 250, y: 0, width: 100, height: 25 },
-            { id: 'refreshPheromones', text: 'Refresh M Pheromone', x: 10, y: 32, width: 160, height: 25 },
+            { id: 'spawnBlock', text: 'Spawn Block', x: 250, y: 0, width: 100, height: 25 },
+            { id: 'refreshPheromones', text: 'Refresh Male Pheromone', x: 10, y: 32, width: 160, height: 25 },
             { id: 'hatchEggs', text: 'Hatch Eggs', x: 180, y: 32, width: 90, height: 25 },
             { id: 'hatchCocoons', text: 'Hatch Cocoons', x: 280, y: 32, width: 110, height: 25 },
-            { id: 'flowersForCaterpillars', text: 'Flower Caterpillars', x: 10, y: 64, width: 160, height: 25 },
+            { id: 'flowersForCaterpillars', text: 'Feed Caterpillars', x: 10, y: 64, width: 160, height: 25 },
             { id: 'toggleSexLabels', text: 'Sex Labels: Off', x: 180, y: 64, width: 120, height: 25 },
             { id: 'resetProgression', text: 'Reset Progression', x: 310, y: 64, width: 130, height: 25 },
-            { id: 'saveGameState', text: 'Save Game', x: 10, y: 96, width: 110, height: 25 },
-            { id: 'loadGameState', text: 'Load Game', x: 130, y: 96, width: 110, height: 25 },
-            { id: 'verifyRoundTrip', text: 'Verify Roundtrip', x: 250, y: 96, width: 140, height: 25 },
-            { id: 'captureSnapshot', text: 'Capture Snapshot', x: 10, y: 128, width: 140, height: 25 },
-            { id: 'checkInvariants', text: 'Check Invariants', x: 160, y: 128, width: 140, height: 25 },
-            { id: 'compareSnapshots', text: 'Compare Snapshots', x: 310, y: 128, width: 150, height: 25 },
-            { id: 'loadAuditPreset', text: 'Load Audit Preset', x: 10, y: 160, width: 140, height: 25 },
-            { id: 'exportAuditSetup', text: 'Export Audit Setup', x: 160, y: 160, width: 140, height: 25 },
-            { id: 'importAuditSetup', text: 'Import Audit Setup', x: 310, y: 160, width: 150, height: 25 },
-            { id: 'runGameplayAudit', text: 'Run Gameplay Audit', x: 10, y: 192, width: 180, height: 25 },
-            { id: 'reseedReplay', text: 'Reseed Session', x: 200, y: 192, width: 130, height: 25 }
+            { id: 'loadGameState', text: 'Restore Save', x: 130, y: 96, width: 110, height: 25 },
+            { id: 'exportCurrentSave', text: 'Export Save', x: 250, y: 96, width: 110, height: 25 },
+            { id: 'startSessionCapture', text: 'Start Capture', x: 10, y: 128, width: 110, height: 25 },
+            { id: 'exportSessionCapture', text: 'Export Capture', x: 130, y: 128, width: 110, height: 25 },
+            { id: 'checkInvariants', text: 'Check World', x: 160, y: 128, width: 140, height: 25 },
+            { id: 'runGameplayAudit', text: 'Audit World', x: 10, y: 192, width: 180, height: 25 },
+            { id: 'reseedReplay', text: 'New Replay Seed', x: 200, y: 192, width: 130, height: 25 }
         ];
+        this.lastDebugPanelBounds = null;
+        this.godModeButtonRects = [];
+        this.lastSpatialFocusSummary = null;
+        this.lastMlExplainabilitySummary = null;
+        this.textLayoutCache = new Map();
     }
 
-    getGodModeButtonBaseY() {
-        return gameConfig.canvas.targetHeight - 202;
+    getAuditSetupStorage() {
+        if (typeof sessionStorage !== 'undefined') return sessionStorage;
+        if (typeof localStorage !== 'undefined') return localStorage;
+        return null;
     }
 
     getStoredAuditReports() {
@@ -123,60 +129,117 @@ class DebugUI {
             this.cursorY = Math.floor(bounds.maxY / 2);
         } else {
             this.showSexLabels = false;
+            this.lastSpatialFocusSummary = null;
+            this.lastMlExplainabilitySummary = null;
             const sexButton = this.godModeButtons.find(button => button.id === 'toggleSexLabels');
             if (sexButton) sexButton.text = 'Sex Labels: Off';
         }
+    }
+
+    isDomPanelEnabled() {
+        return this.enabled && !!gameConfig?.performance?.flags?.shellUiDom;
+    }
+
+    getCompactDockLayout(width = null, height = null) {
+        const canvasWidth = width || gameConfig?.canvas?.targetWidth || window?.width || 960;
+        const canvasHeight = height || gameConfig?.canvas?.targetHeight || window?.height || 540;
+        const reserveTop = Math.max(
+            300,
+            Math.min(canvasHeight - 92, gameConfig?.world?.mapGeometry?.uiReserveTop || (canvasHeight - 110))
+        );
+        const dockMargin = 8;
+        const dockWidth = Math.min(448, canvasWidth - (dockMargin * 2));
+        const dockHeight = Math.max(98, canvasHeight - reserveTop - dockMargin);
+        const dockX = canvasWidth - dockWidth - dockMargin;
+        const dockY = canvasHeight - dockHeight - dockMargin;
+        const innerX = dockX + 6;
+        const innerY = dockY + 20;
+        const innerWidth = dockWidth - 12;
+        const innerHeight = dockHeight - 26;
+        const buttonGap = 4;
+        const buttonPadding = 4;
+        const buttonColumns = innerWidth >= 360 ? 4 : 3;
+        const buttonHeight = 15;
+        const controlsHeaderHeight = 26;
+        const buttonWidth = Math.floor((innerWidth - (buttonPadding * 2) - (buttonGap * (buttonColumns - 1))) / buttonColumns);
+        return {
+            dockX,
+            dockY,
+            dockWidth,
+            dockHeight,
+            innerX,
+            innerY,
+            innerWidth,
+            innerHeight,
+            buttonGap,
+            buttonPadding,
+            buttonColumns,
+            buttonHeight,
+            controlsHeaderHeight,
+            buttonWidth
+        };
+    }
+
+    buildDomPanelState() {
+        if (!this.isDomPanelEnabled()) {
+            return { visible: false };
+        }
+        const replay = this.syncReplayAuditState();
+        const latestReport = this.getLatestAuditReport();
+        const layout = this.getCompactDockLayout();
+        const telemetry = gameCore?.getTelemetrySnapshot?.() || null;
+        const gameState = typeof gameCore !== 'undefined' && gameCore.isInitialized?.()
+            ? gameCore.getGameState()
+            : null;
+        const spatialFocus = this.buildSpatialFocusSnapshot(gameState);
+        const auditLabel = this.auditState.lastRunAt
+            ? new Date(this.auditState.lastRunAt).toLocaleTimeString()
+            : 'No audits yet';
+        return {
+            visible: true,
+            rect: {
+                x: layout.dockX,
+                y: layout.dockY,
+                width: layout.dockWidth,
+                height: layout.dockHeight
+            },
+            highContrast: !!gameUI?.accessibilitySettings?.highContrastUI,
+            title: 'God Mode',
+            subtitle: gameCore?.isResettingGame ? 'Resetting...' : 'Local-only test actions',
+            detailLine: 'Restore Save reloads the autosave · Check World validates live state',
+            statusTone: this.auditState.lastStatus || 'idle',
+            statusLines: [
+                `${(this.auditState.lastStatus || 'idle').toUpperCase()} · ${this.lastActionLabel(this.auditState.lastAction || 'None')}`,
+                this.auditState.lastDetail || this.auditState.lastError || `Last update ${auditLabel}`,
+                `Preset ${this.auditState.scenarioLabel} · Audit ${this.auditState.gameplayAuditStatus}`,
+                `Snapshot ${this.auditState.snapshotLabel} · Diff ${this.truncateDebugText(this.auditState.comparedSnapshots, 18)}`,
+                `Session ${this.truncateDebugText(this.auditState.replaySessionLabel || replay?.sessionId || 'none', 14)} | Seed ${this.truncateDebugText(this.auditState.replaySeedLabel || replay?.seed || 'n/a', 12)}`,
+                `Mismatch ${this.auditState.lastMismatchCount} | Invariants ${this.auditState.invariantFailures} | Reports ${this.auditState.savedAuditReports}`,
+                `Latest ${this.truncateDebugText(this.summarizeAuditReport(latestReport), 22)}`,
+                ...this.getMemoryAuditLines(telemetry)
+            ],
+            buttons: this.godModeButtons.map(button => ({
+                id: button.id,
+                text: button.text,
+                disabled: !!gameCore?.isResettingGame && button.id !== 'loadGameState'
+            })),
+            spatialFocus: spatialFocus
+                ? {
+                    title: spatialFocus.title || 'Spatial Focus',
+                    lines: spatialFocus.lines || []
+                }
+                : null
+        };
+    }
+
+    lastActionLabel(label = '') {
+        return this.truncateDebugText(label, 24);
     }
     
     // Handle debug mode keyboard input
     handleKeyPress(key, keyCode) {
         if (!this.enabled) return false;
-        
-        // Always use isometric movement in debug mode
-        if (keyCode === LEFT_ARROW) {
-            // Isometric movement: left = move northwest
-            if (this.cursorY > 0) {
-                this.cursorY--;
-            }
-        } else if (keyCode === RIGHT_ARROW) {
-            // Isometric movement: right = move southeast
-            if (this.cursorY < gridManager.bounds.maxY) {
-                this.cursorY++;
-            }
-        } else if (keyCode === UP_ARROW) {
-            // Isometric movement: up = move northeast
-            if (this.cursorX > 0) {
-                this.cursorX--;
-            }
-        } else if (keyCode === DOWN_ARROW) {
-            // Isometric movement: down = move southwest
-            if (this.cursorX < gridManager.bounds.maxX) {
-                this.cursorX++;
-            }
-        }
-        
-        // Tool selection
-        if (key === 'Q' || key === 'q') {
-            let currentIndex = this.tools.indexOf(this.selectedTool);
-            currentIndex = (currentIndex - 1 + this.tools.length) % this.tools.length;
-            this.selectedTool = this.tools[currentIndex];
-        } else if (key === 'E' || key === 'e') {
-            let currentIndex = this.tools.indexOf(this.selectedTool);
-            currentIndex = (currentIndex + 1) % this.tools.length;
-            this.selectedTool = this.tools[currentIndex];
-        }
-        
-        // Placement/action
-        if (key === ' ') {
-            this.handlePlacement();
-        }
-        
-        // Export data
-        if (key === 'X' || key === 'x') {
-            this.exportZoneData();
-        }
-        
-        return true; // Consumed the input
+        return false;
     }
     
     // Handle entity/tile placement
@@ -246,15 +309,18 @@ class DebugUI {
     // Handle mouse clicks for god mode buttons
     handleMouseClick(mouseX, mouseY) {
         if (!this.enabled) return false;
-        
-        // Check god mode buttons (positioned at bottom of screen)
-        const buttonY = this.getGodModeButtonBaseY();
-        
-        for (let button of this.godModeButtons) {
-            if (mouseX >= button.x && mouseX <= button.x + button.width &&
-                mouseY >= buttonY + button.y && mouseY <= buttonY + button.y + button.height) {
-                
-                this.handleGodModeAction(button.id);
+
+        const baseWidth = gameConfig?.canvas?.baseWidth || gameConfig?.canvas?.targetWidth || width || 1;
+        const baseHeight = gameConfig?.canvas?.baseHeight || gameConfig?.canvas?.targetHeight || height || 1;
+        const targetWidth = gameConfig?.canvas?.targetWidth || baseWidth;
+        const targetHeight = gameConfig?.canvas?.targetHeight || baseHeight;
+        const adjustedX = mouseX * (baseWidth / Math.max(1, targetWidth));
+        const adjustedY = mouseY * (baseHeight / Math.max(1, targetHeight));
+
+        for (const buttonRect of this.godModeButtonRects) {
+            if (adjustedX >= buttonRect.x && adjustedX <= buttonRect.x + buttonRect.width &&
+                adjustedY >= buttonRect.y && adjustedY <= buttonRect.y + buttonRect.height) {
+                this.handleGodModeAction(buttonRect.id);
                 return true; // Consumed the click
             }
         }
@@ -265,28 +331,43 @@ class DebugUI {
     // Execute god mode actions
     handleGodModeAction(actionId) {
         const bounds = gridManager.bounds;
+
+        if (gameCore?.isResettingGame && actionId !== 'loadGameState') {
+            return;
+        }
         
         switch (actionId) {
             case 'spawnButterfly':
                 this.godSpawnButterfly(bounds);
+                this.setActionFeedback('Spawn Butterfly', 'pass', 'Spawned one debug butterfly in the current zone');
                 break;
             case 'spawnFlower':
                 this.godSpawnFlower(bounds);
+                this.setActionFeedback('Spawn Flower', 'pass', 'Spawned one flower in the current zone');
+                break;
+            case 'spawnBlock':
+                this.godSpawnBlock(bounds);
+                this.setActionFeedback('Spawn Block', 'pass', 'Spawned one block in a free spot in the current zone');
                 break;
             case 'spawnPixels':
                 this.godSpawnPixels(bounds);
+                this.setActionFeedback('Spawn Pixels', 'pass', 'Spawned a local test particle burst');
                 break;
             case 'refreshPheromones':
                 eventBus.emit('debug:refreshPheromones');
+                this.setActionFeedback('Refresh Male Pheromone', 'pass', 'Refreshed pheromone state for eligible males');
                 break;
             case 'hatchEggs':
                 eventBus.emit('debug:hatchEggs');
+                this.setActionFeedback('Hatch Eggs', 'pass', 'Forced all eligible eggs to hatch immediately');
                 break;
             case 'hatchCocoons':
                 eventBus.emit('debug:hatchCocoons');
+                this.setActionFeedback('Hatch Cocoons', 'pass', 'Forced all eligible cocoons to hatch immediately');
                 break;
             case 'flowersForCaterpillars':
                 eventBus.emit('debug:flowersForCaterpillars');
+                this.setActionFeedback('Feed Caterpillars', 'pass', 'Spawned cocoon flowers directly under active caterpillars');
                 break;
             case 'toggleSexLabels':
                 this.showSexLabels = !this.showSexLabels;
@@ -296,15 +377,38 @@ class DebugUI {
                         sexButton.text = `Sex Labels: ${this.showSexLabels ? 'On' : 'Off'}`;
                     }
                 }
+                this.setActionFeedback('Sex Labels', 'pass', `Sex labels ${this.showSexLabels ? 'enabled' : 'disabled'} for visible butterflies`);
                 break;
             case 'resetProgression':
-                eventBus.emit('debug:resetProgression');
+                this.setActionFeedback('Reset Progression', 'running', 'Resetting the world and progression to a fresh state');
+                if (typeof gameCore !== 'undefined' && gameCore.resetGame) {
+                    gameCore.resetGame(true).then(success => {
+                        this.setActionFeedback(
+                            'Reset Progression',
+                            success ? 'pass' : 'fail',
+                            success ? 'Fresh progression state applied' : 'Reset returned false'
+                        );
+                    }).catch(error => {
+                        this.setActionFeedback('Reset Progression', 'fail', error?.message || String(error));
+                    });
+                } else {
+                    eventBus.emit('debug:resetProgression');
+                }
                 break;
             case 'saveGameState':
                 this.saveGameState();
                 break;
             case 'loadGameState':
                 this.loadGameState();
+                break;
+            case 'exportCurrentSave':
+                this.exportCurrentSave();
+                break;
+            case 'startSessionCapture':
+                this.startSessionCapture();
+                break;
+            case 'exportSessionCapture':
+                this.exportSessionCapture();
                 break;
             case 'verifyRoundTrip':
                 this.runRoundTripAudit();
@@ -344,54 +448,207 @@ class DebugUI {
         };
     }
 
-    saveGameState() {
+    getAuditStatusPalette(status = 'idle') {
+        switch (status) {
+            case 'pass':
+                return {
+                    fill: [48, 88, 56, 224],
+                    stroke: [126, 214, 148, 220],
+                    text: [230, 255, 236, 255]
+                };
+            case 'warn':
+                return {
+                    fill: [92, 74, 34, 228],
+                    stroke: [236, 196, 104, 220],
+                    text: [255, 244, 214, 255]
+                };
+            case 'error':
+            case 'fail':
+                return {
+                    fill: [96, 40, 40, 228],
+                    stroke: [236, 126, 126, 220],
+                    text: [255, 234, 234, 255]
+                };
+            case 'running':
+                return {
+                    fill: [48, 56, 88, 224],
+                    stroke: [136, 168, 236, 220],
+                    text: [235, 242, 255, 255]
+                };
+            default:
+                return {
+                    fill: [42, 46, 56, 220],
+                    stroke: [156, 166, 186, 180],
+                    text: [236, 240, 248, 255]
+                };
+        }
+    }
+
+    setActionFeedback(action, status, detail, extra = {}) {
+        this.setAuditState({
+            lastAction: action,
+            lastStatus: status,
+            lastDetail: detail || null,
+            lastError: status === 'error' || status === 'fail' ? (detail || null) : null,
+            ...extra
+        });
+    }
+
+    async saveGameState() {
         if (typeof gameCore === 'undefined' || !gameCore.isInitialized?.()) return;
 
         try {
-            gameCore.saveGameToStorage?.();
+            await gameCore.saveGameToStorage?.();
             this.recordReplayAuditMarker('save-game', {
                 scenarioLabel: this.auditState.scenarioLabel || 'none'
             });
             this.syncReplayAuditState();
-            this.setAuditState({
-                lastAction: 'Save Game',
-                lastStatus: 'pass',
-                lastMismatchCount: 0,
-                lastError: null
+            this.setActionFeedback('Save Game', 'pass', 'Saved the current world into the single browser save slot', {
+                lastMismatchCount: 0
             });
         } catch (error) {
-            this.setAuditState({
-                lastAction: 'Save Game',
-                lastStatus: 'error',
-                lastError: error?.message || String(error)
-            });
+            this.setActionFeedback('Save Game', 'error', error?.message || String(error));
         }
     }
 
-    loadGameState() {
+    async loadGameState() {
         if (typeof gameCore === 'undefined' || !gameCore.isInitialized?.()) return;
 
         try {
-            const restored = gameCore.loadGameFromStorage?.();
+            const restored = await gameCore.loadGameFromStorage?.();
             if (restored) {
                 this.recordReplayAuditMarker('load-game', {
                     scenarioLabel: this.auditState.scenarioLabel || 'none'
                 });
             }
             this.syncReplayAuditState();
-            this.setAuditState({
-                lastAction: 'Load Game',
-                lastStatus: restored ? 'pass' : 'idle',
-                lastMismatchCount: 0,
-                lastError: restored ? null : 'No saved game found'
+            this.setActionFeedback(
+                'Restore Save',
+                restored ? 'pass' : 'warn',
+                restored
+                    ? 'Reloaded the current browser save slot into the live world'
+                    : 'No saved world was found in browser storage',
+                { lastMismatchCount: 0 }
+            );
+        } catch (error) {
+            this.setActionFeedback('Restore Save', 'error', error?.message || String(error));
+        }
+    }
+
+    exportCurrentSave() {
+        if (typeof gameCore === 'undefined' || !gameCore.isInitialized?.()) return;
+
+        try {
+            const serialized = gameCore.serializeGameState?.();
+            if (!serialized) {
+                this.setActionFeedback('Export Save', 'warn', 'Could not serialize the current world');
+                return;
+            }
+
+            const scenarioLabel = this.auditState.scenarioLabel && this.auditState.scenarioLabel !== 'none'
+                ? this.auditState.scenarioLabel
+                : 'manual';
+
+            this.setActionFeedback('Export Save', 'running', 'Writing the current browser save to qa_logs/save_exports');
+            fetch('/api/save-exports', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    label: `playtest-${scenarioLabel}`,
+                    serializedState: serialized
+                })
+            }).then(async response => {
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok || !result?.ok) {
+                    const message = response.status === 404
+                        ? 'Save export endpoint is unavailable; restart the playtest server and try again'
+                        : result?.error || `Save export failed with status ${response.status}`;
+                    throw new Error(message);
+                }
+                this.recordReplayAuditMarker('save-exported', {
+                    outputDir: result?.outputDir || null,
+                    savePath: result?.savePath || null
+                });
+                this.syncReplayAuditState();
+                this.setActionFeedback(
+                    'Export Save',
+                    'pass',
+                    result?.outputDir
+                        ? `Saved exported world | ${result.outputDir}`
+                        : (result?.summaryPath
+                            ? `Saved exported world | ${result.summaryPath}`
+                            : 'Saved exported world'),
+                    { lastMismatchCount: 0 }
+                );
+            }).catch(error => {
+                this.setActionFeedback('Export Save', 'error', error?.message || String(error));
             });
         } catch (error) {
-            this.setAuditState({
-                lastAction: 'Load Game',
-                lastStatus: 'error',
-                lastError: error?.message || String(error)
-            });
+            this.setActionFeedback('Export Save', 'error', error?.message || String(error));
         }
+    }
+
+    startSessionCapture() {
+        if (typeof gameCore === 'undefined' || !gameCore.isInitialized?.()) return;
+
+        try {
+            const scenarioLabel = this.auditState.scenarioLabel && this.auditState.scenarioLabel !== 'none'
+                ? this.auditState.scenarioLabel
+                : 'manual';
+            const summary = gameCore.telemetrySystem?.startSessionCapture?.(gameCore.getGameState(), {
+                label: `playtest-${scenarioLabel}`
+            }) || null;
+            this.recordReplayAuditMarker('session-capture-started', {
+                sessionId: summary?.sessionId || null,
+                label: summary?.label || `playtest-${scenarioLabel}`
+            });
+            this.syncReplayAuditState();
+            this.setActionFeedback(
+                'Start Capture',
+                'running',
+                `Recording this play session${summary?.sessionId ? ` | ${summary.sessionId}` : ''}`,
+                { lastMismatchCount: 0 }
+            );
+        } catch (error) {
+            this.setActionFeedback('Start Capture', 'error', error?.message || String(error));
+        }
+    }
+
+    exportSessionCapture() {
+        if (typeof gameCore === 'undefined' || !gameCore.isInitialized?.()) return;
+
+        const captureSummary = gameCore.telemetrySystem?.getSessionCaptureSummary?.() || null;
+        if (!captureSummary?.active) {
+            this.setActionFeedback('Export Capture', 'warn', 'No active session capture is running');
+            return;
+        }
+
+        this.setActionFeedback('Export Capture', 'running', 'Writing session capture to qa_logs/session_captures');
+        gameCore.telemetrySystem?.exportSessionCapture?.(gameCore.getGameState(), {
+            source: 'debug-ui-export'
+        }).then(result => {
+            this.recordReplayAuditMarker('session-capture-exported', {
+                sessionId: result?.summary?.sessionId || captureSummary.sessionId || null,
+                outputDir: result?.outputDir || null
+            });
+            this.syncReplayAuditState();
+            this.setActionFeedback(
+                'Export Capture',
+                'pass',
+                result?.outputDir
+                    ? `Saved capture export | ${result.outputDir}`
+                    : (result?.summaryPath
+                        ? `Saved capture export | ${result.summaryPath}`
+                        : 'Saved capture export'),
+                {
+                    lastMismatchCount: 0
+                }
+            );
+        }).catch(error => {
+            this.setActionFeedback('Export Capture', 'error', error?.message || String(error));
+        });
     }
 
     runRoundTripAudit() {
@@ -407,18 +664,16 @@ class DebugUI {
             const mismatches = gameCore.saveSystem.compareSerializedDurableState(before, after)
                 .filter(entry => entry.path !== 'meta.serializedAtMs');
 
-            this.setAuditState({
-                lastAction: 'Verify Roundtrip',
-                lastStatus: mismatches.length === 0 ? 'pass' : 'warn',
-                lastMismatchCount: mismatches.length,
-                lastError: mismatches.length === 0 ? null : mismatches[0]?.path || 'Mismatch detected'
-            });
+            this.setActionFeedback(
+                'Verify Roundtrip',
+                mismatches.length === 0 ? 'pass' : 'warn',
+                mismatches.length === 0
+                    ? 'Serialize → restore → serialize matched durable state'
+                    : `Round-trip mismatch at ${mismatches[0]?.path || 'unknown path'}`,
+                { lastMismatchCount: mismatches.length }
+            );
         } catch (error) {
-            this.setAuditState({
-                lastAction: 'Verify Roundtrip',
-                lastStatus: 'error',
-                lastError: error?.message || String(error)
-            });
+            this.setActionFeedback('Verify Roundtrip', 'error', error?.message || String(error));
         }
     }
 
@@ -436,21 +691,14 @@ class DebugUI {
                 this.auditSnapshots.delete(oldestKey);
             }
 
-            this.setAuditState({
-                lastAction: 'Capture Snapshot',
-                lastStatus: 'pass',
+            this.setActionFeedback('Capture Snapshot', 'pass', `Captured ${label}`, {
                 lastMismatchCount: 0,
-                lastError: null,
                 snapshotLabel: label,
                 comparedSnapshots: 'none'
             });
             this.syncReplayAuditState();
         } catch (error) {
-            this.setAuditState({
-                lastAction: 'Capture Snapshot',
-                lastStatus: 'error',
-                lastError: error?.message || String(error)
-            });
+            this.setActionFeedback('Capture Snapshot', 'error', error?.message || String(error));
         }
     }
 
@@ -468,7 +716,7 @@ class DebugUI {
             ...(baseline.meta || {}),
             serializedAtMs: 0,
             timeScale: 1,
-            focusedZoneId: 'garden-core',
+            focusedZoneId: 'ivy-cloister',
             viewMode: 'focused-garden',
             activeBattleId: null,
             replay: {
@@ -489,7 +737,20 @@ class DebugUI {
             collectedButterflies: [],
             butterflyCollectionStats: {},
             hybridJournal: [],
-            nextHybridId: 1
+            nextHybridId: 1,
+            progressionOrderIndex: 0,
+            unlockedButterflyTypes: ['friendly'],
+            unlockHistory: [
+                {
+                    type: 'friendly',
+                    unlockedAt: 0,
+                    unlockedBy: 'starter',
+                    unlockedFromType: null
+                }
+            ],
+            starterPairsSeeded: {},
+            perTypeUnlockStatus: {},
+            perWildButterflyProgress: {}
         };
         baseline.runtime = {
             butterflySpawnCounts: {},
@@ -543,7 +804,7 @@ class DebugUI {
                     { id: 'audit_sleep_observer', personalityType: 'cautious', sex: 'M', x: 404, y: 176, state: 'normal', happiness: 67, baselineHappiness: 60, maxHappiness: 100 }
                 ];
                 baseline.flowers = [
-                    { id: 'audit_flower_sleep', x: 352, y: 218, stage: 'mature', stageTimer: 600, isImmortal: true, flowerType: 'lily' }
+                    { id: 'audit_flower_sleep', x: 352, y: 218, stage: 'mature', stageTimer: 600, isImmortal: true, flowerType: 'tulip' }
                 ];
                 baseline.foundations.sleep = {
                     audit_sleep_target: { subtype: null, exhaustion: 0.88, sleepPressure: 0.74, oversleepPressure: 0.18, oversleepHabit: 0.05, settlingSeconds: 0, asleepSeconds: 0, lastSleepStartSeconds: 0, lastWakeSeconds: 0, lastWakeReason: null },
@@ -559,7 +820,7 @@ class DebugUI {
                     { id: 'audit_witness', personalityType: 'skittish', sex: 'F', x: 410, y: 198, state: 'normal', happiness: 71, baselineHappiness: 60, maxHappiness: 100 }
                 ];
                 baseline.flowers = [
-                    { id: 'audit_flower_teach', x: 350, y: 224, stage: 'mature', stageTimer: 720, isImmortal: true, flowerType: 'rose' }
+                    { id: 'audit_flower_teach', x: 350, y: 224, stage: 'mature', stageTimer: 720, isImmortal: true, flowerType: 'daisy' }
                 ];
                 baseline.foundations.teaching = {
                     packetsByEntityId: {
@@ -593,8 +854,8 @@ class DebugUI {
                     { id: 'audit_social_witness', personalityType: 'mystic', sex: 'F', x: 346, y: 214, state: 'normal', happiness: 76, baselineHappiness: 60, maxHappiness: 100 }
                 ];
                 baseline.flowers = [
-                    { id: 'audit_flower_social_a', x: 338, y: 232, stage: 'mature', stageTimer: 720, isImmortal: true, flowerType: 'rose' },
-                    { id: 'audit_flower_social_b', x: 390, y: 236, stage: 'mature', stageTimer: 560, isImmortal: true, flowerType: 'lily' }
+                    { id: 'audit_flower_social_a', x: 338, y: 232, stage: 'mature', stageTimer: 720, isImmortal: true, flowerType: 'daisy' },
+                    { id: 'audit_flower_social_b', x: 390, y: 236, stage: 'mature', stageTimer: 560, isImmortal: true, flowerType: 'tulip' }
                 ];
                 baseline.foundations.teaching = {
                     packetsByEntityId: {
@@ -619,7 +880,7 @@ class DebugUI {
                     { id: 'audit_lineage_caterpillar', x: 392, y: 228, phase: 'seeking-flower', phaseStartedAt: 0, phaseTimeout: 240, targetFlowerId: 'audit_flower_lineage', dead: false, failReason: null, lifecycleData: { inheritedTraits: ['friendly', 'wise'] } }
                 ];
                 baseline.flowers = [
-                    { id: 'audit_flower_lineage', x: 398, y: 238, stage: 'mature', stageTimer: 900, isImmortal: true, flowerType: 'sunflower' }
+                    { id: 'audit_flower_lineage', x: 398, y: 238, stage: 'mature', stageTimer: 900, isImmortal: true, flowerType: 'bush' }
                 ];
                 baseline.progression.hybridJournal = [
                     { id: 1, displayName: 'Aurel', parentA: { personalityType: 'friendly', sex: 'F' }, parentB: { personalityType: 'wise', sex: 'M' }, createdAtMs: 0 }
@@ -663,7 +924,7 @@ class DebugUI {
                     { id: 'audit_nursery_guardian', personalityType: 'wise', sex: 'F', x: 386, y: 188, state: 'normal', happiness: 82, baselineHappiness: 60, maxHappiness: 100, birthSource: 'wild' }
                 ];
                 baseline.flowers = [
-                    { id: 'audit_flower_nursery', x: 380, y: 234, stage: 'mature', stageTimer: 860, isImmortal: true, flowerType: 'sunflower' }
+                    { id: 'audit_flower_nursery', x: 380, y: 234, stage: 'mature', stageTimer: 860, isImmortal: true, flowerType: 'bush' }
                 ];
                 baseline.progression.hybridJournal = [
                     { id: 2, displayName: 'Ilya', parentA: { personalityType: 'friendly', sex: 'F' }, parentB: { personalityType: 'energetic', sex: 'M' }, createdAtMs: 0 }
@@ -763,11 +1024,15 @@ class DebugUI {
 
     exportAuditSetup() {
         if (typeof gameCore === 'undefined' || !gameCore.isInitialized?.()) return;
-        if (!gameCore.serializeGameState || typeof localStorage === 'undefined') return;
+        const storage = this.getAuditSetupStorage();
+        if (!gameCore.serializeGameState || !storage) return;
 
         try {
             const serialized = gameCore.serializeGameState();
-            localStorage.setItem(this.auditSetupStorageKey, JSON.stringify(serialized));
+            storage.setItem(this.auditSetupStorageKey, JSON.stringify(serialized));
+            if (typeof localStorage !== 'undefined' && storage !== localStorage) {
+                localStorage.removeItem(this.auditSetupStorageKey);
+            }
             this.recordReplayAuditMarker('audit-setup-exported', {
                 scenarioLabel: this.auditState.scenarioLabel || 'none'
             });
@@ -788,10 +1053,12 @@ class DebugUI {
 
     importAuditSetup() {
         if (typeof gameCore === 'undefined' || !gameCore.isInitialized?.()) return;
-        if (!gameCore.applySerializedState || typeof localStorage === 'undefined') return;
+        const storage = this.getAuditSetupStorage();
+        if (!gameCore.applySerializedState || !storage) return;
 
         try {
-            const raw = localStorage.getItem(this.auditSetupStorageKey);
+            const raw = storage.getItem(this.auditSetupStorageKey)
+                || (typeof localStorage !== 'undefined' ? localStorage.getItem(this.auditSetupStorageKey) : null);
             if (!raw) {
                 this.setAuditState({
                     lastAction: 'Import Audit Setup',
@@ -885,21 +1152,20 @@ class DebugUI {
             });
             this.syncReplayAuditState();
 
-            this.setAuditState({
-                lastAction: 'Run Gameplay Audit',
-                lastStatus: overallStatus,
-                lastMismatchCount: totalMismatches,
-                lastError: roundTripState.detail || invariantState.detail || diffState.detail || null,
-                comparedSnapshots: `${firstSnapshot} -> ${secondSnapshot}`,
-                gameplayAuditStatus: `${overallStatus} | rt ${roundTripState.status} / inv ${invariantState.status} / diff ${diffState.status} / battle ${battleLogCount}`,
-                savedAuditReports
-            });
+            this.setActionFeedback(
+                'Audit World',
+                overallStatus,
+                `rt ${roundTripState.status} | inv ${invariantState.status} | diff ${diffState.status} | battle events ${battleLogCount}`,
+                {
+                    lastMismatchCount: totalMismatches,
+                    comparedSnapshots: `${firstSnapshot} -> ${secondSnapshot}`,
+                    gameplayAuditStatus: `${overallStatus} | rt ${roundTripState.status} / inv ${invariantState.status} / diff ${diffState.status} / battle ${battleLogCount}`,
+                    savedAuditReports
+                }
+            );
         } catch (error) {
-            this.setAuditState({
-                lastAction: 'Run Gameplay Audit',
-                lastStatus: 'error',
-                gameplayAuditStatus: 'error',
-                lastError: error?.message || String(error)
+            this.setActionFeedback('Audit World', 'error', error?.message || String(error), {
+                gameplayAuditStatus: 'error'
             });
         }
     }
@@ -914,20 +1180,18 @@ class DebugUI {
                 markerLabel: 'debug-reseed'
             });
             this.syncReplayAuditState();
-            this.setAuditState({
-                lastAction: 'Reseed Session',
-                lastStatus: 'pass',
-                lastMismatchCount: 0,
-                lastError: null,
-                replaySessionLabel: replay?.sessionId || this.auditState.replaySessionLabel,
-                replaySeedLabel: String(replay?.seed ?? this.auditState.replaySeedLabel)
-            });
+            this.setActionFeedback(
+                'New Replay Seed',
+                'pass',
+                `Started replay session ${replay?.sessionId || this.auditState.replaySessionLabel} with seed ${replay?.seed ?? this.auditState.replaySeedLabel}`,
+                {
+                    lastMismatchCount: 0,
+                    replaySessionLabel: replay?.sessionId || this.auditState.replaySessionLabel,
+                    replaySeedLabel: String(replay?.seed ?? this.auditState.replaySeedLabel)
+                }
+            );
         } catch (error) {
-            this.setAuditState({
-                lastAction: 'Reseed Session',
-                lastStatus: 'error',
-                lastError: error?.message || String(error)
-            });
+            this.setActionFeedback('New Replay Seed', 'error', error?.message || String(error));
         }
     }
 
@@ -964,19 +1228,17 @@ class DebugUI {
                 failures.push('active battle id leaked outside battle view');
             }
 
-            this.setAuditState({
-                lastAction: 'Check Invariants',
-                lastStatus: failures.length === 0 ? 'pass' : 'warn',
-                lastMismatchCount: failures.length,
-                invariantFailures: failures.length,
-                lastError: failures[0] || null
-            });
+            this.setActionFeedback(
+                'Check World',
+                failures.length === 0 ? 'pass' : 'warn',
+                failures.length === 0 ? 'No invariant failures found' : failures[0] || 'Invariant failure detected',
+                {
+                    lastMismatchCount: failures.length,
+                    invariantFailures: failures.length
+                }
+            );
         } catch (error) {
-            this.setAuditState({
-                lastAction: 'Check Invariants',
-                lastStatus: 'error',
-                lastError: error?.message || String(error)
-            });
+            this.setActionFeedback('Check World', 'error', error?.message || String(error));
         }
     }
 
@@ -1027,17 +1289,293 @@ class DebugUI {
         return `${frameLabel} ${marker.label}`;
     }
 
+    readTextLayoutCache(key, buildValue, maxEntries = 400) {
+        if (!gameConfig?.performance?.flags?.textMeasureCache) {
+            return buildValue();
+        }
+        if (this.textLayoutCache.has(key)) {
+            const cached = this.textLayoutCache.get(key);
+            this.textLayoutCache.delete(key);
+            this.textLayoutCache.set(key, cached);
+            return cached;
+        }
+
+        const value = buildValue();
+        this.textLayoutCache.set(key, value);
+        while (this.textLayoutCache.size > maxEntries) {
+            const oldestKey = this.textLayoutCache.keys().next().value;
+            this.textLayoutCache.delete(oldestKey);
+        }
+        return value;
+    }
+
     truncateDebugText(text, maxLength = 56) {
         const value = String(text ?? '');
-        if (value.length <= maxLength) return value;
-        return `${value.slice(0, Math.max(0, maxLength - 3))}...`;
+        return this.readTextLayoutCache(
+            `truncate|${maxLength}|${value}`,
+            () => (value.length <= maxLength ? value : `${value.slice(0, Math.max(0, maxLength - 3))}...`)
+        );
+    }
+
+    getMlAuditLine() {
+        const summary = typeof mlInferenceSystem !== 'undefined'
+            ? mlInferenceSystem.getRuntimeSummary?.()
+            : null;
+        if (!summary) return 'ML unavailable';
+        const source = summary.lastDecisionSource === 'ml'
+            ? 'ML'
+            : summary.lastDecisionSource === 'heuristic-fallback'
+                ? 'FB'
+                : 'HE';
+        const backend = this.truncateDebugText(summary.backend || summary.runtime || 'heuristic-fallback', 16);
+        const version = this.truncateDebugText(summary.modelVersionId || 'n/a', 16);
+        return `ML ${source} | ${backend} | ${version} | fb ${summary.fallbackCount || 0}`;
+    }
+
+    getCaptureAuditLine(capture) {
+        if (!capture) return 'Capture off';
+        if (capture.active) {
+            return `Capture ACTIVE | ${capture.timelineCount || 0} events | ${capture.runtimeIssueCount || 0} issues`;
+        }
+        if (capture.output?.outputDir) {
+            const parts = String(capture.output.outputDir).split(/[\\/]/).filter(Boolean);
+            const folderName = this.truncateDebugText(parts[parts.length - 1] || 'session-captures', 28);
+            return `Capture saved | ${folderName}`;
+        }
+        return `Capture off | ${capture.timelineCount || 0} events | ${capture.runtimeIssueCount || 0} issues`;
+    }
+
+    getMemoryAuditLines(telemetry = null) {
+        const memoryAttribution = telemetry?.memoryAttribution || telemetry?.memory?.attribution || null;
+        if (!memoryAttribution?.enabled || !Array.isArray(memoryAttribution.summaryLines)) {
+            return [];
+        }
+        return memoryAttribution.summaryLines.slice(0, 4);
+    }
+
+    buildMlExplainabilitySnapshot(gameState = gameCore?.getGameState?.()) {
+        if (typeof mlInferenceSystem === 'undefined' || !gameState) {
+            this.lastMlExplainabilitySummary = null;
+            return null;
+        }
+
+        const focusEntity = gameUI?.getLockedInspectTarget?.(gameState)
+            || this.resolveSpatialFocusEntity(gameState);
+        if (!focusEntity?.id) {
+            this.lastMlExplainabilitySummary = null;
+            return null;
+        }
+
+        const summary = mlInferenceSystem.getEntitySummary?.(focusEntity.id, gameState) || null;
+        const runtime = mlInferenceSystem.getRuntimeSummary?.() || null;
+        if (!summary || !runtime) {
+            this.lastMlExplainabilitySummary = null;
+            return null;
+        }
+
+        const cleanText = (value = '') => String(value ?? '')
+            .replaceAll('â€¢', '•')
+            .replaceAll('Ã¢â‚¬Â¢', '|')
+            .replaceAll('Â·', '·')
+            .trim();
+        const toPresentationPercent = (value = 0) => {
+            const numeric = Number(value || 0);
+            if (!Number.isFinite(numeric)) return 0;
+            return numeric <= 1 ? Math.round(numeric * 100) : Math.round(numeric);
+        };
+        const lifeSimSummary = typeof lifeSimSystem !== 'undefined'
+            ? lifeSimSystem.getEntitySummary?.(focusEntity.id) || null
+            : null;
+        const communicationSummary = typeof communicationSystem !== 'undefined'
+            ? communicationSystem.getCommunicationSummary?.(focusEntity.id) || null
+            : null;
+        const relationshipSummary = communicationSummary?.relationship || null;
+
+        const avgGardenMs = Number(runtime?.performanceProfile?.avgGardenUpdateMs || 0).toFixed(2);
+        const avgBattleMs = Number(runtime?.performanceProfile?.avgBattleDecisionMs || 0).toFixed(2);
+        const gardenBudgetMs = Number(runtime?.performanceBudget?.focusedGardenInferenceMs || 0).toFixed(2);
+        const battleBudgetMs = Number(runtime?.performanceBudget?.battleDecisionMs || 0).toFixed(2);
+        const actionAltText = (summary?.policies?.action?.alternativeLabels || []).slice(0, 2).join(', ') || 'none';
+        const socialLine = `Social ${cleanText(lifeSimSummary?.socialEcology?.societyLabel || 'mixed')} | ${cleanText(lifeSimSummary?.socialEcology?.headline || 'quiet')}`;
+        const pairLine = `Pair ${cleanText(relationshipSummary?.pairTextureLabel || 'steady')} | follow ${toPresentationPercent(relationshipSummary?.followThrough || 0)} ${cleanText(relationshipSummary?.followThroughLabel || 'no strong carry-over')}`;
+        const fieldLine = `Field ${cleanText(communicationSummary?.localSignalFieldLabel || 'quiet | no active field')}`;
+        const lines = [
+            `Path ${runtime.policyArtifactPath || 'n/a'} | ${summary.sourceLabel || 'FB'} ${summary.backend || runtime.backend || 'heuristic'}`,
+            `Act ${summary.actionLabel || 'none'} | ${summary.policies?.action?.confidenceLabel || '0 low'} | next ${actionAltText}`,
+            socialLine,
+            pairLine,
+            fieldLine,
+            `Why ${summary.explainability?.action?.debugText || summary.explainability?.action?.shortText || 'no driver highlights'}`,
+            `Budget G ${avgGardenMs}/${gardenBudgetMs}ms | B ${avgBattleMs}/${battleBudgetMs}ms`
+        ];
+
+        const snapshot = {
+            focusId: focusEntity.id,
+            title: 'ML Explain',
+            lines,
+            path: runtime.policyArtifactPath || null,
+            whyText: summary.explainability?.action?.debugText || summary.explainability?.action?.shortText || null
+        };
+        this.lastMlExplainabilitySummary = snapshot;
+        return snapshot;
+    }
+
+    wrapDebugText(text, maxLength = 32) {
+        const value = String(text ?? '');
+        return this.readTextLayoutCache(`wrap|${maxLength}|${value}`, () => {
+            if (!value) return [''];
+            if (value.length <= maxLength) return [value];
+
+            const words = value.split(/\s+/);
+            const lines = [];
+            let current = '';
+
+            for (const word of words) {
+                if (!current) {
+                    if (word.length <= maxLength) {
+                        current = word;
+                    } else {
+                        lines.push(this.truncateDebugText(word, maxLength));
+                    }
+                    continue;
+                }
+
+                const candidate = `${current} ${word}`;
+                if (candidate.length <= maxLength) {
+                    current = candidate;
+                    continue;
+                }
+
+                lines.push(current);
+                current = word.length <= maxLength ? word : this.truncateDebugText(word, maxLength);
+            }
+
+            if (current) {
+                lines.push(current);
+            }
+
+            return lines;
+        });
+    }
+
+    resolveSpatialFocusEntity(gameState = gameCore?.getGameState?.()) {
+        if (!gameState) return null;
+
+        const inspectTarget = gameUI?.getLockedInspectTarget?.(gameState) || null;
+        if (inspectTarget?.id) return inspectTarget;
+
+        const focusedZoneId = gameCore?.getFocusedZoneId?.() || gameState?.focusedZoneId || null;
+        const zoneButterflies = (gameState?.butterflies || []).filter(entity => {
+            const zoneId = gameCore?.getEntityZoneId?.(entity, null)
+                || entity?.currentZoneId
+                || entity?.lifeSim?.lifecycle?.currentZoneId
+                || null;
+            return !focusedZoneId || zoneId === focusedZoneId;
+        });
+
+        const carryingButterfly = zoneButterflies.find(entity => {
+            const summary = physicsSystem?.getEntitySpatialSummary?.(entity, gameState) || null;
+            return !!summary?.carry?.attachedObjectId;
+        });
+        if (carryingButterfly) return carryingButterfly;
+        if (zoneButterflies.length) return zoneButterflies[0];
+
+        const visibleBlocks = (gameState?.blocks || []).filter(entity => {
+            const zoneId = gameCore?.getEntityZoneId?.(entity, null)
+                || entity?.currentZoneId
+                || null;
+            return !focusedZoneId || zoneId === focusedZoneId;
+        });
+        return visibleBlocks.find(entity => {
+            const summary = physicsSystem?.getEntitySpatialSummary?.(entity, gameState) || null;
+            return (summary?.stackHeight || 0) > 1 || summary?.supportState === 'carried';
+        }) || visibleBlocks[0] || null;
+    }
+
+    buildSpatialFocusSnapshot(gameState = gameCore?.getGameState?.()) {
+        if (typeof physicsSystem === 'undefined') {
+            this.lastSpatialFocusSummary = null;
+            return null;
+        }
+
+        const focusEntity = this.resolveSpatialFocusEntity(gameState);
+        const focusSummary = physicsSystem.getEntitySpatialSummary?.(focusEntity, gameState) || null;
+        if (!focusSummary) {
+            this.lastSpatialFocusSummary = null;
+            return null;
+        }
+
+        const linkedSummary = focusSummary.carry?.attachedObjectId
+            ? physicsSystem.getEntitySpatialSummary?.(focusSummary.carry.attachedObjectId, gameState)
+            : null;
+        const lifeSimSummary = focusSummary.entityType === 'butterfly' && typeof lifeSimSystem !== 'undefined'
+            ? lifeSimSystem.getEntitySummary?.(focusSummary.id) || null
+            : null;
+        const focusName = focusSummary.displayName || 'Focus';
+        const lines = [
+            `${focusName} | ${focusSummary.headline}`,
+            `Contact ${focusSummary.contact?.contactStateLabel || 'open air'} | ${focusSummary.contact?.blocked ? `blocked ${focusSummary.contact?.blockedByCount || 1}` : `touch ${focusSummary.contact?.touchCount || 0}`}`,
+            focusSummary.entityType === 'block'
+                ? `Support ${focusSummary.supportState || 'grounded'} | stack ${focusSummary.stackHeight || 1}/${focusSummary.maxStackHeight || 3}`
+                : focusSummary.carry?.attachedObjectId
+                    ? `Carry ${linkedSummary?.displayName || focusSummary.carry.attachedObjectId} | material in tow`
+                    : `Carry hands free | zone ${focusSummary.zoneLabel || 'unknown'}`
+        ];
+
+        if (lifeSimSummary?.socialEcology?.headline) {
+            lines.push(`Rhythm ${lifeSimSummary.socialEcology.headline}`);
+        }
+        if (linkedSummary) {
+            lines.push(`${linkedSummary.displayName || 'Block'} | ${linkedSummary.supportState || 'grounded'} | stack ${linkedSummary.stackHeight || 1}/${linkedSummary.maxStackHeight || 3}`);
+        }
+
+        const snapshot = {
+            focusId: focusSummary.id,
+            linkedId: linkedSummary?.id || null,
+            title: 'Spatial Focus',
+            lines
+        };
+        this.lastSpatialFocusSummary = snapshot;
+        return snapshot;
+    }
+
+    drawSpatialFocusMiniPanel(graphics, bounds, snapshot) {
+        if (!graphics || !bounds || !snapshot?.lines?.length) return;
+
+        const lineHeight = 9;
+        const panelWidth = Math.min(332, Math.max(224, bounds.width));
+        const panelHeight = 22 + (snapshot.lines.length * lineHeight);
+        const panelX = Math.max(8, bounds.x + bounds.width - panelWidth);
+        const panelY = Math.max(8, bounds.y - panelHeight - 6);
+        const wrappedLines = snapshot.lines.flatMap(line => this.wrapDebugText(line, Math.max(24, Math.floor((panelWidth - 16) / 6.2))));
+
+        graphics.fill(0, 0, 0, 198);
+        graphics.stroke(240, 212, 152, 108);
+        graphics.strokeWeight(1);
+        graphics.rect(panelX, panelY, panelWidth, 22 + (wrappedLines.length * lineHeight), 7);
+        graphics.noStroke();
+        graphics.fill(255, 242, 208, 255);
+        graphics.textAlign(LEFT, TOP);
+        graphics.textSize(10);
+        graphics.text(snapshot.title || 'Spatial Focus', panelX + 8, panelY + 6);
+        graphics.fill(240, 244, 250, 255);
+        graphics.textSize(8);
+        let lineY = panelY + 17;
+        for (const line of wrappedLines) {
+            graphics.text(line, panelX + 8, lineY);
+            lineY += lineHeight;
+        }
     }
     
     godSpawnButterfly(bounds) {
-        // Pick random location within grid bounds
-        const gridX = random(1, bounds.maxX - 1);
-        const gridY = random(1, bounds.maxY - 1);
-        const screenPos = gridManager.isoToScreen(gridX, gridY);
+        const zoneId = gameCore?.getFocusedZoneId?.() || null;
+        const screenPos = gameCore?.findValidButterflySpawnPoint?.(zoneId, {
+            minDistance: 28,
+            maxAttempts: 24
+        }) || gameCore?.getRandomPlacementPoint?.(zoneId, 40);
+        if (!screenPos) return;
+        const gridX = Math.round(screenPos.x);
+        const gridY = Math.round(screenPos.y);
         
         // Random butterfly colors from config
         const butterflyColors = gameConfig.entities.butterfly.colors;
@@ -1056,10 +1594,11 @@ class DebugUI {
     }
     
     godSpawnFlower(bounds) {
-        // Pick random location within grid bounds
-        const gridX = random(2, bounds.maxX - 2);
-        const gridY = random(2, bounds.maxY - 2);
-        const screenPos = gridManager.isoToScreen(gridX, gridY);
+        const zoneId = gameCore?.getFocusedZoneId?.() || null;
+        const screenPos = gameCore?.getRandomPlacementPoint?.(zoneId, 34);
+        if (!screenPos) return;
+        const gridX = Math.round(screenPos.x);
+        const gridY = Math.round(screenPos.y);
         
         eventBus.emit('debug:spawnFlower', { 
             x: screenPos.x, 
@@ -1069,6 +1608,26 @@ class DebugUI {
         console.log('🌸 God Mode: Spawned flower at', gridX, gridY);
     }
     
+    godSpawnBlock(bounds) {
+        const zoneId = gameCore?.getFocusedZoneId?.() || null;
+        const zoneBlocks = gameCore?.getBlocksInZone?.(zoneId) || [];
+        const screenPos = gameCore?.findValidBlockSpawnPoint?.(zoneId, zoneBlocks, {
+            maxAttempts: 40,
+            minDistance: 28
+        }) || gameCore?.getRandomPlacementPoint?.(zoneId, 34);
+        if (!screenPos) return;
+        const gridX = Math.round(screenPos.x);
+        const gridY = Math.round(screenPos.y);
+
+        eventBus.emit('debug:spawnBlock', {
+            zoneId,
+            x: screenPos.x,
+            y: screenPos.y
+        });
+
+        console.log('Block God Mode: Spawned block at', gridX, gridY);
+    }
+
     godSpawnPixels(bounds) {
         // Pick random location within grid bounds
         const gridX = random(1, bounds.maxX - 1);
@@ -1134,14 +1693,130 @@ class DebugUI {
     // Draw debug overlays
     draw(graphics) {
         if (!this.enabled) return;
-        
-        this.drawGrid(graphics);
-        this.drawTileStates(graphics);
-        this.drawDebugCursor(graphics);
-        this.drawButterflyPaths(graphics);
         this.drawSexLabels(graphics);
-        this.drawDebugUI(graphics);
-        this.drawGodModeButtons(graphics);
+        if (this.isDomPanelEnabled()) {
+            return;
+        }
+        if (typeof this.drawDebugDockUICompact === 'function') {
+            this.drawDebugDockUICompact(graphics);
+            return;
+        }
+        if (typeof this.drawDebugDockUI === 'function') {
+            this.drawDebugDockUI(graphics);
+        }
+    }
+
+    drawDebugDockUICompact(graphics) {
+        const layout = this.getCompactDockLayout(
+            graphics?.width || null,
+            graphics?.height || null
+        );
+        const {
+            dockX,
+            dockY,
+            dockWidth,
+            dockHeight,
+            innerX,
+            innerY,
+            innerWidth,
+            innerHeight,
+            buttonGap,
+            buttonPadding,
+            buttonColumns,
+            buttonHeight,
+            controlsHeaderHeight,
+            buttonWidth
+        } = layout;
+
+        const drawWrappedButtonLabel = (text, centerX, centerY, buttonRenderWidth) => {
+            const maxChars = Math.max(10, Math.floor((buttonRenderWidth - 14) / 7));
+            const wrapped = this.wrapDebugText(text, maxChars).slice(0, 2);
+            if (wrapped.length <= 1) {
+                graphics.text(wrapped[0] || text, centerX, centerY + 1);
+                return;
+            }
+            graphics.text(wrapped[0], centerX, centerY - 5);
+            graphics.text(wrapped[1], centerX, centerY + 5);
+        };
+
+        graphics.fill(0, 0, 0, 202);
+        graphics.stroke(230, 236, 246, 100);
+        graphics.strokeWeight(1);
+        graphics.rect(dockX, dockY, dockWidth, dockHeight, 9);
+
+        graphics.noStroke();
+        graphics.fill(255);
+        graphics.textAlign(LEFT, TOP);
+        graphics.textSize(10);
+        graphics.text('GOD MODE', dockX + 12, dockY + 7);
+
+        graphics.fill(0, 0, 0, 188);
+        graphics.stroke(230, 236, 246, 90);
+        graphics.strokeWeight(1);
+        graphics.rect(innerX, innerY, innerWidth, innerHeight, 8);
+
+        graphics.noStroke();
+        graphics.fill(255);
+        graphics.textAlign(LEFT, TOP);
+        graphics.textSize(8);
+        graphics.text(
+            gameCore?.isResettingGame ? 'Resetting...' : 'Local-only test actions',
+            innerX + buttonPadding,
+            innerY + 6
+        );
+        graphics.text(
+            'Restore Save reloads the autosave · Check World validates live state',
+            innerX + buttonPadding,
+            innerY + 14
+        );
+
+        this.godModeButtonRects = [];
+        for (let index = 0; index < this.godModeButtons.length; index++) {
+            const button = this.godModeButtons[index];
+            const column = index % buttonColumns;
+            const row = Math.floor(index / buttonColumns);
+            const buttonX = innerX + buttonPadding + (column * (buttonWidth + buttonGap));
+            const buttonY = innerY + controlsHeaderHeight + buttonPadding + (row * (buttonHeight + buttonGap));
+            const busy = !!gameCore?.isResettingGame && button.id !== 'loadGameState';
+
+            graphics.fill(...(busy ? [82, 82, 82] : [60, 60, 60]));
+            graphics.stroke(120);
+            graphics.strokeWeight(1);
+            graphics.rect(buttonX, buttonY, buttonWidth, buttonHeight, 4);
+
+            graphics.fill(255);
+            graphics.noStroke();
+            graphics.textAlign(CENTER, CENTER);
+            graphics.textSize(7);
+            drawWrappedButtonLabel(button.text, buttonX + (buttonWidth / 2), buttonY + (buttonHeight / 2), buttonWidth);
+
+            this.godModeButtonRects.push({
+                id: button.id,
+                x: buttonX,
+                y: buttonY,
+                width: buttonWidth,
+                height: buttonHeight
+            });
+        }
+
+        this.lastDebugPanelBounds = {
+            x: dockX,
+            y: dockY,
+            width: dockWidth,
+            height: dockHeight,
+            controlsPaneX: innerX,
+            controlsPaneY: innerY,
+            controlsPaneWidth: innerWidth,
+            controlsPaneHeight: innerHeight
+        };
+
+        const gameState = typeof gameCore !== 'undefined' && gameCore.isInitialized()
+            ? gameCore.getGameState()
+            : null;
+        const spatialFocus = this.buildSpatialFocusSnapshot(gameState);
+        if (spatialFocus) {
+            this.drawSpatialFocusMiniPanel(graphics, this.lastDebugPanelBounds, spatialFocus);
+        }
     }
     
     // Draw isometric grid using unified system
@@ -1197,90 +1872,705 @@ class DebugUI {
         const gridLabel = gridManager?.tileWidth && gridManager?.tileHeight
             ? `${gridManager.tileWidth}x${gridManager.tileHeight}px iso`
             : 'grid metrics unavailable';
-        graphics.fill(0, 0, 0, 150);
-        graphics.noStroke();
-        graphics.rect(10, 10, 395, 496);
-        
-        graphics.fill(255);
-        graphics.textAlign(LEFT);
-        graphics.text('DEBUG MODE (D to toggle)', 15, 25);
-        graphics.text(`Cursor: ${this.cursorX}, ${this.cursorY}`, 15, 45);
-        graphics.text(`Tool: ${this.selectedTool}`, 15, 65);
-        graphics.text('Arrow keys: Move cursor', 15, 85);
-        graphics.text('Q/E: Change tool', 15, 105);
-        
-        if (this.selectedTool === 'walkable' || this.selectedTool === 'blocked') {
-            graphics.text('Space: Toggle tile state', 15, 125);
-        } else {
-            graphics.text('Space: Place entity', 15, 125);
-        }
-        
-        graphics.text('X: Export data', 15, 145);
-        graphics.text('C: Collection   R: Rename hybrid', 15, 165);
-        graphics.text('K: Save   L: Load   V: Verify   N: Snapshot diff', 15, 185);
-        graphics.text('P: Preset   O: Export setup   U: Import setup', 15, 200);
-        graphics.text('Y: Gameplay audit   J: Reseed session', 15, 215);
-        
-        // Show bounds configuration info
-        graphics.textSize(10);
-        graphics.fill(200);
-        graphics.text(`Bounds: (0,0) to (${gridManager.bounds.maxX},${gridManager.bounds.maxY})`, 15, 220);
-        graphics.text(`Grid: ${gridLabel}`, 15, 235);
+        const canvasWidth = graphics?.width || gameConfig.canvas.targetWidth;
+        const canvasHeight = graphics?.height || gameConfig.canvas.targetHeight;
+        const panelX = 10;
+        const panelY = 10;
+        const panelWidth = Math.min(Math.max(460, Math.floor(canvasWidth * 0.54)), Math.max(460, canvasWidth - 180));
+        const columnGap = 10;
+        const innerPadding = 12;
+        const leftColumnX = panelX + innerPadding;
+        const rightColumnX = panelX + innerPadding + Math.floor((panelWidth - (innerPadding * 2) - columnGap) / 2) + columnGap;
+        const columnWidth = Math.floor((panelWidth - (innerPadding * 2) - columnGap) / 2);
+        const sectionGap = 10;
+        const headerHeight = 40;
+
+        const measureSection = (lines, width, lineHeight = 13) => {
+            const maxChars = Math.max(18, Math.floor((width - 16) / 6.1));
+            const wrapped = lines.flatMap(line => this.wrapDebugText(line, maxChars));
+            const height = 30 + (wrapped.length * lineHeight);
+            return { wrapped, height };
+        };
+
+        const drawSection = (title, x, y, width, wrappedLines, lineHeight = 13) => {
+            const height = 30 + (wrappedLines.length * lineHeight);
+            graphics.fill(0, 0, 0, 186);
+            graphics.stroke(230, 236, 246, 90);
+            graphics.strokeWeight(1);
+            graphics.rect(x, y, width, height, 7);
+            graphics.noStroke();
+            graphics.fill(255, 245, 220, 255);
+            graphics.textAlign(LEFT, TOP);
+            graphics.textSize(11);
+            graphics.text(title, x + 8, y + 7);
+            graphics.fill(240, 244, 250, 255);
+            graphics.textSize(10);
+            let lineY = y + 22;
+            for (const line of wrappedLines) {
+                graphics.text(line, x + 8, lineY);
+                lineY += lineHeight;
+            }
+            return height;
+        };
+
+        const drawWrappedButtonLabel = (text, centerX, centerY, width) => {
+            const maxChars = Math.max(10, Math.floor((width - 14) / 7));
+            const wrapped = this.wrapDebugText(text, maxChars).slice(0, 2);
+            if (wrapped.length === 1) {
+                graphics.text(wrapped[0], centerX, centerY + 1);
+                return;
+            }
+
+            const baseY = centerY - 5;
+            graphics.text(wrapped[0], centerX, baseY);
+            graphics.text(wrapped[1], centerX, baseY + 10);
+        };
+
         let telemetry = null;
+        let capture = null;
+        let spatialFocus = null;
+        let mlExplainability = null;
+        let worldLines = [
+            `Cursor ${this.cursorX}, ${this.cursorY}`,
+            `Tool ${this.selectedTool}`,
+            `Bounds 0,0 to ${gridManager.bounds.maxX},${gridManager.bounds.maxY}`,
+            `Grid ${gridLabel}`
+        ];
         if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
             const state = gameCore.getGameState();
             telemetry = gameCore.getTelemetrySnapshot?.() || null;
-            graphics.text(`Adults: ${state.butterflies.length}  Caterpillars: ${(state.caterpillars || []).length}`, 15, 250);
-            graphics.text(`Hybrids saved: ${(state.hybridJournal || []).length}  Pending births: ${state.pendingOffspringReservations || 0}`, 15, 262);
-            graphics.text(`View: ${state.viewMode || 'focused-garden'}  Zone: ${state.focusedZoneId || 'none'}`, 15, 274);
+            capture = telemetry?.sessionCapture || null;
+            worldLines = worldLines.concat([
+                `Adults ${state.butterflies.length} · Caterpillars ${(state.caterpillars || []).length}`,
+                `Hybrids ${(state.hybridJournal || []).length} · Pending births ${state.pendingOffspringReservations || 0}`,
+                `View ${state.viewMode || 'focused-garden'} · Zone ${state.focusedZoneId || 'none'}`
+            ]);
+            spatialFocus = this.buildSpatialFocusSnapshot(state);
+            if (spatialFocus?.lines?.length) {
+                worldLines = worldLines.concat(spatialFocus.lines.slice(0, 3));
+            }
+            mlExplainability = this.buildMlExplainabilitySnapshot(state);
         }
         const auditLabel = this.auditState.lastRunAt
             ? new Date(this.auditState.lastRunAt).toLocaleTimeString()
             : 'not run';
-        if (telemetry) {
-            graphics.text(`Perf avg: upd ${telemetry.averages.updateMs.toFixed(2)}ms  rnd ${telemetry.averages.renderMs.toFixed(2)}ms`, 15, 286);
-            graphics.text(`Particles: ${telemetry.lastRenderSample?.particleCount || 0}  p-rnd ${telemetry.averages.particleRenderMs.toFixed(2)}ms`, 15, 298);
-        } else {
-            graphics.text('Perf avg: telemetry unavailable', 15, 286);
-            graphics.text('Particles: telemetry unavailable', 15, 298);
+
+        const controlLines = [
+            'Use the button dock for spawn and hatch actions',
+            'Save / restore / verify / audit are button-driven',
+            'Start Capture records a live session log',
+            'Reset Progression resets the fresh ecology state',
+            'No live debug placement hotkeys are bound',
+            'Journal and rename stay in the main UI'
+        ];
+
+        const auditActionLines = [
+            'Start Capture | Export Capture',
+            'Save Game · Restore Save · Verify Roundtrip',
+            'Capture Snapshot · Compare Snapshots',
+            'Load Audit Preset · Export Audit Setup',
+            'Import Audit Setup · Audit World',
+            'New Replay Seed'
+        ];
+
+        const performanceLines = telemetry
+            ? [
+                `Update ${telemetry.averages.updateMs.toFixed(2)}ms · Render ${telemetry.averages.renderMs.toFixed(2)}ms`,
+                `Particles ${telemetry.lastRenderSample?.particleCount || 0} · Particle render ${telemetry.averages.particleRenderMs.toFixed(2)}ms`
+            ]
+            : [
+                'Telemetry unavailable',
+                'No performance sample yet'
+            ];
+
+        if (capture) {
+            performanceLines.push(`Capture ${capture.active ? 'ON' : 'off'} · events ${capture.timelineCount || 0} · issues ${capture.runtimeIssueCount || 0}`);
         }
-        graphics.text(this.truncateDebugText(`Replay: ${replay?.sessionId || 'none'} | seed ${replay?.seed ?? 'n/a'} | markers ${replay?.markers?.length || 0}`), 15, 310);
-        graphics.text(this.truncateDebugText(`Audit: ${this.auditState.lastAction} | ${this.auditState.lastStatus} | mismatches ${this.auditState.lastMismatchCount}`), 15, 322);
-        if (this.auditState.lastError) {
-            graphics.text(this.truncateDebugText(`Last detail: ${this.auditState.lastError}`), 15, 334);
-        } else {
-            graphics.text(`Last detail: ${auditLabel}`, 15, 334);
+
+        if (capture && performanceLines.length) {
+            performanceLines[performanceLines.length - 1] = this.getCaptureAuditLine(capture);
         }
-        graphics.text(this.truncateDebugText(`Snapshot: ${this.auditState.snapshotLabel}  Invariants: ${this.auditState.invariantFailures}`), 15, 348);
-        graphics.text(this.truncateDebugText(`Diff: ${this.auditState.comparedSnapshots}`), 15, 360);
-        graphics.text(this.truncateDebugText(`Preset: ${this.auditState.scenarioLabel}`), 15, 372);
-        graphics.text(this.truncateDebugText(`Gameplay audit: ${this.auditState.gameplayAuditStatus}`), 15, 384);
-        graphics.text(`Saved audit reports: ${this.auditState.savedAuditReports}`, 15, 396);
-        graphics.text(this.truncateDebugText(`Latest report: ${this.summarizeAuditReport(latestReport)}`), 15, 408);
+
+        const memoryAuditLines = this.getMemoryAuditLines(telemetry);
+        if (memoryAuditLines.length) {
+            performanceLines.push(...memoryAuditLines);
+        }
+
+        if (mlExplainability?.lines?.length) {
+            performanceLines.push(...mlExplainability.lines);
+        }
+
+        const auditLines = [
+            `Status ${this.auditState.lastStatus} · ${this.auditState.lastAction}`,
+            `Mismatches ${this.auditState.lastMismatchCount} · Invariants ${this.auditState.invariantFailures}`,
+            `Snapshot ${this.auditState.snapshotLabel}`,
+            `Diff ${this.auditState.comparedSnapshots}`,
+            `Preset ${this.auditState.scenarioLabel}`,
+            `Gameplay audit ${this.auditState.gameplayAuditStatus}`,
+            `Detail ${this.auditState.lastDetail || this.auditState.lastError || auditLabel}`,
+            `Saved reports ${this.auditState.savedAuditReports}`,
+            `Latest report ${this.summarizeAuditReport(latestReport)}`
+        ];
+
+        const replayLines = [
+            `Session ${replay?.sessionId || 'none'}`,
+            `Seed ${replay?.seed ?? 'n/a'} · Markers ${replay?.markers?.length || 0}`,
+            `Last marker ${this.summarizeReplayMarker(latestReplayMarker)}`
+        ];
+
         const eventHistorySize = typeof eventBus !== 'undefined' ? eventBus.getHistory?.().length || 0 : 0;
-        graphics.text(this.truncateDebugText(`Last replay marker: ${this.summarizeReplayMarker(latestReplayMarker)}`), 15, 420);
-        graphics.text(`Event timeline entries: ${eventHistorySize}`, 15, 432);
-
         const recentEvents = typeof eventBus !== 'undefined'
-            ? (eventBus.getHistory?.() || []).slice(-3).reverse()
+            ? (eventBus.getHistory?.() || []).slice(-2).reverse()
             : [];
-        let eventY = 446;
-        for (const entry of recentEvents) {
-            graphics.text(this.truncateDebugText(`- ${this.summarizeEventEntry(entry)}`), 15, eventY);
-            eventY += 12;
+        const battleEvents = typeof battleSystem !== 'undefined'
+            ? (battleSystem.getRecentBattleEvents?.(gameCore?.getGameState?.().activeBattleId || null, 1) || [])
+            : [];
+        const eventLines = [`Timeline entries ${eventHistorySize}`]
+            .concat(recentEvents.map(entry => this.summarizeEventEntry(entry)))
+            .concat(battleEvents.map(entry => `Battle ${this.summarizeBattleEventEntry(entry)}`));
+
+        const godModeMinWidth = Math.min(Math.max(220, Math.floor(canvasWidth * 0.22)), 300);
+        const availableSideWidth = canvasWidth - panelX - panelWidth - 20;
+        let canUseSideToolsDeck = availableSideWidth >= godModeMinWidth;
+        let godModePanelWidth = canUseSideToolsDeck
+            ? Math.min(Math.max(godModeMinWidth, availableSideWidth), 300)
+            : panelWidth;
+
+        const sections = {
+            control: measureSection(controlLines, columnWidth),
+            auditActions: measureSection(auditActionLines, columnWidth),
+            replay: measureSection(replayLines.concat(eventLines).slice(0, 6), columnWidth, 12),
+            world: measureSection(worldLines, columnWidth),
+            performance: measureSection(performanceLines, columnWidth),
+            audit: measureSection(auditLines, columnWidth, 12)
+        };
+
+        let leftY = panelY + headerHeight + innerPadding;
+        let rightY = panelY + headerHeight + innerPadding;
+
+        const leftHeights = [
+            sections.control.height,
+            sections.auditActions.height,
+            sections.replay.height
+        ];
+        const rightHeights = [
+            sections.world.height,
+            sections.performance.height,
+            sections.audit.height
+        ];
+        const contentHeight = Math.max(
+            leftHeights.reduce((sum, value) => sum + value, 0) + (sectionGap * (leftHeights.length - 1)),
+            rightHeights.reduce((sum, value) => sum + value, 0) + (sectionGap * (rightHeights.length - 1))
+        );
+        let panelHeight = headerHeight + innerPadding + contentHeight + innerPadding;
+
+        const buttonGap = 8;
+        const buttonInnerPadding = 10;
+        const buttonTitleHeight = 24;
+        const buttonHeight = 34;
+        const buttonColumns = godModePanelWidth >= 250 ? 2 : 1;
+        const buttonWidth = Math.floor((godModePanelWidth - (buttonInnerPadding * 2) - (buttonGap * (buttonColumns - 1))) / buttonColumns);
+        const buttonRows = Math.ceil(this.godModeButtons.length / buttonColumns);
+        const godModePanelHeight = buttonTitleHeight + buttonInnerPadding + (buttonRows * buttonHeight) + ((buttonRows - 1) * buttonGap) + buttonInnerPadding;
+
+        if (canUseSideToolsDeck && (panelX + panelWidth + 10 + godModePanelWidth) > (canvasWidth - 10)) {
+            canUseSideToolsDeck = false;
+            godModePanelWidth = panelWidth;
         }
 
-        const battleEvents = typeof battleSystem !== 'undefined'
-            ? (battleSystem.getRecentBattleEvents?.(gameCore?.getGameState?.().activeBattleId || null, 3) || [])
-            : [];
-        if (battleEvents.length > 0) {
-            graphics.text(`Battle log entries: ${battleEvents.length}`, 15, eventY + 2);
-            eventY += 14;
-            for (const entry of battleEvents) {
-                graphics.text(this.truncateDebugText(`= ${this.summarizeBattleEventEntry(entry)}`), 15, eventY);
-                eventY += 12;
-            }
+        if (!canUseSideToolsDeck) {
+            panelHeight += 12 + godModePanelHeight;
         }
+
+        const maxPanelHeight = canvasHeight - 20;
+        if (panelHeight > maxPanelHeight) {
+            panelHeight = maxPanelHeight;
+        }
+
+        graphics.fill(0, 0, 0, 196);
+        graphics.stroke(230, 236, 246, 110);
+        graphics.strokeWeight(1);
+        graphics.rect(panelX, panelY, panelWidth, panelHeight, 8);
+
+        graphics.noStroke();
+        graphics.fill(255);
+        graphics.textAlign(LEFT, TOP);
+        graphics.textSize(14);
+        graphics.text('DEBUG MODE', panelX + 12, panelY + 10);
+        graphics.textSize(10);
+        graphics.fill(220);
+        graphics.text('D toggles debug overlay', panelX + 12, panelY + 28);
+
+        drawSection('Mode / Buttons', leftColumnX, leftY, columnWidth, sections.control.wrapped);
+        leftY += sections.control.height + sectionGap;
+        drawSection('Audit Actions', leftColumnX, leftY, columnWidth, sections.auditActions.wrapped);
+        leftY += sections.auditActions.height + sectionGap;
+        drawSection('Replay / Timeline', leftColumnX, leftY, columnWidth, sections.replay.wrapped, 12);
+
+        drawSection('World State', rightColumnX, rightY, columnWidth, sections.world.wrapped);
+        rightY += sections.world.height + sectionGap;
+        drawSection('Performance', rightColumnX, rightY, columnWidth, sections.performance.wrapped);
+        rightY += sections.performance.height + sectionGap;
+        drawSection('Audit Status', rightColumnX, rightY, columnWidth, sections.audit.wrapped, 12);
+
+        const godModeX = canUseSideToolsDeck ? panelX + panelWidth + 10 : panelX;
+        const godModeY = canUseSideToolsDeck ? panelY : panelY + panelHeight - godModePanelHeight;
+        const godModeWidth = godModePanelWidth;
+
+        this.godModeButtonRects = [];
+
+        graphics.fill(0, 0, 0, 188);
+        graphics.stroke(230, 236, 246, 90);
+        graphics.strokeWeight(1);
+        graphics.rect(godModeX, godModeY, godModeWidth, godModePanelHeight, 8);
+
+        graphics.fill(255);
+        graphics.noStroke();
+        graphics.textAlign(LEFT, TOP);
+        graphics.textSize(11);
+        graphics.text('GOD MODE', godModeX + buttonInnerPadding, godModeY + 8);
+
+        for (let index = 0; index < this.godModeButtons.length; index++) {
+            const button = this.godModeButtons[index];
+            const column = index % buttonColumns;
+            const row = Math.floor(index / buttonColumns);
+            const buttonX = godModeX + buttonInnerPadding + (column * (buttonWidth + buttonGap));
+            const buttonY = godModeY + buttonTitleHeight + buttonInnerPadding + (row * (buttonHeight + buttonGap));
+
+            graphics.fill(60, 60, 60);
+            graphics.stroke(120);
+            graphics.strokeWeight(1);
+            graphics.rect(buttonX, buttonY, buttonWidth, buttonHeight, 4);
+
+            graphics.fill(255);
+            graphics.noStroke();
+            graphics.textAlign(CENTER, CENTER);
+            graphics.textSize(10);
+            drawWrappedButtonLabel(button.text, buttonX + (buttonWidth / 2), buttonY + (buttonHeight / 2), buttonWidth);
+
+            this.godModeButtonRects.push({
+                id: button.id,
+                x: buttonX,
+                y: buttonY,
+                width: buttonWidth,
+                height: buttonHeight
+            });
+        }
+
+        this.lastDebugPanelBounds = {
+            x: panelX,
+            y: panelY,
+            width: panelWidth,
+            height: panelHeight,
+            godModeX,
+            godModeY,
+            godModeWidth,
+            godModeHeight: godModePanelHeight
+        };
+
+        graphics.textSize(12);
+    }
+
+    drawDebugDockUI(graphics) {
+        const replay = this.syncReplayAuditState();
+        const latestReport = this.getLatestAuditReport();
+        const latestReplayMarker = Array.isArray(replay?.markers) && replay.markers.length > 0
+            ? replay.markers[replay.markers.length - 1]
+            : null;
+        const gridLabel = gridManager?.tileWidth && gridManager?.tileHeight
+            ? `${gridManager.tileWidth}x${gridManager.tileHeight}px iso`
+            : 'grid unavailable';
+        const canvasWidth = graphics?.width || gameConfig.canvas.targetWidth;
+        const canvasHeight = graphics?.height || gameConfig.canvas.targetHeight;
+        const state = (typeof gameCore !== 'undefined' && gameCore.isInitialized())
+            ? gameCore.getGameState()
+            : null;
+        const telemetry = state ? (gameCore.getTelemetrySnapshot?.() || null) : null;
+        const eventHistorySize = typeof eventBus !== 'undefined' ? eventBus.getHistory?.().length || 0 : 0;
+        const auditLabel = this.auditState.lastRunAt
+            ? new Date(this.auditState.lastRunAt).toLocaleTimeString()
+            : 'not run';
+
+        const dockMargin = 8;
+        const dockHeight = Math.min(Math.max(210, Math.floor(canvasHeight * 0.48)), 228);
+        const dockX = dockMargin;
+        const dockY = Math.max(dockMargin, canvasHeight - dockHeight - dockMargin);
+        const dockWidth = canvasWidth - (dockMargin * 2);
+        const headerHeight = 28;
+        const innerPadding = 10;
+        const sectionGap = 8;
+        const panelGap = 10;
+        const paneY = dockY + headerHeight + 4;
+        const paneHeight = dockHeight - headerHeight - 4;
+        const leftPaneWidth = Math.min(Math.max(300, Math.floor(dockWidth * 0.40)), 336);
+        const rightPaneWidth = dockWidth - leftPaneWidth - panelGap;
+        const leftPaneX = dockX;
+        const rightPaneX = leftPaneX + leftPaneWidth + panelGap;
+        const cardWidth = Math.floor((leftPaneWidth - innerPadding - sectionGap) / 2);
+
+        const measureSection = (lines, width, lineHeight = 11) => {
+            const maxChars = Math.max(18, Math.floor((width - 16) / 6.4));
+            const wrapped = lines.flatMap(line => this.wrapDebugText(line, maxChars));
+            const height = 24 + (wrapped.length * lineHeight) + 8;
+            return { wrapped, height };
+        };
+
+        const drawSection = (title, x, y, width, wrappedLines, lineHeight = 11) => {
+            const height = 24 + (wrappedLines.length * lineHeight) + 8;
+            graphics.fill(0, 0, 0, 186);
+            graphics.stroke(230, 236, 246, 90);
+            graphics.strokeWeight(1);
+            graphics.rect(x, y, width, height, 7);
+            graphics.noStroke();
+            graphics.fill(255, 245, 220, 255);
+            graphics.textAlign(LEFT, TOP);
+            graphics.textSize(10);
+            graphics.text(title, x + 8, y + 7);
+            graphics.fill(240, 244, 250, 255);
+            graphics.textSize(9);
+            let lineY = y + 18;
+            for (const line of wrappedLines) {
+                graphics.text(line, x + 8, lineY);
+                lineY += lineHeight;
+            }
+            return height;
+        };
+
+        const drawWrappedButtonLabel = (text, centerX, centerY, width) => {
+            const maxChars = Math.max(10, Math.floor((width - 14) / 7));
+            const wrapped = this.wrapDebugText(text, maxChars).slice(0, 2);
+            if (wrapped.length === 1) {
+                graphics.text(wrapped[0], centerX, centerY + 1);
+                return;
+            }
+            const baseY = centerY - 5;
+            graphics.text(wrapped[0], centerX, baseY);
+            graphics.text(wrapped[1], centerX, baseY + 10);
+        };
+
+        const actionIdIsBusy = (actionId, resetting) => resetting && actionId !== 'loadGameState';
+        /* Legacy info pane removed in favor of button-only dock.
+
+        const controlLines = [
+            `Cursor ${this.cursorX},${this.cursorY} · Tool ${this.selectedTool}`,
+            `Bounds 0,0 to ${gridManager.bounds.maxX},${gridManager.bounds.maxY}`,
+            `Arrows move · Q/E switch · ${this.selectedTool === 'walkable' || this.selectedTool === 'blocked' ? 'Space toggle tile' : 'Space place entity'}`,
+            `Grid ${this.showGridOverlay ? 'on' : 'auto'} · Paths ${this.showPathOverlay ? 'on' : 'off'} · Sex ${this.showSexLabels ? 'on' : 'off'}`,
+            `Grid ${gridLabel}`,
+            'X exports data',
+            'Audit K/L/V/N/P/O/U/Y/J'
+        ];
+
+        const worldLines = [
+            `Adults ${state?.butterflies?.length || 0} · Flowers ${state?.flowers?.length || 0}`,
+            `Cats ${(state?.caterpillars || []).length} · Hybrids ${(state?.hybridJournal || []).length}`,
+            `Zone ${state?.focusedZoneId || 'none'} · View ${state?.viewMode || 'focused-garden'}`,
+            `Reset ${gameCore?.isResettingGame ? 'running' : 'idle'}`
+        ];
+
+        const auditActionLines = [
+            'K save · L load · V verify',
+            'N snapshot diff · P preset',
+            'O export · U import',
+            'Y gameplay audit · J reseed'
+        ];
+
+        const auditLines = [
+            `Action ${this.truncateDebugText(this.auditState.lastAction, 18)}`,
+            `Status ${this.auditState.lastStatus} · Mismatch ${this.auditState.lastMismatchCount}`,
+            `Preset ${this.auditState.scenarioLabel} · Audit ${this.auditState.gameplayAuditStatus}`,
+            `Snapshot ${this.auditState.snapshotLabel}`,
+            `Diff ${this.truncateDebugText(this.auditState.comparedSnapshots, 18)}`,
+            this.auditState.lastError ? `Detail ${this.truncateDebugText(this.auditState.lastError, 18)}` : `Detail ${auditLabel}`,
+            `Latest ${this.truncateDebugText(this.summarizeAuditReport(latestReport), 18)}`
+        ];
+
+        worldLines.push(`Session ${replay?.sessionId || 'none'} · Events ${eventHistorySize}`);
+
+        if (telemetry) {
+            auditLines.push(
+                `Perf ${telemetry.averages.updateMs.toFixed(2)} / ${telemetry.averages.renderMs.toFixed(2)} / ${telemetry.averages.particleRenderMs.toFixed(2)}ms`,
+                `Particles ${telemetry.lastRenderSample?.particleCount || 0} · Reports ${this.auditState.savedAuditReports}`
+            );
+        } else {
+            auditLines.push(
+                `Reports ${this.auditState.savedAuditReports}`,
+                'Perf sample pending'
+            );
+        }
+        auditLines.push(`Marker ${this.summarizeReplayMarker(latestReplayMarker)}`);
+
+        const leftInfoLines = controlLines;
+        const rightInfoLines = worldLines.concat(auditLines);
+        const sections = {
+            leftInfo: measureSection(leftInfoLines, cardWidth),
+            rightInfo: measureSection(rightInfoLines, cardWidth)
+        };
+
+        const rowOneHeight = Math.max(sections.leftInfo.height, sections.rightInfo.height);
+        const buttonGap = 6;
+        const buttonInnerPadding = 8;
+        const buttonTitleHeight = 18;
+        const buttonHeight = 24;
+        const buttonColumns = rightPaneWidth >= 400 ? 4 : 3;
+        const buttonWidth = Math.floor((rightPaneWidth - (buttonInnerPadding * 2) - (buttonGap * (buttonColumns - 1))) / buttonColumns);
+
+        graphics.fill(0, 0, 0, 202);
+        graphics.stroke(230, 236, 246, 100);
+        graphics.strokeWeight(1);
+        graphics.rect(dockX, dockY, dockWidth, dockHeight, 9);
+
+        graphics.noStroke();
+        graphics.fill(255);
+        graphics.textAlign(LEFT, TOP);
+        graphics.textSize(13);
+        graphics.text('GOD MODE', dockX + 12, dockY + 8);
+        graphics.textSize(9);
+        graphics.fill(225);
+        graphics.text(
+            gameCore?.isResettingGame
+                ? 'Reset in progress · simulation paused'
+                : 'Compact lower-area layout · heavy scene overlays disabled by default',
+            dockX + 108,
+            dockY + 11
+        );
+
+        const rowOneY = paneY + innerPadding;
+        drawSection('Controls / Audit Actions', leftPaneX + innerPadding, rowOneY, cardWidth, sections.leftInfo.wrapped);
+        drawSection('World / Audit Status', leftPaneX + innerPadding + cardWidth + sectionGap, rowOneY, cardWidth, sections.rightInfo.wrapped);
+
+        this.godModeButtonRects = [];
+        graphics.fill(0, 0, 0, 188);
+        graphics.stroke(230, 236, 246, 90);
+        graphics.strokeWeight(1);
+        graphics.rect(paneX, paneY, paneWidth, paneHeight, 8);
+
+        graphics.fill(255);
+        graphics.noStroke();
+        graphics.textAlign(LEFT, TOP);
+        graphics.textSize(11);
+        graphics.text('GOD MODE', rightPaneX + buttonInnerPadding, paneY + 8);
+
+        for (let index = 0; index < this.godModeButtons.length; index++) {
+            const button = this.godModeButtons[index];
+            const column = index % buttonColumns;
+            const row = Math.floor(index / buttonColumns);
+            const buttonX = rightPaneX + buttonInnerPadding + (column * (buttonWidth + buttonGap));
+            const buttonY = paneY + buttonTitleHeight + buttonInnerPadding + (row * (buttonHeight + buttonGap));
+
+            graphics.fill(actionIdIsBusy(button.id, gameCore?.isResettingGame) ? color(82, 82, 82) : color(60, 60, 60));
+            graphics.stroke(120);
+            graphics.strokeWeight(1);
+            graphics.rect(buttonX, buttonY, buttonWidth, buttonHeight, 4);
+
+            graphics.fill(255);
+            graphics.noStroke();
+            graphics.textAlign(CENTER, CENTER);
+            graphics.textSize(9);
+            drawWrappedButtonLabel(button.text, buttonX + (buttonWidth / 2), buttonY + (buttonHeight / 2), buttonWidth);
+
+            this.godModeButtonRects.push({
+                id: button.id,
+                x: buttonX,
+                y: buttonY,
+                width: buttonWidth,
+                height: buttonHeight
+            });
+        }
+
+        this.lastDebugPanelBounds = {
+            x: dockX,
+            y: dockY,
+            width: dockWidth,
+            height: dockHeight,
+            controlsPaneX: paneX,
+            controlsPaneY: paneY,
+            controlsPaneWidth: paneWidth,
+            controlsPaneHeight: paneHeight
+        };
+
+        graphics.textSize(12);
+    }
+
+    drawDebugDockUICompact(graphics) {
+        const canvasWidth = graphics?.width || gameConfig.canvas.targetWidth;
+        const canvasHeight = graphics?.height || gameConfig.canvas.targetHeight;
+        const reserveTop = Math.max(
+            300,
+            Math.min(canvasHeight - 88, gameConfig?.world?.mapGeometry?.uiReserveTop || (canvasHeight - 108))
+        );
+
+        const dockMargin = 8;
+        const dockHeight = Math.max(124, canvasHeight - reserveTop - dockMargin);
+        const dockWidth = Math.min(448, canvasWidth - (dockMargin * 2));
+        const dockX = canvasWidth - dockWidth - dockMargin;
+        const dockY = Math.max(reserveTop, canvasHeight - dockHeight - dockMargin);
+        const headerHeight = 18;
+        const innerPadding = 5;
+        const paneY = dockY + headerHeight + 2;
+        const paneHeight = dockHeight - headerHeight - 2;
+        const paneX = dockX + innerPadding;
+        const paneWidth = dockWidth - (innerPadding * 2);
+        const replay = null;
+        const leftPaneX = paneX;
+        const leftPaneWidth = 0;
+        const rightPaneX = paneX;
+        const rightPaneWidth = paneWidth;
+        const cardWidth = paneWidth;
+
+        const drawWrappedButtonLabel = (text, centerX, centerY, width) => {
+            const maxChars = Math.max(10, Math.floor((width - 14) / 7));
+            const wrapped = this.wrapDebugText(text, maxChars).slice(0, 2);
+            if (wrapped.length === 1) {
+                graphics.text(wrapped[0], centerX, centerY + 1);
+                return;
+            }
+            const baseY = centerY - 5;
+            graphics.text(wrapped[0], centerX, baseY);
+            graphics.text(wrapped[1], centerX, baseY + 10);
+        };
+
+        const actionIdIsBusy = (actionId, resetting) => resetting && actionId !== 'loadGameState';
+
+        /* Legacy info pane removed in favor of button-only dock.
+        const leftLines = wrapLines([
+            `Cursor ${this.cursorX},${this.cursorY} · Tool ${this.selectedTool}`,
+            `${this.selectedTool === 'walkable' || this.selectedTool === 'blocked' ? 'Space toggles tile state' : 'Space places entity'}`,
+            `Grid ${this.showGridOverlay ? 'on' : 'auto'} · Paths ${this.showPathOverlay ? 'on' : 'off'}`,
+            `Sex labels ${this.showSexLabels ? 'on' : 'off'} · X export`,
+            'Audit K/L/V/N/P/O/U/Y/J'
+        ], cardWidth);
+
+        const rightLines = wrapLines([
+            `Adults ${state?.butterflies?.length || 0} · Flowers ${state?.flowers?.length || 0}`,
+            `Cats ${(state?.caterpillars || []).length} · Hybrids ${(state?.hybridJournal || []).length}`,
+            `Zone ${state?.focusedZoneId || 'none'} · View ${state?.viewMode || 'focused-garden'}`,
+            `Reset ${gameCore?.isResettingGame ? 'running' : 'idle'} · Events ${eventHistorySize}`,
+            `Action ${this.truncateDebugText(this.auditState.lastAction, 16)} · ${this.auditState.lastStatus}`,
+            `Preset ${this.auditState.scenarioLabel} · Audit ${this.auditState.gameplayAuditStatus}`,
+            `Snapshot ${this.auditState.snapshotLabel} · Diff ${this.truncateDebugText(this.auditState.comparedSnapshots, 12)}`,
+            this.auditState.lastError ? `Detail ${this.truncateDebugText(this.auditState.lastError, 18)}` : `Detail ${auditLabel}`,
+            telemetry
+                ? `Perf U${telemetry.averages.updateMs.toFixed(1)} R${telemetry.averages.renderMs.toFixed(1)} P${telemetry.averages.particleRenderMs.toFixed(1)}`
+                : 'Perf sample pending'
+        ], cardWidth);
+
+        */
+        const buttonGap = 4;
+        const buttonInnerPadding = 4;
+        const buttonTitleHeight = 10;
+        const buttonHeight = 15;
+        const buttonColumns = paneWidth >= 360 ? 4 : 3;
+        const buttonWidth = Math.floor((paneWidth - (buttonInnerPadding * 2) - (buttonGap * (buttonColumns - 1))) / buttonColumns);
+        const buttonRows = Math.ceil(this.godModeButtons.length / Math.max(1, buttonColumns));
+        const buttonsBottomY = paneY + buttonTitleHeight + buttonInnerPadding + ((buttonRows - 1) * (buttonHeight + buttonGap)) + buttonHeight;
+        const footerY = buttonsBottomY + 6;
+        const footerHeight = Math.max(44, (paneY + paneHeight) - footerY - 6);
+        const statusPalette = this.getAuditStatusPalette(this.auditState.lastStatus);
+        const statusLabel = (this.auditState.lastStatus || 'idle').toUpperCase();
+        const detailLine = this.truncateDebugText(
+            this.auditState.lastDetail || this.auditState.lastError || `Last update ${auditLabel}`,
+            72
+        );
+        const replayLine = `Session ${this.truncateDebugText(this.auditState.replaySessionLabel || 'none', 14)} | Seed ${this.truncateDebugText(this.auditState.replaySeedLabel || 'n/a', 12)}`;
+        const mismatchLine = `Mismatch ${this.auditState.lastMismatchCount} | Invariants ${this.auditState.invariantFailures} | Reports ${this.auditState.savedAuditReports}`;
+        const mlLine = this.getMlAuditLine();
+
+        graphics.fill(0, 0, 0, 202);
+        graphics.stroke(230, 236, 246, 100);
+        graphics.strokeWeight(1);
+        graphics.rect(dockX, dockY, dockWidth, dockHeight, 9);
+
+        graphics.noStroke();
+        graphics.fill(255);
+        graphics.textAlign(LEFT, TOP);
+        graphics.textSize(10);
+        graphics.text('GOD MODE', dockX + 12, dockY + 8);
+        /* graphics.textSize(8);
+        graphics.fill(225);
+        graphics.text(
+            gameCore?.isResettingGame
+                ? 'Reset in progress · simulation paused'
+                : `Compact lower-area layout · session ${this.truncateDebugText(replay?.sessionId || 'none', 12)}`,
+            dockX + 90,
+            dockY + 9
+        );
+
+        const cardY = paneY + innerPadding;
+        const leftCardX = leftPaneX + innerPadding;
+        drawCard('Controls / Audit', leftCardX, cardY, cardWidth, leftLines, 8, paneHeight - (innerPadding * 2)); */
+
+        this.godModeButtonRects = [];
+        graphics.fill(0, 0, 0, 188);
+        graphics.stroke(230, 236, 246, 90);
+        graphics.strokeWeight(1);
+        graphics.rect(rightPaneX, paneY, rightPaneWidth, paneHeight, 8);
+
+        graphics.fill(255);
+        graphics.noStroke();
+        graphics.textAlign(LEFT, TOP);
+        graphics.textSize(8);
+        graphics.text(
+            gameCore?.isResettingGame ? 'Resetting...' : 'Clickable debug actions',
+            paneX + buttonInnerPadding,
+            paneY + 6
+        );
+
+        for (let index = 0; index < this.godModeButtons.length; index++) {
+            const button = this.godModeButtons[index];
+            const column = index % buttonColumns;
+            const row = Math.floor(index / buttonColumns);
+            const buttonX = paneX + buttonInnerPadding + (column * (buttonWidth + buttonGap));
+            const buttonY = paneY + buttonTitleHeight + buttonInnerPadding + (row * (buttonHeight + buttonGap));
+
+            graphics.fill(actionIdIsBusy(button.id, gameCore?.isResettingGame) ? color(82, 82, 82) : color(60, 60, 60));
+            graphics.stroke(120);
+            graphics.strokeWeight(1);
+            graphics.rect(buttonX, buttonY, buttonWidth, buttonHeight, 4);
+
+            graphics.fill(255);
+            graphics.noStroke();
+            graphics.textAlign(CENTER, CENTER);
+            graphics.textSize(7);
+            drawWrappedButtonLabel(button.text, buttonX + (buttonWidth / 2), buttonY + (buttonHeight / 2), buttonWidth);
+
+            this.godModeButtonRects.push({
+                id: button.id,
+                x: buttonX,
+                y: buttonY,
+                width: buttonWidth,
+                height: buttonHeight
+            });
+        }
+
+        graphics.fill(...statusPalette.fill);
+        graphics.stroke(...statusPalette.stroke);
+        graphics.strokeWeight(1);
+        graphics.rect(paneX + 4, footerY, paneWidth - 8, footerHeight, 6);
+        graphics.noStroke();
+        graphics.fill(...statusPalette.text);
+        graphics.textAlign(LEFT, TOP);
+        graphics.textSize(7);
+        graphics.text(
+            `${statusLabel} · ${this.truncateDebugText(this.auditState.lastAction || 'None', 26)}`,
+            paneX + 10,
+            footerY + 6
+        );
+        graphics.text(detailLine, paneX + 10, footerY + 16);
+        graphics.text(mlLine, paneX + 10, footerY + 36);
+        graphics.text(`${replayLine} · ${mismatchLine}`, paneX + 10, footerY + 26);
+
+        this.lastDebugPanelBounds = {
+            x: dockX,
+            y: dockY,
+            width: dockWidth,
+            height: dockHeight,
+            controlsPaneX: rightPaneX,
+            controlsPaneY: paneY,
+            controlsPaneWidth: rightPaneWidth,
+            controlsPaneHeight: paneHeight
+        };
+
         graphics.textSize(12);
     }
     
@@ -1442,47 +2732,30 @@ class DebugUI {
         gridManager.drawBoundaryZones(graphics, zones);
     }
     
-    // Draw god mode testing buttons
     drawGodModeButtons(graphics) {
-        const buttonY = this.getGodModeButtonBaseY();
-        
-        graphics.push();
-        
-        // Draw button panel background
-        graphics.fill(0, 0, 0, 150);
-        graphics.noStroke();
-        graphics.rect(5, buttonY - 18, 470, 228);
-        
-        // Draw title
-        graphics.fill(255);
-        graphics.textAlign(LEFT);
-        graphics.textSize(10);
-        graphics.text('GOD MODE:', 10, buttonY - 10);
-        
-        // Draw buttons
-        for (let button of this.godModeButtons) {
-            // Button background
-            graphics.fill(60, 60, 60);
-            graphics.stroke(120);
-            graphics.strokeWeight(1);
-            graphics.rect(button.x, buttonY + button.y, button.width, button.height);
-            
-            // Button text
-            graphics.fill(255);
-            graphics.noStroke();
-            graphics.textAlign(CENTER);
-            graphics.textSize(11);
-            graphics.text(button.text, button.x + button.width/2, buttonY + button.y + 16);
-        }
-        
-        graphics.pop();
+        // Drawn inside drawDebugUI so it can participate in the responsive layout.
     }
 
     drawSexLabels(graphics) {
         if (!this.enabled || !this.showSexLabels) return;
         if (typeof gameCore === 'undefined' || !gameCore.isInitialized()) return;
 
-        const butterflies = gameCore.getGameState().butterflies || [];
+        const gameState = gameCore.getGameState();
+        const focusedZoneId = gameCore.getFocusedZoneId?.() || gameState?.focusedZoneId || null;
+        const region = focusedZoneId
+            ? gameCore.getZoneConfig?.(focusedZoneId)?.renderProfile?.screenRegion || null
+            : null;
+        const butterflies = (gameState?.butterflies || []).filter(butterfly => {
+            if (!butterfly?.id || butterfly.isSpawning || butterfly.zoneTravel?.active) return false;
+            if (focusedZoneId && (butterfly.currentZoneId || butterfly.lifeSim?.lifecycle?.currentZoneId) !== focusedZoneId) return false;
+            if (!region) return true;
+            const labelX = butterfly.x || 0;
+            const labelY = (butterfly.y || 0) - 21;
+            return labelX >= (region.minX - 16) &&
+                labelX <= (region.maxX + 16) &&
+                labelY >= (region.minY - 32) &&
+                labelY <= (region.maxY + 16);
+        });
         graphics.push();
         graphics.textAlign(CENTER, CENTER);
         graphics.textSize(12);

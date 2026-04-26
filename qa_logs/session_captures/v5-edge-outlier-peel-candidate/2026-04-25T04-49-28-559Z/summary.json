@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-edge-outlier-peel-candidate\\2026-04-25T04-49-28-559Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.483333321412404,
+      "avgRenderMs": 15.483333335320156,
+      "p95FrameMs": 26.40000009536743,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 9.160833326975505,
+      "avgRenderMs": 17.040833328167597,
+      "p95FrameMs": 32.49999976158142,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 19.591666650772094,
+      "avgRenderMs": 26.99500001470248,
+      "p95FrameMs": 62.30000019073486,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 8.883333337306976,
+      "avgRenderMs": 19.10999999046326,
+      "p95FrameMs": 36.80000019073486,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

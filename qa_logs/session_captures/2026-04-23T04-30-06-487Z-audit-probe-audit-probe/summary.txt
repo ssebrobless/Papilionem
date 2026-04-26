@@ -1,0 +1,56 @@
+Papilionem Session Capture
+session: audit-probe
+label: audit-probe
+started: unknown
+stopped: unknown
+durationMs: 1
+
+Runtime
+pressureTier: unknown
+lagCategory: unknown
+avgUpdateMs: 0.00
+avgRenderMs: 0.00
+avgParticleRenderMs: 0.00
+p50FrameMs: 0.00
+p95FrameMs: 0.00
+p99FrameMs: 0.00
+maxUpdateMs: 0.00
+maxRenderMs: 0.00
+maxParticleCount: 0
+compositeCallsPerFrame: 0.00
+uiRedrawCount: 0
+debugRedrawCount: 0
+timelineDroppedCount: 0
+frameTimesDroppedCount: 0
+runtimeIssuesDroppedCount: 0
+eventHistoryDroppedCount: 0
+heapSampleCount: 0
+peakHeapUsedMB: 0.00
+heap@10sMB: 0.00
+heap@60sMB: 0.00
+heap@10mMB: 0.00
+heap@20mMB: 0.00
+heap@40mMB: 0.00
+shell: unknown
+lagSummary: n/a
+topUpdate: none
+topRender: none
+
+Counts
+timelineEntries: 0
+eventHistoryEntries: 0
+replayMarkers: 0
+runtimeIssues: 0
+errors: 0
+warnings: 0
+freezeSuspects: 0
+spikes: 0
+snapshots: 0
+
+State
+start: unknown | none | butterflies 0 | blocks 0
+end: unknown | none | butterflies 0 | blocks 0
+
+Files
+capture: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-23T04-30-06-487Z-audit-probe-audit-probe\capture.json
+summary: C:\Users\fishe\Documents\projects\ephemera\qa_logs\session_captures\2026-04-23T04-30-06-487Z-audit-probe-audit-probe\summary.txt

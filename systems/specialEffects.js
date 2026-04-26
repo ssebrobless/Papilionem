@@ -1,481 +1,720 @@
-// Special Effects System - Handles visual effects for butterfly abilities and game events
 class SpecialEffectsSystem {
     constructor() {
         this.activeEffects = [];
+        this.maxActiveEffects = 18;
+        this.audioContext = null;
+        this.lastImpactSoundAt = 0;
         this.setupEventListeners();
     }
-    
+
     setupEventListeners() {
-        if (typeof eventBus === 'undefined' || typeof GameEvents === 'undefined') return;
-        
-        // Listen for special ability events
-        eventBus.on('speedzone:created', (data) => {
-            this.addSpeedZoneEffect(data.x, data.y, data.radius);
+        if (typeof eventBus === 'undefined') return;
+
+        eventBus.on('ability:visual', data => this.addAbilityVisualEffect(data));
+        eventBus.on('mating:visual', data => this.addMatingHeartsEffect(data));
+        eventBus.on('pollen:sprinkle', data => this.addPollenSprinkleEffect(data));
+        eventBus.on('cursor:pet', data => this.addPetEffect(data));
+        eventBus.on('cursor:clap', data => {
+            this.addClapEffect(data);
+            this.playClapSound();
         });
-        
-        eventBus.on('trust:cascade', (data) => {
-            this.addTrustCascadeEffect(data.x, data.y, data.butterflies);
-        });
-        
-        eventBus.on('teaching:pulse', (data) => {
-            this.addTeachingPulseEffect(data.x, data.y);
-        });
-        
-        eventBus.on('combo:achieved', (data) => {
-            this.addComboEffect(data.x, data.y, data.combo);
-        });
-        
-        eventBus.on('butterfly:collected', (data) => {
-            this.addCollectionEffect(data.butterfly);
+        eventBus.on('training:impact', data => {
+            this.addTrainingImpactEffect(data);
+            this.playTrainingImpactSound();
         });
     }
-    
-    // Add a speed zone visual effect
-    addSpeedZoneEffect(x, y, radius) {
-        this.activeEffects.push({
-            type: 'speedzone',
-            x: x,
-            y: y,
-            radius: radius,
-            maxRadius: radius * 3,
-            lifetime: 120, // 2 seconds
-            maxLifetime: 120,
-            color: [200, 150, 255], // Purple for speed
-            pulseSpeed: 0.1
+
+    countNearbyEffects(type, x, y, radius = 48) {
+        let count = 0;
+        for (const effect of this.activeEffects) {
+            if (type && effect.type !== type) continue;
+            const effectX = effect.x ?? effect.startX;
+            const effectY = effect.y ?? effect.startY;
+            if (typeof effectX !== 'number' || typeof effectY !== 'number') continue;
+            if (dist(effectX, effectY, x, y) <= radius) count++;
+        }
+        return count;
+    }
+
+    addEffect(effect) {
+        if (!effect) return;
+        const pressure = this.getPressureProfile();
+        const normalized = {
+            ...effect,
+            priority: effect.priority ?? this.getEffectPriority(effect)
+        };
+        const budget = this.getEffectBudget(pressure);
+        if (normalized.priority <= 1 && pressure.isCritical) return;
+        if (normalized.priority <= 1 && pressure.isHot && this.activeEffects.length >= Math.max(4, budget - 2)) return;
+        if (this.activeEffects.length >= budget && !this.pruneForIncomingEffect(normalized, pressure, budget)) {
+            return;
+        }
+        this.activeEffects.push(normalized);
+    }
+
+    findTrackedEntity(sourceId) {
+        if (!sourceId) return null;
+        const state = gameCore?.gameState;
+        if (!state) return null;
+        const collections = [
+            ...(state.butterflies || []),
+            ...(state.caterpillars || []),
+            ...(state.flowers || [])
+        ];
+        return collections.find(entity => entity?.id === sourceId) || null;
+    }
+
+    syncEffectAnchor(effect) {
+        if (!effect?.sourceId) return;
+        const source = this.findTrackedEntity(effect.sourceId);
+        if (!source || !Number.isFinite(source.x) || !Number.isFinite(source.y)) return;
+        effect.x = source.x;
+        effect.y = source.y;
+        effect.zoneId = source.currentZoneId || source.lifeSim?.lifecycle?.currentZoneId || effect.zoneId || null;
+    }
+
+    shouldDrawEffect(effect) {
+        if (!effect) return false;
+        if (renderManager?.viewState?.battleActive) return true;
+        const focusedZoneId = gameCore?.getFocusedZoneId?.() || null;
+        if (!focusedZoneId) return true;
+        if (!effect.zoneId) return true;
+        return effect.zoneId === focusedZoneId;
+    }
+
+    isEffectOnScreen(effect, padding = 32) {
+        if (!effect || !Number.isFinite(effect.x) || !Number.isFinite(effect.y)) return false;
+        const width = gameConfig?.canvas?.baseWidth || 800;
+        const height = gameConfig?.canvas?.baseHeight || 600;
+        const radius = Math.max(
+            effect.abilityRadius || 0,
+            effect.maxRadius || 0,
+            effect.radius || 0,
+            14
+        );
+        return effect.x >= -radius - padding
+            && effect.x <= width + radius + padding
+            && effect.y >= -radius - padding
+            && effect.y <= height + radius + padding;
+    }
+
+    getVisibleEffectCount() {
+        let count = 0;
+        for (const effect of this.activeEffects) {
+            if (this.shouldDrawEffect(effect) && this.isEffectOnScreen(effect)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    getPressureProfile() {
+        return gameCore?.telemetrySystem?.getPressureProfile?.()
+            || telemetrySystem?.getPressureProfile?.()
+            || {
+                tier: 'normal',
+                isHot: false,
+                isCritical: false,
+                visibleEffects: this.getVisibleEffectCount()
+            };
+    }
+
+    getEffectBudget(pressure = this.getPressureProfile()) {
+        switch (pressure?.tier) {
+            case 'critical':
+                return 8;
+            case 'hot':
+                return 11;
+            case 'warm':
+                return 14;
+            default:
+                return this.maxActiveEffects;
+        }
+    }
+
+    getEffectPriority(effect) {
+        switch (effect?.type) {
+            case 'abilityring':
+            case 'abilitysymbol':
+                return 3;
+            case 'trainingimpact':
+            case 'clappulse':
+                return 2;
+            case 'pollensprinkle':
+            case 'matinghearts':
+            case 'petpulse':
+                return 1;
+            default:
+                return 1;
+        }
+    }
+
+    pruneForIncomingEffect(incomingEffect, pressure = this.getPressureProfile(), budget = this.getEffectBudget(pressure)) {
+        let candidateIndex = -1;
+        let candidateScore = Number.POSITIVE_INFINITY;
+        const incomingPriority = incomingEffect?.priority ?? this.getEffectPriority(incomingEffect);
+
+        for (let i = 0; i < this.activeEffects.length; i++) {
+            const effect = this.activeEffects[i];
+            const priority = effect.priority ?? this.getEffectPriority(effect);
+            if (priority > incomingPriority && pressure?.isHot) continue;
+            const visible = this.shouldDrawEffect(effect) && this.isEffectOnScreen(effect);
+            const lifetimeRatio = (effect.maxLifetime && effect.lifetime)
+                ? (effect.lifetime / Math.max(1, effect.maxLifetime))
+                : 0;
+            const score = (priority * 100) + (visible ? 40 : 0) + lifetimeRatio;
+            if (score < candidateScore) {
+                candidateScore = score;
+                candidateIndex = i;
+            }
+        }
+
+        if (candidateIndex === -1) {
+            return false;
+        }
+
+        if (this.activeEffects.length >= budget) {
+            this.activeEffects.splice(candidateIndex, 1);
+            return true;
+        }
+        return false;
+    }
+
+    getRenderPressureProfile() {
+        const pressure = this.getPressureProfile();
+        const avgRenderMs = pressure?.avgRenderMs || 0;
+        const visibleEffects = pressure?.visibleEffects ?? this.getVisibleEffectCount();
+
+        let tier = 'full';
+        if (pressure?.isCritical || avgRenderMs > 110 || visibleEffects >= 10) {
+            tier = 'minimal';
+        } else if (pressure?.isHot || avgRenderMs > 60 || visibleEffects >= 6) {
+            tier = 'simplified';
+        }
+
+        return {
+            tier,
+            ringPulseScale: tier === 'full' ? 0.03 : tier === 'simplified' ? 0.015 : 0,
+            pollenBudget: tier === 'minimal' ? 6 : tier === 'simplified' ? 9 : 14,
+            heartBudget: tier === 'minimal' ? 2 : tier === 'simplified' ? 3 : 5,
+            minimalSymbolBadge: tier === 'minimal'
+        };
+    }
+
+    getAbilityVisualDefaults(ability = 'ability') {
+        switch (ability) {
+            case 'welcome':
+                return {
+                    visualStyle: 'ring',
+                    abilityRadius: 90,
+                    durationFrames: 28,
+                    primaryColor: [255, 165, 0],
+                    secondaryColor: [255, 215, 0]
+                };
+            case 'sparkle':
+                return {
+                    visualStyle: 'trail',
+                    durationFrames: 0,
+                    primaryColor: [255, 182, 193],
+                    secondaryColor: [255, 20, 147]
+                };
+            case 'speedzone':
+                return {
+                    visualStyle: 'ring',
+                    abilityRadius: 100,
+                    durationFrames: 32,
+                    primaryColor: [138, 43, 226],
+                    secondaryColor: [75, 0, 130]
+                };
+            case 'cascade':
+                return {
+                    visualStyle: 'symbol',
+                    durationFrames: 30,
+                    symbol: '🤝',
+                    fallbackSymbol: 'S',
+                    primaryColor: [0, 255, 127],
+                    secondaryColor: [32, 178, 170]
+                };
+            case 'teacher':
+                return {
+                    visualStyle: 'symbol',
+                    durationFrames: 30,
+                    symbol: '📘',
+                    fallbackSymbol: 'T',
+                    primaryColor: [72, 61, 139],
+                    secondaryColor: [106, 90, 205]
+                };
+            case 'shimmer':
+                return {
+                    visualStyle: 'ring',
+                    abilityRadius: 85,
+                    durationFrames: 26,
+                    primaryColor: [218, 112, 214],
+                    secondaryColor: [0, 255, 255]
+                };
+            case 'golden':
+                return {
+                    visualStyle: 'symbol',
+                    durationFrames: 32,
+                    symbol: '👑',
+                    fallbackSymbol: '★',
+                    primaryColor: [255, 215, 0],
+                    secondaryColor: [255, 255, 100]
+                };
+            default:
+                return {
+                    visualStyle: 'symbol',
+                    durationFrames: 24,
+                    symbol: '✦',
+                    fallbackSymbol: '*',
+                    primaryColor: [255, 255, 255],
+                    secondaryColor: [200, 200, 200]
+                };
+        }
+    }
+
+    getGroundPlaneProfile() {
+        return renderManager?.getGroundPlaneProfile?.()
+            || gameConfig?.world?.mapGeometry?.groundPlane
+            || {
+                ellipseScaleY: 0.56,
+                haloScaleY: 0.6,
+                centerYOffset: 3
+            };
+    }
+
+    drawGroundPlaneEllipse(graphics, x, y, width, options = {}) {
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width)) return;
+        const profile = this.getGroundPlaneProfile();
+        const ellipseScaleY = options.heightScale
+            || profile.ellipseScaleY
+            || 0.56;
+        const centerYOffset = Number.isFinite(options.centerYOffset)
+            ? options.centerYOffset
+            : (profile.centerYOffset || 0);
+        const height = width * ellipseScaleY;
+        graphics.ellipse(x, y + centerYOffset, width, height);
+    }
+
+    addAbilityVisualEffect(data = {}) {
+        const ability = data.ability || 'ability';
+        const defaults = this.getAbilityVisualDefaults(ability);
+        const visualStyle = data.visualStyle || defaults.visualStyle || 'symbol';
+        if (visualStyle === 'trail') return;
+
+        const sourceId = data.sourceId || null;
+        const source = this.findTrackedEntity(sourceId);
+        const x = source?.x ?? data.x;
+        const y = source?.y ?? data.y;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
+        const effectType = visualStyle === 'ring' ? 'abilityring' : 'abilitysymbol';
+        const durationFrames = Math.max(8, data.durationFrames || defaults.durationFrames || 24);
+        const existing = sourceId
+            ? this.activeEffects.find(effect =>
+                effect.type === effectType &&
+                effect.sourceId === sourceId &&
+                effect.ability === ability)
+            : null;
+
+        if (existing) {
+            existing.x = x;
+            existing.y = y;
+            existing.lifetime = durationFrames;
+            existing.maxLifetime = durationFrames;
+            existing.primaryColor = data.primaryColor || defaults.primaryColor || existing.primaryColor;
+            existing.secondaryColor = data.secondaryColor || defaults.secondaryColor || existing.secondaryColor;
+            existing.abilityRadius = Math.max(12, data.abilityRadius || defaults.abilityRadius || existing.abilityRadius || 24);
+            existing.symbol = data.symbol || defaults.symbol || existing.symbol || null;
+            existing.fallbackSymbol = data.fallbackSymbol || defaults.fallbackSymbol || existing.fallbackSymbol || null;
+            return;
+        }
+
+        if (!sourceId && this.countNearbyEffects(effectType, x, y, visualStyle === 'ring' ? 48 : 22) >= 1) return;
+
+        this.addEffect({
+            type: effectType,
+            ability,
+            sourceId,
+            zoneId: source?.currentZoneId || source?.lifeSim?.lifecycle?.currentZoneId || data.zoneId || null,
+            x,
+            y,
+            lifetime: durationFrames,
+            maxLifetime: durationFrames,
+            abilityRadius: Math.max(12, data.abilityRadius || defaults.abilityRadius || 24),
+            symbol: data.symbol || defaults.symbol || null,
+            fallbackSymbol: data.fallbackSymbol || defaults.fallbackSymbol || null,
+            phaseOffset: random(0, 200),
+            primaryColor: data.primaryColor || defaults.primaryColor || [255, 255, 255],
+            secondaryColor: data.secondaryColor || defaults.secondaryColor || data.primaryColor || defaults.primaryColor || [255, 255, 255]
         });
     }
-    
-    // Add trust cascade visual effect
-    addTrustCascadeEffect(x, y, butterflies) {
-        // Create ripple effect from source butterfly
-        this.activeEffects.push({
-            type: 'trustcascade',
-            x: x,
-            y: y,
-            radius: 20,
-            maxRadius: 150,
-            lifetime: 90, // 1.5 seconds
-            maxLifetime: 90,
-            color: [100, 255, 200], // Teal for trust
-            waveCount: 3
-        });
-        
-        // Create connection lines to affected butterflies
-        for (let butterfly of butterflies) {
-            this.activeEffects.push({
-                type: 'trustline',
-                startX: x,
-                startY: y,
-                endX: butterfly.x,
-                endY: butterfly.y,
-                lifetime: 60,
-                maxLifetime: 60,
-                color: [100, 255, 200]
+
+    addMatingHeartsEffect(data = {}) {
+        if (!Number.isFinite(data.x) || !Number.isFinite(data.y)) return;
+        if (this.getPressureProfile().isHot) return;
+        if (this.countNearbyEffects('matinghearts', data.x, data.y, 30) >= 1) return;
+
+        const hearts = [];
+        for (let i = 0; i < 5; i++) {
+            hearts.push({
+                x: random(-9, 9),
+                y: random(-7, 7),
+                driftX: random(-0.18, 0.18),
+                driftY: random(-0.55, -0.25),
+                size: random(5, 7)
             });
         }
-    }
-    
-    // Add teaching pulse effect
-    addTeachingPulseEffect(x, y) {
-        this.activeEffects.push({
-            type: 'teachingpulse',
-            x: x,
-            y: y,
-            radius: 30,
-            maxRadius: 80,
-            lifetime: 45,
-            maxLifetime: 45,
-            color: [180, 140, 220] // Wise purple
+
+        this.addEffect({
+            type: 'matinghearts',
+            priority: 1,
+            zoneId: data.zoneId || null,
+            x: data.x,
+            y: data.y,
+            hearts,
+            lifetime: 34,
+            maxLifetime: 34
         });
     }
-    
-    // Add combo visual effect
-    addComboEffect(x, y, comboCount) {
-        // Create combo text effect
-        this.activeEffects.push({
-            type: 'combotext',
-            x: x,
-            y: y,
-            text: `${comboCount}x COMBO!`,
-            lifetime: 90,
-            maxLifetime: 90,
-            size: 16 + comboCount * 2, // Bigger text for higher combos
-            color: [255, 255, 100]
-        });
-        
-        // Create star burst for high combos
-        if (comboCount >= 3) {
-            const starCount = 8 + comboCount * 2;
-            for (let i = 0; i < starCount; i++) {
-                const angle = (TWO_PI / starCount) * i;
-                this.activeEffects.push({
-                    type: 'combostar',
-                    x: x,
-                    y: y,
-                    vx: cos(angle) * 3,
-                    vy: sin(angle) * 3,
-                    lifetime: 60,
-                    maxLifetime: 60,
-                    size: 4,
-                    color: [255, 215, 0]
-                });
-            }
+
+    addPollenSprinkleEffect(data = {}) {
+        if (!Number.isFinite(data.x) || !Number.isFinite(data.y)) return;
+        if (this.getPressureProfile().isCritical) return;
+
+        const particles = [];
+        for (let i = 0; i < 14; i++) {
+            particles.push({
+                x: random(-7, 7),
+                y: random(-12, 2),
+                vx: random(-0.22, 0.22),
+                vy: random(-0.12, 0.28),
+                size: random(1.5, 2.8),
+                color: random([
+                    [255, 243, 160],
+                    [255, 224, 120],
+                    [255, 210, 90]
+                ])
+            });
         }
-    }
-    
-    // Add butterfly collection celebration effect
-    addCollectionEffect(butterfly) {
-        const x = butterfly.x;
-        const y = butterfly.y;
-        
-        // Just create the rising text with collection count
-        const collectedCount = gameCore.gameState.collectedButterflies.size;
-        this.activeEffects.push({
-            type: 'collectiontext',
-            x: x,
-            y: y - 30,
-            text: `${collectedCount}/7 COLLECTED!`,
-            lifetime: 150,
-            maxLifetime: 150,
-            size: 24,
-            color: [255, 215, 0] // Golden color for collection
+
+        this.addEffect({
+            type: 'pollensprinkle',
+            priority: 1,
+            zoneId: data.zoneId || null,
+            x: data.x,
+            y: data.y,
+            particles,
+            lifetime: 45,
+            maxLifetime: 45
         });
     }
-    
-    // Update all active effects
+
+    addTrainingImpactEffect(data = {}) {
+        if (!Number.isFinite(data.x) || !Number.isFinite(data.y)) return;
+        if (this.countNearbyEffects('trainingimpact', data.x, data.y, 18) >= 1) return;
+        const impactStrength = Math.max(1, data.impactStrength || 6);
+
+        this.addEffect({
+            type: 'trainingimpact',
+            priority: 2,
+            zoneId: data.zoneId || null,
+            x: data.x,
+            y: data.y,
+            lifetime: 14,
+            maxLifetime: 14,
+            radius: 4 + (impactStrength * 0.08),
+            maxRadius: 12 + (impactStrength * 0.3)
+        });
+    }
+
+    addPetEffect(data = {}) {
+        if (!Number.isFinite(data.x) || !Number.isFinite(data.y)) return;
+        this.addEffect({
+            type: 'petpulse',
+            priority: 1,
+            zoneId: data.zoneId || null,
+            x: data.x,
+            y: data.y,
+            lifetime: 20,
+            maxLifetime: 20,
+            radius: 4,
+            maxRadius: 12,
+            color: data.colors || [140, 255, 140]
+        });
+    }
+
+    addClapEffect(data = {}) {
+        if (!Number.isFinite(data.x) || !Number.isFinite(data.y)) return;
+        if (this.countNearbyEffects('clappulse', data.x, data.y, 18) >= 1) return;
+        this.addEffect({
+            type: 'clappulse',
+            priority: 2,
+            zoneId: data.zoneId || null,
+            x: data.x,
+            y: data.y,
+            lifetime: 14,
+            maxLifetime: 14,
+            radius: 6,
+            maxRadius: 22
+        });
+    }
+
+    getAudioContext() {
+        if (this.audioContext) return this.audioContext;
+        const AudioCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtor) return null;
+        this.audioContext = new AudioCtor();
+        return this.audioContext;
+    }
+
+    playTrainingImpactSound() {
+        const nowMs = Date.now();
+        if (nowMs - this.lastImpactSoundAt < 60) return;
+        this.lastImpactSoundAt = nowMs;
+
+        const context = this.getAudioContext();
+        if (!context) return;
+
+        const now = context.currentTime;
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(150, now);
+        oscillator.frequency.exponentialRampToValueAtTime(110, now + 0.08);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.02, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(now);
+        oscillator.stop(now + 0.1);
+    }
+
+    playClapSound() {
+        const nowMs = Date.now();
+        if (nowMs - this.lastImpactSoundAt < 45) return;
+        this.lastImpactSoundAt = nowMs;
+
+        const context = this.getAudioContext();
+        if (!context) return;
+
+        const now = context.currentTime;
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(520, now);
+        oscillator.frequency.exponentialRampToValueAtTime(220, now + 0.06);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.035, now + 0.005);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(now);
+        oscillator.stop(now + 0.09);
+    }
+
     update() {
-        // Update effects and remove expired ones
         for (let i = this.activeEffects.length - 1; i >= 0; i--) {
             const effect = this.activeEffects[i];
+            this.syncEffectAnchor(effect);
             effect.lifetime--;
-            
-            // Update specific effect types
+
             switch (effect.type) {
-                case 'speedzone':
-                    effect.radius = lerp(effect.radius, effect.maxRadius, 0.1);
+                case 'matinghearts':
+                    for (const heart of effect.hearts) {
+                        heart.x += heart.driftX;
+                        heart.y += heart.driftY;
+                    }
                     break;
-                    
-                case 'trustcascade':
-                    const progress = 1 - (effect.lifetime / effect.maxLifetime);
-                    effect.radius = effect.maxRadius * progress;
+                case 'pollensprinkle':
+                    for (const particle of effect.particles) {
+                        particle.x += particle.vx;
+                        particle.y += particle.vy;
+                        particle.vy += 0.01;
+                    }
                     break;
-                    
-                case 'teachingpulse':
-                    const pulseProgress = 1 - (effect.lifetime / effect.maxLifetime);
-                    effect.radius = effect.maxRadius * pulseProgress;
+                case 'trainingimpact':
+                    effect.radius = lerp(effect.radius, effect.maxRadius, 0.35);
                     break;
-                    
-                case 'combotext':
-                    effect.y -= 0.5; // Float upward
+                case 'petpulse':
+                    effect.radius = lerp(effect.radius, effect.maxRadius, 0.28);
                     break;
-                    
-                case 'combostar':
-                    effect.x += effect.vx;
-                    effect.y += effect.vy;
-                    effect.vx *= 0.95;
-                    effect.vy *= 0.95;
-                    break;
-                    
-                case 'collection':
-                    const collectionProgress = 1 - (effect.lifetime / effect.maxLifetime);
-                    effect.radius = effect.maxRadius * collectionProgress;
-                    break;
-                    
-                case 'collectionstar':
-                    effect.x += effect.vx;
-                    effect.y += effect.vy;
-                    effect.vx *= 0.92;
-                    effect.vy *= 0.92;
-                    break;
-                    
-                case 'collectiontext':
-                    effect.y -= 0.8; // Rise faster than combo text
+                case 'clappulse':
+                    effect.radius = lerp(effect.radius, effect.maxRadius, 0.42);
                     break;
             }
-            
-            // Remove expired effects
+
             if (effect.lifetime <= 0) {
                 this.activeEffects.splice(i, 1);
             }
         }
     }
-    
-    // Draw all active effects
+
     draw(graphics) {
-        for (let effect of this.activeEffects) {
+        const renderProfile = this.getRenderPressureProfile();
+        for (const effect of this.activeEffects) {
+            if (!this.shouldDrawEffect(effect)) continue;
+            if (!this.isEffectOnScreen(effect)) continue;
             const alpha = (effect.lifetime / effect.maxLifetime) * 255;
-            
+
             switch (effect.type) {
-                case 'speedzone':
-                    this.drawSpeedZone(graphics, effect, alpha);
+                case 'abilityring':
+                    this.drawAbilityRing(graphics, effect, alpha, renderProfile);
                     break;
-                    
-                case 'trustcascade':
-                    this.drawTrustCascade(graphics, effect, alpha);
+                case 'abilitysymbol':
+                    this.drawAbilitySymbol(graphics, effect, alpha, renderProfile);
                     break;
-                    
-                case 'trustline':
-                    this.drawTrustLine(graphics, effect, alpha);
+                case 'matinghearts':
+                    this.drawMatingHearts(graphics, effect, alpha, renderProfile);
                     break;
-                    
-                case 'teachingpulse':
-                    this.drawTeachingPulse(graphics, effect, alpha);
+                case 'pollensprinkle':
+                    this.drawPollenSprinkle(graphics, effect, alpha, renderProfile);
                     break;
-                    
-                case 'combotext':
-                    this.drawComboText(graphics, effect, alpha);
+                case 'trainingimpact':
+                    this.drawTrainingImpact(graphics, effect, alpha);
                     break;
-                    
-                case 'combostar':
-                    this.drawComboStar(graphics, effect, alpha);
+                case 'petpulse':
+                    this.drawPetPulse(graphics, effect, alpha);
                     break;
-                    
-                case 'collection':
-                    this.drawCollectionEffect(graphics, effect, alpha);
-                    break;
-                    
-                case 'collectionstar':
-                    this.drawCollectionStar(graphics, effect, alpha);
-                    break;
-                    
-                case 'collectiontext':
-                    this.drawCollectionText(graphics, effect, alpha);
+                case 'clappulse':
+                    this.drawClapPulse(graphics, effect, alpha);
                     break;
             }
         }
     }
-    
-    // Draw speed zone effect
-    drawSpeedZone(graphics, effect, alpha) {
+
+    drawAbilityRing(graphics, effect, alpha, renderProfile = null) {
         graphics.push();
         graphics.noFill();
-        
-        // Draw multiple expanding rings
-        for (let i = 0; i < 3; i++) {
-            const ringAlpha = alpha * (1 - i * 0.3);
-            const ringRadius = effect.radius - i * 15;
-            
-            if (ringRadius > 0) {
-                graphics.stroke(effect.color[0], effect.color[1], effect.color[2], ringAlpha * 0.5);
-                graphics.strokeWeight(2);
-                graphics.ellipse(effect.x, effect.y, ringRadius * 2, ringRadius);
-                
-                // Add pulsing inner ring
-                const pulse = sin(frameCount * effect.pulseSpeed + i) * 0.2 + 0.8;
-                graphics.stroke(effect.color[0], effect.color[1], effect.color[2], ringAlpha * 0.8 * pulse);
-                graphics.strokeWeight(1);
-                graphics.ellipse(effect.x, effect.y, ringRadius * 2 * pulse, ringRadius * pulse);
-            }
+        const performanceProfile = renderProfile || this.getRenderPressureProfile();
+        const groundPlaneProfile = this.getGroundPlaneProfile();
+        const pulse = 1 + (sin((frameCount + effect.phaseOffset) * 0.08) * (performanceProfile.ringPulseScale ?? 0.03));
+        const radius = (effect.abilityRadius || 24) * pulse;
+        if (performanceProfile.tier === 'minimal') {
+            graphics.stroke(effect.secondaryColor[0], effect.secondaryColor[1], effect.secondaryColor[2], alpha * 0.58);
+            graphics.strokeWeight(1.4);
+            this.drawGroundPlaneEllipse(graphics, effect.x, effect.y, radius * 1.92, {
+                heightScale: groundPlaneProfile.haloScaleY || groundPlaneProfile.ellipseScaleY
+            });
+            graphics.pop();
+            return;
         }
-        
-        // Add particle effects
-        const particleCount = 8;
-        for (let i = 0; i < particleCount; i++) {
-            const angle = (TWO_PI / particleCount) * i + frameCount * 0.02;
-            const px = effect.x + cos(angle) * effect.radius * 0.8;
-            const py = effect.y + sin(angle) * effect.radius * 0.4; // Isometric compression
-            
+        if (performanceProfile.tier === 'simplified') {
+            graphics.stroke(effect.primaryColor[0], effect.primaryColor[1], effect.primaryColor[2], alpha * 0.24);
+            graphics.strokeWeight(2.7);
+            this.drawGroundPlaneEllipse(graphics, effect.x, effect.y, radius * 2.02, {
+                heightScale: groundPlaneProfile.haloScaleY || groundPlaneProfile.ellipseScaleY
+            });
+            graphics.stroke(effect.secondaryColor[0], effect.secondaryColor[1], effect.secondaryColor[2], alpha * 0.6);
+            graphics.strokeWeight(1.2);
+            this.drawGroundPlaneEllipse(graphics, effect.x, effect.y, radius * 1.82);
+            graphics.pop();
+            return;
+        }
+        graphics.stroke(effect.primaryColor[0], effect.primaryColor[1], effect.primaryColor[2], alpha * 0.14);
+        graphics.strokeWeight(5);
+        this.drawGroundPlaneEllipse(graphics, effect.x, effect.y, radius * 2.1, {
+            heightScale: groundPlaneProfile.haloScaleY || groundPlaneProfile.ellipseScaleY
+        });
+        graphics.stroke(effect.primaryColor[0], effect.primaryColor[1], effect.primaryColor[2], alpha * 0.7);
+        graphics.strokeWeight(1.9);
+        this.drawGroundPlaneEllipse(graphics, effect.x, effect.y, radius * 2);
+        graphics.stroke(effect.secondaryColor[0], effect.secondaryColor[1], effect.secondaryColor[2], alpha * 0.48);
+        graphics.strokeWeight(1);
+        this.drawGroundPlaneEllipse(graphics, effect.x, effect.y, radius * 1.78);
+        graphics.pop();
+    }
+
+    drawAbilitySymbol(graphics, effect, alpha, renderProfile = null) {
+        const progress = 1 - (effect.lifetime / Math.max(1, effect.maxLifetime));
+        const y = effect.y - 20 - (progress * 8);
+        const symbol = effect.symbol || effect.fallbackSymbol || '✦';
+        const profile = renderProfile || this.getRenderPressureProfile();
+
+        graphics.push();
+        graphics.textAlign(CENTER, CENTER);
+        if (!profile.minimalSymbolBadge) {
+            graphics.stroke(effect.primaryColor[0], effect.primaryColor[1], effect.primaryColor[2], alpha * 0.45);
+            graphics.strokeWeight(1.2);
+            graphics.fill(14, 20, 22, alpha * 0.7);
+            graphics.circle(effect.x, y, 18);
             graphics.noStroke();
-            graphics.fill(effect.color[0], effect.color[1], effect.color[2], alpha * 0.6);
-            graphics.ellipse(px, py, 4, 4);
+        } else {
+            graphics.noStroke();
         }
-        
+        graphics.fill(effect.secondaryColor[0], effect.secondaryColor[1], effect.secondaryColor[2], alpha * 0.95);
+        graphics.textSize(profile.minimalSymbolBadge ? 10 : 11);
+        graphics.text(symbol, effect.x, y + 0.5);
         graphics.pop();
     }
-    
-    // Draw trust cascade effect
-    drawTrustCascade(graphics, effect, alpha) {
+
+    drawMatingHearts(graphics, effect, alpha, renderProfile = null) {
+        const profile = renderProfile || this.getRenderPressureProfile();
+        graphics.push();
+        graphics.textAlign(CENTER, CENTER);
+        graphics.noStroke();
+        const heartLimit = Math.min(effect.hearts.length, profile.heartBudget || effect.hearts.length);
+        for (let i = 0; i < heartLimit; i++) {
+            const heart = effect.hearts[i];
+            graphics.fill(255, 70, 95, alpha * 0.9);
+            graphics.textSize(heart.size);
+            graphics.text('♥', effect.x + heart.x, effect.y + heart.y);
+        }
+        graphics.pop();
+    }
+
+    drawPollenSprinkle(graphics, effect, alpha, renderProfile = null) {
+        const profile = renderProfile || this.getRenderPressureProfile();
+        graphics.push();
+        graphics.noStroke();
+        const particleLimit = Math.min(effect.particles.length, profile.pollenBudget || effect.particles.length);
+        for (let i = 0; i < particleLimit; i++) {
+            const particle = effect.particles[i];
+            graphics.fill(particle.color[0], particle.color[1], particle.color[2], alpha * 0.7);
+            graphics.ellipse(effect.x + particle.x, effect.y + particle.y, particle.size, particle.size);
+        }
+        graphics.pop();
+    }
+
+    drawTrainingImpact(graphics, effect, alpha) {
         graphics.push();
         graphics.noFill();
-        
-        // Draw expanding waves
-        for (let i = 0; i < effect.waveCount; i++) {
-            const waveOffset = (effect.maxRadius / effect.waveCount) * i;
-            const waveRadius = effect.radius - waveOffset;
-            
-            if (waveRadius > 0 && waveRadius < effect.maxRadius) {
-                const waveAlpha = alpha * (1 - waveRadius / effect.maxRadius);
-                graphics.stroke(effect.color[0], effect.color[1], effect.color[2], waveAlpha * 0.6);
-                graphics.strokeWeight(3);
-                graphics.ellipse(effect.x, effect.y, waveRadius * 2, waveRadius);
-            }
-        }
-        
+        graphics.stroke(210, 210, 230, alpha * 0.55);
+        graphics.strokeWeight(1.4);
+        this.drawGroundPlaneEllipse(graphics, effect.x, effect.y, effect.radius * 2.1);
         graphics.pop();
     }
-    
-    // Draw trust connection line
-    drawTrustLine(graphics, effect, alpha) {
+
+    drawPetPulse(graphics, effect, alpha) {
         graphics.push();
-        
-        // Calculate control points for curved line
-        const midX = (effect.startX + effect.endX) / 2;
-        const midY = (effect.startY + effect.endY) / 2 - 30;
-        
         graphics.noFill();
         graphics.stroke(effect.color[0], effect.color[1], effect.color[2], alpha * 0.6);
-        graphics.strokeWeight(2);
-        
-        // Draw curved line
-        graphics.beginShape();
-        graphics.vertex(effect.startX, effect.startY);
-        graphics.quadraticVertex(midX, midY, effect.endX, effect.endY);
-        graphics.endShape();
-        
-        // Add sparkles along the line
-        for (let t = 0; t < 1; t += 0.2) {
-            const x = bezierPoint(effect.startX, midX, midX, effect.endX, t);
-            const y = bezierPoint(effect.startY, midY, midY, effect.endY, t);
-            
-            graphics.noStroke();
-            graphics.fill(255, 255, 255, alpha * 0.8);
-            graphics.ellipse(x, y, 3, 3);
-        }
-        
+        graphics.strokeWeight(1.2);
+        this.drawGroundPlaneEllipse(graphics, effect.x, effect.y, effect.radius * 2);
         graphics.pop();
     }
-    
-    // Draw teaching pulse effect
-    drawTeachingPulse(graphics, effect, alpha) {
+
+    drawClapPulse(graphics, effect, alpha) {
         graphics.push();
-        
-        // Draw soft expanding circle
-        graphics.noStroke();
-        const gradient = graphics.drawingContext.createRadialGradient(
-            effect.x, effect.y, 0,
-            effect.x, effect.y, effect.radius
-        );
-        
-        const r = effect.color[0];
-        const g = effect.color[1];
-        const b = effect.color[2];
-        const a = alpha / 255;
-        
-        // Use standard gradient without experimental features
-        graphics.push();
-        graphics.noStroke();
-        
-        // Draw multiple circles to simulate gradient
-        for (let i = 5; i > 0; i--) {
-            const radiusFactor = i / 5;
-            const alphaFactor = (1 - radiusFactor) * a;
-            graphics.fill(r, g, b, alphaFactor * 100);
-            graphics.ellipse(effect.x, effect.y, effect.radius * 2 * radiusFactor, effect.radius * radiusFactor);
-        }
-        
-        graphics.pop();
-    }
-    
-    // Draw combo text effect
-    drawComboText(graphics, effect, alpha) {
-        graphics.push();
-        graphics.textAlign(CENTER, CENTER);
-        graphics.textSize(effect.size);
-        
-        // Draw shadow
-        graphics.fill(0, 0, 0, alpha * 0.5);
-        graphics.text(effect.text, effect.x + 2, effect.y + 2);
-        
-        // Draw main text
-        graphics.fill(effect.color[0], effect.color[1], effect.color[2], alpha);
-        graphics.text(effect.text, effect.x, effect.y);
-        
-        graphics.pop();
-    }
-    
-    // Draw combo star particle
-    drawComboStar(graphics, effect, alpha) {
-        graphics.push();
-        graphics.translate(effect.x, effect.y);
-        graphics.rotate(frameCount * 0.1);
-        
-        graphics.noStroke();
-        graphics.fill(effect.color[0], effect.color[1], effect.color[2], alpha);
-        
-        // Draw 4-pointed star
-        graphics.beginShape();
-        for (let i = 0; i < 8; i++) {
-            const angle = (TWO_PI / 8) * i;
-            const radius = i % 2 === 0 ? effect.size : effect.size * 0.5;
-            graphics.vertex(cos(angle) * radius, sin(angle) * radius);
-        }
-        graphics.endShape(CLOSE);
-        
-        graphics.pop();
-    }
-    
-    // Draw collection effect (expanding ring)
-    drawCollectionEffect(graphics, effect, alpha) {
-        graphics.push();
-        
-        // Expanding ring
         graphics.noFill();
-        graphics.stroke(effect.color[0], effect.color[1], effect.color[2], alpha * 100);
-        graphics.strokeWeight(3);
-        graphics.ellipse(effect.x, effect.y, effect.radius * 2);
-        
-        // Pulsing center
-        const pulse = sin(frameCount * 0.2) * 0.3 + 0.7;
-        graphics.fill(255, 255, 255, alpha * 150 * pulse);
-        graphics.noStroke();
-        graphics.ellipse(effect.x, effect.y, 20 * pulse);
-        
-        graphics.pop();
-    }
-    
-    // Draw collection star
-    drawCollectionStar(graphics, effect, alpha) {
-        graphics.push();
-        graphics.translate(effect.x, effect.y);
-        graphics.rotate(frameCount * 0.1);
-        graphics.noStroke();
-        graphics.fill(effect.color[0], effect.color[1], effect.color[2], alpha * 255);
-        
-        // Simple 4-point star
-        const s = effect.size;
-        graphics.beginShape();
-        graphics.vertex(0, -s);
-        graphics.vertex(s/3, -s/3);
-        graphics.vertex(s, 0);
-        graphics.vertex(s/3, s/3);
-        graphics.vertex(0, s);
-        graphics.vertex(-s/3, s/3);
-        graphics.vertex(-s, 0);
-        graphics.vertex(-s/3, -s/3);
-        graphics.endShape(CLOSE);
-        
-        graphics.pop();
-    }
-    
-    // Draw collection text
-    drawCollectionText(graphics, effect, alpha) {
-        graphics.push();
-        graphics.textAlign(CENTER, CENTER);
-        graphics.textSize(effect.size);
-        graphics.fill(effect.color[0], effect.color[1], effect.color[2], alpha * 255);
-        graphics.text(effect.text, effect.x, effect.y);
-        graphics.pop();
-    }
-    
-    // Draw collection text effect (similar to combo text but golden)
-    drawCollectionText(graphics, effect, alpha) {
-        graphics.push();
-        graphics.textAlign(CENTER, CENTER);
-        graphics.textSize(effect.size);
-        graphics.textStyle(BOLD);
-        
-        // Draw shadow
-        graphics.fill(0, 0, 0, alpha * 0.5);
-        graphics.text(effect.text, effect.x + 2, effect.y + 2);
-        
-        // Draw main text with golden color
-        graphics.fill(effect.color[0], effect.color[1], effect.color[2], alpha);
-        graphics.text(effect.text, effect.x, effect.y);
-        
-        graphics.textStyle(NORMAL);
+        graphics.stroke(245, 245, 255, alpha * 0.75);
+        graphics.strokeWeight(1.5);
+        this.drawGroundPlaneEllipse(graphics, effect.x, effect.y, effect.radius * 2.3);
         graphics.pop();
     }
 }
 
-// Create global instance
-const specialEffects = new SpecialEffectsSystem();
+const specialEffectsSystem = new SpecialEffectsSystem();
+const specialEffects = specialEffectsSystem;
+
+if (typeof window !== 'undefined') {
+    window.specialEffects = specialEffectsSystem;
+    window.specialEffectsSystem = specialEffectsSystem;
+}

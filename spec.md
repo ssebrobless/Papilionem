@@ -1,4 +1,4 @@
-# Ephemera - Game Design Document
+# Papilionem - Game Design Document
 
 ## Original Vision
 A miniature piece of interactive digital art exploring the theme of butterflies - their natural beauty, fragility, and daintiness. The experience should incorporate pixel/dithering effects for a minimalistic tech aesthetic. On the surface, it should be light and fun (10-180 second experience), but with a deeper undercurrent about fragility - like how moth wings disintegrate when touched, leaving beautiful but tragic dust on your fingers.

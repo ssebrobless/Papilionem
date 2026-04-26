@@ -73,12 +73,227 @@ function createDistortionProfile(overrides = {}) {
     };
 }
 
+function createCommunicationProfile(overrides = {}) {
+    return {
+        expressiveness: 0.5,
+        receptivity: 0.5,
+        clarityBias: 0,
+        lexicon: {},
+        knownNames: {},
+        selfName: null,
+        activeSignal: null,
+        activeConversation: null,
+        recentEmitted: [],
+        recentReceived: [],
+        recentConversations: [],
+        recentDialogues: [],
+        recentResidues: [],
+        retainedLessons: [],
+        pendingUtterances: [],
+        lastSpokenAtSeconds: null,
+        lastHeardAtSeconds: null,
+        ...overrides
+    };
+}
+
+function createSocialProfile(overrides = {}) {
+    return {
+        reputation: 0.2,
+        belonging: 0.2,
+        confidence: 0.2,
+        focus: 'rest',
+        activeContext: 'wandering',
+        ...overrides
+    };
+}
+
+function createPlayerInteractionProfile(overrides = {}) {
+    return {
+        cursorTrust: 0,
+        cursorFear: 0,
+        petHistory: 0,
+        clapStartleHistory: 0,
+        calmedByCursor: false,
+        startledByCursor: false,
+        lastPetAtSeconds: null,
+        lastClapAtSeconds: null,
+        ...overrides
+    };
+}
+
+function createObjectAwarenessProfile(overrides = {}) {
+    return {
+        focusType: 'none',
+        currentAffordance: 'observe',
+        carryingType: null,
+        recentAffordances: [],
+        flowerFamiliarity: 0,
+        pollenFamiliarity: 0,
+        eggFamiliarity: 0,
+        blockFamiliarity: 0,
+        shelterConfidence: 0,
+        ...overrides
+    };
+}
+
+function createSpatialAwarenessProfile(overrides = {}) {
+    const defaultSpatial = typeof structureSystem !== 'undefined' && structureSystem?.createDefaultSpatialContext
+        ? structureSystem.createDefaultSpatialContext()
+        : {
+            verticality: 'ground',
+            structureRole: 'loose',
+            pathState: 'open',
+            bodyFit: 'canPass',
+            occupancyBand: 'ground',
+            obstacleDensity: 0,
+            shelterCandidate: false,
+            canUseInterior: false,
+            insideShelter: false
+        };
+    return {
+        ...defaultSpatial,
+        ...overrides
+    };
+}
+
+function createProgressionContextProfile(overrides = {}) {
+    return {
+        originType: 'wild',
+        rarityExposure: 0,
+        variantFamiliarity: 0,
+        lineageValue: 0,
+        encounterValue: 0,
+        ...overrides
+    };
+}
+
+function createBattleContextProfile(overrides = {}) {
+    return {
+        allyPressure: 0,
+        enemyThreat: 0,
+        targetPriority: 0,
+        spacingState: 'open',
+        retreatPressure: 0,
+        supportOpportunity: 0,
+        ...overrides
+    };
+}
+
+function createMigrationProfile(overrides = {}) {
+    return {
+        homeZoneId: overrides.homeZoneId || null,
+        homeZoneStrength: Math.max(0, Math.min(1, overrides.homeZoneStrength ?? 0)),
+        zoneAffinities: { ...(overrides.zoneAffinities || {}) },
+        zoneVisitCounts: { ...(overrides.zoneVisitCounts || {}) },
+        zoneDwellSeconds: { ...(overrides.zoneDwellSeconds || {}) },
+        lastObservedZoneId: overrides.lastObservedZoneId || null,
+        lastTravelReason: overrides.lastTravelReason || null,
+        lastTravelAtSeconds: Number.isFinite(overrides.lastTravelAtSeconds) ? overrides.lastTravelAtSeconds : null,
+        lastSyncedTravelFrame: Number.isFinite(overrides.lastSyncedTravelFrame) ? overrides.lastSyncedTravelFrame : null,
+        completedTravelCount: Math.max(0, overrides.completedTravelCount || 0),
+        homeReturnCount: Math.max(0, overrides.homeReturnCount || 0),
+        scoutingTripCount: Math.max(0, overrides.scoutingTripCount || 0),
+        recentTravelReasons: [...(overrides.recentTravelReasons || [])]
+    };
+}
+
+function createSocialEcologyChannelProfile(label = 'quiet', overrides = {}) {
+    return {
+        label,
+        score: 0,
+        nearbyCount: 0,
+        supportCount: 0,
+        targetedCount: 0,
+        anchorId: null,
+        anchorLabel: null,
+        detail: 'quiet',
+        ...overrides
+    };
+}
+
+function createSocialEcologyProfile(overrides = {}) {
+    return {
+        primaryRhythm: 'wandering',
+        primaryScore: 0,
+        headline: 'quiet | no strong local rhythm',
+        detail: 'roost 0 | warn 0 | teach 0 | court 0',
+        localFieldLabel: 'quiet | no active field',
+        localFieldDetail: 'No nearby active signals',
+        anchorZoneId: overrides.anchorZoneId || null,
+        preferredShelterId: overrides.preferredShelterId || null,
+        preferredPartnerId: overrides.preferredPartnerId || null,
+        roosting: createSocialEcologyChannelProfile('roost', overrides.roosting),
+        warning: createSocialEcologyChannelProfile('warning', overrides.warning),
+        teaching: createSocialEcologyChannelProfile('teaching', overrides.teaching),
+        courtship: createSocialEcologyChannelProfile('courtship', overrides.courtship)
+    };
+}
+
+function createDerivedLifeSimProfile(overrides = {}) {
+    const { socialEcology: socialEcologyOverrides = null, ...restOverrides } = overrides || {};
+    return {
+        dominantDrive: 'rest',
+        secondaryDrive: 'exploration',
+        dominantEmotion: 'curiosity',
+        secondaryEmotion: 'relief',
+        drivePeaks: [],
+        emotionPeaks: [],
+        crowding: 0,
+        novelty: 0,
+        behaviorBiases: {
+            wanderScale: 1,
+            feedUrgency: 0,
+            displayConfidence: 0,
+            socialConfidence: 0,
+            caution: 0,
+            trainingAffinity: 0,
+            objectInterest: 0,
+            cursorAffinity: 0,
+            shelterSeeking: 0,
+            battleAggression: 0,
+            migrationUrgency: 0,
+            returnHomeBias: 0,
+            noveltySeeking: 0,
+            mateSeeking: 0,
+            overcrowdingEscape: 0,
+            homeAffinity: 0
+        },
+        migration: {
+            homeZoneId: null,
+            homeZoneStrength: 0,
+            currentZoneAffinity: 0,
+            preferredZoneId: null,
+            scoutTargetZoneId: null,
+            preferredMateZoneId: null,
+            travelTargetZoneId: null,
+            travelIntent: 'settling',
+            visitedZoneCount: 0,
+            awayFromHome: false,
+            returnHomeBias: 0,
+            scoutingDrive: 0,
+            overcrowdingEscape: 0,
+            mateSeeking: 0,
+            travelUrgency: 0,
+            noveltySeeking: 0,
+            zoneMateOpportunities: {}
+        },
+        socialEcology: createSocialEcologyProfile(socialEcologyOverrides || {}),
+        lastUpdatedSeconds: 0,
+        lastUpdatedFrame: 0,
+        cadenceIntervalFrames: 1,
+        ...restOverrides
+    };
+}
+
 function createGeneticsProfile(options = {}) {
     return {
         source: options.source || 'wild',
         baselineTraits: { ...(options.baselineTraits || {}) },
         inheritedTraits: { ...(options.inheritedTraits || {}) },
+        mutationProfile: options.mutationProfile ? { ...(options.mutationProfile || {}) } : null,
         heritageTags: [...(options.heritageTags || [])],
+        lineageTypes: [...(options.lineageTypes || [])],
+        lineageDepth: Math.max(0, options.lineageDepth || 0),
         lineageIds: {
             parents: [...(options.parentIds || [])],
             ancestors: [...(options.ancestorIds || [])]
@@ -106,13 +321,22 @@ function createBaseLifeSimState(options = {}) {
         emotions: createEmotionProfile(options.emotions),
         memories: createMemoryStore(),
         socialEdges: {},
+        social: createSocialProfile(options.social),
         routines: createRoutineStore(),
         interpretation: {
             clarity: 1,
             lastSignals: [],
             warpedSignals: 0
         },
+        communication: createCommunicationProfile(options.communication),
         distortion: createDistortionProfile(options.distortion),
+        derived: createDerivedLifeSimProfile(options.derived),
+        playerInteraction: createPlayerInteractionProfile(options.playerInteraction),
+        objectAwareness: createObjectAwarenessProfile(options.objectAwareness),
+        spatialAwareness: createSpatialAwarenessProfile(options.spatialAwareness),
+        progression: createProgressionContextProfile(options.progression),
+        battleContext: createBattleContextProfile(options.battleContext),
+        migration: createMigrationProfile(options.migration),
         genetics: createGeneticsProfile(options.genetics),
         upbringing: {
             imprintSources: [...(options.imprintSources || [])],
@@ -177,11 +401,42 @@ function ensureLifeSocialEdge(entity, targetId) {
             resentment: 0,
             admiration: 0,
             protectiveness: 0,
+            reciprocityScore: 0,
+            rejectionWeight: 0,
+            followThroughScore: 0,
+            forgivenessWeight: 0,
+            recentWarmth: 0,
+            recentEase: 0,
+            recentFriction: 0,
+            recentMutualAttention: 0,
+            lastConversationMode: 'easy',
+            lastConversationAtSeconds: null,
+            repairState: 'steady',
+            recentResidues: [],
+            lastDialogueResidue: null,
+            anchoringDialogueCount: 0,
+            learnedDialogueCount: 0,
             lastUpdatedSeconds: null,
             historyTags: []
         };
     }
-    return entity.lifeSim.socialEdges[targetId];
+    const edge = entity.lifeSim.socialEdges[targetId];
+    edge.historyTags = Array.isArray(edge.historyTags) ? edge.historyTags : [];
+    edge.recentResidues = Array.isArray(edge.recentResidues) ? edge.recentResidues : [];
+    edge.repairState = edge.repairState || 'steady';
+    edge.reciprocityScore = edge.reciprocityScore ?? 0;
+    edge.rejectionWeight = edge.rejectionWeight ?? 0;
+    edge.followThroughScore = edge.followThroughScore ?? 0;
+    edge.forgivenessWeight = edge.forgivenessWeight ?? 0;
+    edge.recentWarmth = edge.recentWarmth ?? 0;
+    edge.recentEase = edge.recentEase ?? 0;
+    edge.recentFriction = edge.recentFriction ?? 0;
+    edge.recentMutualAttention = edge.recentMutualAttention ?? 0;
+    edge.lastConversationMode = edge.lastConversationMode || 'easy';
+    edge.lastConversationAtSeconds = edge.lastConversationAtSeconds ?? null;
+    edge.anchoringDialogueCount = edge.anchoringDialogueCount ?? 0;
+    edge.learnedDialogueCount = edge.learnedDialogueCount ?? 0;
+    return edge;
 }
 
 function adjustLifeSocialEdge(entity, targetId, deltas = {}, metadata = {}) {
@@ -205,6 +460,7 @@ function adjustLifeSocialEdge(entity, targetId, deltas = {}, metadata = {}) {
     }
 
     edge.lastUpdatedSeconds = metadata.updatedAtSeconds ?? edge.lastUpdatedSeconds;
+    edge.historyTags = Array.isArray(edge.historyTags) ? edge.historyTags : [];
     if (metadata.tag) {
         edge.historyTags.unshift(metadata.tag);
         if (edge.historyTags.length > 8) {
@@ -279,6 +535,7 @@ class Entity {
         this.criticalEngagementThreshold = 1800; // 30 seconds - warning phase
         this.fadeStartThreshold = 600; // 10 seconds - start fading
         this.isDying = false;
+        this.engagementDecayEnabled = true;
         
         // Visual properties
         this.size = 10;
@@ -293,7 +550,7 @@ class Entity {
     // Update method to be overridden by subclasses
     update(gameState) {
         // Decrease engagement timer (death by neglect)
-        if (this.engagementTimer > 0) {
+        if (this.engagementDecayEnabled && this.engagementTimer > 0) {
             this.engagementTimer--;
         }
         this.updateZIndex();
@@ -302,6 +559,11 @@ class Entity {
     // Reset engagement timer (called when entity is interacted with)
     // Only resets if butterfly count is below threshold
     resetEngagement(butterflyCount = 0) {
+        if (!this.engagementDecayEnabled) {
+            this.engagementTimer = this.maxEngagementTimer;
+            this.isDying = false;
+            return;
+        }
         // Only reset engagement timer if there are fewer than 4 butterflies
         if (butterflyCount < 4) {
             this.engagementTimer = this.maxEngagementTimer;
@@ -331,13 +593,13 @@ class Entity {
     
     // Base draw method - handles shadows and common effects
     draw(graphics) {
-        if (this.engagementTimer <= 0) return;
+        if (this.engagementDecayEnabled && this.engagementTimer <= 0) return;
         
         graphics.push();
         
         // Calculate alpha for fading
         let alpha = 255;
-        if (this.isDying || this.engagementTimer < this.fadeStartThreshold) {
+        if (this.engagementDecayEnabled && (this.isDying || this.engagementTimer < this.fadeStartThreshold)) {
             alpha = map(this.engagementTimer, 0, this.fadeStartThreshold, 0, 255);
         }
         
@@ -370,12 +632,12 @@ class Entity {
     
     // Check if entity is dead
     isDead() {
-        return this.engagementTimer <= 0;
+        return this.engagementDecayEnabled && this.engagementTimer <= 0;
     }
     
     // Check if entity needs attention (warning phase)
     needsAttention() {
-        return this.engagementTimer < this.criticalEngagementThreshold;
+        return this.engagementDecayEnabled && this.engagementTimer < this.criticalEngagementThreshold;
     }
     
     // Get distance to a point

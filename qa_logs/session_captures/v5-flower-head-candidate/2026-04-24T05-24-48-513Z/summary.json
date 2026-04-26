@@ -1,0 +1,38 @@
+{
+  "baselineDir": "C:\\Users\\fishe\\Documents\\projects\\ephemera\\qa_logs\\session_captures\\v5-flower-head-candidate\\2026-04-24T05-24-48-513Z",
+  "saveKind": "real-export",
+  "lanes": [
+    {
+      "lane": "calm",
+      "avgUpdateMs": 6.205000001192093,
+      "avgRenderMs": 14.091666672627131,
+      "p95FrameMs": 24,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "shell",
+      "avgUpdateMs": 10.29750000635783,
+      "avgRenderMs": 15.09166665673256,
+      "p95FrameMs": 28.799999952316284,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "battle",
+      "avgUpdateMs": 18.820833337306976,
+      "avgRenderMs": 24.238333344459534,
+      "p95FrameMs": 56.10000014305115,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    },
+    {
+      "lane": "soak40",
+      "avgUpdateMs": 7.836666675408681,
+      "avgRenderMs": 15.84916666150093,
+      "p95FrameMs": 31.50000023841858,
+      "peakHeapUsedMB": 159.26361083984375,
+      "pressureTier": "critical"
+    }
+  ]
+}

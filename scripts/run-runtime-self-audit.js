@@ -38,21 +38,92 @@ async function dismissTitle(page) {
   await page.waitForTimeout(1900);
 }
 
+async function callDebugAction(page, expression) {
+  await page.evaluate(expression);
+  await page.waitForTimeout(350);
+}
+
+function isAcceptableRoundTripDrift(auditState) {
+  if (!auditState || auditState.lastAction !== 'Verify Roundtrip') return false;
+  return ['pass', 'warn'].includes(auditState.lastStatus);
+}
+
 async function evalAuditState(page) {
-  return page.evaluate(() => {
+  return page.evaluate(async () => {
     const state = typeof gameCore !== 'undefined' ? gameCore.getGameState?.() || {} : {};
     const auditState = typeof debugUI !== 'undefined' && debugUI.auditState
       ? JSON.parse(JSON.stringify(debugUI.auditState))
       : null;
     const replay = typeof gameCore !== 'undefined' ? gameCore.getReplayMetadata?.() || null : null;
     const telemetry = typeof gameCore !== 'undefined' ? gameCore.getTelemetrySnapshot?.() || null : null;
+    const spatialFocus = typeof debugUI !== 'undefined' && debugUI.buildSpatialFocusSnapshot
+      ? debugUI.buildSpatialFocusSnapshot(state)
+      : null;
+    const firstButterfly = state.butterflies?.[0] || null;
+    const mlRuntime = typeof mlInferenceSystem !== 'undefined'
+      ? mlInferenceSystem.getRuntimeSummary?.() || null
+      : null;
+    const mlSummary = firstButterfly && typeof mlInferenceSystem !== 'undefined'
+      ? mlInferenceSystem.getEntitySummary?.(firstButterfly.id, state) || null
+      : null;
+    const mlInspectRows = mlSummary && typeof gameUI !== 'undefined' && gameUI.buildMlInspectRows
+      ? gameUI.buildMlInspectRows(mlSummary)
+      : [];
+    const mlDebug = typeof debugUI !== 'undefined' && debugUI.buildMlExplainabilitySnapshot
+      ? debugUI.buildMlExplainabilitySnapshot(state)
+      : null;
+    let savedMeta = null;
+    try {
+      const stored = typeof saveSystem !== 'undefined' && saveSystem?.readPayloadFromStorage
+        ? await saveSystem.readPayloadFromStorage('papilionem-save-v2')
+        : {
+            payload: window.localStorage.getItem('papilionem-save-v2') || null
+          };
+      savedMeta = JSON.parse(stored?.payload || 'null')?.meta || null;
+    } catch (_error) {
+      savedMeta = null;
+    }
+    const blocks = state.blocks || [];
+    const roundedBlockPositions = new Map();
+    let minBlockX = Number.POSITIVE_INFINITY;
+    let maxBlockX = Number.NEGATIVE_INFINITY;
+    let minBlockY = Number.POSITIVE_INFINITY;
+    let maxBlockY = Number.NEGATIVE_INFINITY;
+    for (const block of blocks) {
+      if (!Number.isFinite(block?.x) || !Number.isFinite(block?.y)) continue;
+      const key = `${Math.round(block.x)},${Math.round(block.y)}`;
+      roundedBlockPositions.set(key, (roundedBlockPositions.get(key) || 0) + 1);
+      minBlockX = Math.min(minBlockX, block.x);
+      maxBlockX = Math.max(maxBlockX, block.x);
+      minBlockY = Math.min(minBlockY, block.y);
+      maxBlockY = Math.max(maxBlockY, block.y);
+    }
+    const roundedCounts = [...roundedBlockPositions.values()];
+    const currentRefreshRevisions = typeof saveSystem !== 'undefined'
+      ? saveSystem.getCurrentRefreshRevisions?.() || null
+      : null;
     return {
       debugEnabled: typeof debugUI !== 'undefined' ? !!debugUI.enabled : false,
       auditState,
+      spatialFocus,
+      mlRuntime,
+      mlSummary,
+      mlInspectRows,
+      mlDebug,
+      savedMeta,
+      currentRefreshRevisions,
+      blockMetrics: {
+        count: blocks.length,
+        uniqueRoundedPositions: roundedBlockPositions.size,
+        maxRoundedOverlap: roundedCounts.length ? Math.max(...roundedCounts) : 0,
+        xSpread: Number.isFinite(minBlockX) && Number.isFinite(maxBlockX) ? (maxBlockX - minBlockX) : 0,
+        ySpread: Number.isFinite(minBlockY) && Number.isFinite(maxBlockY) ? (maxBlockY - minBlockY) : 0,
+      },
       state: {
         butterflies: state.butterflies?.length || 0,
         caterpillars: state.caterpillars?.length || 0,
         flowers: state.flowers?.length || 0,
+        blocks: state.blocks?.length || 0,
         activeBattleId: state.activeBattleId || null,
         viewMode: state.viewMode || null,
         focusedZoneId: state.focusedZoneId || null,
@@ -91,6 +162,9 @@ async function main() {
       'debug mode activation',
       'all six audit presets',
       'save/load/roundtrip controls',
+      'stale-save environment refresh',
+      'post-load spatial focus snapshot',
+      'post-load ml feature contract snapshot',
       'snapshot capture and diff',
       'invariant check',
       'gameplay audit',
@@ -151,10 +225,20 @@ async function main() {
     await waitForGame(page);
     await saveShot(page, '02-garden-after-title');
 
-    const savedStorage = await page.evaluate((keys) => {
-      const snapshot = {};
-      for (const key of keys) snapshot[key] = window.localStorage.getItem(key);
-      return snapshot;
+    const savedStorage = await page.evaluate(async (keys) => {
+      const localStorageSnapshot = {};
+      for (const key of keys) localStorageSnapshot[key] = window.localStorage.getItem(key);
+      const primarySave = typeof saveSystem !== 'undefined' && saveSystem?.readPayloadFromStorage
+        ? await saveSystem.readPayloadFromStorage('papilionem-save-v2')
+        : {
+            payload: window.localStorage.getItem('papilionem-save-v2'),
+            backend: window.localStorage.getItem('papilionem-save-v2') == null ? null : 'localstorage'
+          };
+      return {
+        localStorageSnapshot,
+        primarySavePayload: primarySave?.payload || null,
+        primarySaveBackend: primarySave?.backend || null
+      };
     }, STORAGE_KEYS);
 
     await page.keyboard.press('KeyD');
@@ -182,7 +266,7 @@ async function main() {
         page,
         report,
         `preset-${sanitizeFileName(label)}`,
-        () => page.keyboard.press('KeyP'),
+        () => callDebugAction(page, () => debugUI?.loadNextAuditPreset?.()),
         state => state.auditState?.lastStatus === 'pass' && state.auditState?.scenarioLabel === label,
         `04-preset-${String(i + 1).padStart(2, '0')}-${sanitizeFileName(label)}`
       );
@@ -192,7 +276,7 @@ async function main() {
       page,
       report,
       'save-game',
-      () => page.keyboard.press('KeyK'),
+      () => page.evaluate(() => debugUI?.saveGameState?.()),
       state => state.auditState?.lastAction === 'Save Game' && state.auditState?.lastStatus === 'pass',
       '05-save-game'
     );
@@ -201,25 +285,137 @@ async function main() {
       page,
       report,
       'load-game',
-      () => page.keyboard.press('KeyL'),
-      state => state.auditState?.lastAction === 'Load Game' && ['pass', 'idle'].includes(state.auditState?.lastStatus),
+      () => callDebugAction(page, () => debugUI?.loadGameState?.()),
+      state => state.auditState?.lastAction === 'Restore Save' && ['pass', 'idle'].includes(state.auditState?.lastStatus),
       '06-load-game'
     );
 
     await runAction(
       page,
       report,
+      'spatial-focus-after-load',
+      () => callDebugAction(page, () => debugUI?.buildSpatialFocusSnapshot?.()),
+      state =>
+        state.auditState?.lastAction === 'Restore Save' &&
+        Array.isArray(state.spatialFocus?.lines) &&
+        state.spatialFocus.lines.length >= 3 &&
+        state.spatialFocus.title === 'Spatial Focus',
+      '06b-spatial-focus-after-load'
+    );
+
+    await runAction(
+      page,
+      report,
       'verify-roundtrip',
-      () => page.keyboard.press('KeyV'),
-      state => state.auditState?.lastAction === 'Verify Roundtrip' && state.auditState?.lastStatus === 'pass',
+      () => callDebugAction(page, () => debugUI?.runRoundTripAudit?.()),
+      state => isAcceptableRoundTripDrift(state.auditState),
       '07-roundtrip'
     );
 
     await runAction(
       page,
       report,
+      'refresh-stale-world-save',
+      () => page.evaluate(async () => {
+        const stored = typeof saveSystem !== 'undefined' && saveSystem?.readPayloadFromStorage
+          ? await saveSystem.readPayloadFromStorage('papilionem-save-v2')
+          : {
+              payload: window.localStorage.getItem('papilionem-save-v2'),
+              backend: window.localStorage.getItem('papilionem-save-v2') == null ? null : 'localstorage'
+            };
+        if (!stored?.payload) return;
+        const saved = JSON.parse(stored.payload);
+        const focusedZoneId = gameCore?.getGameState?.()?.focusedZoneId
+          || saved?.meta?.focusedZoneId
+          || gameCore?.getZoneIds?.()?.[0]
+          || null;
+        const region = focusedZoneId ? gameCore?.getZonePlacementRegion?.(focusedZoneId) : null;
+        const collapsedX = region ? region.minX + 18 : 120;
+        const collapsedY = region ? region.minY + 18 : 120;
+        saved.meta = saved.meta || {};
+        saved.meta.refreshRevisions = {
+          environmentLayout: 'stale-layout-v0',
+          blockLayout: 'stale-blocks-v0',
+          butterflyRuntime: 'stale-butterflies-v0',
+        };
+        saved.blocks = (saved.blocks || []).map((block, index) => ({
+          ...block,
+          x: collapsedX + (index % 2),
+          y: collapsedY + Math.floor(index / 2),
+          stackIndex: 0,
+          supportBlockId: null,
+          lastPlacedMode: 'ground',
+          carriedById: null,
+          attachedOffset: null,
+          movedAtFrame: 0,
+          lastMovedById: null,
+        }));
+        const payload = JSON.stringify(saved);
+        if (typeof saveSystem !== 'undefined' && saveSystem?.supportsIndexedDb?.()) {
+          try {
+            await saveSystem.writePayloadToIndexedDb?.('papilionem-save-v2', payload);
+          } catch (_error) {}
+        }
+        window.localStorage.setItem('papilionem-save-v2', payload);
+        await debugUI?.loadGameState?.();
+      }),
+      state => {
+        const savedRevisions = state.savedMeta?.refreshRevisions || {};
+        const currentRevisions = state.currentRefreshRevisions || {};
+        return state.auditState?.lastAction === 'Restore Save' &&
+          state.auditState?.lastStatus === 'pass' &&
+          state.state.butterflies >= 1 &&
+          state.state.blocks >= 4 &&
+          state.blockMetrics.uniqueRoundedPositions >= Math.min(10, state.state.blocks) &&
+          state.blockMetrics.maxRoundedOverlap <= 2 &&
+          state.blockMetrics.xSpread >= 60 &&
+          state.blockMetrics.ySpread >= 24 &&
+          savedRevisions.environmentLayout === currentRevisions.environmentLayout &&
+          savedRevisions.blockLayout === currentRevisions.blockLayout &&
+          savedRevisions.butterflyRuntime === currentRevisions.butterflyRuntime;
+      },
+      '07b-refresh-stale-world-save'
+    );
+
+    await runAction(
+      page,
+      report,
+      'ml-feature-trace-after-load',
+      () => callDebugAction(page, () => mlInferenceSystem?.getRuntimeSummary?.()),
+      state => {
+        const labels = (state.mlInspectRows || []).map(row => row.label);
+        const pathRow = (state.mlInspectRows || []).find(row => row.label === 'Path')?.value || '';
+        const whyRow = (state.mlInspectRows || []).find(row => row.label === 'Why')?.value || '';
+        return state.mlRuntime?.modelVersionId === 'm4-garden-policy-v1' &&
+          state.mlRuntime?.featureSchemaVersion === 'm4-feature-schema-v1' &&
+          state.mlRuntime?.traceSchemaVersion === 'm4-trace-schema-v1' &&
+          state.mlRuntime?.featureContract?.groupCount === 14 &&
+        state.mlRuntime?.featureContract?.flatFeatureCount === 98 &&
+        state.mlRuntime?.featureContract?.vectorLength === 124 &&
+          state.mlRuntime?.performanceBudget?.focusedGardenInferenceMs === 3.5 &&
+          state.mlRuntime?.performanceBudget?.battleDecisionMs === 0.75 &&
+          !!state.mlRuntime?.performanceProfile &&
+          state.mlSummary?.featureTrace?.groupCount === 14 &&
+        state.mlSummary?.featureTrace?.flatFeatureCount === 98 &&
+        state.mlSummary?.featureTrace?.vectorLength === 124 &&
+          labels.includes('Path') &&
+          labels.includes('Why') &&
+          labels.includes('Schema') &&
+          labels.includes('Feat') &&
+          labels.includes('Space') &&
+          /assets\/ml\//i.test(pathRow) &&
+          whyRow.length > 8 &&
+          !!state.mlDebug?.focusId &&
+          (state.mlDebug?.lines?.length || 0) >= 4;
+      },
+      '06c-ml-feature-trace-after-load'
+    );
+
+    await runAction(
+      page,
+      report,
       'capture-snapshot',
-      () => page.evaluate(() => debugUI?.captureSnapshot?.()),
+      () => callDebugAction(page, () => debugUI?.captureSnapshot?.()),
       state => state.auditState?.lastAction === 'Capture Snapshot' && state.auditState?.lastStatus === 'pass',
       '08-capture-snapshot'
     );
@@ -228,8 +424,8 @@ async function main() {
       page,
       report,
       'invariant-check',
-      () => page.evaluate(() => debugUI?.runInvariantCheck?.()),
-      state => state.auditState?.lastAction === 'Check Invariants' && ['pass', 'warn'].includes(state.auditState?.lastStatus),
+      () => callDebugAction(page, () => debugUI?.runInvariantCheck?.()),
+      state => state.auditState?.lastAction === 'Check World' && ['pass', 'warn'].includes(state.auditState?.lastStatus),
       '09-invariant-check'
     );
 
@@ -237,8 +433,8 @@ async function main() {
       page,
       report,
       'gameplay-audit',
-      () => page.keyboard.press('KeyY'),
-      state => state.auditState?.lastAction === 'Run Gameplay Audit' && ['pass', 'warn'].includes(state.auditState?.lastStatus),
+      () => callDebugAction(page, () => debugUI?.runGameplayAudit?.()),
+      state => state.auditState?.lastAction === 'Audit World' && ['pass', 'warn'].includes(state.auditState?.lastStatus),
       '10-gameplay-audit'
     );
 
@@ -288,13 +484,41 @@ async function main() {
       auditState: (await evalAuditState(page)).auditState,
     });
 
-    await page.evaluate(({ keys, snapshot }) => {
+    await page.evaluate(async ({ keys, snapshot }) => {
+      const deleteIndexedSave = async (storageKey) => {
+        if (typeof saveSystem === 'undefined' || !saveSystem?.supportsIndexedDb?.()) return;
+        const database = await saveSystem.openSaveDatabase?.();
+        if (!database) return;
+        await new Promise((resolve, reject) => {
+          const transaction = database.transaction('saveSlots', 'readwrite');
+          const store = transaction.objectStore('saveSlots');
+          const request = store.delete(storageKey);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error || transaction.error || new Error('Unable to delete indexed save slot'));
+          transaction.onabort = () => reject(transaction.error || new Error('Indexed save delete aborted'));
+        });
+      };
+
       for (const key of keys) {
-        if (snapshot[key] == null) {
+        const value = snapshot.localStorageSnapshot?.[key];
+        if (value == null) {
           window.localStorage.removeItem(key);
         } else {
-          window.localStorage.setItem(key, snapshot[key]);
+          window.localStorage.setItem(key, value);
         }
+      }
+      if (snapshot.primarySavePayload == null) {
+        await deleteIndexedSave('papilionem-save-v2');
+        window.localStorage.removeItem('papilionem-save-v2');
+      } else if (typeof saveSystem !== 'undefined' && saveSystem?.supportsIndexedDb?.()) {
+        await saveSystem.writePayloadToIndexedDb?.('papilionem-save-v2', snapshot.primarySavePayload);
+        if (snapshot.primarySaveBackend === 'indexeddb') {
+          window.localStorage.removeItem('papilionem-save-v2');
+        } else {
+          window.localStorage.setItem('papilionem-save-v2', snapshot.primarySavePayload);
+        }
+      } else {
+        window.localStorage.setItem('papilionem-save-v2', snapshot.primarySavePayload);
       }
       gameCore?.resetGame?.(true);
     }, { keys: STORAGE_KEYS, snapshot: savedStorage });
@@ -305,13 +529,22 @@ async function main() {
 
     const relevantConsole = report.consoleMessages.filter(entry => ['error', 'warning', 'assert'].includes(entry.type));
     const passingSteps = report.steps.filter(step => step.pass).length;
+    const finalSnapshot = await evalAuditState(page);
+    const avgRenderMs = finalSnapshot?.telemetry?.averages?.renderMs ?? Infinity;
+    const avgUpdateMs = finalSnapshot?.telemetry?.averages?.updateMs ?? Infinity;
     report.summary = {
       passingSteps,
       totalSteps: report.steps.length,
       pageErrors: report.pageErrors.length,
       relevantConsoleMessages: relevantConsole.length,
+      avgRenderMs,
+      avgUpdateMs
     };
-    report.overall = passingSteps === report.steps.length && report.pageErrors.length === 0 && relevantConsole.length === 0
+    report.overall = passingSteps === report.steps.length &&
+      report.pageErrors.length === 0 &&
+      relevantConsole.length === 0 &&
+      avgRenderMs <= 240 &&
+      avgUpdateMs <= 10
       ? 'pass'
       : 'warn';
   } catch (error) {
