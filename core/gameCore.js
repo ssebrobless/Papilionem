@@ -30,12 +30,6 @@ class GameCore {
         this.hiddenLoopPauseActive = false;
         this.boundVisibilityChangeHandler = this.handleDocumentVisibilityChange.bind(this);
 
-        this.zoneButterflyCache = new Map();
-        this.zoneCacheVersion = 0;
-        this.zoneCacheBuiltVersion = -1;
-        this.zoneCacheBuiltLength = -1;
-        this.emptyZoneButterflyArray = Object.freeze([]);
-        
         // Game state
         this.gameState = {
             butterflies: [],
@@ -73,7 +67,11 @@ class GameCore {
             replay: null,
             roster: null
         };
-        
+
+        this.butterflyStore = typeof ButterflyStore !== 'undefined'
+            ? new ButterflyStore(this.gameState.butterflies)
+            : null;
+
         // Debug mode state
         this.debugMode = {
             enabled: false,
@@ -2570,8 +2568,11 @@ class GameCore {
         if (entity.lifecycleData && typeof entity.lifecycleData === 'object') {
             entity.lifecycleData.currentZoneId = zoneId;
         }
-        if (previousZoneId !== zoneId) {
-            this.invalidateZoneButterflyCache();
+        if (previousZoneId !== zoneId
+            && this.butterflyStore
+            && entity?.id
+            && (entity.entityType === 'butterfly' || entity.lifeSim || entity.personalityType)) {
+            this.butterflyStore.moveZone(entity, previousZoneId, zoneId);
         }
         if (entity?.id && (entity.entityType === 'butterfly' || entity.lifeSim || entity.personalityType)) {
             this.syncButterflyZoneEcologyState(entity, zoneId, {
@@ -2581,35 +2582,16 @@ class GameCore {
         return entity;
     }
 
-    invalidateZoneButterflyCache() {
-        this.zoneCacheVersion += 1;
+    registerButterflyInStore(butterfly) {
+        if (this.butterflyStore && butterfly) {
+            this.butterflyStore.add(butterfly);
+        }
     }
 
-    ensureZoneButterflyCache() {
-        const arr = this.gameState.butterflies || [];
-        if (this.zoneCacheBuiltVersion === this.zoneCacheVersion
-            && this.zoneCacheBuiltLength === arr.length) {
-            return this.zoneButterflyCache;
+    unregisterButterflyFromStore(butterfly) {
+        if (this.butterflyStore && butterfly) {
+            this.butterflyStore.remove(butterfly);
         }
-        this.zoneButterflyCache.clear();
-        for (let i = 0; i < arr.length; i += 1) {
-            const entity = arr[i];
-            if (!entity) continue;
-            const zoneId = entity.currentZoneId
-                || entity.lifeSim?.lifecycle?.currentZoneId
-                || entity.lifecycleData?.currentZoneId
-                || null;
-            if (!zoneId) continue;
-            let bucket = this.zoneButterflyCache.get(zoneId);
-            if (!bucket) {
-                bucket = [];
-                this.zoneButterflyCache.set(zoneId, bucket);
-            }
-            bucket.push(entity);
-        }
-        this.zoneCacheBuiltVersion = this.zoneCacheVersion;
-        this.zoneCacheBuiltLength = arr.length;
-        return this.zoneButterflyCache;
     }
 
     ensureButterflyZoneEcologyState(butterfly) {
@@ -2858,6 +2840,7 @@ class GameCore {
         if (globalIndex >= 0) {
             this.gameState.butterflies.splice(globalIndex, 1);
         }
+        this.unregisterButterflyFromStore(butterfly);
     }
 
     pickWildArrivalZoneId() {
@@ -3578,9 +3561,9 @@ class GameCore {
     }
 
     getButterfliesInZone(zoneId) {
-        if (!zoneId) return this.emptyZoneButterflyArray;
-        const cache = this.ensureZoneButterflyCache();
-        return cache.get(zoneId) || this.emptyZoneButterflyArray;
+        if (!zoneId) return ButterflyStore.EMPTY_ARRAY;
+        if (this.butterflyStore) return this.butterflyStore.inZone(zoneId);
+        return (this.gameState.butterflies || []).filter(entity => this.getEntityZoneId(entity, null) === zoneId);
     }
 
     getFlowersInZone(zoneId) {
@@ -4222,6 +4205,7 @@ class GameCore {
             this.mlInferenceSystem?.registerEntity(entity);
             if (entityType === 'butterfly') {
                 this.rosterSystem?.registerButterfly?.(entity, this.gameState);
+                this.registerButterflyInStore(entity);
             }
         }
 
@@ -5706,6 +5690,7 @@ class GameCore {
             this.gameState.flowers = [];
             this.gameState.blocks = [];
             this.gameState.pendingPollenPlantings = [];
+            this.butterflyStore?.adoptArray(this.gameState.butterflies);
 
             if (resetProgression) {
                 progressionManager?.resetAll?.(this.gameState);

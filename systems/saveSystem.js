@@ -1463,6 +1463,7 @@ class SaveSystem {
         gameState.flowers = reconciledWorld.flowers;
         gameState.caterpillars = reconciledWorld.caterpillars;
         gameState.blocks = reconciledWorld.blocks;
+        gameCoreInstance.butterflyStore?.adoptArray(gameState.butterflies);
 
         this.applyProgressionState(gameState, normalized.progression || {});
         this.applyRuntimeState(gameState, normalized.meta || {}, normalized.runtime || {});

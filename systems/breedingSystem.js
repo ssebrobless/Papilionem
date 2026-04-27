@@ -951,6 +951,9 @@ class BreedingSystem {
         );
 
         gameState.butterflies.push(butterfly);
+        if (typeof gameCore !== 'undefined') {
+            gameCore?.butterflyStore?.add(butterfly);
+        }
         gameState.pendingOffspringReservations = Math.max(0, gameState.pendingOffspringReservations - 1);
 
         const entry = progressionManager.makeHybridEntry(
