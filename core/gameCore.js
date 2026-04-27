@@ -29,6 +29,12 @@ class GameCore {
         this.isResettingGame = false;
         this.hiddenLoopPauseActive = false;
         this.boundVisibilityChangeHandler = this.handleDocumentVisibilityChange.bind(this);
+
+        this.zoneButterflyCache = new Map();
+        this.zoneCacheVersion = 0;
+        this.zoneCacheBuiltVersion = -1;
+        this.zoneCacheBuiltLength = -1;
+        this.emptyZoneButterflyArray = Object.freeze([]);
         
         // Game state
         this.gameState = {
@@ -2553,6 +2559,10 @@ class GameCore {
 
     assignEntityToZone(entity, zoneId = this.getFocusedZoneId()) {
         if (!entity || !zoneId) return entity;
+        const previousZoneId = entity.currentZoneId
+            || entity.lifeSim?.lifecycle?.currentZoneId
+            || entity.lifecycleData?.currentZoneId
+            || null;
         entity.currentZoneId = zoneId;
         if (entity.lifeSim?.lifecycle) {
             entity.lifeSim.lifecycle.currentZoneId = zoneId;
@@ -2560,12 +2570,46 @@ class GameCore {
         if (entity.lifecycleData && typeof entity.lifecycleData === 'object') {
             entity.lifecycleData.currentZoneId = zoneId;
         }
+        if (previousZoneId !== zoneId) {
+            this.invalidateZoneButterflyCache();
+        }
         if (entity?.id && (entity.entityType === 'butterfly' || entity.lifeSim || entity.personalityType)) {
             this.syncButterflyZoneEcologyState(entity, zoneId, {
                 recordVisit: !entity.zoneTravel
             });
         }
         return entity;
+    }
+
+    invalidateZoneButterflyCache() {
+        this.zoneCacheVersion += 1;
+    }
+
+    ensureZoneButterflyCache() {
+        const arr = this.gameState.butterflies || [];
+        if (this.zoneCacheBuiltVersion === this.zoneCacheVersion
+            && this.zoneCacheBuiltLength === arr.length) {
+            return this.zoneButterflyCache;
+        }
+        this.zoneButterflyCache.clear();
+        for (let i = 0; i < arr.length; i += 1) {
+            const entity = arr[i];
+            if (!entity) continue;
+            const zoneId = entity.currentZoneId
+                || entity.lifeSim?.lifecycle?.currentZoneId
+                || entity.lifecycleData?.currentZoneId
+                || null;
+            if (!zoneId) continue;
+            let bucket = this.zoneButterflyCache.get(zoneId);
+            if (!bucket) {
+                bucket = [];
+                this.zoneButterflyCache.set(zoneId, bucket);
+            }
+            bucket.push(entity);
+        }
+        this.zoneCacheBuiltVersion = this.zoneCacheVersion;
+        this.zoneCacheBuiltLength = arr.length;
+        return this.zoneButterflyCache;
     }
 
     ensureButterflyZoneEcologyState(butterfly) {
@@ -3534,7 +3578,9 @@ class GameCore {
     }
 
     getButterfliesInZone(zoneId) {
-        return (this.gameState.butterflies || []).filter(entity => this.getEntityZoneId(entity, null) === zoneId);
+        if (!zoneId) return this.emptyZoneButterflyArray;
+        const cache = this.ensureZoneButterflyCache();
+        return cache.get(zoneId) || this.emptyZoneButterflyArray;
     }
 
     getFlowersInZone(zoneId) {

@@ -52,6 +52,9 @@ class TeachingSystem {
     }
 
     getButterfliesInZone(zoneId) {
+        if (typeof gameCore !== 'undefined' && typeof gameCore.getButterfliesInZone === 'function') {
+            return gameCore.getButterfliesInZone(zoneId);
+        }
         return this.getLiveButterflies().filter(butterfly => this.getEntityZoneId(butterfly, null) === zoneId);
     }
 

@@ -186,6 +186,9 @@ class LifeSimSystem {
     }
 
     getButterfliesInZone(zoneId, gameState = gameCore?.gameState) {
+        if (gameState && gameCore && gameState === gameCore.gameState && typeof gameCore.getButterfliesInZone === 'function') {
+            return gameCore.getButterfliesInZone(zoneId);
+        }
         return (gameState?.butterflies || []).filter(entity => this.getZoneId(entity) === zoneId);
     }
 
