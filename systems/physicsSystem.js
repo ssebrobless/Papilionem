@@ -10,7 +10,18 @@ class PhysicsSystem {
             blocks: 0,
             total: 0,
             updateMs: 0,
-            frameBudgetMs: 3.5
+            frameBudgetMs: 3.5,
+            stageMs: {
+                syncTrackedEntitiesMs: 0,
+                syncButterfliesMs: 0,
+                syncCaterpillarsMs: 0,
+                syncBlocksMs: 0,
+                syncPruneMs: 0,
+                reconcileUnsupportedBlocksMs: 0,
+                resolveButterflyContactsMs: 0,
+                resolveButterflyImpulsesMs: 0,
+                resolveButterflyStructureCollisionsMs: 0
+            }
         };
     }
 
@@ -28,7 +39,18 @@ class PhysicsSystem {
             blocks: 0,
             total: 0,
             updateMs: 0,
-            frameBudgetMs: 3.5
+            frameBudgetMs: 3.5,
+            stageMs: {
+                syncTrackedEntitiesMs: 0,
+                syncButterfliesMs: 0,
+                syncCaterpillarsMs: 0,
+                syncBlocksMs: 0,
+                syncPruneMs: 0,
+                reconcileUnsupportedBlocksMs: 0,
+                resolveButterflyContactsMs: 0,
+                resolveButterflyImpulsesMs: 0,
+                resolveButterflyStructureCollisionsMs: 0
+            }
         };
     }
 
@@ -1055,6 +1077,8 @@ class PhysicsSystem {
     }
 
     syncTrackedEntities(gameState = gameCore?.gameState, options = {}) {
+        const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        const stageMs = this.lastUpdateSummary.stageMs;
         const seenIds = new Set();
         const track = (entities = [], entityType) => {
             for (const entity of entities) {
@@ -1069,22 +1093,30 @@ class PhysicsSystem {
             }
         };
 
+        let stageStart = now();
         track(gameState?.butterflies || [], 'butterfly');
-        track(gameState?.caterpillars || [], 'caterpillar');
-        track(gameState?.blocks || [], 'block');
+        if (stageMs) stageMs.syncButterfliesMs = now() - stageStart;
 
+        stageStart = now();
+        track(gameState?.caterpillars || [], 'caterpillar');
+        if (stageMs) stageMs.syncCaterpillarsMs = now() - stageStart;
+
+        stageStart = now();
+        track(gameState?.blocks || [], 'block');
+        if (stageMs) stageMs.syncBlocksMs = now() - stageStart;
+
+        stageStart = now();
         for (const entityId of [...this.entityStates.keys()]) {
             if (!seenIds.has(entityId)) {
                 this.entityStates.delete(entityId);
             }
         }
+        if (stageMs) stageMs.syncPruneMs = now() - stageStart;
 
-        this.lastUpdateSummary = {
-            butterflies: (gameState?.butterflies || []).length,
-            caterpillars: (gameState?.caterpillars || []).length,
-            blocks: (gameState?.blocks || []).length,
-            total: seenIds.size
-        };
+        this.lastUpdateSummary.butterflies = (gameState?.butterflies || []).length;
+        this.lastUpdateSummary.caterpillars = (gameState?.caterpillars || []).length;
+        this.lastUpdateSummary.blocks = (gameState?.blocks || []).length;
+        this.lastUpdateSummary.total = seenIds.size;
     }
 
     resolveButterflyContacts(sceneState = gameCore?.gameState, options = {}) {
@@ -1356,19 +1388,43 @@ class PhysicsSystem {
 
     update(gameState = gameCore?.gameState, _deltaSeconds = gameConfig?.simulation?.fixedDeltaSeconds || 0, options = {}) {
         if (!this.initialized || !gameState) return;
-        const updateStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        const updateStart = now();
+        const stageMs = this.lastUpdateSummary.stageMs || (this.lastUpdateSummary.stageMs = {
+            syncTrackedEntitiesMs: 0,
+            reconcileUnsupportedBlocksMs: 0,
+            resolveButterflyContactsMs: 0,
+            resolveButterflyImpulsesMs: 0,
+            resolveButterflyStructureCollisionsMs: 0
+        });
+
+        let stageStart = now();
         this.syncTrackedEntities(gameState, {
             ...options,
             resetContacts: true
         });
+        stageMs.syncTrackedEntitiesMs = now() - stageStart;
+
+        stageStart = now();
         this.reconcileUnsupportedBlocks(gameState);
+        stageMs.reconcileUnsupportedBlocksMs = now() - stageStart;
+
+        stageStart = now();
         this.resolveButterflyContacts(gameState, {
             skipSync: true
         });
+        stageMs.resolveButterflyContactsMs = now() - stageStart;
+
+        stageStart = now();
         this.resolveButterflyImpulses(gameState);
+        stageMs.resolveButterflyImpulsesMs = now() - stageStart;
+
+        stageStart = now();
         this.resolveButterflyStructureCollisions(gameState);
+        stageMs.resolveButterflyStructureCollisionsMs = now() - stageStart;
+
         this.lastUpdateFrame = typeof frameCount === 'number' ? frameCount : this.lastUpdateFrame;
-        this.lastUpdateSummary.updateMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - updateStart;
+        this.lastUpdateSummary.updateMs = now() - updateStart;
         this.lastUpdateSummary.frameBudgetMs = this.getBudgetTargets().focusedGardenPhysicsMs;
     }
 

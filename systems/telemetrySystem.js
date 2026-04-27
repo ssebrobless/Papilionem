@@ -540,6 +540,7 @@ class TelemetrySystem {
         this.mergeBreakdownMap(breakdown, sample.foundationBreakdown || {}, 'foundation.');
         this.mergeBreakdownMap(breakdown, sample.entityBreakdown || {}, 'entity.');
         this.mergeBreakdownMap(breakdown, sample.worldBreakdown || {}, 'world.');
+        this.mergeBreakdownMap(breakdown, sample.physicsBreakdown || {}, 'physics.');
         return breakdown;
     }
 

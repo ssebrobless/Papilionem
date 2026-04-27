@@ -102,6 +102,24 @@ slice; `bench-compare` diffs every `*Ms` field with its own threshold (default
 underneath. Fields where both sides round under 0.5 ms are muted to avoid
 percent inflation on near-zero costs.
 
+The physics stage is broken down further. `update.physicsMs` is the total spent
+inside `physicsSystem.update` per frame; the digest also includes:
+
+- `update.physics.syncTrackedEntitiesMs` (and per-family `syncButterfliesMs`,
+  `syncCaterpillarsMs`, `syncBlocksMs`, `syncPruneMs`) — registers/refreshes
+  spatial context for every entity. In single-zone scenarios this dominates
+  physics cost (~95% under typical loads).
+- `update.physics.reconcileUnsupportedBlocksMs` — re-evaluates support state
+  for stacked blocks.
+- `update.physics.resolveButterflyContactsMs` — butterfly-butterfly contacts.
+- `update.physics.resolveButterflyImpulsesMs` — applies movement intent.
+- `update.physics.resolveButterflyStructureCollisionsMs` — butterfly-block
+  collisions.
+
+When a real-play capture is heavier in physics than the bench, this breakdown
+is the first place to look — it tells you whether the gap is in spatial sync,
+contact resolution, or structure collision.
+
 ### CPU profile capture (one-shot deep dive)
 
 Add `--profile` to record a Chrome DevTools `.cpuprofile` covering exactly the
@@ -149,10 +167,13 @@ update. Use the composed scenarios when investigating real-play cost.
 | `bench/scenarios/flower-feed-storm.json` | 80 butterflies / 120 flowers / 16 blocks in `ivy-cloister` | High flower density saturates the feed/seek loop. |
 
 Add your own under `bench/scenarios/` with the shape
-`{ label, seed, butterflyCount, flowerCount?, blockCount?, focusZoneId?, viewMode?, warmupFrames, captureFrames, notes }`.
+`{ label, seed, butterflyCount, flowerCount?, blockCount?, focusZoneId?, viewMode?, scatterButterfliesAcrossZone?, warmupFrames, captureFrames, notes }`.
 The optional fields drive `harness.spawnFlowersTo`, `harness.spawnBlocksTo`,
-and `harness.forceZoneFocus` respectively. When `focusZoneId` is set, butterfly
-spawns are routed to that zone too.
+`harness.forceZoneFocus`, and `harness.scatterButterflies` respectively. When
+`focusZoneId` is set, butterfly spawns are routed to that zone too;
+`scatterButterfliesAcrossZone: true` then re-randomizes their positions across
+the zone interior so they don't all start clustered at doorway anchors (more
+realistic mid-zone density for `getSpatialContextForEntity` queries).
 
 ### Comparing two runs
 

@@ -53,6 +53,15 @@ function parseArgs(argv) {
 
 const TOP_BREAKDOWN_KEYS = [
     'update.physicsMs',
+    'update.physics.syncTrackedEntitiesMs',
+    'update.physics.syncButterfliesMs',
+    'update.physics.syncCaterpillarsMs',
+    'update.physics.syncBlocksMs',
+    'update.physics.syncPruneMs',
+    'update.physics.reconcileUnsupportedBlocksMs',
+    'update.physics.resolveButterflyContactsMs',
+    'update.physics.resolveButterflyImpulsesMs',
+    'update.physics.resolveButterflyStructureCollisionsMs',
     'update.entity.butterflyUpdateMs',
     'update.entity.caterpillarUpdateMs',
     'update.entity.blockUpdateMs',
@@ -137,6 +146,7 @@ async function main() {
             blockCount: scenarioRaw.blockCount,
             focusZoneId: scenarioRaw.focusZoneId,
             viewMode: scenarioRaw.viewMode,
+            scatterButterfliesAcrossZone: scenarioRaw.scatterButterfliesAcrossZone,
             warmupFrames: scenarioRaw.warmupFrames,
             captureFrames: scenarioRaw.captureFrames,
             label: scenarioRaw.label,

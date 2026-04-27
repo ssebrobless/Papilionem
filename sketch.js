@@ -213,6 +213,22 @@ function installPapilionemHarness() {
                 zoneId
             };
         },
+        scatterButterflies(options = {}) {
+            const zoneId = options.zoneId || gameCore.getFocusedZoneId();
+            if (!zoneId) return { applied: false, count: 0, zoneId: null };
+            const butterflies = gameCore.gameState?.butterflies || [];
+            const padding = Number.isFinite(options.padding) ? options.padding : 28;
+            let scattered = 0;
+            for (const butterfly of butterflies) {
+                if ((butterfly.currentZoneId || null) !== zoneId) continue;
+                const point = gameCore.getRandomPlacementPoint?.(zoneId, padding);
+                if (!point) continue;
+                butterfly.x = point.x;
+                butterfly.y = point.y - (gameConfig.entities?.heightOffset?.butterfly || 10);
+                scattered += 1;
+            }
+            return { applied: true, count: scattered, zoneId };
+        },
         forceZoneFocus(zoneId, options = {}) {
             if (!zoneId) return { applied: false, zoneId: null };
             const mode = options.mode || 'focused-garden';

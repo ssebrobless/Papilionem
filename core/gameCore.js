@@ -3299,6 +3299,7 @@ class GameCore {
             worldMs,
             worldBreakdown,
             physicsBudget: this.physicsSystem?.getBudgetTargets?.() || null,
+            physicsBreakdown: this.physicsSystem?.lastUpdateSummary?.stageMs || null,
             visibleButterflyCount: focusedSceneState.butterflies?.length || 0,
             visibleFlowerCount: focusedSceneState.flowers?.length || 0,
             visibleCaterpillarCount: focusedSceneState.caterpillars?.length || 0,

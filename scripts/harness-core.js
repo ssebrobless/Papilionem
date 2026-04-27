@@ -143,6 +143,10 @@ async function forceZoneFocus(page, zoneId, options = {}) {
     return page.evaluate(({ id, opts }) => window.papilionemHarness.forceZoneFocus(id, opts), { id: zoneId, opts: options });
 }
 
+async function scatterButterflies(page, options = {}) {
+    return page.evaluate(opts => window.papilionemHarness.scatterButterflies(opts), options);
+}
+
 async function tick(page, frames) {
     return page.evaluate(n => window.papilionemHarness.tick(n), frames);
 }
@@ -188,6 +192,7 @@ async function runScenario({
     blockCount = null,
     focusZoneId = null,
     viewMode = 'focused-garden',
+    scatterButterfliesAcrossZone = false,
     warmupFrames = 30,
     captureFrames = 600,
     label = 'bench-scenario',
@@ -209,6 +214,10 @@ async function runScenario({
     if (Number.isFinite(blockCount) && blockCount > 0) {
         blockSpawn = await spawnBlocksTo(page, blockCount, spawnZoneId ? { zoneId: spawnZoneId } : {});
     }
+    let scatterResult = null;
+    if (spawnZoneId && scatterButterfliesAcrossZone) {
+        scatterResult = await scatterButterflies(page, { zoneId: spawnZoneId });
+    }
     if (warmupFrames > 0) {
         await tick(page, warmupFrames);
     }
@@ -223,11 +232,12 @@ async function runScenario({
     const finalCount = await getButterflyCount(page);
     const finalCounts = await getEntityCounts(page);
     return {
-        scenario: { seed, butterflyCount, flowerCount, blockCount, focusZoneId, viewMode, warmupFrames, captureFrames, label },
+        scenario: { seed, butterflyCount, flowerCount, blockCount, focusZoneId, viewMode, scatterButterfliesAcrossZone, warmupFrames, captureFrames, label },
         focus: focusResult,
         spawn: spawnResult,
         flowerSpawn,
         blockSpawn,
+        scatter: scatterResult,
         butterflies: { final: finalCount },
         entities: finalCounts,
         tick: { ...tickResult, wallElapsedMs },
@@ -347,6 +357,7 @@ module.exports = {
     spawnFlowersTo,
     spawnBlocksTo,
     forceZoneFocus,
+    scatterButterflies,
     tick,
     snapshot,
     startCapture,
