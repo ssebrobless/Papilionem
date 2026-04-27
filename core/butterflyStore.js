@@ -19,6 +19,96 @@
 // the underlying array length on the next lookup, it rebuilds the index. So
 // any unhooked mutation just costs one O(N) rebuild rather than corrupting
 // reads.
+//
+// Proximity grids: each zone bucket also gets a uniform-cell ProximityGrid
+// (cellSize 64) that's lazily rebuilt the first time a proximity query fires
+// in a given frame. Position changes happen during physics; behavior/lifeSim
+// proximity scans run after, so the grid is stable for the rest of the tick.
+// The grid invalidates on (frame, bucket length) — a butterfly moving zones
+// or being removed changes the bucket length, which forces a rebuild.
+
+class ProximityGrid {
+    constructor(cellSize = 64) {
+        this.cellSize = cellSize;
+        this.cells = new Map();
+        this.builtForFrame = -1;
+        this.builtForLength = -1;
+    }
+
+    needsRebuild(frame, bucketLength) {
+        return this.builtForFrame !== frame || this.builtForLength !== bucketLength;
+    }
+
+    rebuild(bucket, frame) {
+        this.cells.clear();
+        const inv = 1 / this.cellSize;
+        for (let i = 0; i < bucket.length; i += 1) {
+            const b = bucket[i];
+            if (!b) continue;
+            const cx = Math.floor((b.x || 0) * inv);
+            const cy = Math.floor((b.y || 0) * inv);
+            const key = (cx << 16) ^ (cy & 0xffff);
+            let cell = this.cells.get(key);
+            if (!cell) {
+                cell = [];
+                this.cells.set(key, cell);
+            }
+            cell.push(b);
+        }
+        this.builtForFrame = frame;
+        this.builtForLength = bucket.length;
+    }
+
+    countWithin(x, y, radius, excludeId) {
+        const inv = 1 / this.cellSize;
+        const minCX = Math.floor((x - radius) * inv);
+        const maxCX = Math.floor((x + radius) * inv);
+        const minCY = Math.floor((y - radius) * inv);
+        const maxCY = Math.floor((y + radius) * inv);
+        const rSq = radius * radius;
+        let count = 0;
+        for (let cy = minCY; cy <= maxCY; cy += 1) {
+            const yKey = cy & 0xffff;
+            for (let cx = minCX; cx <= maxCX; cx += 1) {
+                const cell = this.cells.get((cx << 16) ^ yKey);
+                if (!cell) continue;
+                for (let i = 0; i < cell.length; i += 1) {
+                    const b = cell[i];
+                    if (!b || (excludeId != null && b.id === excludeId)) continue;
+                    const dx = (b.x || 0) - x;
+                    const dy = (b.y || 0) - y;
+                    if (dx * dx + dy * dy <= rSq) count += 1;
+                }
+            }
+        }
+        return count;
+    }
+
+    listWithin(x, y, radius, excludeId, out) {
+        const result = out || [];
+        const inv = 1 / this.cellSize;
+        const minCX = Math.floor((x - radius) * inv);
+        const maxCX = Math.floor((x + radius) * inv);
+        const minCY = Math.floor((y - radius) * inv);
+        const maxCY = Math.floor((y + radius) * inv);
+        const rSq = radius * radius;
+        for (let cy = minCY; cy <= maxCY; cy += 1) {
+            const yKey = cy & 0xffff;
+            for (let cx = minCX; cx <= maxCX; cx += 1) {
+                const cell = this.cells.get((cx << 16) ^ yKey);
+                if (!cell) continue;
+                for (let i = 0; i < cell.length; i += 1) {
+                    const b = cell[i];
+                    if (!b || (excludeId != null && b.id === excludeId)) continue;
+                    const dx = (b.x || 0) - x;
+                    const dy = (b.y || 0) - y;
+                    if (dx * dx + dy * dy <= rSq) result.push(b);
+                }
+            }
+        }
+        return result;
+    }
+}
 
 class ButterflyStore {
     static EMPTY_ARRAY = Object.freeze([]);
@@ -29,12 +119,17 @@ class ButterflyStore {
         this._zoneOf = new Map();
         this._lastSyncedLength = -1;
         this._emptyArray = Object.freeze([]);
+        this._gridByZone = new Map();
+        this._gridCellSize = 96;
+        this._gridMinBucket = 96;
+        this._gridStats = { rebuilds: 0, queries: 0 };
     }
 
     adoptArray(arr) {
         this._arr = Array.isArray(arr) ? arr : [];
         this._byZone.clear();
         this._zoneOf.clear();
+        this._gridByZone.clear();
         this._lastSyncedLength = -1;
         this._ensureConsistent();
     }
@@ -73,6 +168,77 @@ class ButterflyStore {
         return this._byZone.get(zoneId) || this._emptyArray;
     }
 
+    proximityCount(zoneId, x, y, radius, excludeId = null) {
+        if (!zoneId || !(radius > 0)) return 0;
+        const bucket = this.inZone(zoneId);
+        const len = bucket.length;
+        if (!len) return 0;
+        this._gridStats.queries += 1;
+        if (len <= this._gridMinBucket) {
+            const rSq = radius * radius;
+            let count = 0;
+            for (let i = 0; i < len; i += 1) {
+                const b = bucket[i];
+                if (!b || (excludeId != null && b.id === excludeId)) continue;
+                const dx = (b.x || 0) - x;
+                const dy = (b.y || 0) - y;
+                if (dx * dx + dy * dy <= rSq) count += 1;
+            }
+            return count;
+        }
+        const grid = this._ensureGrid(zoneId, bucket);
+        return grid.countWithin(x, y, radius, excludeId);
+    }
+
+    proximityList(zoneId, x, y, radius, excludeId = null, out = null) {
+        if (!zoneId || !(radius > 0)) return out || [];
+        const bucket = this.inZone(zoneId);
+        const len = bucket.length;
+        if (!len) return out || [];
+        this._gridStats.queries += 1;
+        if (len <= this._gridMinBucket) {
+            const result = out || [];
+            const rSq = radius * radius;
+            for (let i = 0; i < len; i += 1) {
+                const b = bucket[i];
+                if (!b || (excludeId != null && b.id === excludeId)) continue;
+                const dx = (b.x || 0) - x;
+                const dy = (b.y || 0) - y;
+                if (dx * dx + dy * dy <= rSq) result.push(b);
+            }
+            return result;
+        }
+        const grid = this._ensureGrid(zoneId, bucket);
+        return grid.listWithin(x, y, radius, excludeId, out);
+    }
+
+    _currentFrame() {
+        return typeof frameCount === 'number' ? frameCount : 0;
+    }
+
+    _ensureGrid(zoneId, bucket) {
+        let grid = this._gridByZone.get(zoneId);
+        if (!grid) {
+            grid = new ProximityGrid(this._gridCellSize);
+            this._gridByZone.set(zoneId, grid);
+        }
+        const frame = this._currentFrame();
+        if (grid.needsRebuild(frame, bucket.length)) {
+            grid.rebuild(bucket, frame);
+            this._gridStats.rebuilds += 1;
+        }
+        return grid;
+    }
+
+    invalidateGrid(zoneId) {
+        if (!zoneId) return;
+        const grid = this._gridByZone.get(zoneId);
+        if (grid) {
+            grid.builtForFrame = -1;
+            grid.builtForLength = -1;
+        }
+    }
+
     rebuildFromArray() {
         this._byZone.clear();
         this._zoneOf.clear();
@@ -92,7 +258,10 @@ class ButterflyStore {
             arrayLength: this._arr.length,
             indexedLength: this._zoneOf.size,
             zoneCount: this._byZone.size,
-            lastSyncedLength: this._lastSyncedLength
+            lastSyncedLength: this._lastSyncedLength,
+            gridZones: this._gridByZone.size,
+            gridRebuilds: this._gridStats.rebuilds,
+            gridQueries: this._gridStats.queries
         };
     }
 
@@ -134,4 +303,5 @@ class ButterflyStore {
 
 if (typeof window !== 'undefined') {
     window.ButterflyStore = ButterflyStore;
+    window.ProximityGrid = ProximityGrid;
 }

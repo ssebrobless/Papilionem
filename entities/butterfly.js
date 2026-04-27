@@ -1512,14 +1512,20 @@ class Butterfly extends Entity {
     getNearbyButterflyCount(radius = 72) {
         if (typeof gameCore === 'undefined' || !gameCore?.gameState?.butterflies) return 0;
         const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+        if (!zoneId) return 0;
+        const store = gameCore.butterflyStore;
+        if (store) {
+            return store.proximityCount(zoneId, this.x, this.y, radius, this.id);
+        }
+        const bucket = gameCore.getButterfliesInZone?.(zoneId) || [];
+        const rSq = radius * radius;
         let count = 0;
-        for (const butterfly of gameCore.gameState.butterflies) {
+        for (let i = 0; i < bucket.length; i += 1) {
+            const butterfly = bucket[i];
             if (!butterfly || butterfly.id === this.id) continue;
-            const butterflyZoneId = butterfly.currentZoneId || butterfly.lifeSim?.lifecycle?.currentZoneId || null;
-            if (zoneId && butterflyZoneId && butterflyZoneId !== zoneId) continue;
-            if (dist(this.x, this.y, butterfly.x, butterfly.y) <= radius) {
-                count++;
-            }
+            const dx = butterfly.x - this.x;
+            const dy = butterfly.y - this.y;
+            if (dx * dx + dy * dy <= rSq) count += 1;
         }
         return count;
     }

@@ -123,6 +123,9 @@ function installPapilionemHarness() {
         snapshot() {
             return gameCore?.telemetrySystem?.getSnapshot?.() || null;
         },
+        storeStats() {
+            return gameCore?.butterflyStore?.debugStats?.() || null;
+        },
         getButterflyCount() {
             return gameCore?.gameState?.butterflies?.length || 0;
         },
