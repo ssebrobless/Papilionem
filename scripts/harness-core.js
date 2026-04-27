@@ -161,17 +161,21 @@ async function runScenario({
     butterflyCount = 50,
     warmupFrames = 30,
     captureFrames = 600,
-    label = 'bench-scenario'
+    label = 'bench-scenario',
+    onCaptureStart = null,
+    onCaptureEnd = null
 }) {
     await applySeed(page, seed);
     const spawnResult = await spawnTo(page, butterflyCount);
     if (warmupFrames > 0) {
         await tick(page, warmupFrames);
     }
+    if (onCaptureStart) await onCaptureStart();
     await startCapture(page, label);
     const tickStart = Date.now();
     const tickResult = await tick(page, captureFrames);
     const wallElapsedMs = Date.now() - tickStart;
+    if (onCaptureEnd) await onCaptureEnd();
     const capture = await buildCaptureExport(page);
     await finishCapture(page);
     const finalCount = await getButterflyCount(page);
@@ -182,6 +186,21 @@ async function runScenario({
         tick: { ...tickResult, wallElapsedMs },
         capture
     };
+}
+
+// Flatten nested numeric fields with dotted keys. Skips non-numeric values and arrays.
+function flattenNumbers(obj, prefix = '', out = {}) {
+    if (!obj || typeof obj !== 'object') return out;
+    for (const k of Object.keys(obj)) {
+        const v = obj[k];
+        const key = prefix ? `${prefix}.${k}` : k;
+        if (typeof v === 'number' && Number.isFinite(v)) {
+            out[key] = v;
+        } else if (v && typeof v === 'object' && !Array.isArray(v)) {
+            flattenNumbers(v, key, out);
+        }
+    }
+    return out;
 }
 
 function summarizeCapture(capture) {
@@ -199,6 +218,7 @@ function summarizeCapture(capture) {
         : null;
     const maxFrameMsComputed = sortedFrames.length ? sortedFrames[sortedFrames.length - 1] : null;
     const minFrameMsComputed = sortedFrames.length ? sortedFrames[0] : null;
+    const breakdown = flattenNumbers(telemetry.breakdowns || {});
     return {
         version: capture.version,
         durationMs: summary.durationMs,
@@ -221,7 +241,8 @@ function summarizeCapture(capture) {
         spriteCacheHits: memory?.spriteCache?.cacheHits ?? null,
         spriteCacheMisses: memory?.spriteCache?.cacheMisses ?? null,
         frameTimesCount: frameTimes.length,
-        frameTimesDroppedCount: capture.frameTimesDroppedCount || 0
+        frameTimesDroppedCount: capture.frameTimesDroppedCount || 0,
+        breakdown
     };
 }
 
@@ -244,6 +265,29 @@ function persistDigest({ outputDir, label, scenario, summary, frameTimes, raw })
     return { digestPath, rawPath };
 }
 
+// Open a CDP session, start the V8 sampling profiler, and return start/stop hooks
+// suitable for runScenario's onCaptureStart/onCaptureEnd. The profile is written
+// as a Chrome DevTools .cpuprofile file when stop() runs.
+async function attachCpuProfiler({ page, profilePath, samplingIntervalMicros = 500 }) {
+    const client = await page.context().newCDPSession(page);
+    let started = false;
+    const start = async () => {
+        await client.send('Profiler.enable');
+        await client.send('Profiler.setSamplingInterval', { interval: samplingIntervalMicros });
+        await client.send('Profiler.start');
+        started = true;
+    };
+    const stop = async () => {
+        if (!started) return null;
+        const { profile } = await client.send('Profiler.stop');
+        await client.send('Profiler.disable');
+        ensureDir(path.dirname(profilePath));
+        fs.writeFileSync(profilePath, JSON.stringify(profile), 'utf8');
+        return profilePath;
+    };
+    return { start, stop, samplingIntervalMicros };
+}
+
 module.exports = {
     ROOT,
     ensureDir,
@@ -261,5 +305,7 @@ module.exports = {
     getButterflyCount,
     runScenario,
     summarizeCapture,
-    persistDigest
+    persistDigest,
+    attachCpuProfiler,
+    flattenNumbers
 };

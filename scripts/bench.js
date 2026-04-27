@@ -19,11 +19,12 @@ const {
     runScenario,
     summarizeCapture,
     persistDigest,
+    attachCpuProfiler,
     stamp
 } = require('./harness-core');
 
 function parseArgs(argv) {
-    const args = { positional: [], out: null, raw: true, headless: true };
+    const args = { positional: [], out: null, raw: true, headless: true, profile: false, profileIntervalMicros: 500 };
     for (let i = 0; i < argv.length; i += 1) {
         const arg = argv[i];
         if (arg === '--out') {
@@ -35,6 +36,12 @@ function parseArgs(argv) {
             args.raw = false;
         } else if (arg === '--headed') {
             args.headless = false;
+        } else if (arg === '--profile') {
+            args.profile = true;
+        } else if (arg === '--profile-interval') {
+            args.profileIntervalMicros = Number(argv[i + 1]);
+            args.profile = true;
+            i += 1;
         } else if (arg.startsWith('--')) {
             throw new Error(`Unknown flag: ${arg}`);
         } else {
@@ -42,6 +49,37 @@ function parseArgs(argv) {
         }
     }
     return args;
+}
+
+const TOP_BREAKDOWN_KEYS = [
+    'update.physicsMs',
+    'update.entity.butterflyUpdateMs',
+    'update.entity.caterpillarUpdateMs',
+    'update.entity.blockUpdateMs',
+    'update.foundation.lifeSimSystemMs',
+    'update.foundation.mlInferenceSystemMs',
+    'update.foundation.behaviorSystemMs',
+    'update.foundation.communicationSystemMs',
+    'update.foundation.teachingSystemMs',
+    'update.foundation.sleepSystemMs',
+    'update.foundation.statusSystemMs',
+    'update.foundation.structureSystemMs',
+    'update.foundation.objectSystemMs',
+    'update.foundation.battleSystemMs',
+    'update.world.breedingMs',
+    'update.world.flowerManagerMs',
+    'update.world.specialEffectsMs',
+    'render.entityLayerMs',
+    'render.compositeMs',
+    'render.entityFamilyButterflyMs',
+    'render.entityFamilyFlowerMs',
+    'render.entityFamilyBlockMs',
+    'render.composite.totalCompositeMs'
+];
+
+function formatBreakdownLine(key, value) {
+    const num = typeof value === 'number' ? value.toFixed(2) : String(value ?? '-');
+    return `    ${key.padEnd(46)} ${num.padStart(8)}`;
 }
 
 function resolveScenarioPath(name) {
@@ -78,19 +116,33 @@ async function main() {
     let session = null;
     try {
         session = await launchHarness({ baseUrl: ctx.baseUrl, headless: args.headless });
+        const digestLabel = `${scenarioRaw.label}-${stamp()}`;
+        const profilePath = args.profile
+            ? path.join(outputDir, `${digestLabel}.cpuprofile`)
+            : null;
+        let profiler = null;
+        if (args.profile) {
+            profiler = await attachCpuProfiler({
+                page: session.page,
+                profilePath,
+                samplingIntervalMicros: args.profileIntervalMicros
+            });
+        }
+
         const result = await runScenario({
             page: session.page,
             seed: scenarioRaw.seed,
             butterflyCount: scenarioRaw.butterflyCount,
             warmupFrames: scenarioRaw.warmupFrames,
             captureFrames: scenarioRaw.captureFrames,
-            label: scenarioRaw.label
+            label: scenarioRaw.label,
+            onCaptureStart: profiler ? () => profiler.start() : null,
+            onCaptureEnd: profiler ? () => profiler.stop() : null
         });
 
         const summary = summarizeCapture(result.capture);
         const frameTimes = Array.isArray(result.capture?.frameTimes) ? result.capture.frameTimes : [];
 
-        const digestLabel = `${scenarioRaw.label}-${stamp()}`;
         const persisted = persistDigest({
             outputDir,
             label: digestLabel,
@@ -127,8 +179,19 @@ async function main() {
             spriteCacheMisses: summary.spriteCacheMisses,
             spriteCacheEvictions: summary.spriteCacheEvictions
         }, null, 2));
-        console.log(`[bench] digest -> ${persisted.digestPath}`);
+
+        const breakdown = summary?.breakdown || {};
+        const topRows = TOP_BREAKDOWN_KEYS.filter(k => Number.isFinite(breakdown[k]));
+        if (topRows.length) {
+            console.log('\n[bench] === avg ms per frame (top breakdown) ===');
+            for (const key of topRows) {
+                console.log(formatBreakdownLine(key, breakdown[key]));
+            }
+        }
+
+        console.log(`\n[bench] digest -> ${persisted.digestPath}`);
         if (persisted.rawPath) console.log(`[bench] raw    -> ${persisted.rawPath}`);
+        if (profilePath) console.log(`[bench] profile-> ${profilePath}  (open in Chrome DevTools > Performance > Load profile)`);
         if (session.errors.length) {
             console.warn(`[bench] page errors: ${session.errors.length}`);
             for (const err of session.errors.slice(0, 5)) console.warn(`  - ${err}`);

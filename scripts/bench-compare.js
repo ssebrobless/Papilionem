@@ -24,13 +24,30 @@ const REGRESSION_FIELDS = [
 
 const COUNTER_FIELDS = ['butterflyCount', 'spawnActual', 'spriteCacheHits', 'spriteCacheMisses', 'spriteCacheEvictions', 'tickFrames'];
 
+const BREAKDOWN_MIN_ABS_MS = 0.5; // skip fields where both sides round to noise
+const BREAKDOWN_MIN_DELTA_PCT = 0.10; // wider gate than top-line to filter wall noise
+
 function parseArgs(argv) {
-    const args = { positional: [], threshold: 0.05 };
+    const args = {
+        positional: [],
+        threshold: 0.05,
+        breakdownThreshold: null,
+        breakdownLimit: 30,
+        showAllBreakdown: false
+    };
     for (let i = 0; i < argv.length; i += 1) {
         const arg = argv[i];
         if (arg === '--threshold') {
             args.threshold = Number(argv[i + 1]);
             i += 1;
+        } else if (arg === '--breakdown-threshold') {
+            args.breakdownThreshold = Number(argv[i + 1]);
+            i += 1;
+        } else if (arg === '--breakdown-limit') {
+            args.breakdownLimit = Number(argv[i + 1]);
+            i += 1;
+        } else if (arg === '--all-breakdown') {
+            args.showAllBreakdown = true;
         } else if (arg.startsWith('--')) {
             throw new Error(`Unknown flag: ${arg}`);
         } else {
@@ -115,9 +132,52 @@ function main() {
         console.log(`  ${pad(key, 24)} ${pad(fmt(a), 12, true)} -> ${pad(fmt(b), 12, true)}`);
     }
 
+    const baselineBreakdown = baselineSummary.breakdown || {};
+    const candidateBreakdown = candidateSummary.breakdown || {};
+    const allKeys = new Set([...Object.keys(baselineBreakdown), ...Object.keys(candidateBreakdown)]);
+    const breakdownThreshold = args.breakdownThreshold ?? Math.max(args.threshold, BREAKDOWN_MIN_DELTA_PCT);
+    const breakdownRows = [];
+    for (const key of allKeys) {
+        if (!key.endsWith('Ms')) continue;
+        const a = Number(baselineBreakdown[key]);
+        const b = Number(candidateBreakdown[key]);
+        if (!Number.isFinite(a) && !Number.isFinite(b)) continue;
+        const aSafe = Number.isFinite(a) ? a : 0;
+        const bSafe = Number.isFinite(b) ? b : 0;
+        const delta = bSafe - aSafe;
+        const pct = aSafe !== 0 ? delta / aSafe : null;
+        breakdownRows.push({ key, baseline: aSafe, candidate: bSafe, delta, pct });
+    }
+    breakdownRows.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    if (breakdownRows.length) {
+        console.log('');
+        console.log('Per-system breakdown (avg ms per frame, sorted by |delta|):');
+        const headerRow = `  ${pad('field', 50)} ${pad('baseline', 10, true)} ${pad('candidate', 10, true)} ${pad('delta', 10, true)} ${pad('pct', 8, true)} status`;
+        console.log(headerRow);
+        console.log('  ' + '-'.repeat(headerRow.length - 2));
+        const rows = args.showAllBreakdown ? breakdownRows : breakdownRows.slice(0, args.breakdownLimit);
+        for (const row of rows) {
+            const isMaterial = Math.max(Math.abs(row.baseline), Math.abs(row.candidate)) >= BREAKDOWN_MIN_ABS_MS;
+            let status = 'ok';
+            if (isMaterial && row.pct !== null) {
+                if (row.pct > breakdownThreshold) {
+                    status = 'REGRESSION';
+                    regressions.push({ key: `breakdown.${row.key}`, baseline: row.baseline, candidate: row.candidate, pct: row.pct });
+                } else if (row.pct < -breakdownThreshold) {
+                    status = 'improved';
+                }
+            }
+            const pctStr = row.pct !== null ? (row.pct * 100).toFixed(1) + '%' : '-';
+            console.log(`  ${pad(row.key, 50)} ${pad(fmt(row.baseline), 10, true)} ${pad(fmt(row.candidate), 10, true)} ${pad(fmt(row.delta), 10, true)} ${pad(pctStr, 8, true)} ${status}`);
+        }
+        if (!args.showAllBreakdown && breakdownRows.length > args.breakdownLimit) {
+            console.log(`  ... ${breakdownRows.length - args.breakdownLimit} more (use --all-breakdown to see)`);
+        }
+    }
+
     if (regressions.length) {
         console.log('');
-        console.log(`FAIL: ${regressions.length} regression(s) past ${(args.threshold * 100).toFixed(1)}% threshold`);
+        console.log(`FAIL: ${regressions.length} regression(s) past threshold (top: ${(args.threshold * 100).toFixed(1)}%, breakdown: ${(breakdownThreshold * 100).toFixed(1)}%)`);
         process.exit(1);
     }
     console.log('');

@@ -87,8 +87,36 @@ node scripts/bench.js butterflies-200 --out qa_logs/bench/baseline
    `captureFrames` worth of `gameCore.update() + gameCore.draw()` while the
    in-game telemetry records per-frame costs.
 4. Writes a JSON digest to the output directory containing the per-stage
-   averages plus the full `frameTimes` distribution. Pass `--raw` to also emit
-   the unfiltered capture payload.
+   averages, the full `frameTimes` distribution, and a flat `breakdown` map of
+   every avg-ms field from telemetry (per-system, per-entity-family, per-render
+   layer). Pass `--raw` to also emit the unfiltered capture payload.
+
+### Per-system breakdown (preferred signal)
+
+Every digest carries a `summary.breakdown` object with the avg ms-per-frame
+contribution of each subsystem — e.g. `update.foundation.lifeSimSystemMs`,
+`update.foundation.mlInferenceSystemMs`, `update.entity.butterflyUpdateMs`,
+`render.entityFamilyButterflyMs`. The bench command prints a curated top
+slice; `bench-compare` diffs every `*Ms` field with its own threshold (default
+10%) so a noisy `avgUpdateMs` does not hide a deterministic system-level shift
+underneath. Fields where both sides round under 0.5 ms are muted to avoid
+percent inflation on near-zero costs.
+
+### CPU profile capture (one-shot deep dive)
+
+Add `--profile` to record a Chrome DevTools `.cpuprofile` covering exactly the
+capture window (warmup is excluded). Open the resulting file in Chrome
+DevTools > Performance > Load profile to get a flame graph with function-level
+attribution. Use this when the per-system breakdown shows a large block (e.g.
+`mlInferenceSystemMs`) and you want to see which functions inside it dominate.
+
+```bash
+node scripts/bench.js butterflies-400 --out qa_logs/bench/candidate --profile
+# writes <label>.cpuprofile alongside the digest
+```
+
+Default sampling is 500 µs; tighten with `--profile-interval 250` for finer
+granularity at the cost of profile size.
 
 ### Built-in scenarios
 
@@ -101,6 +129,14 @@ node scripts/bench.js butterflies-200 --out qa_logs/bench/baseline
 
 Add your own under `bench/scenarios/` with the shape
 `{ label, seed, butterflyCount, warmupFrames, captureFrames, notes }`.
+
+Targeted scenario variants are planned next — `single-zone-N` (force the
+population into one focused garden so per-zone density actually exercises the
+proximity grid), `breeding-active` (saturate the egg→cocoon→hybrid pipeline),
+`block-carry-active` (structure/carry hot path), and `flower-feed-storm`
+(feeding loop). The harness today only exposes `spawnTo(butterflies)`; these
+variants need matching `spawnFlowersTo`, `spawnBlocksTo`, and `forceZoneFocus`
+hooks to be deterministic.
 
 ### Comparing two runs
 
@@ -124,7 +160,12 @@ simulation, not just its speed.
 2. Make a change.
 3. Re-run the same scenarios into `qa_logs/bench/candidate/`.
 4. `bench-compare` each pair. Counter fields drifting indicates the change
-   touched simulation behavior — confirm that is intended.
+   touched simulation behavior — confirm that is intended. The per-system
+   breakdown table is the most reliable signal — wall-clock metrics sit on a
+   ~5–15% noise floor, but the sub-system avg ms numbers are deterministic
+   averages over the same fixed-tick simulation.
+5. If a system block looks suspicious, re-run the heaviest scenario with
+   `--profile` and open the `.cpuprofile` to see which function is responsible.
 
 ### Knobs worth knowing
 
