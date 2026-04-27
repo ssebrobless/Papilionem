@@ -129,21 +129,107 @@ function installPapilionemHarness() {
         getButterflyCount() {
             return gameCore?.gameState?.butterflies?.length || 0;
         },
-        spawnTo(targetCount) {
+        spawnTo(targetCount, options = {}) {
             const target = Math.max(0, Math.floor(Number(targetCount) || 0));
             const limit = (typeof gameConfig !== 'undefined' && gameConfig.entities?.maxButterflies) || 500;
             const cappedTarget = Math.min(target, limit);
+            const zoneId = options && typeof options === 'object' ? options.zoneId || null : null;
             let attempts = 0;
             const attemptCap = cappedTarget * 8 + 32;
             while ((gameCore.gameState.butterflies?.length || 0) < cappedTarget && attempts < attemptCap) {
-                gameCore.spawnAmbientWildButterfly();
+                if (zoneId) {
+                    gameCore.spawnAmbientWildButterfly(zoneId);
+                } else {
+                    gameCore.spawnAmbientWildButterfly();
+                }
                 attempts += 1;
             }
             return {
                 requested: target,
                 cappedTo: cappedTarget,
                 actual: gameCore.gameState.butterflies?.length || 0,
-                attempts
+                attempts,
+                zoneId
+            };
+        },
+        spawnFlowersTo(targetCount, options = {}) {
+            const target = Math.max(0, Math.floor(Number(targetCount) || 0));
+            const zoneId = options.zoneId || gameCore.getFocusedZoneId();
+            const flowerType = options.flowerType || null;
+            // The global maxFlowers config is a per-zone planting target, not a hard global cap.
+            // breedingSystem and other producers bypass it, so real play exceeds the config value
+            // (the validation capture has 163 total flowers). Don't gate the harness on it.
+            let attempts = 0;
+            const attemptCap = target * 24 + 96;
+            const minDistanceLadder = [40, 28, 18, 12];
+            let ladderIdx = 0;
+            let stallCount = 0;
+            const initialFlowerCount = gameCore.gameState.flowers?.length || 0;
+            const targetTotal = initialFlowerCount + target;
+            let lastCount = initialFlowerCount;
+            while ((gameCore.gameState.flowers?.length || 0) < targetTotal && attempts < attemptCap) {
+                gameCore.spawnFlowerAt(zoneId, null, null, {
+                    flowerType,
+                    minDistance: minDistanceLadder[ladderIdx],
+                    maxAttempts: 24
+                });
+                attempts += 1;
+                const nowCount = gameCore.gameState.flowers?.length || 0;
+                if (nowCount === lastCount) {
+                    stallCount += 1;
+                    if (stallCount >= 16 && ladderIdx < minDistanceLadder.length - 1) {
+                        ladderIdx += 1;
+                        stallCount = 0;
+                    } else if (stallCount >= 16 * minDistanceLadder.length) {
+                        break;
+                    }
+                } else {
+                    stallCount = 0;
+                    lastCount = nowCount;
+                }
+            }
+            return {
+                requested: target,
+                actual: gameCore.gameState.flowers?.length || 0,
+                addedDelta: (gameCore.gameState.flowers?.length || 0) - initialFlowerCount,
+                attempts,
+                zoneId,
+                finalLadderMinDistance: minDistanceLadder[ladderIdx]
+            };
+        },
+        spawnBlocksTo(targetCount, options = {}) {
+            const target = Math.max(0, Math.floor(Number(targetCount) || 0));
+            const zoneId = options.zoneId || gameCore.getFocusedZoneId();
+            let attempts = 0;
+            const attemptCap = target * 8 + 32;
+            while ((gameCore.gameState.blocks?.length || 0) < target && attempts < attemptCap) {
+                gameCore.godSpawnBlock(zoneId);
+                attempts += 1;
+            }
+            return {
+                requested: target,
+                actual: gameCore.gameState.blocks?.length || 0,
+                attempts,
+                zoneId
+            };
+        },
+        forceZoneFocus(zoneId, options = {}) {
+            if (!zoneId) return { applied: false, zoneId: null };
+            const mode = options.mode || 'focused-garden';
+            const zoneSystem = gameCore?.zoneSystem;
+            if (!zoneSystem) return { applied: false, zoneId };
+            zoneSystem.setFocusedZone(zoneId);
+            zoneSystem.setOverviewMode(mode === 'overview');
+            zoneSystem.setViewMode(mode);
+            if (gameCore.gameState) {
+                gameCore.gameState.focusedZoneId = zoneId;
+                gameCore.gameState.viewMode = mode;
+            }
+            return {
+                applied: true,
+                zoneId,
+                mode,
+                resolvedFocus: gameCore.getFocusedZoneId()
             };
         },
         applySeed(seed) {

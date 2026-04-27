@@ -1,0 +1,12 @@
+{
+    "label": "block-carry-active",
+    "seed": 17,
+    "butterflyCount": 80,
+    "flowerCount": 12,
+    "blockCount": 200,
+    "focusZoneId": "ivy-cloister",
+    "viewMode": "focused-garden",
+    "warmupFrames": 60,
+    "captureFrames": 600,
+    "notes": "High block density with moderate butterfly load; isolates structureSystem and carry/perch interaction cost."
+}

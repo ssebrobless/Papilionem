@@ -120,6 +120,12 @@ granularity at the cost of profile size.
 
 ### Built-in scenarios
 
+Two families:
+
+**Synthetic population sweeps** — fast, useful for finding O(N²) inflection
+points in the per-system breakdown. Spawn N butterflies into the default world,
+no flowers, no blocks, no zone focus.
+
 | File | N butterflies | Use |
 |---|---|---|
 | `bench/scenarios/butterflies-50.json` | 50 | Reference; should sit comfortably under 16.7 ms/frame |
@@ -127,16 +133,26 @@ granularity at the cost of profile size.
 | `bench/scenarios/butterflies-200.json` | 200 | High population, O(N²) hot |
 | `bench/scenarios/butterflies-400.json` | 400 | Stress, near the 500 entity cap |
 
-Add your own under `bench/scenarios/` with the shape
-`{ label, seed, butterflyCount, warmupFrames, captureFrames, notes }`.
+**Composed scenarios** — drive butterflies, flowers, and blocks all into a
+focused single zone so the bench reproduces the per-zone density that real
+gameplay actually exhibits. The synthetic scenarios understate real-world cost
+substantially; for example, a 13s manual playtest capture with 122 butterflies +
+108 blocks + 48 flowers in `ivy-cloister` ran at 75 ms avg update / 86 ms p50,
+while `butterflies-200` (no blocks, no flowers, no focus) sits around 22 ms avg
+update. Use the composed scenarios when investigating real-play cost.
 
-Targeted scenario variants are planned next — `single-zone-N` (force the
-population into one focused garden so per-zone density actually exercises the
-proximity grid), `breeding-active` (saturate the egg→cocoon→hybrid pipeline),
-`block-carry-active` (structure/carry hot path), and `flower-feed-storm`
-(feeding loop). The harness today only exposes `spawnTo(butterflies)`; these
-variants need matching `spawnFlowersTo`, `spawnBlocksTo`, and `forceZoneFocus`
-hooks to be deterministic.
+| File | Composition | Use |
+|---|---|---|
+| `bench/scenarios/single-zone-122.json` | 122 butterflies / 48+ flowers / 108 blocks in `ivy-cloister` | Validated reproduction of the 2026-04-27 manual capture (bench p50 ≈ 97% of capture, avg update ≈ 84%). Use as the realistic gameplay reference. |
+| `bench/scenarios/single-zone-200.json` | 200 butterflies / 60 flowers / 130 blocks in `ivy-cloister` | Above-real-play single-zone density; finds the cliff above 122. |
+| `bench/scenarios/block-carry-active.json` | 80 butterflies / 12 flowers / 200 blocks in `ivy-cloister` | High block density isolates structureSystem and carry/perch interaction cost. |
+| `bench/scenarios/flower-feed-storm.json` | 80 butterflies / 120 flowers / 16 blocks in `ivy-cloister` | High flower density saturates the feed/seek loop. |
+
+Add your own under `bench/scenarios/` with the shape
+`{ label, seed, butterflyCount, flowerCount?, blockCount?, focusZoneId?, viewMode?, warmupFrames, captureFrames, notes }`.
+The optional fields drive `harness.spawnFlowersTo`, `harness.spawnBlocksTo`,
+and `harness.forceZoneFocus` respectively. When `focusZoneId` is set, butterfly
+spawns are routed to that zone too.
 
 ### Comparing two runs
 

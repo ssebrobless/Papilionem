@@ -1,0 +1,12 @@
+{
+    "label": "single-zone-200",
+    "seed": 17,
+    "butterflyCount": 200,
+    "flowerCount": 60,
+    "blockCount": 130,
+    "focusZoneId": "ivy-cloister",
+    "viewMode": "focused-garden",
+    "warmupFrames": 60,
+    "captureFrames": 600,
+    "notes": "Single-zone density above the observed real-play regime; useful for finding the cliff above 122."
+}

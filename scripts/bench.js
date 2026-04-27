@@ -133,6 +133,10 @@ async function main() {
             page: session.page,
             seed: scenarioRaw.seed,
             butterflyCount: scenarioRaw.butterflyCount,
+            flowerCount: scenarioRaw.flowerCount,
+            blockCount: scenarioRaw.blockCount,
+            focusZoneId: scenarioRaw.focusZoneId,
+            viewMode: scenarioRaw.viewMode,
             warmupFrames: scenarioRaw.warmupFrames,
             captureFrames: scenarioRaw.captureFrames,
             label: scenarioRaw.label,
@@ -157,7 +161,13 @@ async function main() {
                 tickWallMsPerFrame: result.tick.wallElapsedMs / Math.max(1, result.tick.frames),
                 spawnAttempts: result.spawn.attempts,
                 spawnRequested: result.spawn.requested,
-                spawnActual: result.butterflies.final
+                spawnActual: result.butterflies.final,
+                flowerSpawnRequested: result.flowerSpawn?.requested ?? null,
+                flowerSpawnActual: result.entities?.flowers ?? null,
+                blockSpawnRequested: result.blockSpawn?.requested ?? null,
+                blockSpawnActual: result.entities?.blocks ?? null,
+                focusZoneId: result.entities?.focusedZoneId ?? null,
+                viewMode: result.entities?.viewMode ?? null
             },
             frameTimes,
             raw: args.raw ? result.capture : null
@@ -167,6 +177,9 @@ async function main() {
         console.log(JSON.stringify({
             scenario: scenarioRaw.label,
             butterflyCount: result.butterflies.final,
+            flowerCount: result.entities?.flowers ?? null,
+            blockCount: result.entities?.blocks ?? null,
+            focusZoneId: result.entities?.focusedZoneId ?? null,
             wallMsPerFrame: (result.tick.wallElapsedMs / Math.max(1, result.tick.frames)).toFixed(2),
             p50FrameMs: summary.p50FrameMs,
             p95FrameMs: summary.p95FrameMs,

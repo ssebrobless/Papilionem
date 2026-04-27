@@ -127,8 +127,20 @@ async function applySeed(page, seed) {
     return page.evaluate(s => window.papilionemHarness.applySeed(s), seed);
 }
 
-async function spawnTo(page, count) {
-    return page.evaluate(n => window.papilionemHarness.spawnTo(n), count);
+async function spawnTo(page, count, options = {}) {
+    return page.evaluate(({ n, opts }) => window.papilionemHarness.spawnTo(n, opts), { n: count, opts: options });
+}
+
+async function spawnFlowersTo(page, count, options = {}) {
+    return page.evaluate(({ n, opts }) => window.papilionemHarness.spawnFlowersTo(n, opts), { n: count, opts: options });
+}
+
+async function spawnBlocksTo(page, count, options = {}) {
+    return page.evaluate(({ n, opts }) => window.papilionemHarness.spawnBlocksTo(n, opts), { n: count, opts: options });
+}
+
+async function forceZoneFocus(page, zoneId, options = {}) {
+    return page.evaluate(({ id, opts }) => window.papilionemHarness.forceZoneFocus(id, opts), { id: zoneId, opts: options });
 }
 
 async function tick(page, frames) {
@@ -155,10 +167,27 @@ async function getButterflyCount(page) {
     return page.evaluate(() => window.papilionemHarness.getButterflyCount());
 }
 
+async function getEntityCounts(page) {
+    return page.evaluate(() => {
+        const core = (typeof gameCore !== 'undefined') ? gameCore : null;
+        return {
+            butterflies: core?.gameState?.butterflies?.length || 0,
+            flowers: core?.gameState?.flowers?.length || 0,
+            blocks: core?.gameState?.blocks?.length || 0,
+            focusedZoneId: core?.getFocusedZoneId?.() || null,
+            viewMode: core?.gameState?.viewMode || null
+        };
+    });
+}
+
 async function runScenario({
     page,
     seed = 1,
     butterflyCount = 50,
+    flowerCount = null,
+    blockCount = null,
+    focusZoneId = null,
+    viewMode = 'focused-garden',
     warmupFrames = 30,
     captureFrames = 600,
     label = 'bench-scenario',
@@ -166,7 +195,20 @@ async function runScenario({
     onCaptureEnd = null
 }) {
     await applySeed(page, seed);
-    const spawnResult = await spawnTo(page, butterflyCount);
+    let focusResult = null;
+    if (focusZoneId) {
+        focusResult = await forceZoneFocus(page, focusZoneId, { mode: viewMode });
+    }
+    const spawnZoneId = focusZoneId || null;
+    const spawnResult = await spawnTo(page, butterflyCount, spawnZoneId ? { zoneId: spawnZoneId } : {});
+    let flowerSpawn = null;
+    if (Number.isFinite(flowerCount) && flowerCount > 0) {
+        flowerSpawn = await spawnFlowersTo(page, flowerCount, spawnZoneId ? { zoneId: spawnZoneId } : {});
+    }
+    let blockSpawn = null;
+    if (Number.isFinite(blockCount) && blockCount > 0) {
+        blockSpawn = await spawnBlocksTo(page, blockCount, spawnZoneId ? { zoneId: spawnZoneId } : {});
+    }
     if (warmupFrames > 0) {
         await tick(page, warmupFrames);
     }
@@ -179,10 +221,15 @@ async function runScenario({
     const capture = await buildCaptureExport(page);
     await finishCapture(page);
     const finalCount = await getButterflyCount(page);
+    const finalCounts = await getEntityCounts(page);
     return {
-        scenario: { seed, butterflyCount, warmupFrames, captureFrames, label },
+        scenario: { seed, butterflyCount, flowerCount, blockCount, focusZoneId, viewMode, warmupFrames, captureFrames, label },
+        focus: focusResult,
         spawn: spawnResult,
+        flowerSpawn,
+        blockSpawn,
         butterflies: { final: finalCount },
+        entities: finalCounts,
         tick: { ...tickResult, wallElapsedMs },
         capture
     };
@@ -297,12 +344,16 @@ module.exports = {
     closeHarness,
     applySeed,
     spawnTo,
+    spawnFlowersTo,
+    spawnBlocksTo,
+    forceZoneFocus,
     tick,
     snapshot,
     startCapture,
     buildCaptureExport,
     finishCapture,
     getButterflyCount,
+    getEntityCounts,
     runScenario,
     summarizeCapture,
     persistDigest,

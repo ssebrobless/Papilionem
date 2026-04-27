@@ -1,0 +1,12 @@
+{
+    "label": "flower-feed-storm",
+    "seed": 17,
+    "butterflyCount": 80,
+    "flowerCount": 120,
+    "blockCount": 16,
+    "focusZoneId": "ivy-cloister",
+    "viewMode": "focused-garden",
+    "warmupFrames": 60,
+    "captureFrames": 600,
+    "notes": "High flower density at moderate butterfly count; saturates the feed/seek loop."
+}
