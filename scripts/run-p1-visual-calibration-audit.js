@@ -200,6 +200,7 @@ async function collectCalibrationState(page) {
         mapPlacementRegion: clone(geometry.placementRegion),
         doorwayPassages: clone(geometry.doorwayPassages),
         doorwayAvoidPolygons: clone(geometry.doorwayAvoidPolygons),
+        visualReadabilityAvoidPolygons: clone(geometry.visualReadabilityAvoidPolygons),
         zoneScreenRegions: (gameConfig.world.zones || []).map(zone => ({
           id: zone.id,
           label: zone.label,
@@ -247,7 +248,8 @@ async function collectCalibrationState(page) {
       },
       samplePoints,
       warnings: {
-        nonFreePlacementProbeLabels
+        nonFreePlacementProbeLabels,
+        visualReadabilityMaskCount: (geometry.visualReadabilityAvoidPolygons || []).length
       }
     };
   });
@@ -255,57 +257,64 @@ async function collectCalibrationState(page) {
 
 async function drawCalibrationOverlay(page, calibration) {
   await page.evaluate((calibrationState) => {
+    const layer = renderManager.layers?.ui;
+    if (!layer) return;
     const drawPolygon = (points, color, label) => {
       if (!Array.isArray(points) || points.length < 3) return;
-      push();
-      noFill();
-      stroke(...color);
-      strokeWeight(3);
-      beginShape();
-      points.forEach(point => vertex(point.x, point.y));
-      endShape(CLOSE);
+      layer.push();
+      layer.noFill();
+      layer.stroke(...color);
+      layer.strokeWeight(3);
+      layer.beginShape();
+      points.forEach(point => layer.vertex(point.x, point.y));
+      layer.endShape(CLOSE);
       if (label) {
-        fill(...color);
-        noStroke();
-        textSize(12);
-        text(label, points[0].x + 6, points[0].y - 6);
+        layer.fill(...color);
+        layer.noStroke();
+        layer.textSize(12);
+        layer.text(label, points[0].x + 6, points[0].y - 6);
       }
-      pop();
+      layer.pop();
     };
     const drawRect = (bounds, color, label) => {
       if (!bounds) return;
-      push();
-      noFill();
-      stroke(...color);
-      strokeWeight(2);
-      rect(bounds.minX, bounds.minY, bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
-      fill(...color);
-      noStroke();
-      textSize(12);
-      text(label, bounds.minX + 6, bounds.minY + 14);
-      pop();
+      layer.push();
+      layer.noFill();
+      layer.stroke(...color);
+      layer.strokeWeight(2);
+      layer.rect(bounds.minX, bounds.minY, bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+      layer.fill(...color);
+      layer.noStroke();
+      layer.textSize(12);
+      layer.text(label, bounds.minX + 6, bounds.minY + 14);
+      layer.pop();
     };
     const drawCross = (point, color, label) => {
       if (!point) return;
-      push();
-      stroke(...color);
-      strokeWeight(2);
-      line(point.x - 9, point.y, point.x + 9, point.y);
-      line(point.x, point.y - 9, point.x, point.y + 9);
-      noFill();
-      circle(point.x, point.y, 18);
-      fill(...color);
-      noStroke();
-      textSize(11);
-      text(label, point.x + 10, point.y - 8);
-      pop();
+      layer.push();
+      layer.stroke(...color);
+      layer.strokeWeight(2);
+      layer.line(point.x - 9, point.y, point.x + 9, point.y);
+      layer.line(point.x, point.y - 9, point.x, point.y + 9);
+      layer.noFill();
+      layer.circle(point.x, point.y, 18);
+      layer.fill(...color);
+      layer.noStroke();
+      layer.textSize(11);
+      layer.text(label, point.x + 10, point.y - 8);
+      layer.pop();
     };
 
+    if (typeof noLoop === 'function') noLoop();
     gameCore.draw();
+    layer.clear();
     drawPolygon(calibrationState.geometry.roamPolygon, [255, 222, 80, 235], 'roam polygon');
     drawRect(calibrationState.geometry.placementRegion, [90, 220, 255, 235], 'placement region');
     for (const polygon of calibrationState.geometry.doorwayAvoidPolygons || []) {
       drawPolygon(polygon, [255, 90, 140, 210], null);
+    }
+    for (const polygon of calibrationState.geometry.visualReadabilityAvoidPolygons || []) {
+      drawPolygon(polygon, [255, 170, 60, 185], 'readability mask');
     }
     for (const doorway of Object.values(calibrationState.geometry.doorwayPassages || {})) {
       drawCross(doorway.path, [255, 90, 140, 235], 'doorway');
@@ -322,6 +331,7 @@ async function drawCalibrationOverlay(page, calibration) {
       y: calibrationState.fixtures.butterfly.y + (calibrationState.fixtures.butterfly.shadowOffset || 0)
     }, [255, 255, 255, 245], 'butterfly ground');
     drawCross(calibrationState.fixtures.flower, [255, 120, 240, 240], 'flower anchor');
+    renderManager.compositeLayers();
   }, calibration);
 }
 

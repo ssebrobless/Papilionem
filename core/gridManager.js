@@ -102,6 +102,10 @@ class GridManager {
         return this.getWorldGeometry()?.doorwayAvoidPolygons || [];
     }
 
+    getVisualReadabilityAvoidPolygons() {
+        return this.getWorldGeometry()?.visualReadabilityAvoidPolygons || [];
+    }
+
     getPlacementEdgeInset() {
         const configuredInset = gameConfig?.entities?.placementEdgeInset;
         if (Number.isFinite(configuredInset) && configuredInset > 0) {
@@ -219,12 +223,19 @@ class GridManager {
         return avoidPolygons.some(polygon => this.isPointInPolygon(point, polygon));
     }
 
+    isPointInVisualReadabilityAvoidanceZone(point) {
+        const avoidPolygons = this.getVisualReadabilityAvoidPolygons();
+        return avoidPolygons.some(polygon => this.isPointInPolygon(point, polygon));
+    }
+
     isPointInFreeRoamArea(point, options = {}) {
         const allowDoorways = !!options.allowDoorways;
+        const allowVisualReadabilityMasks = !!options.allowVisualReadabilityMasks;
         const polygon = this.getWorldGeometry()?.roamPolygon;
         if (!Array.isArray(polygon) || polygon.length < 3) return true;
         if (!this.isPointInPolygon(point, polygon)) return false;
         if (allowDoorways) return true;
+        if (!allowVisualReadabilityMasks && this.isPointInVisualReadabilityAvoidanceZone(point)) return false;
         return !this.isPointInDoorwayAvoidanceZone(point);
     }
 

@@ -137,6 +137,24 @@ async function setupLiveCarryAndSupportedStack(page, options = {}) {
     physicsSystem.update(state, 0);
     objectSystem.update(state);
 
+    baseBlock.placeAt?.(center.x + 18, center.y + 24, {
+      movedById: 'audit',
+      stackIndex: 0,
+      supportBlockId: null,
+      placementMode: 'ground',
+      zoneId
+    });
+    stackedBlock.placeAt?.(center.x + 18, center.y + 24, {
+      movedById: 'audit',
+      stackIndex: 1,
+      supportBlockId: baseBlock.id,
+      placementMode: 'stacked',
+      zoneId
+    });
+    structureSystem.update(state, 0);
+    physicsSystem.update(state, 0);
+    objectSystem.update(state);
+
     objectSystem.pickupObject?.(carryBlock.id, butterfly.id);
     carryBlock.pickupBy?.(butterfly);
     butterfly.blockInteraction.carryingBlockId = carryBlock.id;
@@ -338,13 +356,16 @@ async function run() {
           lastPlacedMode: 'stacked'
         });
         state.blocks.push(blockA, blockB, blockC);
+        structureSystem.update(state, 0);
+        physicsSystem.update(state, 0);
+        objectSystem.update(state);
+        if (typeof noLoop === 'function') noLoop();
+        gameCore.draw();
         return {
           zoneId,
           blockIds: [blockA.id, blockB.id, blockC.id]
         };
       });
-
-      await page.waitForTimeout(600);
 
       const after = await page.evaluate(({ blockIds }) => {
         const activeBlocks = (gameCore.getGameState().blocks || []).filter(block => blockIds.includes(block.id));
@@ -376,9 +397,19 @@ async function run() {
       const setup = await setupLiveCarryAndSupportedStack(page);
       const details = await page.evaluate((setupState) => {
         const state = gameCore.getGameState();
+        const butterfly = (state.butterflies || []).find(entry => entry.id === setupState?.butterflyId) || null;
         const stackedBlock = (state.blocks || []).find(entry => entry.id === setupState?.stackedBlockId) || null;
         const carryBlock = (state.blocks || []).find(entry => entry.id === setupState?.carryBlockId) || null;
         if (!stackedBlock || !carryBlock) return null;
+        if (butterfly && carryBlock) {
+          objectSystem.pickupObject?.(carryBlock.id, butterfly.id);
+          carryBlock.pickupBy?.(butterfly);
+          butterfly.blockInteraction.carryingBlockId = carryBlock.id;
+          butterfly.blockInteraction.cooldownFrames = 999;
+          butterfly.updateCarriedBlockPose?.(carryBlock);
+          physicsSystem.applyCarriedBlockAnchor?.(butterfly, carryBlock);
+          objectSystem.update(state);
+        }
 
         const stackedPhysics = physicsSystem.getEntityState?.(stackedBlock.id) || null;
         const carryPhysics = physicsSystem.getEntityState?.(carryBlock.id) || null;

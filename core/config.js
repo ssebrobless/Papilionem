@@ -211,6 +211,35 @@ PAPILIONEM_LAND_MAP.doorwayAvoidPolygons = [
     buildBufferedSegmentPolygon(PAPILIONEM_LAND_MAP.doorways.right.path, PAPILIONEM_LAND_MAP.doorways.right.spawn, 28, 24)
 ];
 
+PAPILIONEM_LAND_MAP.visualReadabilityAvoidPolygons = [
+    [
+        canvasPoint(12, 272),
+        canvasPoint(132, 224),
+        canvasPoint(186, 294),
+        canvasPoint(150, 408),
+        canvasPoint(12, 408)
+    ],
+    [
+        canvasPoint(148, 108),
+        canvasPoint(642, 108),
+        canvasPoint(704, 214),
+        canvasPoint(616, 238),
+        canvasPoint(508, 206),
+        canvasPoint(400, 218),
+        canvasPoint(292, 206),
+        canvasPoint(194, 244),
+        canvasPoint(126, 218)
+    ],
+    [
+        canvasPoint(654, 168),
+        canvasPoint(788, 264),
+        canvasPoint(788, 408),
+        canvasPoint(662, 408),
+        canvasPoint(620, 322),
+        canvasPoint(654, 252)
+    ]
+];
+
 const PAPILIONEM_BATTLE_ARENA = {
     bounds: mapWorldRectToCanvas(290, 276, 5256, 2852),
     laneDividerX: mapWorldPointToCanvas(2770, 0).x,
@@ -765,6 +794,7 @@ const PAPILIONEM_BATTLE_ARENA = {
             placementRegion: PAPILIONEM_SECTION_PLACEMENT_REGION,
             doorwayPassages: PAPILIONEM_LAND_MAP.doorways,
             doorwayAvoidPolygons: PAPILIONEM_LAND_MAP.doorwayAvoidPolygons,
+            visualReadabilityAvoidPolygons: PAPILIONEM_LAND_MAP.visualReadabilityAvoidPolygons,
             uiReserveTop: PAPILIONEM_UI_RESERVE_TOP,
             groundPlane: {
                 ellipseScaleY: 0.56,
