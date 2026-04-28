@@ -1,5 +1,7 @@
 // Minimal p5.js sketch - delegates to GameCore for all game logic
 let landBackgroundImage;
+let worldSectionOpenBaseImage;
+let worldSectionSpawnCoverImage;
 let battleArenaBackgroundImage;
 let titleImage;
 let doorwayCoverImage;
@@ -33,6 +35,8 @@ if (typeof window !== 'undefined') {
 
 function preload() {
     landBackgroundImage = loadImage('assets/base-land-map.png');
+    worldSectionOpenBaseImage = loadImage('assets/world-section-open-base.png');
+    worldSectionSpawnCoverImage = loadImage('assets/papilionem-background-spawn-covers.png');
     battleArenaBackgroundImage = loadImage('assets/battle-mode-arena-map.png');
     titleImage = loadImage('assets/newtitle.png');
     doorwayCoverImage = loadImage('assets/base-land-doorway-cover.png');
@@ -74,10 +78,10 @@ function setup() {
 
         renderManager.setWorldSectionLibrary({
             land: {
-                background: landBackgroundImage,
+                background: worldSectionOpenBaseImage || landBackgroundImage,
                 foliage: null,
                 groundWave: null,
-                spawnCover: doorwayCoverImage
+                spawnCover: worldSectionSpawnCoverImage || doorwayCoverImage
             }
         });
 

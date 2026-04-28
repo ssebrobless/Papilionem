@@ -119,6 +119,13 @@ async function setupLiveCarryAndSupportedStack(page, options = {}) {
       placementMode: 'stacked',
       zoneId
     });
+    carryBlock.placeAt?.(center.x - 20, center.y + 54, {
+      movedById: 'audit',
+      stackIndex: 0,
+      supportBlockId: null,
+      placementMode: 'ground',
+      zoneId
+    });
 
     butterfly.x = center.x - 42;
     butterfly.y = center.y + 12;
@@ -126,14 +133,15 @@ async function setupLiveCarryAndSupportedStack(page, options = {}) {
     butterfly.currentZoneId = zoneId;
     butterfly.lifeSim.lifecycle.currentZoneId = zoneId;
 
+    structureSystem.update(state, 0);
+    physicsSystem.update(state, 0);
+    objectSystem.update(state);
+
     objectSystem.pickupObject?.(carryBlock.id, butterfly.id);
     carryBlock.pickupBy?.(butterfly);
     butterfly.blockInteraction.carryingBlockId = carryBlock.id;
     butterfly.blockInteraction.cooldownFrames = 999;
     butterfly.updateCarriedBlockPose?.(carryBlock);
-
-    structureSystem.update(state, 0);
-    physicsSystem.update(state, 0);
     physicsSystem.applyCarriedBlockAnchor?.(butterfly, carryBlock);
     objectSystem.update(state);
 

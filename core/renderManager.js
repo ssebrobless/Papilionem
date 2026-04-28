@@ -197,6 +197,13 @@ class RenderManager {
     
     // Set background image
     setBackgroundImage(img) {
+        if (
+            this.isSectionSceneWorld()
+            && this.activeWorldSectionId
+            && this.worldSectionAssets.has(this.activeWorldSectionId)
+        ) {
+            return;
+        }
         this.backgroundImage = img;
         this.drawBackground();
     }
