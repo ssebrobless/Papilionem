@@ -163,7 +163,7 @@ class PhysicsSystem {
                 supportBlockId: entityType === 'block' ? (entity?.supportBlockId || null) : null,
                 motionOwner: 'physicsSystem',
                 lastMotionSource: null,
-                lastResolvedFrame: typeof frameCount === 'number' ? frameCount : 0
+                lastResolvedFrame: gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0)
             }
         };
     }
@@ -410,10 +410,18 @@ class PhysicsSystem {
 
     setEntityGroundPoint(entity, point) {
         if (!entity || !point) return;
+        const previousZoneId = gameCore?.getEntityZoneId?.(entity, null) || entity.currentZoneId || null;
         entity.x = point.x;
         entity.y = point.y - (entity.shadowOffset || 0);
         entity.gridPos = gridManager?.screenToIso?.(entity.x, entity.y + (entity.shadowOffset || 0)) || entity.gridPos;
         entity.updateZIndex?.();
+        const entityType = this.entityStates.get(entity.id)?.entityType || entity.physics?.entityType || null;
+        if (entityType === 'butterfly') {
+            gameCore?.butterflyStore?.afterPositionMutation?.(entity, previousZoneId, {
+                zoneId: previousZoneId,
+                source: 'physics-ground-point'
+            });
+        }
     }
 
     clampGroundPointToZone(point, zoneId = null, options = {}) {
@@ -450,7 +458,8 @@ class PhysicsSystem {
             fromX: options.fromX,
             fromY: options.fromY,
             corridorMargin: options.corridorMargin,
-            occupancyRadius: options.occupancyRadius
+            occupancyRadius: options.occupancyRadius,
+            cloneResults: false
         }) || null;
     }
 
@@ -513,7 +522,7 @@ class PhysicsSystem {
             Math.max(1, Math.round(options.frames || 1))
         );
         physics.impulse.source = options.source || physics.impulse.source || null;
-        physics.diagnostics.lastResolvedFrame = typeof frameCount === 'number' ? frameCount : physics.diagnostics.lastResolvedFrame;
+        physics.diagnostics.lastResolvedFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : physics.diagnostics.lastResolvedFrame);
         return true;
     }
 
@@ -888,7 +897,7 @@ class PhysicsSystem {
         const physics = this.getEntityState(entity.id) || this.registerEntity(entity, 'butterfly');
         if (!physics) return null;
 
-        const activeFrame = typeof frameCount === 'number' ? frameCount : -1;
+        const activeFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : -1);
         const zoneId = this.resolveZoneId(entity, options.zoneId || null);
         const fromPoint = options.fromPoint || this.getEntityGroundPoint(entity);
         const carriedBlock = options.carriedBlock || this.getCarriedBlockForButterfly(sceneState, entity);
@@ -1069,7 +1078,7 @@ class PhysicsSystem {
         physics.diagnostics.supportBlockId = entityType === 'block'
             ? (blockSupport?.supportBlockId || null)
             : null;
-        physics.diagnostics.lastResolvedFrame = typeof frameCount === 'number' ? frameCount : physics.diagnostics.lastResolvedFrame || 0;
+        physics.diagnostics.lastResolvedFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : physics.diagnostics.lastResolvedFrame || 0);
         if (entityType === 'block') {
             entity.syncPlacementProfile?.(blockSupport || null);
         }
@@ -1128,7 +1137,7 @@ class PhysicsSystem {
             });
         }
         if (butterflies.length < 2) {
-            this.lastContactResolutionFrame = typeof frameCount === 'number' ? frameCount : this.lastContactResolutionFrame;
+            this.lastContactResolutionFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : this.lastContactResolutionFrame);
             return true;
         }
         const groupedByZone = new Map();
@@ -1203,13 +1212,13 @@ class PhysicsSystem {
                     leftPhysics.motion.desired.y = resolvedLeftPoint.y;
                     rightPhysics.motion.desired.x = resolvedRightPoint.x;
                     rightPhysics.motion.desired.y = resolvedRightPoint.y;
-                    leftPhysics.diagnostics.lastResolvedFrame = typeof frameCount === 'number' ? frameCount : leftPhysics.diagnostics.lastResolvedFrame;
-                    rightPhysics.diagnostics.lastResolvedFrame = typeof frameCount === 'number' ? frameCount : rightPhysics.diagnostics.lastResolvedFrame;
+                    leftPhysics.diagnostics.lastResolvedFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : leftPhysics.diagnostics.lastResolvedFrame);
+                    rightPhysics.diagnostics.lastResolvedFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : rightPhysics.diagnostics.lastResolvedFrame);
                 }
             }
         }
 
-        this.lastContactResolutionFrame = typeof frameCount === 'number' ? frameCount : this.lastContactResolutionFrame;
+        this.lastContactResolutionFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : this.lastContactResolutionFrame);
         return true;
     }
 
@@ -1218,7 +1227,7 @@ class PhysicsSystem {
         const butterflies = sceneState?.butterflies || [];
         if (butterflies.length === 0) return true;
 
-        const activeFrame = typeof frameCount === 'number' ? frameCount : -1;
+        const activeFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : -1);
         for (const butterfly of butterflies) {
             if (!butterfly?.id || butterfly.isSpawning || butterfly.zoneTravel) continue;
             const sleepState = butterfly.getSleepState?.();
@@ -1305,7 +1314,7 @@ class PhysicsSystem {
         const butterflies = sceneState?.butterflies || [];
         if (butterflies.length === 0) return true;
 
-        const activeFrame = typeof frameCount === 'number' ? frameCount : -1;
+        const activeFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : -1);
         for (const butterfly of butterflies) {
             if (!butterfly?.id || butterfly.isSpawning || butterfly.zoneTravel) continue;
             const sleepState = butterfly.getSleepState?.();
@@ -1423,7 +1432,7 @@ class PhysicsSystem {
         this.resolveButterflyStructureCollisions(gameState);
         stageMs.resolveButterflyStructureCollisionsMs = now() - stageStart;
 
-        this.lastUpdateFrame = typeof frameCount === 'number' ? frameCount : this.lastUpdateFrame;
+        this.lastUpdateFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : this.lastUpdateFrame);
         this.lastUpdateSummary.updateMs = now() - updateStart;
         this.lastUpdateSummary.frameBudgetMs = this.getBudgetTargets().focusedGardenPhysicsMs;
     }

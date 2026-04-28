@@ -36,6 +36,7 @@ class GameCore {
             caterpillars: [],
             flowers: [],
             blocks: [],
+            currentFrame: 0,
             initialized: false,
             paused: false,
             butterflySpawnCounts: {}, // Track spawn count per personality type
@@ -71,6 +72,17 @@ class GameCore {
         this.butterflyStore = typeof ButterflyStore !== 'undefined'
             ? new ButterflyStore(this.gameState.butterflies)
             : null;
+        this.zoneDoorwayAnchorCache = new Map();
+        this.runtimeQueryCaches = {
+            flowerTargetingByZone: {
+                frame: -1,
+                zones: new Map()
+            },
+            liveSectorSnapshotsByZone: {
+                frame: -1,
+                zones: new Map()
+            }
+        };
 
         // Debug mode state
         this.debugMode = {
@@ -127,6 +139,7 @@ class GameCore {
     // Initialize all game systems in proper order
     async initialize(backgroundImage = null) {
         console.log('GameCore: Starting initialization...');
+        this.gameState.currentFrame = 0;
         
         try {
             // Step 1: Verify config is loaded
@@ -1115,7 +1128,89 @@ class GameCore {
         return occupancy;
     }
 
+    getRuntimeQueryFrame() {
+        return this.getCurrentFrame();
+    }
+
+    getCurrentFrame() {
+        return Number.isFinite(this.gameState?.currentFrame)
+            ? this.gameState.currentFrame
+            : 0;
+    }
+
+    getFrameZoneQueryCache(cacheName) {
+        const cache = this.runtimeQueryCaches?.[cacheName];
+        if (!cache) return null;
+        const frame = this.getRuntimeQueryFrame();
+        if (cache.frame !== frame) {
+            cache.frame = frame;
+            cache.zones.clear();
+        }
+        return cache.zones;
+    }
+
+    getZoneFlowerTargetingSnapshot(zoneId) {
+        if (!zoneId) {
+            return {
+                countsByFlowerId: new Map(),
+                targetByButterflyId: new Map()
+            };
+        }
+
+        const zoneCache = this.getFrameZoneQueryCache('flowerTargetingByZone');
+        const cached = zoneCache?.get(zoneId);
+        if (cached) return cached;
+
+        const countsByFlowerId = new Map();
+        const targetByButterflyId = new Map();
+        for (const butterfly of this.getButterfliesInZone(zoneId)) {
+            if (!butterfly?.id || butterfly.zoneTravel || butterfly.isSpawning) continue;
+            const targetFlowerId = butterfly?.feeding?.targetFlower?.id
+                || butterfly?.targetFlower?.id
+                || butterfly?.currentFeeder?.id
+                || null;
+            if (!targetFlowerId) continue;
+            targetByButterflyId.set(butterfly.id, targetFlowerId);
+            countsByFlowerId.set(targetFlowerId, (countsByFlowerId.get(targetFlowerId) || 0) + 1);
+        }
+
+        const snapshot = { countsByFlowerId, targetByButterflyId };
+        zoneCache?.set(zoneId, snapshot);
+        return snapshot;
+    }
+
+    getZoneLiveSectorSnapshot(zoneId, layout = this.getFlowerSectorLayout(), options = {}) {
+        if (!zoneId) {
+            return this.buildZoneLiveSectorSnapshot(zoneId, layout);
+        }
+
+        if (options.useFrameCache === false) {
+            return this.buildZoneLiveSectorSnapshot(zoneId, layout);
+        }
+
+        const zoneCache = this.getFrameZoneQueryCache('liveSectorSnapshotsByZone');
+        const cacheKey = `${zoneId}:${layout.cols}x${layout.rows}`;
+        const cached = zoneCache?.get(cacheKey);
+        if (cached) return cached;
+
+        const snapshot = this.buildZoneLiveSectorSnapshot(zoneId, layout);
+        zoneCache?.set(cacheKey, snapshot);
+        return snapshot;
+    }
+
     countNearbyButterflies(zoneId, point, radius = 82, ignoreEntityId = null) {
+        if (!zoneId || !point || !(radius > 0)) return 0;
+        const activeButterflyFilter = butterfly => butterfly?.id && !butterfly.zoneTravel && !butterfly.isSpawning;
+        if (this.butterflyStore) {
+            return this.butterflyStore.proximityCount(
+                zoneId,
+                point.x || 0,
+                point.y || 0,
+                radius,
+                ignoreEntityId,
+                activeButterflyFilter
+            );
+        }
         const butterflies = this.getButterfliesInZone(zoneId);
         let count = 0;
         for (const butterfly of butterflies) {
@@ -1300,7 +1395,7 @@ class GameCore {
         const config = this.getButterflyDispersalConfig();
         const candidateCount = Math.max(8, options.candidateCount || config.candidateCount);
         const layout = this.getFlowerSectorLayout();
-        const snapshot = this.buildZoneLiveSectorSnapshot(zoneId, layout);
+        const snapshot = this.getZoneLiveSectorSnapshot(zoneId, layout);
         const currentPoint = { x: butterfly.x || 0, y: butterfly.y || 0 };
         const interactionSpace = options.interactionSpace || this.getButterflyInteractionSpace(zoneId, { entity: butterfly });
         let bestPoint = null;
@@ -1350,33 +1445,18 @@ class GameCore {
 
     countButterfliesTargetingFlower(zoneId, flowerId, ignoreEntityId = null) {
         if (!zoneId || !flowerId) return 0;
-        const flower = this.getFlowersInZone(zoneId).find(candidate => candidate?.id === flowerId) || null;
-        let count = 0;
-        for (const butterfly of this.getButterfliesInZone(zoneId)) {
-            if (!butterfly?.id || butterfly.id === ignoreEntityId) continue;
-            const targetFlowerId = butterfly?.feeding?.targetFlower?.id
-                || butterfly?.currentFeeder?.id
-                || butterfly?.targetFlower?.id
-                || null;
-            const movementTargetsFlower = flower && butterfly?.movement?.targetType === 'goal'
-                ? (() => {
-                    const targetScreen = gridManager?.isoToScreen?.(butterfly.movement.target.x, butterfly.movement.target.y);
-                    return targetScreen
-                        ? Math.hypot((targetScreen.x || 0) - flower.x, (targetScreen.y || 0) - flower.y) <= 10
-                        : false;
-                })()
-                : false;
-            if (targetFlowerId === flowerId || movementTargetsFlower) {
-                count += 1;
-            }
+        const snapshot = this.getZoneFlowerTargetingSnapshot(zoneId);
+        let count = snapshot.countsByFlowerId.get(flowerId) || 0;
+        if (ignoreEntityId && snapshot.targetByButterflyId.get(ignoreEntityId) === flowerId) {
+            count -= 1;
         }
-        return count;
+        return Math.max(0, count);
     }
 
     chooseBestFlowerForButterfly(butterfly, candidateFlowers = [], options = {}) {
         const zoneId = this.getEntityZoneId(butterfly, this.getFocusedZoneId());
         if (!butterfly || !zoneId || !candidateFlowers.length) return null;
-        const snapshot = this.buildZoneLiveSectorSnapshot(zoneId, this.getFlowerSectorLayout());
+        const snapshot = this.getZoneLiveSectorSnapshot(zoneId, this.getFlowerSectorLayout());
         const config = this.getButterflyDispersalConfig();
         const feedUrgency = butterfly?.lifeSim?.derived?.behaviorBiases?.feedUrgency || 0;
         let bestFlower = null;
@@ -1413,7 +1493,7 @@ class GameCore {
     chooseBestBlockForButterfly(butterfly, candidateBlocks = [], options = {}) {
         const zoneId = this.getEntityZoneId(butterfly, this.getFocusedZoneId());
         if (!butterfly || !zoneId || !candidateBlocks.length) return null;
-        const snapshot = this.buildZoneLiveSectorSnapshot(zoneId, this.getFlowerSectorLayout());
+        const snapshot = this.getZoneLiveSectorSnapshot(zoneId, this.getFlowerSectorLayout());
         const config = this.getButterflyDispersalConfig();
         let bestBlock = null;
         let bestScore = -Infinity;
@@ -1940,6 +2020,8 @@ class GameCore {
 
     getZoneDoorwayAnchors(zoneId) {
         if (!zoneId) return [];
+        const cached = this.zoneDoorwayAnchorCache?.get(zoneId);
+        if (cached) return cached;
         const anchors = [];
         const seen = new Set();
         for (const doorway of gameConfig?.world?.doorways || []) {
@@ -1958,6 +2040,7 @@ class GameCore {
                 maybePush(doorway.toAnchor);
             }
         }
+        this.zoneDoorwayAnchorCache?.set(zoneId, anchors);
         return anchors;
     }
 
@@ -2037,7 +2120,7 @@ class GameCore {
             wildButterflies: stats.wildButterflies || 0,
             currentFrame: Number.isFinite(options.currentFrame)
                 ? Math.max(0, Math.round(options.currentFrame))
-                : (typeof frameCount === 'number' ? frameCount : 0)
+                : this.getCurrentFrame()
         });
     }
 
@@ -2047,7 +2130,7 @@ class GameCore {
         const smoothing = Number.isFinite(options.smoothing) ? options.smoothing : 0.08;
         const currentFrame = Number.isFinite(options.currentFrame)
             ? Math.max(0, Math.round(options.currentFrame))
-            : (typeof frameCount === 'number' ? frameCount : 0);
+            : this.getCurrentFrame();
         const cadenceIntervalFrames = Math.max(1, Math.round(options.cadenceIntervalFrames || 1));
 
         for (const zoneId of zoneIds) {
@@ -2129,7 +2212,7 @@ class GameCore {
             habitatQuality: this.clampUnit((currentState.habitatQuality ?? 0.5) - (consumptionWeight * 0.28)),
             depletionPressure: this.clampUnit((currentState.depletionPressure ?? 0.08) + (consumptionWeight * 0.72)),
             consumptionPressure: this.clampUnit((currentState.consumptionPressure ?? 0) + (consumptionWeight * 0.9)),
-            lastFlowerConsumptionFrame: typeof frameCount === 'number' ? frameCount : 0
+            lastFlowerConsumptionFrame: this.getCurrentFrame()
         });
     }
 
@@ -2142,7 +2225,7 @@ class GameCore {
             resourceReserve: this.clampUnit(Math.max(recoveryFloor, (currentState.resourceReserve ?? 0.5) - spawnCost)),
             depletionPressure: this.clampUnit(Math.max(0, (currentState.depletionPressure ?? 0.08) - (options.emergency ? 0.05 : 0.02))),
             consumptionPressure: this.clampUnit(Math.max(0, (currentState.consumptionPressure ?? 0) - 0.04)),
-            lastUpdatedFrame: typeof frameCount === 'number' ? frameCount : 0
+            lastUpdatedFrame: this.getCurrentFrame()
         });
     }
 
@@ -2191,7 +2274,7 @@ class GameCore {
         const currentState = this.zoneSystem?.getZoneEcologyState?.(zoneId) || {};
         const currentFrame = Number.isFinite(context.currentFrame)
             ? Math.max(0, Math.round(context.currentFrame))
-            : (typeof frameCount === 'number' ? frameCount : 0);
+            : this.getCurrentFrame();
         const cadenceIntervalFrames = Math.max(1, Math.round(context.cadenceIntervalFrames || currentState.cadenceIntervalFrames || 1));
         const cadenceOffset = Math.max(0, Math.round(
             context.cadenceOffsetsByZone?.[zoneId]
@@ -2597,7 +2680,7 @@ class GameCore {
     ensureButterflyZoneEcologyState(butterfly) {
         if (!butterfly?.id) return null;
         const resolvedZoneId = this.getEntityZoneId(butterfly, null);
-        const nowFrame = typeof frameCount === 'number' ? frameCount : 0;
+        const nowFrame = this.getCurrentFrame();
         butterfly.zoneEcologyState = butterfly.zoneEcologyState || {
             currentZoneId: resolvedZoneId || null,
             currentZoneEntryFrame: nowFrame,
@@ -2628,7 +2711,7 @@ class GameCore {
         if (!state) return null;
         const resolvedZoneId = zoneId || this.getEntityZoneId(butterfly, null);
         if (!resolvedZoneId) return state;
-        const nowFrame = typeof frameCount === 'number' ? frameCount : 0;
+        const nowFrame = this.getCurrentFrame();
         const zoneChanged = state.currentZoneId !== resolvedZoneId;
         if (zoneChanged || options.forceEntryReset || !Number.isFinite(state.currentZoneEntryFrame)) {
             state.currentZoneEntryFrame = nowFrame;
@@ -2646,7 +2729,7 @@ class GameCore {
     markButterflyZoneTravelStart(butterfly, sourceZoneId, targetZoneId, reason = null) {
         const state = this.ensureButterflyZoneEcologyState(butterfly);
         if (!state) return null;
-        const nowFrame = typeof frameCount === 'number' ? frameCount : 0;
+        const nowFrame = this.getCurrentFrame();
         state.lastTravelStartedAtFrame = nowFrame;
         state.lastTravelReason = reason || state.lastTravelReason || null;
         state.pendingTargetZoneId = targetZoneId || null;
@@ -2659,7 +2742,7 @@ class GameCore {
     completeButterflyZoneTravel(butterfly, sourceZoneId, targetZoneId, reason = null) {
         const state = this.ensureButterflyZoneEcologyState(butterfly);
         if (!state) return null;
-        const nowFrame = typeof frameCount === 'number' ? frameCount : 0;
+        const nowFrame = this.getCurrentFrame();
         state.lastTravelCompletedAtFrame = nowFrame;
         state.lastTravelReason = reason || state.lastTravelReason || null;
         state.pendingTargetZoneId = null;
@@ -2676,7 +2759,7 @@ class GameCore {
     getButterflyZoneDwellFrames(butterfly, zoneId = this.getEntityZoneId(butterfly, null)) {
         const state = this.ensureButterflyZoneEcologyState(butterfly);
         if (!state || !zoneId || state.currentZoneId !== zoneId) return 0;
-        const nowFrame = typeof frameCount === 'number' ? frameCount : 0;
+        const nowFrame = this.getCurrentFrame();
         return Math.max(0, nowFrame - (state.currentZoneEntryFrame || 0));
     }
 
@@ -2978,7 +3061,7 @@ class GameCore {
     updateWildButterflyArrivals() {
         const targetCount = gameConfig.entities.wildTargetCount ?? gameConfig.entities.maxButterflies ?? 8;
         const intervalFrames = this.getMigrationBalance().wildArrivalIntervalFrames || 720;
-        if (frameCount % intervalFrames !== 0) return;
+        if (this.getCurrentFrame() % intervalFrames !== 0) return;
         if (this.getWildButterflyCount() >= targetCount) return;
         this.spawnAmbientWildButterfly();
     }
@@ -3208,6 +3291,7 @@ class GameCore {
     // Main game update loop
     update() {
         if (!this.gameState.initialized || this.gameState.paused) return;
+        this.gameState.currentFrame = this.getCurrentFrame() + 1;
 
         const updateStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
         
@@ -3311,7 +3395,7 @@ class GameCore {
         });
     }
     
-    shouldRunCadencedSystem(systemId = 'system', intervalFrames = 1, phaseOffset = 0, currentFrame = (typeof frameCount === 'number' ? frameCount : 0)) {
+    shouldRunCadencedSystem(systemId = 'system', intervalFrames = 1, phaseOffset = 0, currentFrame = this.getCurrentFrame()) {
         const normalizedInterval = Math.max(1, Math.round(intervalFrames || 1));
         if (normalizedInterval <= 1) return true;
         const normalizedPhase = ((Math.round(phaseOffset || 0) % normalizedInterval) + normalizedInterval) % normalizedInterval;
@@ -3331,7 +3415,7 @@ class GameCore {
         return true;
     }
 
-    getZoneEcologyCadencePlan(zoneIds = this.getZoneIds(), currentFrame = (typeof frameCount === 'number' ? frameCount : 0), options = {}) {
+    getZoneEcologyCadencePlan(zoneIds = this.getZoneIds(), currentFrame = this.getCurrentFrame(), options = {}) {
         const cadenceEnabled = !!options.cadenceEnabled;
         const pressureProfile = options.pressureProfile || null;
         const normalizedFrame = Math.max(0, Math.round(currentFrame || 0));
@@ -3401,7 +3485,7 @@ class GameCore {
         const deltaSeconds = gameConfig.simulation.fixedDeltaSeconds * this.gameState.timeScale;
         const zoneIds = this.getZoneIds();
         const pressureProfile = this.telemetrySystem?.getPressureProfile?.() || null;
-        const currentFrame = typeof frameCount === 'number' ? frameCount : 0;
+        const currentFrame = this.getCurrentFrame();
         const zoneEcologyCadencePlan = this.getZoneEcologyCadencePlan(zoneIds, currentFrame, {
             cadenceEnabled: !!gameConfig?.performance?.flags?.simCadenceSplit,
             pressureProfile
@@ -3434,7 +3518,7 @@ class GameCore {
         timeStep('sleepSystemMs', () => this.sleepSystem?.update(this.gameState, deltaSeconds));
         timeStep('lifeSimSystemMs', () => {
             lifeSimUpdateSummary = this.lifeSimSystem?.update(this.gameState, deltaSeconds, {
-                currentFrame: typeof frameCount === 'number' ? frameCount : 0,
+                currentFrame: this.getCurrentFrame(),
                 cadenceEnabled: !!gameConfig?.performance?.flags?.simCadenceSplit
             }) || null;
         });
@@ -3443,7 +3527,7 @@ class GameCore {
         timeStep('behaviorSystemMs', () => this.behaviorSystem?.update(this.gameState, deltaSeconds));
         timeStep('mlInferenceSystemMs', () => {
             mlInferenceUpdateSummary = this.mlInferenceSystem?.update(this.gameState, deltaSeconds, {
-                currentFrame: typeof frameCount === 'number' ? frameCount : 0,
+                currentFrame: this.getCurrentFrame(),
                 cadenceEnabled: !!gameConfig?.performance?.flags?.simCadenceSplit
             }) || null;
         });
@@ -3969,9 +4053,15 @@ class GameCore {
                 zoneTravel.progressFrames++;
                 zoneTravel.renderBehindCover = true;
                 if (zoneTravel.progressFrames >= exitDurationFrames || Math.hypot(butterfly.x - warpAnchor.x, butterfly.y - warpAnchor.y) < 8) {
+                    const previousZoneId = this.getEntityZoneId(butterfly, null) || zoneTravel.sourceZoneId || null;
                     this.assignEntityToZone(butterfly, zoneTravel.targetZoneId);
                     butterfly.x = zoneTravel.arrivalWarpAnchor?.x ?? warpAnchor.x;
                     butterfly.y = zoneTravel.arrivalWarpAnchor?.y ?? warpAnchor.y;
+                    this.butterflyStore?.afterTeleport?.(butterfly, previousZoneId, {
+                        zoneId: zoneTravel.targetZoneId,
+                        source: 'zone-travel-warp',
+                        resetMovement: false
+                    });
                     zoneTravel.phase = 'entering';
                     zoneTravel.progressFrames = 0;
                     zoneTravel.arrivalTarget = this.getZoneTravelSettleTarget(zoneTravel)
@@ -4045,8 +4135,10 @@ class GameCore {
                     }
                 }
             }
-            butterfly.gridPos = this.gridManager.screenToIso(butterfly.x, butterfly.y + (butterfly.shadowOffset || 0));
-            butterfly.updateZIndex?.();
+            if (!this.butterflyStore?.afterPositionMutation?.(butterfly, null, { source: 'zone-travel' })) {
+                butterfly.gridPos = this.gridManager.screenToIso(butterfly.x, butterfly.y + (butterfly.shadowOffset || 0));
+                butterfly.updateZIndex?.();
+            }
         }
     }
 
@@ -4131,7 +4223,7 @@ class GameCore {
         const decisionIntervalFrames = migrationBalance.decisionIntervalFrames || 600;
         const maxConcurrentTravelers = migrationBalance.maxConcurrentTravelers || 4;
         const mismatchThreshold = migrationBalance.mismatchThreshold || 0.22;
-        if (frameCount % decisionIntervalFrames !== 0) return;
+        if (this.getCurrentFrame() % decisionIntervalFrames !== 0) return;
 
         const activeTravelers = (this.gameState.butterflies || []).filter(butterfly => butterfly.zoneTravel).length;
         if (activeTravelers >= maxConcurrentTravelers) return;
@@ -4294,7 +4386,7 @@ class GameCore {
         if (!zoneIds.length) return;
 
         const checkInterval = 180;
-        if (frameCount % checkInterval !== 0) return;
+        if (this.getCurrentFrame() % checkInterval !== 0) return;
 
         for (const zoneId of zoneIds) {
             const activeFlowers = (sceneState?.flowers || []).filter(flower =>
@@ -5077,7 +5169,7 @@ class GameCore {
         }
         
         // Check ecosystem balance
-        if (frameCount % 300 === 0) { // Every 5 seconds
+        if (this.getCurrentFrame() % 300 === 0) { // Every 5 seconds
             const butterflyCount = this.gameState.butterflies.length;
             const flowerCount = this.gameState.flowers.length;
             
@@ -5274,7 +5366,7 @@ class GameCore {
             index: nextIndex,
             label,
             createdAtMs: Date.now(),
-            frame: typeof frameCount === 'number' ? frameCount : null,
+            frame: this.getCurrentFrame(),
             payload: JSON.parse(JSON.stringify(payload || {}))
         };
 

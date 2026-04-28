@@ -317,6 +317,24 @@ class RenderManager {
             + (sceneEntities.blocks?.length || 0);
     }
 
+    getVisibleSceneFlowerCount() {
+        if (this.viewState.battleActive) return 0;
+        const sceneEntities = typeof gameCore !== 'undefined' && gameCore.getFocusedSceneEntities
+            ? gameCore.getFocusedSceneEntities()
+            : null;
+        if (!sceneEntities) return 0;
+        return sceneEntities.flowers?.length || 0;
+    }
+
+    getVisibleSceneButterflyCount() {
+        if (this.viewState.battleActive) return 0;
+        const sceneEntities = typeof gameCore !== 'undefined' && gameCore.getFocusedSceneEntities
+            ? gameCore.getFocusedSceneEntities()
+            : null;
+        if (!sceneEntities) return 0;
+        return sceneEntities.butterflies?.length || 0;
+    }
+
     getVisibleEffectCount() {
         if (typeof specialEffects === 'undefined' || !Array.isArray(specialEffects.activeEffects)) return 0;
         let count = 0;
@@ -367,7 +385,7 @@ class RenderManager {
 
     refreshCachedAtmosphereLayer(name, stride, profileKey, painter) {
         const layer = this.getAtmosphereCacheLayer(name);
-        const frameBucket = Math.floor(frameCount / Math.max(1, stride));
+        const frameBucket = Math.floor((gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0)) / Math.max(1, stride));
         if (this.atmosphereCacheFrames[name] === frameBucket && this.atmosphereCacheKeys[name] === profileKey) {
             return layer;
         }
@@ -544,7 +562,7 @@ class RenderManager {
             message: error?.message || String(error || 'render failure'),
             stack: error?.stack || null,
             atMs: Date.now(),
-            frame: typeof frameCount === 'number' ? frameCount : null,
+            frame: gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : null),
             mode: this.viewState.mode,
             focusedZoneId: this.viewState.focusedZoneId,
             battleActive: !!this.viewState.battleActive
@@ -632,13 +650,38 @@ class RenderManager {
         );
     }
 
-    shouldUseDirectFlowerPresent() {
+    shouldUseDirectFlowerPresent(visibleFlowerCount = null) {
         const stackedBlocksComposite = this.shouldUseBlocksCompositeLayer();
-        return !!(
+        const directPresentAllowed = !!(
             (gameConfig?.performance?.flags?.directPresentFlowers || stackedBlocksComposite)
             && !this.viewState.battleActive
             && this.shouldUseCompositeDirtyRegions()
         );
+        if (!directPresentAllowed) return false;
+        const resolvedVisibleFlowerCount = Number.isFinite(visibleFlowerCount)
+            ? visibleFlowerCount
+            : this.getVisibleSceneFlowerCount();
+        const maxVisibleFlowers = Math.max(
+            1,
+            Number(gameConfig?.performance?.directPresentFlowerMaxVisible || 48)
+        );
+        if (resolvedVisibleFlowerCount <= maxVisibleFlowers) {
+            return true;
+        }
+        const denseVisibleFlowerMin = Math.max(
+            maxVisibleFlowers + 1,
+            Number(gameConfig?.performance?.denseDirectPresentFlowerMinVisible || (maxVisibleFlowers + 1))
+        );
+        if (resolvedVisibleFlowerCount < denseVisibleFlowerMin) {
+            return false;
+        }
+        const visibleButterflyCount = this.getVisibleSceneButterflyCount();
+        const denseButterflyMax = Math.max(
+            0,
+            Number(gameConfig?.performance?.denseDirectPresentFlowerMaxButterflies || 0)
+        );
+        return visibleButterflyCount > 0
+            && visibleButterflyCount <= denseButterflyMax;
     }
 
     expandCompositeBounds(bounds, nextBounds) {
@@ -1104,7 +1147,7 @@ class RenderManager {
 
     shouldRedrawUILayer(gameState = null, debugEnabled = false) {
         const redrawState = this.buildUiRedrawState(gameState, debugEnabled);
-        const frame = typeof frameCount === 'number' ? frameCount : 0;
+        const frame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
         const frameDelta = frame - (this.uiRedrawState.lastFrame || 0);
         const shouldRedraw = this.uiRedrawState.lastKey !== redrawState.key
             || frameDelta >= redrawState.redrawEveryFrames
@@ -1155,7 +1198,7 @@ class RenderManager {
             return false;
         }
 
-        const frame = typeof frameCount === 'number' ? frameCount : 0;
+        const frame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
         const shellState = gameUI?.getShellPerformanceState?.(gameState || null) || null;
         const key = JSON.stringify({
             focusedZoneId: gameState?.focusedZoneId || this.viewState.focusedZoneId,
@@ -1317,7 +1360,7 @@ class RenderManager {
         const useCompositeDirtyRegions = this.shouldUseCompositeDirtyRegions();
         const useBlocksCompositeLayer = this.shouldUseBlocksCompositeLayer();
         const reuseBlocksCompositeLayer = this.shouldReuseBlocksCompositeLayer();
-        const useDirectFlowerPresent = this.shouldUseDirectFlowerPresent();
+        const useDirectFlowerPresent = this.shouldUseDirectFlowerPresent(this.getVisibleSceneFlowerCount());
         const trackFamilyDrawCosts = this.shouldTrackEntityFamilyRenderCosts();
         const blockLayerEntities = [];
         const directFlowerEntities = [];
@@ -3238,6 +3281,7 @@ class RenderManager {
             + metrics.groundAtmosphereCompositeMs
             + metrics.behindEntitiesCompositeMs
             + metrics.blocksCompositeMs
+            + metrics.flowersDirectPresentMs
             + metrics.spawnCoverCompositeMs
             + metrics.entitiesCompositeMs
             + metrics.particlesCompositeMs

@@ -103,6 +103,10 @@ class Block extends Entity {
         return true;
     }
 
+    getCurrentFrame() {
+        return gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+    }
+
     moveTo(x, y, movedById = null) {
         const clamped = gridManager?.clampScreenPointToRoamArea?.(x, y, 8, {
             edgeInset: gameConfig?.entities?.placementEdgeInset || 0
@@ -110,7 +114,7 @@ class Block extends Entity {
         this.x = clamped.x;
         this.y = clamped.y;
         this.gridPos = gridManager.screenToIso(this.x, this.y);
-        this.movedAtFrame = typeof frameCount === 'number' ? frameCount : 0;
+        this.movedAtFrame = this.getCurrentFrame();
         this.lastMovedById = movedById || null;
         objectSystem?.recordInteraction?.(this.id, 'moved', movedById, {
             movedX: this.x,
@@ -274,8 +278,8 @@ class Block extends Entity {
         const visualLift = this.getVisualLift();
         const drawY = this.y - visualLift;
         this.drawProceduralCube(graphics, drawY, alpha);
-        if (this.movedAtFrame && typeof frameCount === 'number') {
-            const movedFramesAgo = frameCount - this.movedAtFrame;
+        if (this.movedAtFrame) {
+            const movedFramesAgo = this.getCurrentFrame() - this.movedAtFrame;
             if (movedFramesAgo >= 0 && movedFramesAgo < 72) {
                 const pulse = 1 - (movedFramesAgo / 72);
                 graphics.push();

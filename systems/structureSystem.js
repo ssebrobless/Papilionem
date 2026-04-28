@@ -4,6 +4,9 @@ class StructureSystem {
         this.zoneProfiles = new Map();
         this.blockProfiles = new Map();
         this.lastRebuildSignature = null;
+        this.runtimeCacheFrame = null;
+        this.collisionQueryRuntimeCache = new Map();
+        this.spatialContextRuntimeCache = new Map();
         const sharedHooks = Array.isArray(gameConfig?.ml?.contract?.sharedSpatialHooks) && gameConfig.ml.contract.sharedSpatialHooks.length
             ? gameConfig.ml.contract.sharedSpatialHooks.filter(Boolean)
             : ['verticality', 'structureRole', 'pathState', 'bodyFit'];
@@ -33,11 +36,97 @@ class StructureSystem {
         this.zoneProfiles.clear();
         this.blockProfiles.clear();
         this.lastRebuildSignature = null;
+        this.clearRuntimeCaches();
+    }
+
+    clearRuntimeCaches() {
+        this.runtimeCacheFrame = null;
+        this.collisionQueryRuntimeCache.clear();
+        this.spatialContextRuntimeCache.clear();
+    }
+
+    getRuntimeFrameTag() {
+        const currentFrame = gameCore?.getCurrentFrame?.();
+        if (Number.isFinite(currentFrame)) {
+            return Math.max(0, Math.round(currentFrame));
+        }
+        return typeof frameCount === 'number'
+            ? Math.max(0, Math.round(frameCount))
+            : 0;
+    }
+
+    ensureRuntimeCaches() {
+        const currentFrame = this.getRuntimeFrameTag();
+        if (this.runtimeCacheFrame !== currentFrame) {
+            this.runtimeCacheFrame = currentFrame;
+            this.collisionQueryRuntimeCache.clear();
+            this.spatialContextRuntimeCache.clear();
+        }
+        return currentFrame;
+    }
+
+    normalizeRuntimeCacheNumber(value, precision = 100) {
+        if (!Number.isFinite(value)) return 'na';
+        return Math.round(value * precision) / precision;
+    }
+
+    buildCollisionQueryRuntimeCacheKey(zoneId, point, options = {}) {
+        if (!zoneId || !point) return null;
+        const currentPointX = options.fromX ?? options.fromPoint?.x ?? options.entity?.x ?? point.x;
+        const currentPointY = options.fromY ?? options.fromPoint?.y ?? options.entity?.y ?? point.y;
+        const entityKey = options.entity?.id
+            || options.entity?.currentZoneId
+            || options.entity?.type
+            || options.entity?.constructor?.name
+            || 'none';
+        return [
+            zoneId,
+            entityKey,
+            this.normalizeRuntimeCacheNumber(point.x),
+            this.normalizeRuntimeCacheNumber(point.y),
+            this.normalizeRuntimeCacheNumber(currentPointX),
+            this.normalizeRuntimeCacheNumber(currentPointY),
+            this.normalizeRuntimeCacheNumber(options.corridorMargin || 0),
+            Number.isFinite(options.occupancyRadius)
+                ? this.normalizeRuntimeCacheNumber(options.occupancyRadius)
+                : 'auto'
+        ].join('|');
+    }
+
+    cloneCollisionQueryResult(result) {
+        if (!result) return null;
+        return {
+            ...result,
+            point: result.point ? { ...result.point } : null,
+            currentPoint: result.currentPoint ? { ...result.currentPoint } : null,
+            opening: this.cloneValue(result.opening, null),
+            interiorVolume: this.cloneValue(result.interiorVolume, null),
+            roofFootprint: this.cloneValue(result.roofFootprint, null),
+            wallNormal: this.cloneValue(result.wallNormal, null),
+            nearbyOccupancyColumns: this.cloneValue(result.nearbyOccupancyColumns, []),
+            relevantShelter: this.cloneValue(result.relevantShelter, null)
+        };
+    }
+
+    buildSpatialContextRuntimeCacheKey(entity, zoneId = entity?.currentZoneId || entity?.lifeSim?.lifecycle?.currentZoneId || null) {
+        if (!entity?.id || !zoneId) return null;
+        return [
+            zoneId,
+            entity.id,
+            this.normalizeRuntimeCacheNumber(entity.x || 0),
+            this.normalizeRuntimeCacheNumber(entity.y || 0),
+            entity.blockInteraction?.carryingBlockId ? 'carrying' : 'free'
+        ].join('|');
     }
 
     cloneValue(value, fallback = null) {
         if (value == null) return fallback;
         return JSON.parse(JSON.stringify(value));
+    }
+
+    maybeCloneValue(value, fallback = null, shouldClone = true) {
+        if (value == null) return fallback;
+        return shouldClone ? this.cloneValue(value, fallback) : value;
     }
 
     clamp01(value) {
@@ -374,6 +463,7 @@ class StructureSystem {
     rebuild(gameState = gameCore?.gameState) {
         this.zoneProfiles.clear();
         this.blockProfiles.clear();
+        this.clearRuntimeCaches();
 
         const blocks = (gameState?.blocks || []).filter(block => block && !block.carriedById);
         const zoneIds = gameCore?.getZoneIds?.() || [...new Set(blocks.map(block => block.currentZoneId).filter(Boolean))];
@@ -412,7 +502,7 @@ class StructureSystem {
         return {
             zoneId,
             region: region ? { ...region } : null,
-            updatedAtFrame: typeof frameCount === 'number' ? frameCount : 0,
+            updatedAtFrame: gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0),
             blockCount: blocks.length,
             componentCount: components.length,
             shelterCount: shelters.length,
@@ -850,7 +940,7 @@ class StructureSystem {
         return {
             version: 'b2',
             zoneId,
-            updatedAtFrame: typeof frameCount === 'number' ? frameCount : 0,
+            updatedAtFrame: gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0),
             componentCount: componentGeometry.length,
             shelterCount: componentGeometry.filter(component => component.shelterEligible).length,
             openingCount: openings.length,
@@ -1032,6 +1122,13 @@ class StructureSystem {
 
     queryCollisionGeometry(zoneId, point, options = {}) {
         if (!zoneId || !point) return null;
+        const cloneResults = options.cloneResults !== false;
+        this.ensureRuntimeCaches();
+        const cacheKey = this.buildCollisionQueryRuntimeCacheKey(zoneId, point, options);
+        if (cacheKey && this.collisionQueryRuntimeCache.has(cacheKey)) {
+            const cached = this.collisionQueryRuntimeCache.get(cacheKey);
+            return cloneResults ? this.cloneCollisionQueryResult(cached) : cached;
+        }
         const zoneGeometry = this.getZoneCollisionGeometryRef(zoneId);
         if (!zoneGeometry) return null;
         const currentPoint = {
@@ -1039,51 +1136,68 @@ class StructureSystem {
             y: options.fromY ?? options.fromPoint?.y ?? options.entity?.y ?? point.y
         };
         const components = zoneGeometry.components || [];
-        const shelters = components.filter(component => component.shelterEligible);
-        const nearestComponent = components
-            .slice()
-            .sort((left, right) =>
-                Math.hypot((left.center?.x || 0) - point.x, (left.center?.y || 0) - point.y)
-                - Math.hypot((right.center?.x || 0) - point.x, (right.center?.y || 0) - point.y)
-            )[0] || null;
-        const containingComponent = components.find(component =>
-            component?.bounds && this.isPointInsideBounds(point, component.bounds)
-        ) || null;
-        const containingShelter = shelters.find(component =>
-            component?.interiorVolume?.bounds && this.isPointInsideBounds(point, component.interiorVolume.bounds)
-        ) || null;
-        const nearestShelter = shelters
-            .slice()
-            .sort((left, right) =>
-                Math.hypot((left.center?.x || 0) - point.x, (left.center?.y || 0) - point.y)
-                - Math.hypot((right.center?.x || 0) - point.x, (right.center?.y || 0) - point.y)
-            )[0] || null;
+        let nearestComponent = null;
+        let nearestComponentDistance = Infinity;
+        let containingComponent = null;
+        let nearestShelter = null;
+        let nearestShelterDistance = Infinity;
+        let containingShelter = null;
+        for (const component of components) {
+            if (!component) continue;
+            const centerDistance = Math.hypot((component.center?.x || 0) - point.x, (component.center?.y || 0) - point.y);
+            if (centerDistance < nearestComponentDistance) {
+                nearestComponentDistance = centerDistance;
+                nearestComponent = component;
+            }
+            if (!containingComponent && component?.bounds && this.isPointInsideBounds(point, component.bounds)) {
+                containingComponent = component;
+            }
+            if (!component.shelterEligible) continue;
+            if (centerDistance < nearestShelterDistance) {
+                nearestShelterDistance = centerDistance;
+                nearestShelter = component;
+            }
+            if (!containingShelter && component?.interiorVolume?.bounds && this.isPointInsideBounds(point, component.interiorVolume.bounds)) {
+                containingShelter = component;
+            }
+        }
         const relevantShelter = containingShelter || nearestShelter || null;
         const opening = relevantShelter?.opening || null;
+        const corridorBounds = opening?.corridorBounds
+            ? this.expandBounds(opening.corridorBounds, options.corridorMargin || 0)
+            : null;
         const inOpeningCorridor = !!opening?.corridorBounds
-            && this.isPointInsideBounds(point, this.expandBounds(opening.corridorBounds, options.corridorMargin || 0));
+            && this.isPointInsideBounds(point, corridorBounds);
         const currentInOpeningCorridor = !!opening?.corridorBounds
-            && this.isPointInsideBounds(currentPoint, this.expandBounds(opening.corridorBounds, options.corridorMargin || 0));
+            && this.isPointInsideBounds(currentPoint, corridorBounds);
         const occupancyRadius = Math.max(
             24,
             options.occupancyRadius
             || (options.entity ? this.getEntityMetrics(options.entity).radius * 3.2 : 54)
         );
-        const nearbyOccupancyColumns = (zoneGeometry.occupancyColumns || [])
-            .filter(column => Math.hypot((column.x || 0) - point.x, (column.y || 0) - point.y) <= occupancyRadius)
-            .sort((left, right) =>
-                Math.hypot((left.x || 0) - point.x, (left.y || 0) - point.y)
-                - Math.hypot((right.x || 0) - point.x, (right.y || 0) - point.y)
-            );
+        const nearbyOccupancyColumns = [];
+        for (const column of zoneGeometry.occupancyColumns || []) {
+            const distance = Math.hypot((column.x || 0) - point.x, (column.y || 0) - point.y);
+            if (distance <= occupancyRadius) {
+                nearbyOccupancyColumns.push({ column, distance });
+            }
+        }
+        nearbyOccupancyColumns.sort((left, right) => left.distance - right.distance);
         const wallSource = containingComponent || relevantShelter || nearestComponent || null;
-        const nearestWall = (wallSource?.wallNormals || [])
-            .map(segment => ({
-                ...segment,
-                distance: this.distancePointToSegment(point, segment.start, segment.end)
-            }))
-            .sort((left, right) => left.distance - right.distance)[0] || null;
+        let nearestWall = null;
+        let nearestWallDistance = Infinity;
+        for (const segment of wallSource?.wallNormals || []) {
+            const distance = this.distancePointToSegment(point, segment.start, segment.end);
+            if (distance < nearestWallDistance) {
+                nearestWallDistance = distance;
+                nearestWall = {
+                    ...segment,
+                    distance
+                };
+            }
+        }
 
-        return {
+        const rawResult = {
             version: zoneGeometry.version || 'b2',
             zoneId,
             point: { x: point.x, y: point.y },
@@ -1097,13 +1211,17 @@ class StructureSystem {
             inOpeningCorridor,
             currentInOpeningCorridor,
             openingWidth: opening?.width || 0,
-            opening: opening ? this.cloneValue(opening, null) : null,
-            interiorVolume: relevantShelter?.interiorVolume ? this.cloneValue(relevantShelter.interiorVolume, null) : null,
-            roofFootprint: relevantShelter?.roofFootprint ? this.cloneValue(relevantShelter.roofFootprint, null) : null,
-            wallNormal: nearestWall ? this.cloneValue(nearestWall, null) : null,
-            nearbyOccupancyColumns: this.cloneValue(nearbyOccupancyColumns, []),
-            relevantShelter: relevantShelter ? this.cloneValue(relevantShelter, null) : null
+            opening,
+            interiorVolume: relevantShelter?.interiorVolume || null,
+            roofFootprint: relevantShelter?.roofFootprint || null,
+            wallNormal: nearestWall,
+            nearbyOccupancyColumns: nearbyOccupancyColumns.map(entry => entry.column),
+            relevantShelter
         };
+        if (cacheKey) {
+            this.collisionQueryRuntimeCache.set(cacheKey, rawResult);
+        }
+        return cloneResults ? this.cloneCollisionQueryResult(rawResult) : rawResult;
     }
 
     isPointWithinOpeningCorridor(component, point, margin = 0) {
@@ -1136,12 +1254,14 @@ class StructureSystem {
         const currentQuery = this.queryCollisionGeometry(zoneProfile.zoneId, currentPoint, {
             entity,
             fromX: currentPoint.x,
-            fromY: currentPoint.y
+            fromY: currentPoint.y,
+            cloneResults: false
         });
         const targetQuery = this.queryCollisionGeometry(zoneProfile.zoneId, point, {
             entity,
             fromX: currentPoint.x,
-            fromY: currentPoint.y
+            fromY: currentPoint.y,
+            cloneResults: false
         });
         const relevantShelter = targetQuery?.relevantShelter || currentQuery?.relevantShelter || null;
         if (!relevantShelter?.interiorVolume?.bounds) return false;
@@ -1200,17 +1320,26 @@ class StructureSystem {
     }
 
     getNearestShelter(zoneProfile, x, y) {
-        return (zoneProfile?.shelters || [])
-            .slice()
-            .sort((left, right) =>
-                Math.hypot((left.center?.x || 0) - x, (left.center?.y || 0) - y)
-                - Math.hypot((right.center?.x || 0) - x, (right.center?.y || 0) - y)
-            )[0] || null;
+        let nearestShelter = null;
+        let nearestDistance = Infinity;
+        for (const shelter of zoneProfile?.shelters || []) {
+            const distance = Math.hypot((shelter.center?.x || 0) - x, (shelter.center?.y || 0) - y);
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearestShelter = shelter;
+            }
+        }
+        return nearestShelter;
     }
 
     getSpatialContextForEntity(entity, gameState = gameCore?.gameState) {
         if (!entity) return null;
         const zoneId = entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null;
+        this.ensureRuntimeCaches();
+        const contextCacheKey = this.buildSpatialContextRuntimeCacheKey(entity, zoneId);
+        if (contextCacheKey && this.spatialContextRuntimeCache.has(contextCacheKey)) {
+            return this.spatialContextRuntimeCache.get(contextCacheKey);
+        }
         const zoneProfile = zoneId ? this.getZoneProfileRef(zoneId) : null;
         const emptyContext = this.createDefaultSpatialContext({
             zoneId,
@@ -1228,16 +1357,26 @@ class StructureSystem {
             ? this.queryCollisionGeometry(zoneId, { x, y }, {
                 entity,
                 fromX: x,
-                fromY: y
+                fromY: y,
+                cloneResults: false
             })
             : null;
         const entityWidth = metrics.width;
-        const nearbyProfiles = zoneProfile.blockProfiles.filter(profile => Math.hypot(profile.x - x, profile.y - y) <= 92);
-        const nearbySolid = nearbyProfiles.filter(profile => profile.stackHeight > metrics.clearance);
-        const obstacleDensity = this.clamp01(nearbySolid.length / 6);
-        const nearestProfile = nearbyProfiles.slice().sort((left, right) =>
-            Math.hypot(left.x - x, left.y - y) - Math.hypot(right.x - x, right.y - y)
-        )[0] || null;
+        let nearbySolidCount = 0;
+        let nearestProfile = null;
+        let nearestProfileDistance = Infinity;
+        for (const profile of zoneProfile.blockProfiles || []) {
+            const distance = Math.hypot(profile.x - x, profile.y - y);
+            if (distance > 92) continue;
+            if (profile.stackHeight > metrics.clearance) {
+                nearbySolidCount += 1;
+            }
+            if (distance < nearestProfileDistance) {
+                nearestProfileDistance = distance;
+                nearestProfile = profile;
+            }
+        }
+        const obstacleDensity = this.clamp01(nearbySolidCount / 6);
         const nearestShelter = geometryQuery?.relevantShelter || null;
         const insideShelter = geometryQuery?.insideShelter === true;
         const openingWidth = geometryQuery?.openingWidth || 0;
@@ -1272,7 +1411,7 @@ class StructureSystem {
         const occupancyBand = this.resolveOccupancyBandForEntity(entity, nearestProfile);
         const verticality = this.normalizeSpatialHookValue('verticality', occupancyBand);
 
-        return {
+        const context = {
             zoneId,
             verticality,
             structureRole: this.normalizeSpatialHookValue('structureRole', structureRole),
@@ -1289,6 +1428,10 @@ class StructureSystem {
             openingWidth,
             interiorClearance: nearestShelter?.interiorClearance || geometryQuery?.interiorVolume?.clearance || 0
         };
+        if (contextCacheKey) {
+            this.spatialContextRuntimeCache.set(contextCacheKey, context);
+        }
+        return context;
     }
 
     countPassableSamples(entity, zoneId, distance = 18) {

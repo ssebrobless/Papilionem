@@ -508,14 +508,16 @@ class TeachingSystem {
         if (butterfly.state !== 'normal') return false;
         if (butterfly.isSpawning) return false;
         if (butterfly.zoneTravel?.active) return false;
-        return (this.trainingImpactCooldowns.get(butterfly.id) || 0) <= frameCount;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        return (this.trainingImpactCooldowns.get(butterfly.id) || 0) <= currentFrame;
     }
 
     markTrainingImpactCooldown(...butterflies) {
         const cooldownFrames = this.getTrainingBalance().impactCooldownFrames ?? 45;
         for (const butterfly of butterflies) {
             if (!butterfly?.id) continue;
-            this.trainingImpactCooldowns.set(butterfly.id, frameCount + cooldownFrames);
+            const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+            this.trainingImpactCooldowns.set(butterfly.id, currentFrame + cooldownFrames);
         }
     }
 
@@ -578,8 +580,9 @@ class TeachingSystem {
         right.battleState.pressure = (right.battleState.pressure || 0) + 1;
         left.battleState.hp = Math.max(0, (left.battleState.hp ?? 100) - 1);
         right.battleState.hp = Math.max(0, (right.battleState.hp ?? 100) - 1);
-        left.battleState.lastImpactAtFrame = typeof frameCount === 'number' ? frameCount : 0;
-        right.battleState.lastImpactAtFrame = typeof frameCount === 'number' ? frameCount : 0;
+        const impactFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        left.battleState.lastImpactAtFrame = impactFrame;
+        right.battleState.lastImpactAtFrame = impactFrame;
         left.battleState.lastImpactStrength = push;
         right.battleState.lastImpactStrength = push;
         left.battleState.lastImpactSource = 'training';
@@ -689,7 +692,7 @@ class TeachingSystem {
         this.simulationClockSeconds += deltaSeconds;
         const battleActive = gameState?.viewMode === 'battle' || !!gameState?.activeBattleId;
         const battleCadenceFrames = gameConfig?.performance?.runtimeHardening?.battleTeachingCadenceFrames || 6;
-        const frameIndex = typeof frameCount === 'number' ? frameCount : 0;
+        const frameIndex = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
         const shouldAdvanceLessons = !battleActive || (frameIndex % battleCadenceFrames === 0);
 
         for (const butterfly of gameState.butterflies || []) {

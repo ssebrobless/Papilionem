@@ -22,10 +22,8 @@
 //
 // Proximity grids: each zone bucket also gets a uniform-cell ProximityGrid
 // (cellSize 64) that's lazily rebuilt the first time a proximity query fires
-// in a given frame. Position changes happen during physics; behavior/lifeSim
-// proximity scans run after, so the grid is stable for the rest of the tick.
-// The grid invalidates on (frame, bucket length) — a butterfly moving zones
-// or being removed changes the bucket length, which forces a rebuild.
+// in a given frame. Direct position mutation hooks invalidate the affected
+// zone grid so same-frame proximity reads do not reuse stale coordinates.
 
 class ProximityGrid {
     constructor(cellSize = 64) {
@@ -59,7 +57,7 @@ class ProximityGrid {
         this.builtForLength = bucket.length;
     }
 
-    countWithin(x, y, radius, excludeId) {
+    countWithin(x, y, radius, excludeId, filterFn = null) {
         const inv = 1 / this.cellSize;
         const minCX = Math.floor((x - radius) * inv);
         const maxCX = Math.floor((x + radius) * inv);
@@ -75,6 +73,7 @@ class ProximityGrid {
                 for (let i = 0; i < cell.length; i += 1) {
                     const b = cell[i];
                     if (!b || (excludeId != null && b.id === excludeId)) continue;
+                    if (filterFn && !filterFn(b)) continue;
                     const dx = (b.x || 0) - x;
                     const dy = (b.y || 0) - y;
                     if (dx * dx + dy * dy <= rSq) count += 1;
@@ -125,6 +124,11 @@ class ButterflyStore {
         this._gridStats = { rebuilds: 0, queries: 0 };
     }
 
+    _readCurrentFrame() {
+        const core = typeof gameCore !== 'undefined' ? gameCore : null;
+        return core?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : -1);
+    }
+
     adoptArray(arr) {
         this._arr = Array.isArray(arr) ? arr : [];
         this._byZone.clear();
@@ -162,13 +166,86 @@ class ButterflyStore {
         else if (butterfly.id != null) this._zoneOf.delete(butterfly.id);
     }
 
+    afterPositionMutation(butterfly, previousZoneId = null, options = {}) {
+        if (!butterfly) return null;
+        const nextZoneId = options.zoneId || this._readZone(butterfly);
+        const prevZoneId = previousZoneId || (butterfly.id != null ? this._zoneOf.get(butterfly.id) : null) || nextZoneId || null;
+        if (prevZoneId !== nextZoneId) {
+            this.moveZone(butterfly, prevZoneId, nextZoneId);
+        }
+
+        const groundY = (butterfly.y || 0) + (butterfly.shadowOffset || 0);
+        if (typeof gridManager !== 'undefined' && gridManager?.screenToIso) {
+            butterfly.gridPos = gridManager.screenToIso(butterfly.x || 0, groundY);
+        }
+        butterfly.updateZIndex?.();
+
+        this.invalidateGrid(prevZoneId);
+        this.invalidateGrid(nextZoneId);
+
+        return {
+            previousZoneId: prevZoneId,
+            currentZoneId: nextZoneId,
+            gridPos: butterfly.gridPos || null
+        };
+    }
+
+    afterTeleport(butterfly, previousZoneId = null, options = {}) {
+        const result = this.afterPositionMutation(butterfly, previousZoneId, options);
+        if (!result || !butterfly) return result;
+
+        if (options.resetMovement !== false && butterfly.movement) {
+            const currentGrid = butterfly.gridPos || null;
+            if (currentGrid) {
+                butterfly.movement.target = { x: currentGrid.x, y: currentGrid.y };
+                butterfly.movement.smoothFollowTarget = { x: currentGrid.x, y: currentGrid.y };
+            }
+            butterfly.movement.clearTarget?.();
+        }
+
+        if (options.resetPhysics !== false && typeof physicsSystem !== 'undefined') {
+            const physics = physicsSystem?.getEntityState?.(butterfly.id)
+                || physicsSystem?.registerEntity?.(butterfly, 'butterfly')
+                || butterfly.physics
+                || null;
+            if (physics) {
+                const groundPoint = {
+                    x: butterfly.x || 0,
+                    y: (butterfly.y || 0) + (butterfly.shadowOffset || 0)
+                };
+                physics.position = physics.position || {};
+                physics.position.x = butterfly.x || 0;
+                physics.position.y = butterfly.y || 0;
+                physics.motion = physics.motion || { previous: {}, desired: {} };
+                physics.motion.previous = { x: groundPoint.x, y: groundPoint.y };
+                physics.motion.desired = { x: groundPoint.x, y: groundPoint.y };
+                physics.motion.movedFrame = this._readCurrentFrame();
+                physics.motion.source = options.source || 'teleport';
+                physics.velocity = { x: 0, y: 0 };
+                physics.intent = { x: 0, y: 0 };
+                physics.impulse = { x: 0, y: 0, frames: 0, source: null };
+                physics.contact = physics.contact || {};
+                physics.contact.blocked = false;
+                physics.contact.blockedByIds = [];
+                physics.contact.touchedButterflyIds = [];
+                physics.contact.touchedBlockIds = [];
+                physics.diagnostics = physics.diagnostics || {};
+                physics.diagnostics.lastMotionSource = options.source || 'teleport';
+                physics.diagnostics.lastResolvedFrame = this._readCurrentFrame();
+                butterfly.physics = physics;
+            }
+        }
+
+        return result;
+    }
+
     inZone(zoneId) {
         if (!zoneId) return this._emptyArray;
         this._ensureConsistent();
         return this._byZone.get(zoneId) || this._emptyArray;
     }
 
-    proximityCount(zoneId, x, y, radius, excludeId = null) {
+    proximityCount(zoneId, x, y, radius, excludeId = null, filterFn = null) {
         if (!zoneId || !(radius > 0)) return 0;
         const bucket = this.inZone(zoneId);
         const len = bucket.length;
@@ -180,6 +257,7 @@ class ButterflyStore {
             for (let i = 0; i < len; i += 1) {
                 const b = bucket[i];
                 if (!b || (excludeId != null && b.id === excludeId)) continue;
+                if (filterFn && !filterFn(b)) continue;
                 const dx = (b.x || 0) - x;
                 const dy = (b.y || 0) - y;
                 if (dx * dx + dy * dy <= rSq) count += 1;
@@ -187,7 +265,7 @@ class ButterflyStore {
             return count;
         }
         const grid = this._ensureGrid(zoneId, bucket);
-        return grid.countWithin(x, y, radius, excludeId);
+        return grid.countWithin(x, y, radius, excludeId, filterFn);
     }
 
     proximityList(zoneId, x, y, radius, excludeId = null, out = null) {
@@ -213,7 +291,7 @@ class ButterflyStore {
     }
 
     _currentFrame() {
-        return typeof frameCount === 'number' ? frameCount : 0;
+        return gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
     }
 
     _ensureGrid(zoneId, bucket) {

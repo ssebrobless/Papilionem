@@ -524,7 +524,7 @@ class MlInferenceSystem {
         return Number.isFinite(runtime.lastTraceAtFrame) ? runtime.lastTraceAtFrame : -1;
     }
 
-    buildTraceFreshness(runtime, currentFrame = (typeof frameCount === 'number' ? frameCount : this.frameCounter || 0)) {
+    buildTraceFreshness(runtime, currentFrame = (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : this.frameCounter || 0))) {
         const lastValidFrame = this.getRuntimeLastValidFrame(runtime);
         const safeCurrentFrame = Number.isFinite(currentFrame) ? Math.max(0, Math.round(currentFrame)) : 0;
         return {
@@ -535,7 +535,7 @@ class MlInferenceSystem {
         };
     }
 
-    buildModelPolicyFreshness(runtime, currentFrame = (typeof frameCount === 'number' ? frameCount : this.frameCounter || 0)) {
+    buildModelPolicyFreshness(runtime, currentFrame = (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : this.frameCounter || 0))) {
         const safeCurrentFrame = Number.isFinite(currentFrame) ? Math.max(0, Math.round(currentFrame)) : 0;
         const lastValidFrame = Number.isFinite(runtime?.lastModelPoliciesAtGameFrame)
             ? Math.max(-1, Math.round(runtime.lastModelPoliciesAtGameFrame))
@@ -2807,7 +2807,7 @@ class MlInferenceSystem {
             const runtime = this.registerEntity(entity);
             const contextSignature = this.computeContextSignature(entity, gameState, behaviorRuntime);
             this.refreshEntityTrace(entity, gameState, runtime, contextSignature, behaviorRuntime, {
-                currentFrame: typeof frameCount === 'number' ? frameCount : this.frameCounter,
+                currentFrame: gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : this.frameCounter),
                 cadenceIntervalFrames: runtime?.cadenceIntervalFrames || 1,
                 cadenceOffset: runtime?.cadenceOffset || 0
             });

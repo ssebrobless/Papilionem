@@ -2,7 +2,7 @@
 // Run a deterministic Papilionem performance scenario and write a digest JSON.
 //
 // Usage:
-//   node scripts/bench.js <scenario-name> [--out qa_logs/bench/baseline] [--raw] [--no-raw]
+//   node scripts/bench.js <scenario-name> [--out qa_logs/bench/baseline] [--raw] [--no-raw] [--allow-errors]
 //
 // scenario-name resolves to bench/scenarios/<name>.json (the .json suffix is optional).
 // The digest lands at <out>/<label>-<stamp>.json with the per-frame frameTimes array
@@ -24,7 +24,15 @@ const {
 } = require('./harness-core');
 
 function parseArgs(argv) {
-    const args = { positional: [], out: null, raw: true, headless: true, profile: false, profileIntervalMicros: 500 };
+    const args = {
+        positional: [],
+        out: null,
+        raw: true,
+        headless: true,
+        profile: false,
+        profileIntervalMicros: 500,
+        allowErrors: false
+    };
     for (let i = 0; i < argv.length; i += 1) {
         const arg = argv[i];
         if (arg === '--out') {
@@ -42,6 +50,8 @@ function parseArgs(argv) {
             args.profileIntervalMicros = Number(argv[i + 1]);
             args.profile = true;
             i += 1;
+        } else if (arg === '--allow-errors') {
+            args.allowErrors = true;
         } else if (arg.startsWith('--')) {
             throw new Error(`Unknown flag: ${arg}`);
         } else {
@@ -107,6 +117,38 @@ function resolveScenarioPath(name) {
     throw new Error(`Could not locate scenario "${name}" (looked in bench/scenarios/)`);
 }
 
+function collectBenchRuntimeErrors(session) {
+    return {
+        pageErrors: Array.isArray(session?.errors) ? [...session.errors] : [],
+        consoleErrors: Array.isArray(session?.consoleErrors) ? [...session.consoleErrors] : []
+    };
+}
+
+function hasBenchRuntimeErrors(runtimeErrors) {
+    return !!(runtimeErrors?.pageErrors?.length || runtimeErrors?.consoleErrors?.length);
+}
+
+function warnBenchRuntimeErrors(runtimeErrors) {
+    if (runtimeErrors.pageErrors.length) {
+        console.warn(`[bench] page errors: ${runtimeErrors.pageErrors.length}`);
+        for (const err of runtimeErrors.pageErrors.slice(0, 5)) console.warn(`  - ${err}`);
+    }
+    if (runtimeErrors.consoleErrors.length) {
+        console.warn(`[bench] console errors: ${runtimeErrors.consoleErrors.length}`);
+        for (const err of runtimeErrors.consoleErrors.slice(0, 5)) console.warn(`  - ${err}`);
+    }
+}
+
+function assertBenchRuntimeClean(runtimeErrors, options = {}) {
+    if (!hasBenchRuntimeErrors(runtimeErrors)) return;
+    if (options.allowErrors) return;
+    throw new Error(
+        `Benchmark captured ${runtimeErrors.pageErrors.length} page error(s) and ` +
+        `${runtimeErrors.consoleErrors.length} console error(s); refusing to treat this digest as evidence. ` +
+        'Rerun with --allow-errors only for explicit triage captures.'
+    );
+}
+
 async function main() {
     const args = parseArgs(process.argv.slice(2));
     const scenarioName = args.positional[0];
@@ -156,6 +198,7 @@ async function main() {
 
         const summary = summarizeCapture(result.capture);
         const frameTimes = Array.isArray(result.capture?.frameTimes) ? result.capture.frameTimes : [];
+        const runtimeErrors = collectBenchRuntimeErrors(session);
 
         const persisted = persistDigest({
             outputDir,
@@ -177,7 +220,10 @@ async function main() {
                 blockSpawnRequested: result.blockSpawn?.requested ?? null,
                 blockSpawnActual: result.entities?.blocks ?? null,
                 focusZoneId: result.entities?.focusedZoneId ?? null,
-                viewMode: result.entities?.viewMode ?? null
+                viewMode: result.entities?.viewMode ?? null,
+                pageErrorCount: runtimeErrors.pageErrors.length,
+                consoleErrorCount: runtimeErrors.consoleErrors.length,
+                allowErrors: args.allowErrors
             },
             frameTimes,
             raw: args.raw ? result.capture : null
@@ -215,20 +261,29 @@ async function main() {
         console.log(`\n[bench] digest -> ${persisted.digestPath}`);
         if (persisted.rawPath) console.log(`[bench] raw    -> ${persisted.rawPath}`);
         if (profilePath) console.log(`[bench] profile-> ${profilePath}  (open in Chrome DevTools > Performance > Load profile)`);
-        if (session.errors.length) {
-            console.warn(`[bench] page errors: ${session.errors.length}`);
-            for (const err of session.errors.slice(0, 5)) console.warn(`  - ${err}`);
+        warnBenchRuntimeErrors(runtimeErrors);
+        if (hasBenchRuntimeErrors(runtimeErrors) && args.allowErrors) {
+            console.warn('[bench] continuing because --allow-errors was passed');
         }
-        if (session.consoleErrors.length) {
-            console.warn(`[bench] console errors: ${session.consoleErrors.length}`);
-            for (const err of session.consoleErrors.slice(0, 5)) console.warn(`  - ${err}`);
-        }
+        assertBenchRuntimeClean(runtimeErrors, { allowErrors: args.allowErrors });
     } finally {
         if (session) await closeHarness(session, ctx);
     }
 }
 
-main().catch(err => {
-    console.error('[bench] FAILED:', err);
-    process.exit(1);
-});
+if (require.main === module) {
+    main().catch(err => {
+        console.error('[bench] FAILED:', err);
+        process.exit(1);
+    });
+}
+
+module.exports = {
+    parseArgs,
+    resolveScenarioPath,
+    collectBenchRuntimeErrors,
+    hasBenchRuntimeErrors,
+    warnBenchRuntimeErrors,
+    assertBenchRuntimeClean,
+    main
+};

@@ -223,8 +223,13 @@ function installPapilionemHarness() {
                 if ((butterfly.currentZoneId || null) !== zoneId) continue;
                 const point = gameCore.getRandomPlacementPoint?.(zoneId, padding);
                 if (!point) continue;
+                const previousZoneId = gameCore.getEntityZoneId?.(butterfly, null) || butterfly.currentZoneId || zoneId;
                 butterfly.x = point.x;
                 butterfly.y = point.y - (gameConfig.entities?.heightOffset?.butterfly || 10);
+                gameCore.butterflyStore?.afterTeleport?.(butterfly, previousZoneId, {
+                    zoneId,
+                    source: 'harness-scatter'
+                });
                 scattered += 1;
             }
             return { applied: true, count: scattered, zoneId };

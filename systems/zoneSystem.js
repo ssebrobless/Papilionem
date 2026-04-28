@@ -178,7 +178,7 @@ class ZoneSystem {
         return candidates.sort((left, right) => right.value - left.value)[0]?.label || (profile.identityLabel || zoneId || 'steady habitat');
     }
 
-    buildZoneEcologyFreshness(state = {}, currentFrame = (typeof frameCount === 'number' ? frameCount : 0)) {
+    buildZoneEcologyFreshness(state = {}, currentFrame = (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0))) {
         const lastValidFrame = Number.isFinite(state?.lastUpdatedFrame) ? Math.max(0, Math.round(state.lastUpdatedFrame)) : 0;
         const cadenceIntervalFrames = Math.max(1, Math.round(state?.cadenceIntervalFrames || 1));
         const cadenceOffset = Math.max(0, Math.round(state?.cadenceOffset || 0));

@@ -496,6 +496,12 @@ class Butterfly extends Entity {
             postFeedingCooldownDuration: 300, // 5 seconds
             postFeedingLeadCooldownDuration: 480 // 8 seconds
         };
+        this.targetFlower = null;
+        this._decisionTraceCache = {
+            frame: -1,
+            trace: null,
+            choices: null
+        };
         
         // === CURSOR INTERACTION ===
         this.cursor = {
@@ -616,16 +622,14 @@ class Butterfly extends Entity {
         }
 
         if (this.state === 'normal' && !this.zoneTravel && !this.pendingPollenDropTarget) {
-            const nearbyCrowd = this.getNearbyButterflyCount(84);
-            const crowdPressure = Math.min(1, nearbyCrowd / 6);
             const crowdRetargetFrame = 45 + (((this.id || '').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)) % 17);
-            if (
-                crowdPressure > 0.62
-                && this.movement.targetType === 'meander'
-                && frameCount % crowdRetargetFrame === 0
-            ) {
-                this.timers.wander.current = 0;
-                this.pickNewWanderTarget();
+            if (this.movement.targetType === 'meander' && this.getDecisionFrame() % crowdRetargetFrame === 0) {
+                const nearbyCrowd = this.getNearbyButterflyCount(84);
+                const crowdPressure = Math.min(1, nearbyCrowd / 6);
+                if (crowdPressure > 0.62) {
+                    this.timers.wander.current = 0;
+                    this.pickNewWanderTarget();
+                }
             }
         }
         
@@ -708,7 +712,7 @@ class Butterfly extends Entity {
         this.updateSpawnEffects(particleSystem);
 
         const dispersalConfig = this.getDispersalConfig();
-        if (frameCount - (this.dispersal.lastRecordedFrame || 0) >= dispersalConfig.visitRecordIntervalFrames) {
+        if (this.getDecisionFrame() - (this.dispersal.lastRecordedFrame || 0) >= dispersalConfig.visitRecordIntervalFrames) {
             this.recordDispersalVisit();
         }
         
@@ -837,27 +841,36 @@ class Butterfly extends Entity {
     // === STATE MANAGEMENT ===
     checkStateTransitions(gameState) {
         const { cursorVelocity, adjustedMouseX, adjustedMouseY, particleSystem } = gameState;
-        const caution = this.lifeSim?.derived?.behaviorBiases?.caution || 0;
-        const socialConfidence = this.lifeSim?.derived?.behaviorBiases?.socialConfidence || 0;
-        const cursorTrustBuffer = this.cursor.calmedByCursor ? 0.42 : 0.24;
-        const fearPenalty = this.cursor.clapFear * 0.55;
-        const riskProfile = this.getDecisionRiskProfile();
-        const effectiveScareThreshold = this.constants.scareThreshold * Math.max(
-            1.05,
-            1.28 + cursorTrustBuffer + (socialConfidence * 0.08) - (caution * 0.18) - fearPenalty
-        ) * (riskProfile.scareThresholdMultiplier || 1);
+        const dx = this.x - adjustedMouseX;
+        const dy = this.y - adjustedMouseY;
+        const distToCursorSq = dx * dx + dy * dy;
+        let riskProfile = null;
+        const getRiskProfile = () => {
+            if (!riskProfile) {
+                riskProfile = this.getDecisionRiskProfile();
+            }
+            return riskProfile;
+        };
         
         // Check for fast cursor movement (scare response)
         if (this.timers.scareImmunity === 0 && this.state !== 'display') {
-            const dx = this.x - adjustedMouseX;
-            const dy = this.y - adjustedMouseY;
-            const distToCursorSq = dx*dx + dy*dy;
-            
-            const scareRadius = this.constants.scareRadius * (riskProfile.scareRadiusMultiplier || 0.72);
-            if (cursorVelocity > effectiveScareThreshold &&
-                distToCursorSq < (scareRadius * scareRadius)) {
-                if (this.state !== 'scared') {
-                    this.changeState('scared', { cursorX: adjustedMouseX, cursorY: adjustedMouseY });
+            const maxScareRadius = this.constants.scareRadius * 0.95;
+            if (distToCursorSq < (maxScareRadius * maxScareRadius)) {
+                const caution = this.lifeSim?.derived?.behaviorBiases?.caution || 0;
+                const socialConfidence = this.lifeSim?.derived?.behaviorBiases?.socialConfidence || 0;
+                const cursorTrustBuffer = this.cursor.calmedByCursor ? 0.42 : 0.24;
+                const fearPenalty = this.cursor.clapFear * 0.55;
+                const activeRiskProfile = getRiskProfile();
+                const effectiveScareThreshold = this.constants.scareThreshold * Math.max(
+                    1.05,
+                    1.28 + cursorTrustBuffer + (socialConfidence * 0.08) - (caution * 0.18) - fearPenalty
+                ) * (activeRiskProfile.scareThresholdMultiplier || 1);
+                const scareRadius = this.constants.scareRadius * (activeRiskProfile.scareRadiusMultiplier || 0.72);
+                if (cursorVelocity > effectiveScareThreshold &&
+                    distToCursorSq < (scareRadius * scareRadius)) {
+                    if (this.state !== 'scared') {
+                        this.changeState('scared', { cursorX: adjustedMouseX, cursorY: adjustedMouseY });
+                    }
                 }
             }
         }
@@ -900,6 +913,7 @@ class Butterfly extends Entity {
                 this.timers.scared = this.constants.scareDuration;
                 this.timers.exclamation = this.constants.exclamationDuration;
                 this.visual.exclamationY = -5;
+                this.targetFlower = null;
                 this.movement.clearTarget();
                 this.setFleeTarget(data.cursorX, data.cursorY);
                 eventBus.emit(GameEvents?.COMMUNICATION_SIGNAL || 'communication:signal', {
@@ -916,6 +930,7 @@ class Butterfly extends Entity {
             case 'display':
                 this.timers.display = this.constants.displayDuration;
                 this.visual.hasBeenHovered = true;
+                this.targetFlower = null;
                 this.movement.clearTarget();
                 break;
                 
@@ -924,9 +939,11 @@ class Butterfly extends Entity {
                 this.timers.scareImmunity = this.constants.scareImmunityDuration;
                 this.feeding.startHappiness = this.happiness;
                 this.feeding.targetFlower = data.flower;
+                this.targetFlower = data.flower || null;
                 if (data.flower) {
                     if (data.flower.currentFeeder && data.flower.currentFeeder !== this) {
                         this.feeding.targetFlower = null;
+                        this.targetFlower = null;
                         this.movement.clearTarget('goal');
                         break;
                     }
@@ -953,6 +970,7 @@ class Butterfly extends Entity {
                 this.movement.followOffset.y = sin(angle) * dist;
                 this.movement.smoothFollowTarget.x = this.gridPos.x;
                 this.movement.smoothFollowTarget.y = this.gridPos.y;
+                this.targetFlower = null;
                 this.movement.clearTarget();
                 this.cursor.trustGlowAlpha = 0;
 
@@ -960,6 +978,7 @@ class Butterfly extends Entity {
 
             case 'mating':
                 this.timers.mating = this.breeding.matingTimer || 120;
+                this.targetFlower = null;
                 this.movement.clearTarget();
                 eventBus.emit(GameEvents?.COMMUNICATION_SIGNAL || 'communication:signal', {
                     sourceId: this.id,
@@ -996,6 +1015,7 @@ class Butterfly extends Entity {
                     this.feeding.cooldowns.set(flowerId, this.feeding.cooldownDuration);
                 }
                 this.feeding.targetFlower = null;
+                this.targetFlower = null;
                 this.feeding.startHappiness = null;
                 this.timers.postFeedingCooldown = this.feeding.postFeedingCooldownDuration;
                 this.timers.postFeedingLeadCooldown = this.feeding.postFeedingLeadCooldownDuration;
@@ -1171,10 +1191,12 @@ class Butterfly extends Entity {
                         this.changeState('feeding', { flower: targetFlower });
                     } else {
                         this.movement.clearTarget('goal');
+                        this.targetFlower = null;
                         this.pickNewWanderTarget();
                     }
                 } else {
                     this.movement.clearTarget('goal');
+                    this.targetFlower = null;
                     this.pickNewWanderTarget();
                 }
             }
@@ -1594,21 +1616,55 @@ class Butterfly extends Entity {
     }
 
     getDecisionTrace() {
-        return typeof mlInferenceSystem !== 'undefined'
+        const currentFrame = this.getDecisionFrame();
+        if (this._decisionTraceCache?.frame === currentFrame) {
+            return this._decisionTraceCache.trace;
+        }
+        const trace = typeof mlInferenceSystem !== 'undefined'
             ? mlInferenceSystem.getEntityTrace?.(this.id)
             : null;
+        this._decisionTraceCache = {
+            frame: currentFrame,
+            trace,
+            choices: new Map()
+        };
+        return trace;
+    }
+
+    getDecisionFrame() {
+        if (Number.isFinite(gameCore?.gameState?.currentFrame)) {
+            return Math.max(0, Math.round(gameCore.gameState.currentFrame));
+        }
+        return typeof frameCount === 'number' ? frameCount : 0;
     }
 
     getDecisionPolicyChoice(policyName, fallbackLabel = 'none') {
-        const trace = this.getDecisionTrace();
+        const currentFrame = this.getDecisionFrame();
+        if (this._decisionTraceCache?.frame !== currentFrame) {
+            this.getDecisionTrace();
+        }
+        if (!(this._decisionTraceCache?.choices instanceof Map)) {
+            this._decisionTraceCache = {
+                frame: currentFrame,
+                trace: this._decisionTraceCache?.trace || null,
+                choices: new Map()
+            };
+        }
+        const cacheKey = `${policyName}::${fallbackLabel}`;
+        if (this._decisionTraceCache.choices.has(cacheKey)) {
+            return this._decisionTraceCache.choices.get(cacheKey);
+        }
+        const trace = this._decisionTraceCache.trace;
         const policyTrace = trace?.traces?.[policyName] || null;
-        return {
+        const choice = {
             label: trace?.chosenPath?.[policyName] || policyTrace?.chosen || fallbackLabel,
             source: policyTrace?.source || trace?.source || 'heuristic-fallback',
             confidenceScore: policyTrace?.confidence?.score || 0,
             chosenScore: policyTrace?.chosenScore || 0,
             trace
         };
+        this._decisionTraceCache.choices.set(cacheKey, choice);
+        return choice;
     }
 
     getDecisionRiskProfile() {
@@ -1688,7 +1744,7 @@ class Butterfly extends Entity {
         const config = this.getDispersalConfig();
         this.pushRecentUnique(this.dispersal.recentSectorKeys, sectorKey, config.sectorMemoryLimit || 6);
         this.dispersal.lastRecordedSectorKey = sectorKey;
-        this.dispersal.lastRecordedFrame = frameCount;
+        this.dispersal.lastRecordedFrame = this.getDecisionFrame();
         return sectorKey;
     }
 
@@ -1942,6 +1998,7 @@ class Butterfly extends Entity {
     }
 
     pickNewWanderTarget() {
+        this.targetFlower = null;
         const behaviorBiases = this.lifeSim?.derived?.behaviorBiases || {};
         const wanderScale = Math.max(0.7, Math.min(1.35, behaviorBiases.wanderScale || 1));
         const shelterSeeking = Math.max(0, Math.min(1, behaviorBiases.shelterSeeking || 0));
@@ -2508,11 +2565,13 @@ class Butterfly extends Entity {
 
         if ((!shouldSeekFood && !prefersFlowerTarget) || this.timers.postFeedingCooldown > 0) {
             this.movement.clearTarget('goal');
+            this.targetFlower = null;
             return;
         }
 
         if (prefersAvoidAction && this.happiness >= this.baselineHappiness && !prefersFlowerTarget) {
             this.movement.clearTarget('goal');
+            this.targetFlower = null;
             return;
         }
         
@@ -2521,6 +2580,7 @@ class Butterfly extends Entity {
             const currentFlower = this.findFlowerAtTarget(flowers);
             if (!currentFlower || !this.isFlowerAvailable(currentFlower)) {
                 this.movement.clearTarget('goal');
+                this.targetFlower = null;
             } else {
                 const currentFlowerCrowd = gameCore?.countNearbyButterflies?.(
                     this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null,
@@ -2535,7 +2595,9 @@ class Butterfly extends Entity {
                 ) || 0;
                 if (availableFlowers.length > 2 && (currentFlowerCrowd >= 4 || currentTargeters >= 2)) {
                     this.movement.clearTarget('goal');
+                    this.targetFlower = null;
                 } else {
+                    this.targetFlower = currentFlower;
                     return; // Keep current goal
                 }
             }
@@ -2543,6 +2605,7 @@ class Butterfly extends Entity {
 
         if (this.movement.targetType === 'goal') {
             this.movement.clearTarget('goal');
+            this.targetFlower = null;
         }
         
         // Find new flower
@@ -2559,6 +2622,7 @@ class Butterfly extends Entity {
                     return (leftDistance - leftBias) - rightDistance;
                 })[0] || random(availableFlowers);
             this.rememberDispersalAnchor(`flower:${targetFlower.id}`);
+            this.targetFlower = targetFlower;
             const flowerGrid = gridManager.screenToIso(targetFlower.x, targetFlower.y);
             this.movement.setTarget(flowerGrid.x, flowerGrid.y, 'goal', 3);
         }
@@ -2650,7 +2714,7 @@ class Butterfly extends Entity {
     endFeeding(particleSystem) {
         // Update combo system
         if (typeof gameCore !== 'undefined' && gameCore.gameState) {
-            const now = frameCount;
+            const now = this.getDecisionFrame();
             const timeSinceLastFeed = now - gameCore.gameState.lastFeedingTime;
             
             if (timeSinceLastFeed < 300) {

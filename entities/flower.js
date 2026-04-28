@@ -816,7 +816,7 @@ class Flower extends Entity {
         this.objectProfile.occupancyState = 'chrysalis';
         this.chrysalisData = {
             lifecycleData,
-            hatchFrame: frameCount + Math.floor(random(minCocoonFrames, maxCocoonFrames)),
+            hatchFrame: (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0)) + Math.floor(random(minCocoonFrames, maxCocoonFrames)),
             hasHatched: false,
             hatchedAt: 0
         };

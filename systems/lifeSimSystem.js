@@ -88,7 +88,7 @@ class LifeSimSystem {
         );
         const currentFrame = Number.isFinite(options.currentFrame)
             ? options.currentFrame
-            : (typeof frameCount === 'number' ? frameCount : 0);
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
         const battleBypass = options.battleBypass ?? (gameConfig?.simulation?.cadence?.lifeSimBattleBypass !== false);
         const zoneTravelBypass = options.zoneTravelBypass ?? (gameConfig?.simulation?.cadence?.lifeSimZoneTravelBypass !== false);
         return {
@@ -1465,7 +1465,7 @@ class LifeSimSystem {
         if (!lifeSim) return;
         const currentFrame = Number.isFinite(options.currentFrame)
             ? options.currentFrame
-            : (typeof frameCount === 'number' ? frameCount : 0);
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
         const cadenceIntervalFrames = Math.max(1, Math.round(options.cadenceIntervalFrames ?? 1));
         const runtime = this.ensureRuntimeState(entity.id);
 
@@ -1657,7 +1657,7 @@ class LifeSimSystem {
         if (!lifeSim) return;
         const currentFrame = Number.isFinite(options.currentFrame)
             ? options.currentFrame
-            : (typeof frameCount === 'number' ? frameCount : 0);
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
         const cadenceIntervalFrames = Math.max(1, Math.round(options.cadenceIntervalFrames ?? 1));
         const runtime = this.ensureRuntimeState(entity.id);
 
@@ -1688,13 +1688,13 @@ class LifeSimSystem {
         for (const butterfly of gameState?.butterflies || []) {
             this.refreshButterflyDerivedState(butterfly, gameState, {
                 deltaSeconds: Number.isFinite(options.deltaSeconds) ? options.deltaSeconds : 0,
-                currentFrame: Number.isFinite(options.currentFrame) ? options.currentFrame : (typeof frameCount === 'number' ? frameCount : 0),
+                currentFrame: Number.isFinite(options.currentFrame) ? options.currentFrame : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0)),
                 cadenceIntervalFrames: Math.max(1, Math.round(options.cadenceIntervalFrames ?? 1))
             });
         }
         for (const caterpillar of gameState?.caterpillars || []) {
             this.refreshCaterpillarDerivedState(caterpillar, gameState, {
-                currentFrame: Number.isFinite(options.currentFrame) ? options.currentFrame : (typeof frameCount === 'number' ? frameCount : 0),
+                currentFrame: Number.isFinite(options.currentFrame) ? options.currentFrame : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0)),
                 cadenceIntervalFrames: Math.max(1, Math.round(options.cadenceIntervalFrames ?? 1))
             });
         }
@@ -1705,7 +1705,7 @@ class LifeSimSystem {
         if (!lifeSim) return;
         const currentFrame = Number.isFinite(options.currentFrame)
             ? options.currentFrame
-            : (typeof frameCount === 'number' ? frameCount : 0);
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
         const cadenceIntervalFrames = Math.max(1, Math.round(options.cadenceIntervalFrames ?? 1));
         const runtime = this.ensureRuntimeState(entity.id);
         const deepUpdate = options.deepUpdate !== false;
@@ -2056,7 +2056,7 @@ class LifeSimSystem {
         if (!lifeSim) return;
         const currentFrame = Number.isFinite(options.currentFrame)
             ? options.currentFrame
-            : (typeof frameCount === 'number' ? frameCount : 0);
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
         const cadenceIntervalFrames = Math.max(1, Math.round(options.cadenceIntervalFrames ?? 1));
         const runtime = this.ensureRuntimeState(entity.id);
 
@@ -2171,7 +2171,7 @@ class LifeSimSystem {
         const lifeSim = entity?.lifeSim;
         if (!lifeSim) return null;
         const runtime = this.runtimeState.get(entityId) || null;
-        const nowFrame = typeof frameCount === 'number' ? frameCount : null;
+        const nowFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : null);
         const lastValidFrame = lifeSim.derived?.lastUpdatedFrame
             || runtime?.lastDeepUpdateFrame
             || null;

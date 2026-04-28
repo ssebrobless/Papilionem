@@ -90,7 +90,7 @@ class EventBus {
             event,
             data,
             timestamp: Date.now(),
-            frame: frameCount
+            frame: gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : null)
         });
         
         // Keep history size limited

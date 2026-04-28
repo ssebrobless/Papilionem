@@ -7,7 +7,7 @@ class Caterpillar extends Entity {
         this.size = 24;
         this.lifecycleData = lifecycleData;
         this.phase = 'seekingFood';
-        this.phaseStartedAt = frameCount;
+        this.phaseStartedAt = this.getCurrentFrame();
         this.phaseTimeout = 60 * 300; // 5 minutes
         this.minimumLarvalFrames = 60 * 40;
         this.speed = 0.18;
@@ -45,6 +45,10 @@ class Caterpillar extends Entity {
         });
     }
 
+    getCurrentFrame() {
+        return gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+    }
+
     update(gameState) {
         if (this.dead) return;
         this.lifeSim.lifecycle.ageTicks++;
@@ -56,7 +60,7 @@ class Caterpillar extends Entity {
 
         this.acquireTarget(gameState.flowers || []);
         if (!this.targetFlower) {
-            if (frameCount - this.phaseStartedAt >= this.phaseTimeout) {
+            if (this.getCurrentFrame() - this.phaseStartedAt >= this.phaseTimeout) {
                 this.dead = true;
                 this.failReason = 'starved';
             }
@@ -74,7 +78,7 @@ class Caterpillar extends Entity {
             return;
         }
 
-        if (frameCount - this.phaseStartedAt >= this.phaseTimeout) {
+        if (this.getCurrentFrame() - this.phaseStartedAt >= this.phaseTimeout) {
             this.dead = true;
             this.failReason = 'starved';
             return;
@@ -101,7 +105,7 @@ class Caterpillar extends Entity {
         this.targetFlower = null;
         let bestDistance = Infinity;
         const searchingForChrysalis = this.phase === 'seekingChrysalis';
-        const canSeekChrysalisNow = !searchingForChrysalis || (frameCount - this.phaseStartedAt >= this.minimumLarvalFrames);
+        const canSeekChrysalisNow = !searchingForChrysalis || (this.getCurrentFrame() - this.phaseStartedAt >= this.minimumLarvalFrames);
         const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || this.lifecycleData?.currentZoneId || null;
 
         if (searchingForChrysalis && !canSeekChrysalisNow) {
@@ -134,7 +138,7 @@ class Caterpillar extends Entity {
             this.phase = 'seekingChrysalis';
             this.lifeSim.drives.resourceControl = 0.1;
             this.lifeSim.drives.rest = 0.45;
-            this.phaseStartedAt = frameCount;
+            this.phaseStartedAt = this.getCurrentFrame();
             this.targetFlower = null;
             return;
         }

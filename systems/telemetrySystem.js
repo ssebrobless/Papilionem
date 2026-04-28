@@ -520,13 +520,17 @@ class TelemetrySystem {
 
     extractTopBreakdownEntries(map = {}, limit = 3) {
         return Object.entries(this.normalizeBreakdownMap(map))
-            .filter(([, value]) => Number.isFinite(value) && value > 0.05)
+            .filter(([label, value]) => this.isTimingBreakdownKey(label) && Number.isFinite(value) && value > 0.05)
             .sort((left, right) => right[1] - left[1])
             .slice(0, Math.max(0, limit))
             .map(([label, ms]) => ({
                 label,
                 ms
             }));
+    }
+
+    isTimingBreakdownKey(label = '') {
+        return typeof label === 'string' && label.endsWith('Ms');
     }
 
     buildUpdateAttributionBreakdown(sample = {}) {
@@ -855,7 +859,7 @@ class TelemetrySystem {
             category: category || 'note',
             label: label || 'event',
             atMs: options.atMs || Date.now(),
-            frame: typeof frameCount === 'number' ? frameCount : null,
+            frame: gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : null),
             payload: this.cloneJson(payload, {})
         };
         capture.timeline = Array.isArray(capture.timeline) ? capture.timeline : [];
@@ -906,7 +910,7 @@ class TelemetrySystem {
             kind,
             severity,
             atMs: Date.now(),
-            frame: typeof frameCount === 'number' ? frameCount : null,
+            frame: gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : null),
             details: this.cloneJson(details, {})
         };
         this.sessionCapture.runtimeIssues = Array.isArray(this.sessionCapture.runtimeIssues)

@@ -95,7 +95,7 @@ class ObjectSystem {
         if (!state) return false;
         state.interactionCount = (state.interactionCount || 0) + 1;
         state.lastInteractionType = interactionType || 'interacted';
-        state.lastInteractionAt = typeof frameCount === 'number' ? frameCount : Date.now();
+        state.lastInteractionAt = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : Date.now());
         state.lastActorId = actorId || null;
         state.metadata = {
             ...(state.metadata || {}),

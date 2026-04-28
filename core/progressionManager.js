@@ -1,4 +1,5 @@
 const PAPILIONEM_PROGRESS_KEY = 'papilionem-progression-v1';
+const PROGRESSION_FRAME_ENSURE_CACHE = new WeakMap();
 const PAPILIONEM_HYBRID_MASCULINE_NAMES = [
     'Aaron', 'Adrian', 'Aiden', 'Alex', 'Andrew', 'Anthony', 'Asher', 'Austin', 'Benjamin', 'Blake',
     'Brandon', 'Caleb', 'Cameron', 'Carter', 'Charles', 'Christian', 'Christopher', 'Cole', 'Connor', 'Daniel',
@@ -55,7 +56,7 @@ class ProgressionManager {
     }
 
     getProgressionTimestamp() {
-        return typeof frameCount === 'number' ? frameCount : Date.now();
+        return gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : Date.now());
     }
 
     getHybridNamePool(sex = 'M') {
@@ -692,6 +693,10 @@ class ProgressionManager {
 
     ensureProgressionContainers(gameState) {
         if (!gameState) return;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : null);
+        if (currentFrame !== null && PROGRESSION_FRAME_ENSURE_CACHE.get(gameState) === currentFrame) {
+            return;
+        }
 
         if (!Array.isArray(gameState.hybridJournal)) {
             gameState.hybridJournal = [];
@@ -731,6 +736,10 @@ class ProgressionManager {
             } else {
                 gameState.perWildButterflyProgress[butterflyId] = normalizedProgress;
             }
+        }
+
+        if (currentFrame !== null) {
+            PROGRESSION_FRAME_ENSURE_CACHE.set(gameState, currentFrame);
         }
     }
 

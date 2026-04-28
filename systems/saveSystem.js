@@ -1472,6 +1472,11 @@ class SaveSystem {
         for (const butterfly of gameState.butterflies) {
             gameCoreInstance.entityManager?.addEntity?.('butterflies', butterfly);
             gameCoreInstance.registerEntityWithFoundationSystems?.(butterfly, 'butterfly');
+            const zoneId = gameCoreInstance.getEntityZoneId?.(butterfly, null) || butterfly.currentZoneId || null;
+            gameCoreInstance.butterflyStore?.afterPositionMutation?.(butterfly, zoneId, {
+                zoneId,
+                source: 'save-load-rehydrate'
+            });
         }
         for (const flower of gameState.flowers) {
             gameCoreInstance.entityManager?.addEntity?.('flowers', flower);

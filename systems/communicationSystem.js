@@ -12,6 +12,7 @@ class CommunicationSystem {
         this.maxEdgeResidueEntries = 3;
         this.dialogueReplyDelaySeconds = 2.0;
         this.dialogueReplyDelayMs = 2000;
+        this.maintenancePhaseCache = new Map();
     }
 
     initialize() {
@@ -32,6 +33,7 @@ class CommunicationSystem {
         this.history = [];
         this.dialogueHistory = [];
         this.activeSignals.clear();
+        this.maintenancePhaseCache.clear();
         this.simulationClockSeconds = 0;
     }
 
@@ -63,6 +65,11 @@ class CommunicationSystem {
         if (!entityId) return;
         this.entities.delete(entityId);
         this.activeSignals.delete(entityId);
+        for (const key of Array.from(this.maintenancePhaseCache.keys())) {
+            if (key.startsWith(`${entityId}:`)) {
+                this.maintenancePhaseCache.delete(key);
+            }
+        }
     }
 
     requestLifeSimRefresh(entityOrId, reason = 'communication-change') {
@@ -74,6 +81,9 @@ class CommunicationSystem {
     update(gameState, deltaSeconds = 0) {
         this.simulationClockSeconds += deltaSeconds;
         const now = this.simulationClockSeconds;
+        const pressure = this.getPressureProfile();
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        const maintenanceIntervalFrames = this.getCommunicationMaintenanceIntervalFrames(pressure);
 
         for (const [entityId, signal] of Array.from(this.activeSignals.entries())) {
             if ((signal.expiresAtSeconds ?? 0) > now) continue;
@@ -86,8 +96,23 @@ class CommunicationSystem {
         }
 
         for (const entity of this.getLiveEntities(gameState)) {
-            this.decayConversationTexture(entity, deltaSeconds, now);
+            const communication = entity?.lifeSim?.communication || null;
+            if (!communication) continue;
+            const shouldForceMaintenance = !!(
+                communication.activeConversation
+                || communication.activeSignal
+                || communication.pendingUtterances?.length
+            );
+            if (!shouldForceMaintenance && !this.shouldRunCommunicationMaintenance(entity, currentFrame, maintenanceIntervalFrames)) {
+                continue;
+            }
+            const lastMaintenanceAtSeconds = Number.isFinite(communication.lastMaintenanceAtSeconds)
+                ? communication.lastMaintenanceAtSeconds
+                : (now - deltaSeconds);
+            const elapsedSeconds = Math.max(deltaSeconds, now - lastMaintenanceAtSeconds, 0);
+            this.decayConversationTexture(entity, elapsedSeconds, now);
             this.trimCommunicationState(entity);
+            communication.lastMaintenanceAtSeconds = now;
         }
 
         this.updateQueuedResponses(gameState);
@@ -115,6 +140,33 @@ class CommunicationSystem {
                 isCritical: false,
                 visibleButterflies: 0
             };
+    }
+
+    getCommunicationMaintenanceIntervalFrames(pressure = this.getPressureProfile()) {
+        if (pressure?.isCritical) return 8;
+        if (pressure?.isHot) return 4;
+        if (pressure?.isWarm || pressure?.tier === 'warm') return 2;
+        return 1;
+    }
+
+    getMaintenancePhase(entity, intervalFrames = 1) {
+        const normalizedInterval = Math.max(1, Math.round(intervalFrames || 1));
+        if (normalizedInterval <= 1) return 0;
+        const entityId = entity?.id || 'communication-maintenance';
+        const cacheKey = `${entityId}:${normalizedInterval}`;
+        if (this.maintenancePhaseCache.has(cacheKey)) {
+            return this.maintenancePhaseCache.get(cacheKey);
+        }
+        const phase = this.buildNameSeed(entityId) % normalizedInterval;
+        this.maintenancePhaseCache.set(cacheKey, phase);
+        return phase;
+    }
+
+    shouldRunCommunicationMaintenance(entity, currentFrame = 0, intervalFrames = 1) {
+        const normalizedInterval = Math.max(1, Math.round(intervalFrames || 1));
+        if (normalizedInterval <= 1) return true;
+        const phase = this.getMaintenancePhase(entity, normalizedInterval);
+        return (Math.max(0, Math.round(currentFrame || 0)) % normalizedInterval) === phase;
     }
 
     clamp01(value) {
@@ -3299,7 +3351,9 @@ class CommunicationSystem {
         this.trimList(communication.pendingUtterances, 2);
         this.trimList(interpretation.lastSignals, 12);
         for (const edge of Object.values(entity?.lifeSim?.socialEdges || {})) {
-            this.compactEdgeResidueHistory(edge);
+            if (Array.isArray(edge?.recentResidues) && edge.recentResidues.length > this.maxEdgeResidueEntries) {
+                this.compactEdgeResidueHistory(edge);
+            }
         }
     }
 

@@ -3,6 +3,10 @@ class BreedingSystem {
         this.refreshConfig();
     }
 
+    getCurrentFrame() {
+        return gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+    }
+
     getHybridBalance() {
         return gameConfig?.balance?.hybrid || {};
     }
@@ -268,7 +272,7 @@ class BreedingSystem {
             const targetGrid = gridManager.screenToIso(midpointX + offset, midpointY);
             butterfly.movement.setTarget(targetGrid.x, targetGrid.y, 'mating', 12, 0);
 
-            if (butterfly.sex === 'F' && typeof eventBus !== 'undefined' && frameCount % 18 === 0) {
+            if (butterfly.sex === 'F' && typeof eventBus !== 'undefined' && this.getCurrentFrame() % 18 === 0) {
                 eventBus.emit('mating:visual', {
                     x: midpointX,
                     y: midpointY - 6
@@ -309,12 +313,12 @@ class BreedingSystem {
         for (let i = gameState.flowers.length - 1; i >= 0; i--) {
             const flower = gameState.flowers[i];
             this.normalizeLifecycleTiming(flower);
-            if (flower.occupancyState === 'egg' && flower.eggData && frameCount >= flower.eggData.hatchFrame) {
+            if (flower.occupancyState === 'egg' && flower.eggData && this.getCurrentFrame() >= flower.eggData.hatchFrame) {
                 this.hatchEggFlowerAtIndex(gameState, i);
                 continue;
             }
 
-            if (flower.occupancyState === 'chrysalis' && flower.chrysalisData && frameCount >= flower.chrysalisData.hatchFrame) {
+            if (flower.occupancyState === 'chrysalis' && flower.chrysalisData && this.getCurrentFrame() >= flower.chrysalisData.hatchFrame) {
                 this.hatchChrysalisFlower(flower, gameState, particleSystem);
             }
         }
@@ -366,7 +370,7 @@ class BreedingSystem {
                 gameState.pendingOffspringReservations = Math.max(0, (gameState.pendingOffspringReservations || 0) - 1);
             }
             flower.chrysalisData.hasHatched = true;
-            flower.chrysalisData.hatchedAt = frameCount;
+            flower.chrysalisData.hatchedAt = this.getCurrentFrame();
             flower.chrysalisData.hatchOutcome = 'hybrid-cap-death';
             flower.startPostHatchFade();
             if (typeof eventBus !== 'undefined') {
@@ -388,26 +392,26 @@ class BreedingSystem {
 
         if (adult) {
             flower.chrysalisData.hasHatched = true;
-            flower.chrysalisData.hatchedAt = frameCount;
+            flower.chrysalisData.hatchedAt = this.getCurrentFrame();
             flower.chrysalisData.hatchOutcome = 'born';
             flower.startPostHatchFade();
             return adult;
         }
 
-        flower.chrysalisData.hatchFrame = frameCount + 60;
+        flower.chrysalisData.hatchFrame = this.getCurrentFrame() + 60;
         return null;
     }
 
     normalizeLifecycleTiming(flower) {
         if (flower.occupancyState === 'egg' && flower.eggData) {
-            const maxAllowed = frameCount + this.maxEggHatchFrames;
+            const maxAllowed = this.getCurrentFrame() + this.maxEggHatchFrames;
             if (flower.eggData.hatchFrame > maxAllowed) {
                 flower.eggData.hatchFrame = maxAllowed;
             }
         }
 
         if (flower.occupancyState === 'chrysalis' && flower.chrysalisData && !flower.chrysalisData.hasHatched) {
-            const maxAllowed = frameCount + this.maxCocoonHatchFrames;
+            const maxAllowed = this.getCurrentFrame() + this.maxCocoonHatchFrames;
             if (flower.chrysalisData.hatchFrame > maxAllowed) {
                 flower.chrysalisData.hatchFrame = maxAllowed;
             }
@@ -418,7 +422,7 @@ class BreedingSystem {
         for (const butterfly of gameState.butterflies) {
             this.ensureButterflyData(butterfly);
             if (butterfly.sex === 'M') {
-                butterfly.pheromoneCooldownUntil = frameCount;
+                butterfly.pheromoneCooldownUntil = this.getCurrentFrame();
             }
         }
     }
@@ -435,7 +439,7 @@ class BreedingSystem {
         for (let i = gameState.flowers.length - 1; i >= 0; i--) {
             const flower = gameState.flowers[i];
             if (flower.occupancyState === 'egg' && flower.eggData) {
-                flower.eggData.hatchFrame = frameCount;
+                flower.eggData.hatchFrame = this.getCurrentFrame();
                 this.hatchEggFlowerAtIndex(gameState, i);
             }
         }
@@ -444,7 +448,7 @@ class BreedingSystem {
     hatchAllCocoons(gameState) {
         for (const flower of gameState.flowers) {
             if (flower.occupancyState === 'chrysalis' && flower.chrysalisData) {
-                flower.chrysalisData.hatchFrame = frameCount;
+                flower.chrysalisData.hatchFrame = this.getCurrentFrame();
                 this.hatchChrysalisFlower(flower, gameState, gameState.particleSystem || gameCore?.particleSystem || null);
             }
         }
@@ -472,7 +476,7 @@ class BreedingSystem {
         const zoneId = this.getEntityZoneId(butterfly, null);
         if (butterfly.sex !== 'M') return false;
         if (butterfly.state !== 'normal') return false;
-        if (butterfly.pheromoneCooldownUntil > frameCount) return false;
+        if (butterfly.pheromoneCooldownUntil > this.getCurrentFrame()) return false;
         if (butterfly.isSpawning) return false;
         if (butterfly.wildLifecycle?.exitQueued) return false;
         if (butterfly.pregnancy?.active) return false;
@@ -617,7 +621,7 @@ class BreedingSystem {
             male.fertilityUsesRemaining = Math.max(0, male.fertilityUsesRemaining - 1);
         }
 
-        male.pheromoneCooldownUntil = frameCount + this.pheromoneCooldownFrames;
+        male.pheromoneCooldownUntil = this.getCurrentFrame() + this.pheromoneCooldownFrames;
 
         const lifecycleData = this.createLifecycleData(female, male);
         const targetFlower = this.findNearestFlowerForEgg(female, gameState.flowers);
@@ -892,7 +896,7 @@ class BreedingSystem {
 
         flower.attachEgg({
             motherId: female.id,
-            hatchFrame: frameCount + Math.floor(random(this.minEggHatchFrames, this.maxEggHatchFrames)),
+            hatchFrame: this.getCurrentFrame() + Math.floor(random(this.minEggHatchFrames, this.maxEggHatchFrames)),
             lifecycleData: female.pregnancy.lifecycleData
         });
 
