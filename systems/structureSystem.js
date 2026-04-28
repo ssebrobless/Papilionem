@@ -1558,6 +1558,7 @@ class StructureSystem {
         if (requestedStackIndex > 0 && !placement.supportBlockId) {
             return false;
         }
+        const isStackedPlacement = requestedStackIndex > 0;
 
         const blockUnit = this.getCanonicalBlockUnit(requestedStackIndex + 1);
         const spacing = blockUnit.spacing;
@@ -1573,7 +1574,7 @@ class StructureSystem {
             || null;
         const point = { x: placement.x, y: placement.y };
 
-        if (preferredComponent && this.pointConflictsWithOpening(preferredComponent, point, spacing)) {
+        if (!isStackedPlacement && preferredComponent && this.pointConflictsWithOpening(preferredComponent, point, spacing)) {
             return false;
         }
 
@@ -1613,7 +1614,7 @@ class StructureSystem {
             }
         }
 
-        if (this.isPointBlockedForEntity(point.x, point.y, block, {
+        if (!isStackedPlacement && this.isPointBlockedForEntity(point.x, point.y, block, {
             zoneId,
             ignoreBlockIds
         })) {
