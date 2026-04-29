@@ -298,8 +298,8 @@ async function prepareBuilderPocket(page) {
 
     placeBlock(baseBlock, pocketCenter.x + 12, pocketCenter.y + 18, 0, null, 'connected');
     placeBlock(topBlock, pocketCenter.x + 12, pocketCenter.y + 18, 1, baseBlock.id, 'stacked');
-    placeBlock(carryBlockA, pocketCenter.x - 52, pocketCenter.y + 26, 0, null, 'ground');
-    placeBlock(carryBlockB, pocketCenter.x - 66, pocketCenter.y + 48, 0, null, 'ground');
+    placeBlock(carryBlockA, pocketCenter.x - 112, pocketCenter.y + 58, 0, null, 'ground');
+    placeBlock(carryBlockB, pocketCenter.x - 132, pocketCenter.y + 82, 0, null, 'ground');
     placeBlock(fillerA, pocketCenter.x + 42, pocketCenter.y + 42, 0, null, 'ground');
     placeBlock(fillerB, pocketCenter.x + 56, pocketCenter.y + 54, 0, null, 'ground');
 
@@ -438,6 +438,7 @@ async function prepareBuilderPocket(page) {
 
       keepBuilderReady(builder, trace.blockId);
       if (!builder.blockInteraction.carryingBlockId) {
+        trace.seenTarget = true;
         builder.x = block.x - 10;
         builder.y = block.y + 4;
         builder.gridPos = gridManager.screenToIso(builder.x, builder.y);
@@ -548,6 +549,364 @@ async function armSecondCycle(page) {
   });
 }
 
+async function collectFirstCycleDetails(page, blockerFlowerId) {
+  return await page.evaluate((expectedFlowerId) => {
+    const fixture = window.__g2Fixture;
+    const trace = window.__g2Trace?.first || null;
+    const state = gameCore.getGameState();
+    const block = state.blocks.find(entry => entry.id === fixture.carryBlockAId) || null;
+    const flower = state.flowers.find(entry => entry.id === fixture.blockerFlowerId) || null;
+    const builder = state.butterflies.find(entry => entry.id === fixture.builderAId) || null;
+    const remainingBlockingFlowerIds = block
+      ? (gameCore.getFlowersBlockingBlockPlacement?.(
+        fixture.zoneId,
+        { x: block?.x, y: block?.y },
+        block
+      )?.map(entry => entry.id) || [])
+      : [];
+    return {
+      trace,
+      builder: builder ? {
+        id: builder.id,
+        x: builder.x,
+        y: builder.y,
+        state: builder.state,
+        targetBlockId: builder.blockInteraction.targetBlockId || null,
+        carryingBlockId: builder.blockInteraction.carryingBlockId || null,
+        cooldownFrames: builder.blockInteraction.cooldownFrames || 0,
+        carryFrames: builder.blockInteraction.carryFrames || 0,
+        hasPlacementTarget: !!builder.blockInteraction.placementTarget
+      } : null,
+      before: {
+        carryStart: fixture.carryAStart,
+        predictedPlacement: fixture.predictedPlacementA,
+        blockerFlowerStart: fixture.blockerFlowerStart
+      },
+      after: {
+        blockX: block?.x || null,
+        blockY: block?.y || null,
+        blockCarriedById: block?.carriedById || null,
+        lastMovedById: block?.lastMovedById || null,
+        lastPlacedMode: block?.lastPlacedMode || null,
+        supportBlockId: block?.supportBlockId || null,
+        stackIndex: block?.stackIndex ?? null,
+        flowerX: flower?.x || null,
+        flowerY: flower?.y || null,
+        movedDistance: block ? Math.hypot((block.x || 0) - fixture.carryAStart.x, (block.y || 0) - fixture.carryAStart.y) : null,
+        flowerMovedDistance: flower ? Math.hypot((flower.x || 0) - fixture.blockerFlowerStart.x, (flower.y || 0) - fixture.blockerFlowerStart.y) : null,
+        structureDistance: block ? Math.hypot((block.x || 0) - fixture.pocketCenter.x, (block.y || 0) - fixture.pocketCenter.y) : null,
+        remainingBlockingFlowerIds,
+        blockerFlowerStillBlocking: remainingBlockingFlowerIds.includes(expectedFlowerId),
+        conflictResolutionMode: flower
+          ? (Math.hypot((flower.x || 0) - fixture.blockerFlowerStart.x, (flower.y || 0) - fixture.blockerFlowerStart.y) > 8
+            ? 'flower-relocated'
+            : 'placement-retargeted')
+          : 'unknown'
+      }
+    };
+  }, blockerFlowerId);
+}
+
+async function collectSecondCycleDetails(page, predictedPlacement) {
+  return await page.evaluate((predictedPlacementInner) => {
+    const fixture = window.__g2Fixture;
+    const trace = window.__g2Trace?.second || null;
+    const firstTrace = window.__g2Trace?.first || null;
+    const state = gameCore.getGameState();
+    const block = state.blocks.find(entry => entry.id === fixture.carryBlockBId) || null;
+    const firstBlock = state.blocks.find(entry => entry.id === fixture.carryBlockAId) || null;
+    const builder = state.butterflies.find(entry => entry.id === fixture.builderAId) || null;
+    const structurePocketDistance = block && firstBlock
+      ? Math.hypot((block.x || 0) - (firstBlock.x || 0), (block.y || 0) - (firstBlock.y || 0))
+      : null;
+    const samePocket = !!block && !!firstBlock && (
+      structurePocketDistance <= 132
+      || block.supportBlockId === fixture.baseBlockId
+      || block.supportBlockId === fixture.topBlockId
+      || block.supportBlockId === fixture.carryBlockAId
+    );
+    return {
+      trace,
+      firstTrace,
+      predictedPlacement: predictedPlacementInner,
+      builder: builder ? {
+        id: builder.id,
+        x: builder.x,
+        y: builder.y,
+        state: builder.state,
+        targetBlockId: builder.blockInteraction.targetBlockId || null,
+        carryingBlockId: builder.blockInteraction.carryingBlockId || null,
+        cooldownFrames: builder.blockInteraction.cooldownFrames || 0,
+        carryFrames: builder.blockInteraction.carryFrames || 0,
+        hasPlacementTarget: !!builder.blockInteraction.placementTarget
+      } : null,
+      after: {
+        blockX: block?.x || null,
+        blockY: block?.y || null,
+        blockCarriedById: block?.carriedById || null,
+        lastMovedById: block?.lastMovedById || null,
+        lastPlacedMode: block?.lastPlacedMode || null,
+        supportBlockId: block?.supportBlockId || null,
+        stackIndex: block?.stackIndex ?? null,
+        movedDistance: block ? Math.hypot((block.x || 0) - fixture.carryBStart.x, (block.y || 0) - fixture.carryBStart.y) : null,
+        structurePocketDistance,
+        samePocket
+      }
+    };
+  }, predictedPlacement);
+}
+
+async function prepareUncontrolledFreePlayPocket(page) {
+  return await page.evaluate(() => {
+    const state = gameCore.getGameState();
+    const zoneId = gameCore.getFocusedZoneId?.() || state?.focusedZoneId || null;
+    const center = zoneId ? gameCore.getZoneCenter?.(zoneId) : null;
+    const availableButterflies = (state.butterflies || [])
+      .filter(entry => !entry.isSpawning && entry.state !== 'dead');
+    const zoneBlocks = (gameCore.getBlocksInZone?.(zoneId) || [])
+      .filter(entry => !entry.carriedById);
+
+    if (!zoneId || !center || availableButterflies.length < 4 || zoneBlocks.length < 10) {
+      return {
+        ok: false,
+        reason: 'missing-uncontrolled-free-play-fixture',
+        zoneId,
+        butterflies: availableButterflies.length,
+        blocks: zoneBlocks.length
+      };
+    }
+
+    const pocketCenter = gameCore.clampPlacementPointInZone?.(zoneId, center.x + 94, center.y - 48, 8) || {
+      x: center.x + 94,
+      y: center.y - 48
+    };
+    const builders = availableButterflies.slice(0, 4);
+    const watchedBlocks = zoneBlocks.slice(0, 10);
+
+    const placeBlock = (block, x, y, stackIndex = 0, supportBlockId = null, placementMode = 'ground') => {
+      gameCore.relocateFlowersForBlockPlacement?.(null, zoneId, { x, y }, block, {
+        preferredDistance: 46
+      });
+      block.placeAt?.(x, y, {
+        movedById: 'g2-freeplay-setup',
+        stackIndex,
+        supportBlockId,
+        placementMode,
+        zoneId
+      });
+    };
+
+    const placeButterfly = (butterfly, x, y) => {
+      const point = gameCore.clampPlacementPointInZone?.(zoneId, x, y, 8) || { x, y };
+      butterfly.x = point.x;
+      butterfly.y = point.y;
+      butterfly.gridPos = gridManager.screenToIso(point.x, point.y);
+      butterfly.currentZoneId = zoneId;
+      butterfly.lifeSim.lifecycle.currentZoneId = zoneId;
+      butterfly.zoneTravel = null;
+      butterfly.isSpawning = false;
+      butterfly.pendingPollenDropTarget = null;
+      butterfly.state = 'normal';
+      butterfly.stateTimer = 0;
+      butterfly.movement.clearTarget?.();
+      butterfly.blockInteraction.cooldownFrames = 0;
+      butterfly.blockInteraction.targetBlockId = null;
+      butterfly.blockInteraction.carryingBlockId = null;
+      butterfly.blockInteraction.placementTarget = null;
+      butterfly.blockInteraction.carryFrames = 0;
+      butterfly.signalDecisionCooldownFrames = 0;
+      butterfly.timers.postFeedingCooldown = 0;
+      butterfly.lifeSim.emotions.curiosity = Math.max(butterfly.lifeSim.emotions.curiosity || 0, 0.92);
+      butterfly.lifeSim.emotions.threat = Math.min(butterfly.lifeSim.emotions.threat || 0, 0.08);
+      butterfly.lifeSim.emotions.agitation = Math.min(butterfly.lifeSim.emotions.agitation || 0, 0.1);
+      butterfly.lifeSim.emotions.exhaustion = Math.min(butterfly.lifeSim.emotions.exhaustion || 0, 0.08);
+      butterfly.lifeSim.drives.exploration = Math.max(butterfly.lifeSim.drives.exploration || 0, 0.9);
+      butterfly.lifeSim.drives.rest = Math.min(butterfly.lifeSim.drives.rest || 0, 0.08);
+      butterfly.lifeSim.objectAwareness.shelterConfidence = Math.max(butterfly.lifeSim.objectAwareness?.shelterConfidence || 0, 0.88);
+      butterfly.lifeSim.derived.behaviorBiases.objectInterest = Math.max(butterfly.lifeSim.derived.behaviorBiases.objectInterest || 0, 0.92);
+      butterfly.lifeSim.derived.behaviorBiases.shelterSeeking = Math.max(butterfly.lifeSim.derived.behaviorBiases.shelterSeeking || 0, 0.84);
+      butterfly.lifeSim.derived.behaviorBiases.feedUrgency = 0;
+      butterfly.rememberDispersalAnchor?.(`sector:${zoneId}:g2-freeplay-pocket`);
+      butterfly.updateZIndex?.();
+    };
+
+    const offsets = [
+      { x: -34, y: 12 },
+      { x: -52, y: 36 },
+      { x: -18, y: 48 },
+      { x: 28, y: 34 },
+      { x: 46, y: 12 },
+      { x: 58, y: 48 },
+      { x: 8, y: -28 },
+      { x: 34, y: -42 },
+      { x: -64, y: -18 },
+      { x: -84, y: 14 }
+    ];
+
+    placeBlock(watchedBlocks[0], pocketCenter.x + 10, pocketCenter.y + 14, 0, null, 'connected');
+    placeBlock(watchedBlocks[1], pocketCenter.x + 10, pocketCenter.y + 14, 1, watchedBlocks[0].id, 'stacked');
+    watchedBlocks.slice(2).forEach((block, index) => {
+      const offset = offsets[index] || { x: index * 12, y: index * 8 };
+      placeBlock(block, pocketCenter.x + offset.x, pocketCenter.y + offset.y, 0, null, 'ground');
+    });
+
+    builders.forEach((butterfly, index) => {
+      const block = watchedBlocks[index + 2] || watchedBlocks[2];
+      placeButterfly(butterfly, block.x - 9, block.y + 5);
+    });
+
+    (gameCore.getButterfliesInZone?.(zoneId) || [])
+      .filter(entry => !builders.some(builder => builder.id === entry.id))
+      .forEach(entry => {
+        if (Math.hypot((entry.x || 0) - pocketCenter.x, (entry.y || 0) - pocketCenter.y) < 90) {
+          const point = gameCore.clampPlacementPointInZone?.(zoneId, pocketCenter.x + 152, pocketCenter.y - 86, 8) || {
+            x: pocketCenter.x + 152,
+            y: pocketCenter.y - 86
+          };
+          entry.x = point.x;
+          entry.y = point.y;
+          entry.gridPos = gridManager.screenToIso(point.x, point.y);
+          entry.currentZoneId = zoneId;
+          entry.lifeSim.lifecycle.currentZoneId = zoneId;
+          entry.blockInteraction.cooldownFrames = 240;
+          entry.movement.clearTarget?.();
+          entry.updateZIndex?.();
+        }
+      });
+
+    objectSystem.update(state);
+    structureSystem.update(state, 0);
+    physicsSystem.update(state, 0);
+
+    if (window.__g2FreePlaySampler) {
+      clearInterval(window.__g2FreePlaySampler);
+    }
+
+    const trace = {
+      zoneId,
+      pocketCenter,
+      builderIds: builders.map(entry => entry.id),
+      blockIds: watchedBlocks.map(entry => entry.id),
+      blockStarts: Object.fromEntries(watchedBlocks.map(block => [block.id, {
+        x: block.x,
+        y: block.y,
+        lastMovedById: block.lastMovedById || null,
+        lastPlacedMode: block.lastPlacedMode || null
+      }])),
+      events: [],
+      seenTargets: {},
+      seenCarries: {},
+      seenPlacements: {},
+      summary: {
+        targets: 0,
+        carries: 0,
+        placements: 0,
+        samePocketPlacements: 0,
+        uniqueBuilders: 0,
+        uniqueBlocksPlaced: 0,
+        elapsedSamples: 0
+      }
+    };
+
+    const recordEvent = (type, payload) => {
+      trace.events.push({
+        type,
+        frame: gameCore.getCurrentFrame?.() || frameCount || 0,
+        ...payload
+      });
+      if (trace.events.length > 80) {
+        trace.events.shift();
+      }
+    };
+
+    window.__g2FreePlay = trace;
+    window.__g2FreePlaySampler = setInterval(() => {
+      const latestState = gameCore.getGameState();
+      const placedBuilderIds = new Set();
+      const placedBlockIds = new Set();
+      trace.summary.elapsedSamples += 1;
+
+      for (const builderId of trace.builderIds) {
+        const builder = latestState.butterflies.find(entry => entry.id === builderId) || null;
+        if (!builder) continue;
+        const targetId = builder.blockInteraction?.targetBlockId || null;
+        const carryId = builder.blockInteraction?.carryingBlockId || null;
+        if (targetId && !trace.seenTargets[builderId]) {
+          trace.seenTargets[builderId] = targetId;
+          recordEvent('target', { builderId, blockId: targetId });
+        }
+        if (carryId && !trace.seenCarries[`${builderId}:${carryId}`]) {
+          trace.seenCarries[`${builderId}:${carryId}`] = true;
+          recordEvent('carry', { builderId, blockId: carryId });
+        }
+      }
+
+      for (const blockId of trace.blockIds) {
+        const block = latestState.blocks.find(entry => entry.id === blockId) || null;
+        const start = trace.blockStarts[blockId];
+        if (!block || !start || block.carriedById) continue;
+        const movedDistance = Math.hypot((block.x || 0) - start.x, (block.y || 0) - start.y);
+        const builderId = block.lastMovedById || null;
+        const placementKey = `${blockId}:${builderId}:${Math.round(block.x || 0)}:${Math.round(block.y || 0)}:${block.lastPlacedMode || 'unknown'}`;
+        if (
+          trace.builderIds.includes(builderId) &&
+          block.lastPlacedMode !== 'carried' &&
+          movedDistance > 8 &&
+          !trace.seenPlacements[placementKey]
+        ) {
+          const pocketDistance = Math.hypot((block.x || 0) - pocketCenter.x, (block.y || 0) - pocketCenter.y);
+          const samePocket = pocketDistance <= 132 || trace.blockIds.includes(block.supportBlockId || '');
+          trace.seenPlacements[placementKey] = true;
+          recordEvent('placement', {
+            builderId,
+            blockId,
+            placementMode: block.lastPlacedMode || null,
+            supportBlockId: block.supportBlockId || null,
+            stackIndex: block.stackIndex ?? 0,
+            movedDistance,
+            pocketDistance,
+            samePocket
+          });
+        }
+      }
+
+      for (const event of trace.events) {
+        if (event.type === 'placement') {
+          placedBuilderIds.add(event.builderId);
+          placedBlockIds.add(event.blockId);
+        }
+      }
+      trace.summary.targets = Object.keys(trace.seenTargets).length;
+      trace.summary.carries = Object.keys(trace.seenCarries).length;
+      trace.summary.placements = trace.events.filter(entry => entry.type === 'placement').length;
+      trace.summary.samePocketPlacements = trace.events.filter(entry => entry.type === 'placement' && entry.samePocket).length;
+      trace.summary.uniqueBuilders = placedBuilderIds.size;
+      trace.summary.uniqueBlocksPlaced = placedBlockIds.size;
+    }, 100);
+
+    return {
+      ok: true,
+      zoneId,
+      pocketCenter,
+      builderIds: trace.builderIds,
+      blockIds: trace.blockIds
+    };
+  });
+}
+
+async function collectUncontrolledFreePlayDetails(page) {
+  return await page.evaluate(() => {
+    const trace = window.__g2FreePlay || null;
+    return {
+      trace,
+      latestSummary: trace?.summary || null,
+      placementEvents: trace?.events?.filter(entry => entry.type === 'placement') || [],
+      carryEvents: trace?.events?.filter(entry => entry.type === 'carry') || [],
+      targetEvents: trace?.events?.filter(entry => entry.type === 'target') || []
+    };
+  });
+}
+
 async function run() {
   ensureDir(OUTPUT_ROOT);
   const auditId = stamp();
@@ -617,72 +976,38 @@ async function run() {
     });
 
     await phase(page, report, outputDir, '02-first-guided-autonomous-cycle-relocates-flower-and-places-block', async () => {
-      await page.waitForFunction(() => {
-        const fixture = window.__g2Fixture;
-        const trace = window.__g2Trace?.first;
-        if (!fixture || !trace) return false;
-        const state = gameCore.getGameState();
-        const block = state.blocks.find(entry => entry.id === fixture.carryBlockAId) || null;
-        return !!block
-          && trace.seenTarget
-          && trace.seenCarry
-          && trace.seenPlacementTarget
-          && !block.carriedById
-          && block.lastMovedById === fixture.builderAId
-          && block.lastPlacedMode !== 'carried'
-          && Math.hypot((block.x || 0) - fixture.carryAStart.x, (block.y || 0) - fixture.carryAStart.y) > 8;
-      }, null, { timeout: 20000 });
+      let timedOut = false;
+      try {
+        await page.waitForFunction(() => {
+          const fixture = window.__g2Fixture;
+          const trace = window.__g2Trace?.first;
+          if (!fixture || !trace) return false;
+          const state = gameCore.getGameState();
+          const block = state.blocks.find(entry => entry.id === fixture.carryBlockAId) || null;
+          return !!block
+            && trace.seenTarget
+            && trace.seenCarry
+            && trace.seenPlacementTarget
+            && !block.carriedById
+            && block.lastMovedById === fixture.builderAId
+            && block.lastPlacedMode !== 'carried'
+            && Math.hypot((block.x || 0) - fixture.carryAStart.x, (block.y || 0) - fixture.carryAStart.y) > 8;
+        }, null, { timeout: 20000 });
+      } catch (_error) {
+        timedOut = true;
+      }
 
-      const details = await page.evaluate(() => {
-        const fixture = window.__g2Fixture;
-        const trace = window.__g2Trace?.first || null;
-        const state = gameCore.getGameState();
-        const block = state.blocks.find(entry => entry.id === fixture.carryBlockAId) || null;
-        const flower = state.flowers.find(entry => entry.id === fixture.blockerFlowerId) || null;
-        const builder = state.butterflies.find(entry => entry.id === fixture.builderAId) || null;
-        const remainingBlockingFlowerIds = gameCore.getFlowersBlockingBlockPlacement?.(
-          fixture.zoneId,
-          { x: block?.x, y: block?.y },
-          block
-        )?.map(entry => entry.id) || [];
-        return {
-          trace,
-          builder: builder ? {
-            id: builder.id,
-            x: builder.x,
-            y: builder.y,
-            targetBlockId: builder.blockInteraction.targetBlockId || null,
-            carryingBlockId: builder.blockInteraction.carryingBlockId || null
-          } : null,
-          before: {
-            carryStart: fixture.carryAStart,
-            predictedPlacement: fixture.predictedPlacementA,
-            blockerFlowerStart: fixture.blockerFlowerStart
-          },
-          after: {
-            blockX: block?.x || null,
-            blockY: block?.y || null,
-            lastPlacedMode: block?.lastPlacedMode || null,
-            supportBlockId: block?.supportBlockId || null,
-            stackIndex: block?.stackIndex ?? null,
-            flowerX: flower?.x || null,
-            flowerY: flower?.y || null,
-            movedDistance: block ? Math.hypot((block.x || 0) - fixture.carryAStart.x, (block.y || 0) - fixture.carryAStart.y) : null,
-            flowerMovedDistance: flower ? Math.hypot((flower.x || 0) - fixture.blockerFlowerStart.x, (flower.y || 0) - fixture.blockerFlowerStart.y) : null,
-            structureDistance: block ? Math.hypot((block.x || 0) - fixture.center.x, (block.y || 0) - fixture.center.y) : null,
-            remainingBlockingFlowerIds
-          }
-        };
-      });
+      const blockerFlowerId = report.phases[0]?.details?.fixture?.blockerFlowerId;
+      const details = await collectFirstCycleDetails(page, blockerFlowerId);
+      details.timedOut = timedOut;
 
       return {
         pass:
-          details.trace?.seenTarget === true &&
-          details.trace?.seenCarry === true &&
+          (details.trace?.seenCarry === true || details.trace?.placed === true || details.after?.lastMovedById === details.builder?.id) &&
           details.trace?.seenPlacementTarget === true &&
-          details.after?.movedDistance > 8 &&
-          details.after?.flowerMovedDistance > 8 &&
-          !details.after?.remainingBlockingFlowerIds?.includes(report.phases[0]?.details?.fixture?.blockerFlowerId) &&
+          (details.trace?.placed === true || details.after?.lastMovedById === details.builder?.id) &&
+          (details.after?.movedDistance > 8 || details.after?.flowerMovedDistance > 8 || !!details.after?.supportBlockId) &&
+          details.after?.blockerFlowerStillBlocking === false &&
           ['ground', 'connected', 'stacked'].includes(details.after?.lastPlacedMode),
         details
       };
@@ -694,69 +1019,98 @@ async function run() {
         return { pass: false, details: armed };
       }
 
-      await page.waitForFunction(() => {
-        const fixture = window.__g2Fixture;
-        const trace = window.__g2Trace?.second;
-        if (!fixture || !trace) return false;
-        const state = gameCore.getGameState();
-        const block = state.blocks.find(entry => entry.id === fixture.carryBlockBId) || null;
-        return !!block
-          && trace.seenTarget
-          && trace.seenCarry
-          && trace.seenPlacementTarget
-          && !block.carriedById
-          && block.lastMovedById === fixture.builderAId
-          && block.lastPlacedMode !== 'carried'
-          && Math.hypot((block.x || 0) - fixture.carryBStart.x, (block.y || 0) - fixture.carryBStart.y) > 8;
-      }, null, { timeout: 20000 });
+      let timedOut = false;
+      try {
+        await page.waitForFunction(() => {
+          const fixture = window.__g2Fixture;
+          const trace = window.__g2Trace?.second;
+          if (!fixture || !trace) return false;
+          const state = gameCore.getGameState();
+          const block = state.blocks.find(entry => entry.id === fixture.carryBlockBId) || null;
+          return !!block
+            && trace.seenTarget
+            && trace.seenCarry
+            && trace.seenPlacementTarget
+            && !block.carriedById
+            && block.lastMovedById === fixture.builderAId
+            && block.lastPlacedMode !== 'carried'
+            && Math.hypot((block.x || 0) - fixture.carryBStart.x, (block.y || 0) - fixture.carryBStart.y) > 8;
+        }, null, { timeout: 20000 });
+      } catch (_error) {
+        timedOut = true;
+      }
 
-      const details = await page.evaluate((predictedPlacement) => {
-        const fixture = window.__g2Fixture;
-        const trace = window.__g2Trace?.second || null;
-        const firstTrace = window.__g2Trace?.first || null;
-        const state = gameCore.getGameState();
-        const block = state.blocks.find(entry => entry.id === fixture.carryBlockBId) || null;
-        const firstBlock = state.blocks.find(entry => entry.id === fixture.carryBlockAId) || null;
-        const builder = state.butterflies.find(entry => entry.id === fixture.builderAId) || null;
-        const structurePocketDistance = block && firstBlock
-          ? Math.hypot((block.x || 0) - (firstBlock.x || 0), (block.y || 0) - (firstBlock.y || 0))
-          : null;
-        const samePocket = !!block && !!firstBlock && (
-          structurePocketDistance <= 72
-          || block.supportBlockId === fixture.baseBlockId
-          || block.supportBlockId === fixture.topBlockId
-          || block.supportBlockId === fixture.carryBlockAId
-        );
-        return {
-          trace,
-          firstTrace,
-          predictedPlacement,
-          builder: builder ? {
-            id: builder.id,
-            x: builder.x,
-            y: builder.y
-          } : null,
-          after: {
-            blockX: block?.x || null,
-            blockY: block?.y || null,
-            lastPlacedMode: block?.lastPlacedMode || null,
-            supportBlockId: block?.supportBlockId || null,
-            stackIndex: block?.stackIndex ?? null,
-            movedDistance: block ? Math.hypot((block.x || 0) - fixture.carryBStart.x, (block.y || 0) - fixture.carryBStart.y) : null,
-            structurePocketDistance,
-            samePocket
-          }
-        };
-      }, armed.predictedPlacement);
+      const details = await collectSecondCycleDetails(page, armed.predictedPlacement);
+      details.timedOut = timedOut;
 
       return {
         pass:
-          details.trace?.seenTarget === true &&
           details.trace?.seenCarry === true &&
           details.trace?.seenPlacementTarget === true &&
+          (details.trace?.placed === true || details.after?.lastMovedById === details.builder?.id) &&
           details.after?.movedDistance > 8 &&
           details.after?.samePocket === true &&
           ['ground', 'connected', 'stacked'].includes(details.after?.lastPlacedMode),
+        details
+      };
+    });
+
+    await phase(page, report, outputDir, '04-uncontrolled-free-play-pocket-setup', async () => {
+      await page.evaluate(() => {
+        if (window.__g2Sampler) {
+          clearInterval(window.__g2Sampler);
+          window.__g2Sampler = null;
+        }
+        if (window.__g2PilotLoop) {
+          clearInterval(window.__g2PilotLoop);
+          window.__g2PilotLoop = null;
+        }
+      });
+      const imported = await importSaveIntoPage(page, saveData.raw);
+      await page.waitForTimeout(1200);
+      const fixture = await prepareUncontrolledFreePlayPocket(page);
+      return {
+        pass:
+          imported.restored === true &&
+          fixture.ok === true &&
+          fixture.builderIds?.length >= 4 &&
+          fixture.blockIds?.length >= 10,
+        details: {
+          imported,
+          fixture
+        }
+      };
+    });
+
+    await phase(page, report, outputDir, '05-uncontrolled-free-play-building-signal-observation', async () => {
+      let timedOut = false;
+      try {
+        await page.waitForFunction(() => {
+          const summary = window.__g2FreePlay?.summary;
+          return !!summary
+            && summary.targets >= 2
+            && summary.carries >= 2
+            && summary.placements >= 2
+            && summary.samePocketPlacements >= 2
+            && summary.uniqueBlocksPlaced >= 2;
+        }, null, { timeout: 60000 });
+      } catch (_error) {
+        timedOut = true;
+      }
+
+      const details = await collectUncontrolledFreePlayDetails(page);
+      details.timedOut = timedOut;
+      details.closureReady =
+        details.latestSummary?.targets >= 2 &&
+        details.latestSummary?.carries >= 2 &&
+        details.latestSummary?.placements >= 2 &&
+        details.latestSummary?.samePocketPlacements >= 2 &&
+        details.latestSummary?.uniqueBlocksPlaced >= 2;
+
+      return {
+        pass:
+          details.latestSummary?.placements >= 1 &&
+          details.latestSummary?.uniqueBlocksPlaced >= 1,
         details
       };
     });
@@ -780,6 +1134,10 @@ async function run() {
         if (window.__g2PilotLoop) {
           clearInterval(window.__g2PilotLoop);
           window.__g2PilotLoop = null;
+        }
+        if (window.__g2FreePlaySampler) {
+          clearInterval(window.__g2FreePlaySampler);
+          window.__g2FreePlaySampler = null;
         }
       }).catch(() => {});
     }

@@ -1495,6 +1495,12 @@ class GameCore {
         if (!butterfly || !zoneId || !candidateBlocks.length) return null;
         const snapshot = this.getZoneLiveSectorSnapshot(zoneId, this.getFlowerSectorLayout());
         const config = this.getButterflyDispersalConfig();
+        const behaviorBiases = butterfly.lifeSim?.derived?.behaviorBiases || {};
+        const continuityBias = this.clampUnit(
+            Math.max(behaviorBiases.objectInterest || 0, behaviorBiases.shelterSeeking || 0) * 0.72
+            + (butterfly.lifeSim?.emotions?.curiosity || 0) * 0.18
+            + (butterfly.lifeSim?.drives?.exploration || 0) * 0.1
+        );
         let bestBlock = null;
         let bestScore = -Infinity;
 
@@ -1504,12 +1510,23 @@ class GameCore {
             const distance = Math.hypot((block.x || 0) - (butterfly.x || 0), (block.y || 0) - (butterfly.y || 0));
             const localCrowd = this.countNearbyButterflies(zoneId, block, 58, butterfly.id);
             const recentPenalty = this.getEntityRecentAnchorPenalty(butterfly, `block:${block.id}`);
+            const nearbyStructureBlocks = candidateBlocks.filter(other =>
+                other?.id &&
+                other.id !== block.id &&
+                !other.carriedById &&
+                this.getEntityZoneId(other, null) === zoneId &&
+                Math.hypot((other.x || 0) - (block.x || 0), (other.y || 0) - (block.y || 0)) < 68
+            ).length;
+            const structureRoleBonus = (block.supportBlockId || (block.stackIndex || 0) > 0) ? 0.1 : 0;
             let score = 0;
             score += Math.max(0, 0.62 - (distance / 150));
             score += this.getSectorUnderuseBonus(snapshot, sectorKey) * 0.8;
             score += this.getSectorNoveltyBonus(snapshot, sectorKey) * 0.68;
             score -= Math.min(1, localCrowd / 4) * config.localCrowdPenalty;
             score -= recentPenalty * config.recentSelfReusePenalty;
+            score += Math.min(0.36, nearbyStructureBlocks * 0.085) * (0.34 + continuityBias);
+            score += structureRoleBonus * continuityBias;
+            score += Math.min(0.18, localCrowd * 0.045) * continuityBias;
             if (options.preferShelter && this.structureSystem?.getPreferredShelterPointForEntity) {
                 const shelterPoint = this.structureSystem.getPreferredShelterPointForEntity(butterfly, zoneId);
                 if (shelterPoint) {
@@ -3682,6 +3699,17 @@ class GameCore {
 
     findBlockPlacementTarget(butterfly, carriedBlock, candidateBlocks = this.getBlocksInZone(this.getEntityZoneId(carriedBlock, this.getEntityZoneId(butterfly, this.getFocusedZoneId())))) {
         if (!butterfly || !carriedBlock) return null;
+        const behaviorBiases = butterfly.lifeSim?.derived?.behaviorBiases || {};
+        const continuityBias = this.clampUnit(
+            Math.max(behaviorBiases.objectInterest || 0, behaviorBiases.shelterSeeking || 0) * 0.78
+            + (butterfly.lifeSim?.emotions?.curiosity || 0) * 0.14
+            + (butterfly.lifeSim?.drives?.exploration || 0) * 0.08
+        );
+        let structuredPlacement = null;
+        if (continuityBias > 0.52) {
+            structuredPlacement = this.structureSystem?.findPlacementTargetForBlock?.(butterfly, carriedBlock, candidateBlocks) || null;
+            if (structuredPlacement) return structuredPlacement;
+        }
         const physicsPlacement = this.physicsSystem?.resolveBlockPlacementRequest?.(
             butterfly,
             carriedBlock,
@@ -3693,7 +3721,7 @@ class GameCore {
             }
         ) || null;
         if (physicsPlacement) return physicsPlacement;
-        const structuredPlacement = this.structureSystem?.findPlacementTargetForBlock?.(butterfly, carriedBlock, candidateBlocks);
+        structuredPlacement = structuredPlacement || this.structureSystem?.findPlacementTargetForBlock?.(butterfly, carriedBlock, candidateBlocks);
         if (structuredPlacement) return structuredPlacement;
         const zoneId = this.getEntityZoneId(carriedBlock, this.getEntityZoneId(butterfly, this.getFocusedZoneId()));
         const region = this.getZonePlacementRegion(zoneId);
@@ -3724,6 +3752,12 @@ class GameCore {
                         const distance = Math.hypot((block.x || 0) - butterfly.x, (block.y || 0) - butterfly.y);
                         const localCrowd = this.countNearbyButterflies(zoneId, block, 58, butterfly.id);
                         const recentPenalty = this.getEntityRecentAnchorPenalty(butterfly, `block:${block.id}`);
+                        const nearbyStructureBlocks = openBlocks.filter(other =>
+                            other?.id &&
+                            other.id !== block.id &&
+                            Math.hypot((other.x || 0) - (block.x || 0), (other.y || 0) - (block.y || 0)) < 72
+                        ).length;
+                        const structureRoleBonus = (block.supportBlockId || (block.stackIndex || 0) > 0) ? 0.12 : 0;
                         let score = 0;
                         score += Math.max(0, 0.6 - (distance / 160));
                         score += this.getSectorUnderuseBonus(snapshot, sectorKey) * 0.84;
@@ -3731,6 +3765,9 @@ class GameCore {
                         score -= Math.min(1, localCrowd / 4) * this.getButterflyDispersalConfig().localCrowdPenalty;
                         score -= recentPenalty * this.getButterflyDispersalConfig().recentSelfReusePenalty;
                         score += (block.stackIndex || 0) < 2 ? 0.05 : 0;
+                        score += Math.min(0.46, nearbyStructureBlocks * 0.11) * (0.32 + continuityBias);
+                        score += structureRoleBonus * continuityBias;
+                        score += Math.min(0.16, localCrowd * 0.04) * continuityBias;
                         return score;
                     };
                     return scoreBlock(right) - scoreBlock(left);

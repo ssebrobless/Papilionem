@@ -2347,7 +2347,16 @@ class Butterfly extends Entity {
         this.blockInteraction.targetBlockId = null;
         this.blockInteraction.placementTarget = null;
         this.blockInteraction.carryFrames = 0;
-        this.blockInteraction.cooldownFrames = Math.floor(random(96, 188));
+        const behaviorBiases = this.lifeSim?.derived?.behaviorBiases || {};
+        const continuationBias = Math.max(
+            behaviorBiases.objectInterest || 0,
+            behaviorBiases.shelterSeeking || 0,
+            this.lifeSim?.emotions?.curiosity || 0,
+            this.lifeSim?.drives?.exploration || 0
+        );
+        const cooldownMin = continuationBias > 0.72 ? 42 : 96;
+        const cooldownMax = continuationBias > 0.72 ? 116 : 188;
+        this.blockInteraction.cooldownFrames = Math.floor(random(cooldownMin, cooldownMax));
         this.pickNewWanderTarget();
         return true;
     }
