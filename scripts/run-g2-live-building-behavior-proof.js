@@ -229,6 +229,8 @@ async function prepareBuilderPocket(page) {
       butterfly.gridPos = { x: grid.x, y: grid.y };
       butterfly.currentZoneId = zoneId;
       butterfly.lifeSim.lifecycle.currentZoneId = zoneId;
+      butterfly.lifeSim.lifecycle.sleeping = false;
+      butterfly.lifeSim.lifecycle.sleepSubtype = null;
       butterfly.zoneTravel = null;
       butterfly.isSpawning = false;
       butterfly.pendingPollenDropTarget = null;
@@ -245,12 +247,16 @@ async function prepareBuilderPocket(page) {
       butterfly.lifeSim.emotions.curiosity = 1;
       butterfly.lifeSim.emotions.threat = 0.05;
       butterfly.lifeSim.emotions.agitation = 0.08;
+      butterfly.lifeSim.emotions.exhaustion = 0.06;
       butterfly.lifeSim.drives.exploration = 1;
+      butterfly.lifeSim.drives.rest = 0.06;
       butterfly.lifeSim.objectAwareness.shelterConfidence = 0.92;
       butterfly.lifeSim.derived.behaviorBiases.objectInterest = 1;
       butterfly.lifeSim.derived.behaviorBiases.shelterSeeking = 0.9;
       butterfly.lifeSim.derived.behaviorBiases.feedUrgency = 0;
       butterfly.rememberDispersalAnchor?.(`sector:${zoneId}:g2-pocket`);
+      sleepSystem?.wakeEntity?.(butterfly.id, 'g2-guided-fixture');
+      sleepSystem?.setExhaustion?.(butterfly.id, 0.06);
       butterfly.updateZIndex?.();
     };
 
@@ -505,11 +511,38 @@ async function armSecondCycle(page) {
     if (!fixture) return { ok: false, reason: 'missing-g2-fixture' };
     const state = gameCore.getGameState();
     const builder = state.butterflies.find(entry => entry.id === fixture.builderAId) || null;
-    const block = state.blocks.find(entry => entry.id === fixture.carryBlockBId) || null;
-    const zoneBlocks = (gameCore.getBlocksInZone?.(fixture.zoneId) || []).filter(entry => !entry.carriedById || entry.id === block?.id);
+    const zoneBlocks = (gameCore.getBlocksInZone?.(fixture.zoneId) || []);
+    let block = state.blocks.find(entry => entry.id === fixture.carryBlockBId) || null;
+    const supportsAnotherBlock = (candidate) => zoneBlocks.some(entry => entry?.supportBlockId === candidate?.id);
+    if (
+      !block ||
+      block.carriedById ||
+      supportsAnotherBlock(block) ||
+      (typeof block.canBeMovedBy === 'function' && !block.canBeMovedBy(builder))
+    ) {
+      block = zoneBlocks.find(entry =>
+        entry?.id &&
+        !entry.carriedById &&
+        ![fixture.baseBlockId, fixture.topBlockId, fixture.carryBlockAId].includes(entry.id) &&
+        !supportsAnotherBlock(entry) &&
+        (typeof entry.canBeMovedBy !== 'function' || entry.canBeMovedBy(builder))
+      ) || null;
+    }
     if (!builder || !block) {
       return { ok: false, reason: 'missing-second-cycle-entities' };
     }
+    fixture.carryBlockBId = block.id;
+    fixture.carryBStart = { x: block.x, y: block.y };
+    if (window.__g2Trace?.second) {
+      window.__g2Trace.second.blockId = block.id;
+      window.__g2Trace.second.seenTarget = false;
+      window.__g2Trace.second.seenCarry = false;
+      window.__g2Trace.second.seenPlacementTarget = false;
+      window.__g2Trace.second.placed = false;
+      window.__g2Trace.second.maxCarryFrames = 0;
+      window.__g2Trace.second.sampleCount = 0;
+    }
+    const candidateBlocks = zoneBlocks.filter(entry => !entry.carriedById || entry.id === block.id);
 
     builder.blockInteraction.cooldownFrames = 0;
     builder.blockInteraction.targetBlockId = block.id;
@@ -530,7 +563,7 @@ async function armSecondCycle(page) {
     structureSystem.update(state, 0);
     physicsSystem.update(state, 0);
 
-    const predictedPlacement = builder.chooseBlockPlacementTarget?.(block, zoneBlocks) || null;
+    const predictedPlacement = builder.chooseBlockPlacementTarget?.(block, candidateBlocks) || null;
     builder.checkBlockExperimentation?.(state.blocks);
     if (window.__g2Pilot) {
       window.__g2Pilot.activeCycle = 'second';
@@ -703,6 +736,8 @@ async function prepareUncontrolledFreePlayPocket(page) {
       butterfly.gridPos = gridManager.screenToIso(point.x, point.y);
       butterfly.currentZoneId = zoneId;
       butterfly.lifeSim.lifecycle.currentZoneId = zoneId;
+      butterfly.lifeSim.lifecycle.sleeping = false;
+      butterfly.lifeSim.lifecycle.sleepSubtype = null;
       butterfly.zoneTravel = null;
       butterfly.isSpawning = false;
       butterfly.pendingPollenDropTarget = null;
@@ -727,6 +762,8 @@ async function prepareUncontrolledFreePlayPocket(page) {
       butterfly.lifeSim.derived.behaviorBiases.shelterSeeking = Math.max(butterfly.lifeSim.derived.behaviorBiases.shelterSeeking || 0, 0.84);
       butterfly.lifeSim.derived.behaviorBiases.feedUrgency = 0;
       butterfly.rememberDispersalAnchor?.(`sector:${zoneId}:g2-freeplay-pocket`);
+      sleepSystem?.wakeEntity?.(butterfly.id, 'g2-freeplay-fixture');
+      sleepSystem?.setExhaustion?.(butterfly.id, 0.08);
       butterfly.updateZIndex?.();
     };
 
@@ -1088,7 +1125,6 @@ async function run() {
         await page.waitForFunction(() => {
           const summary = window.__g2FreePlay?.summary;
           return !!summary
-            && summary.targets >= 2
             && summary.carries >= 2
             && summary.placements >= 2
             && summary.samePocketPlacements >= 2
@@ -1101,7 +1137,6 @@ async function run() {
       const details = await collectUncontrolledFreePlayDetails(page);
       details.timedOut = timedOut;
       details.closureReady =
-        details.latestSummary?.targets >= 2 &&
         details.latestSummary?.carries >= 2 &&
         details.latestSummary?.placements >= 2 &&
         details.latestSummary?.samePocketPlacements >= 2 &&

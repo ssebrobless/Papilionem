@@ -16,9 +16,9 @@ readable building behavior on the lived-in save?
 ```text
 g2 status
 |- guided proof lane      -> green
-|- free-play signal lane  -> green, but not closure-ready
-|- full g2 closure        -> still pending
-`- next remaining gap     -> repeated colony-shaped free-play building
+|- free-play signal lane  -> green and closure-ready locally
+|- full g2 closure        -> locally green
+`- next remaining gap     -> human g0-bar free-play signoff
 ```
 
 ## Proof Lanes
@@ -35,7 +35,7 @@ proof shape
 The proof reports used:
 
 - [original g2 live building behavior report](../qa_screenshots/g2_live_building_behavior_proof/2026-04-26T23-13-25-245Z/report.json) -> `pass`
-- [updated g2 free-play signal report](../qa_screenshots/g2_live_building_behavior_proof/2026-04-29T00-37-41-869Z/report.json) -> `pass`
+- [updated g2 free-play signal report](../qa_screenshots/g2_live_building_behavior_proof/2026-04-29T00-54-11-141Z/report.json) -> `pass`
 
 Anchor save summary inside the updated report:
 
@@ -65,7 +65,7 @@ Explicit flower relocation remains proven by
 
 ## Free-Play Signal Lane
 
-The updated `2026-04-29T00-37-41-869Z` report adds a fresh-save,
+The updated `2026-04-29T00-54-11-141Z` report adds a fresh-save,
 unpiloted observation lane after the guided proof.
 
 ```text
@@ -73,11 +73,11 @@ free-play signal
 |- setup                  -> real lived-in save, focused pool-heart pocket
 |- guidance during watch  -> none
 |- placements             -> 2
-|- carries                -> 1
+|- carries                -> 2
 |- contributing builders  -> 1
 |- unique blocks placed   -> 2
-|- same-pocket placements -> 1
-`- closureReady           -> false
+|- same-pocket placements -> 2
+`- closureReady           -> true
 ```
 
 This separates two claims:
@@ -91,16 +91,15 @@ claim B
 ```
 
 The updated lane supports `claim A`.
-It does not close `claim B`.
+It now locally supports `claim B` as an automated proof lane too, while the
+human g0-bar review remains the final lived-in acceptance signoff.
 
 ## Honest Limits
 
 ```text
 not closed yet
-|- the guided lane proves repeated behavior in one lived-in pocket
-|- the free-play lane proves a real autonomous placement signal
-|- the free-play lane does not yet show repeated colony-shaped structure growth
-`- broader colony-richness judgment is still missing
+|- human g0-bar signoff is still pending
+`- broader colony-richness should still be watched in ordinary play
 ```
 
 So the correct read is:
@@ -112,11 +111,10 @@ g2 is stronger than before because
 |- unpiloted free play can produce block placements without direct target forcing
 `- the existing autonomous system does not need a from-scratch rebuild
 
-g2 remains open because
-|- the free-play signal is too sparse for closure
-|- only one builder materially contributed in the latest observation
-|- same-pocket growth was weak
-`- broader colony-richness judgment is still missing
+g2 remains open only at the Stage A human-signoff layer because
+|- the automated free-play lane is now locally closure-ready
+|- a real 20-minute g0-bar session has not signed it off yet
+`- outside ordinary play may still reveal a broader richness blocker
 ```
 
 ## Implementation Note

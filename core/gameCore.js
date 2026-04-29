@@ -3699,17 +3699,6 @@ class GameCore {
 
     findBlockPlacementTarget(butterfly, carriedBlock, candidateBlocks = this.getBlocksInZone(this.getEntityZoneId(carriedBlock, this.getEntityZoneId(butterfly, this.getFocusedZoneId())))) {
         if (!butterfly || !carriedBlock) return null;
-        const behaviorBiases = butterfly.lifeSim?.derived?.behaviorBiases || {};
-        const continuityBias = this.clampUnit(
-            Math.max(behaviorBiases.objectInterest || 0, behaviorBiases.shelterSeeking || 0) * 0.78
-            + (butterfly.lifeSim?.emotions?.curiosity || 0) * 0.14
-            + (butterfly.lifeSim?.drives?.exploration || 0) * 0.08
-        );
-        let structuredPlacement = null;
-        if (continuityBias > 0.52) {
-            structuredPlacement = this.structureSystem?.findPlacementTargetForBlock?.(butterfly, carriedBlock, candidateBlocks) || null;
-            if (structuredPlacement) return structuredPlacement;
-        }
         const physicsPlacement = this.physicsSystem?.resolveBlockPlacementRequest?.(
             butterfly,
             carriedBlock,
@@ -3721,7 +3710,7 @@ class GameCore {
             }
         ) || null;
         if (physicsPlacement) return physicsPlacement;
-        structuredPlacement = structuredPlacement || this.structureSystem?.findPlacementTargetForBlock?.(butterfly, carriedBlock, candidateBlocks);
+        const structuredPlacement = this.structureSystem?.findPlacementTargetForBlock?.(butterfly, carriedBlock, candidateBlocks);
         if (structuredPlacement) return structuredPlacement;
         const zoneId = this.getEntityZoneId(carriedBlock, this.getEntityZoneId(butterfly, this.getFocusedZoneId()));
         const region = this.getZonePlacementRegion(zoneId);
@@ -3736,6 +3725,12 @@ class GameCore {
         const openBlocks = (candidateBlocks || [])
             .filter(block => block && block.id !== carriedBlock.id && !block.carriedById && this.getEntityZoneId(block, null) === zoneId);
         const snapshot = this.buildZoneLiveSectorSnapshot(zoneId, this.getFlowerSectorLayout());
+        const behaviorBiases = butterfly.lifeSim?.derived?.behaviorBiases || {};
+        const continuityBias = this.clampUnit(
+            Math.max(behaviorBiases.objectInterest || 0, behaviorBiases.shelterSeeking || 0) * 0.78
+            + (butterfly.lifeSim?.emotions?.curiosity || 0) * 0.14
+            + (butterfly.lifeSim?.drives?.exploration || 0) * 0.08
+        );
 
         const isClear = (x, y, ignoreId = carriedBlock.id) => openBlocks.every(block => {
             if (block.id === ignoreId) return true;
