@@ -13,6 +13,7 @@ class CommunicationSystem {
         this.dialogueReplyDelaySeconds = 2.0;
         this.dialogueReplyDelayMs = 2000;
         this.maintenancePhaseCache = new Map();
+        this.legacyRadiusWarningSites = new Set();
     }
 
     initialize() {
@@ -34,6 +35,7 @@ class CommunicationSystem {
         this.dialogueHistory = [];
         this.activeSignals.clear();
         this.maintenancePhaseCache.clear();
+        this.legacyRadiusWarningSites.clear();
         this.simulationClockSeconds = 0;
     }
 
@@ -115,6 +117,12 @@ class CommunicationSystem {
             communication.lastMaintenanceAtSeconds = now;
         }
 
+        if (gameConfig?.world?.distressCascade !== false) {
+            this.updateDistressCascade(gameState, currentFrame);
+        }
+        if (gameConfig?.world?.scoutDiscovery !== false) {
+            this.updateScoutDiscovery(gameState, currentFrame);
+        }
         this.updateQueuedResponses(gameState);
     }
 
@@ -169,8 +177,245 @@ class CommunicationSystem {
         return (Math.max(0, Math.round(currentFrame || 0)) % normalizedInterval) === phase;
     }
 
+    emitCooperationSignal(source, options = {}) {
+        if (!source?.id) return null;
+        const zoneId = options.zoneId || source.currentZoneId || source.lifeSim?.lifecycle?.currentZoneId || null;
+        const targetIds = Array.isArray(options.targetIds)
+            ? [...new Set(options.targetIds.filter(Boolean))]
+            : [];
+        return this.handleSignal({
+            sourceId: source.id,
+            targetIds,
+            targetId: targetIds[0] || null,
+            zoneId,
+            signalType: options.signalType || 'guidance_signal',
+            intent: options.intent || options.reason || 'cooperation',
+            phrase: options.phrase || 'I need help here.',
+            category: 'talk',
+            intentFamily: options.intentFamily || 'social',
+            intentTags: options.intentTags || ['guidance', 'companionship'],
+            metadata: {
+                blockId: options.blockId || null,
+                targetZoneId: options.targetZoneId || null,
+                reason: options.reason || null
+            }
+        });
+    }
+
+    emitReserveFoodSharing(source, recipient, reserveFood, options = {}) {
+        if (!source?.id || !recipient?.id || !reserveFood?.id) return null;
+        const zoneId = options.zoneId || source.currentZoneId || recipient.currentZoneId || reserveFood.currentZoneId || null;
+        if (typeof eventBus !== 'undefined') {
+            eventBus.emit(GameEvents?.OBJECT_DELIVERED || 'object:delivered', {
+                objectId: reserveFood.id,
+                objectType: 'reserve-food-ball',
+                subtype: reserveFood.lifecycleKind || 'reserve-food-ball',
+                sourceId: source.id,
+                targetId: recipient.id,
+                zoneId,
+                reason: options.reason || 'sharing'
+            });
+        }
+        if (typeof adjustLifeSocialEdge === 'function') {
+            adjustLifeSocialEdge(recipient, source.id, {
+                trust: 0.018,
+                comfort: 0.018,
+                admiration: 0.008
+            }, {
+                updatedAtSeconds: this.simulationClockSeconds,
+                tag: 'reserve-food-sharing'
+            });
+        }
+        return this.emitCooperationSignal(source, {
+            signalType: 'acknowledgement_signal',
+            intentFamily: 'care',
+            intentTags: ['comfort', 'companionship'],
+            phrase: 'Take this reserve food; it will keep.',
+            targetIds: [recipient.id],
+            zoneId,
+            reason: options.reason || 'reserve-food-sharing'
+        });
+    }
+
+    updateDistressCascade(gameState = gameCore?.gameState, currentFrame = 0) {
+        if ((Math.max(0, Math.round(currentFrame || 0)) % 90) !== 0) return 0;
+        let emitted = 0;
+        for (const entity of this.getLiveEntities(gameState)) {
+            const lifeSim = entity?.lifeSim;
+            if (!lifeSim?.communication) continue;
+            const threat = this.clamp01(lifeSim.emotions?.threat || 0);
+            const exhaustion = this.clamp01(lifeSim.emotions?.exhaustion || 0);
+            if (Math.max(threat, exhaustion) < 0.64) continue;
+            const last = Number.isFinite(lifeSim.communication.lastDistressAtSeconds)
+                ? lifeSim.communication.lastDistressAtSeconds
+                : -Infinity;
+            if ((this.simulationClockSeconds - last) < 20) continue;
+            lifeSim.communication.lastDistressAtSeconds = this.simulationClockSeconds;
+            const nearbyCaregivers = this.getLiveEntities(gameState)
+                .filter(candidate => candidate?.id && candidate.id !== entity.id)
+                .filter(candidate => (candidate.currentZoneId || candidate.lifeSim?.lifecycle?.currentZoneId || null) === (entity.currentZoneId || lifeSim.lifecycle?.currentZoneId || null))
+                .filter(candidate => this.clamp01(candidate.lifeSim?.drives?.caregiving || 0) >= 0.42)
+                .filter(candidate => Math.hypot((candidate.x || 0) - (entity.x || 0), (candidate.y || 0) - (entity.y || 0)) <= 140)
+                .slice(0, 3);
+            this.emitCooperationSignal(entity, {
+                signalType: 'warning_signal',
+                intentFamily: 'care',
+                intentTags: ['warning', 'comfort'],
+                phrase: exhaustion > threat ? 'I am too tired; stay close.' : 'I feel unsafe; stay close.',
+                targetIds: nearbyCaregivers.map(candidate => candidate.id),
+                zoneId: entity.currentZoneId || lifeSim.lifecycle?.currentZoneId || null,
+                reason: 'distress'
+            });
+            for (const caregiver of nearbyCaregivers) {
+                if (typeof adjustLifeSocialEdge === 'function') {
+                    adjustLifeSocialEdge(caregiver, entity.id, {
+                        protectiveness: 0.018,
+                        trust: 0.006,
+                        comfort: 0.006
+                    }, {
+                        updatedAtSeconds: this.simulationClockSeconds,
+                        tag: 'distress-cascade'
+                    });
+                }
+            }
+            emitted += 1;
+        }
+        return emitted;
+    }
+
+    updateScoutDiscovery(gameState = gameCore?.gameState, currentFrame = 0) {
+        if ((Math.max(0, Math.round(currentFrame || 0)) % 1800) !== 0) return 0;
+        let emitted = 0;
+        for (const entity of this.getLiveEntities(gameState)) {
+            const migration = entity?.lifeSim?.derived?.migration || {};
+            const targetZoneId = migration.scoutTargetZoneId || migration.travelTargetZoneId || null;
+            if (!entity?.id || !targetZoneId || targetZoneId === (entity.currentZoneId || null)) continue;
+            if ((migration.scoutingDrive || 0) < 0.48 && migration.travelIntent !== 'scouting') continue;
+            const communication = entity.lifeSim?.communication;
+            const last = Number.isFinite(communication?.lastScoutDiscoveryAtSeconds)
+                ? communication.lastScoutDiscoveryAtSeconds
+                : -Infinity;
+            if ((this.simulationClockSeconds - last) < 30) continue;
+            communication.lastScoutDiscoveryAtSeconds = this.simulationClockSeconds;
+            const zoneLabel = this.getZoneLabel(targetZoneId);
+            const recipients = this.getLiveEntities(gameState)
+                .filter(candidate => candidate?.id && candidate.id !== entity.id)
+                .filter(candidate => (candidate.currentZoneId || candidate.lifeSim?.lifecycle?.currentZoneId || null) === (entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null))
+                .slice(0, 4);
+            this.emitCooperationSignal(entity, {
+                signalType: 'guidance_signal',
+                intentFamily: 'social',
+                intentTags: ['guidance', 'coordination'],
+                phrase: `${zoneLabel} looks better; follow me there.`,
+                targetIds: recipients.map(candidate => candidate.id),
+                zoneId: entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null,
+                targetZoneId,
+                reason: 'scout-discovery'
+            });
+            for (const recipient of recipients) {
+                recipient.lifeSim = recipient.lifeSim || {};
+                recipient.lifeSim.migration = recipient.lifeSim.migration || {};
+                recipient.lifeSim.migration.cohortPreferredZoneId = targetZoneId;
+                recipient.lifeSim.migration.cohortPreferredZoneBoost = this.clamp01((recipient.lifeSim.migration.cohortPreferredZoneBoost || 0) + 0.18);
+            }
+            emitted += 1;
+            if (emitted >= 3) break;
+        }
+        return emitted;
+    }
+
     clamp01(value) {
         return Math.max(0, Math.min(1, value ?? 0));
+    }
+
+    getBoardPixelsPerUnit(zoneId = null) {
+        const activeRenderManager = typeof renderManager !== 'undefined' ? renderManager : null;
+        const projection = activeRenderManager?.getProjectionForZone?.(zoneId) || {};
+        return Number.isFinite(projection.ppu)
+            ? projection.ppu
+            : (gameConfig?.spatial?.projection?.ppu || 20);
+    }
+
+    getGroundProjectionScale(zoneId = null) {
+        const activeRenderManager = typeof renderManager !== 'undefined' ? renderManager : null;
+        const projection = activeRenderManager?.getProjectionForZone?.(zoneId) || {};
+        return Number.isFinite(projection.groundT)
+            ? projection.groundT
+            : (gameConfig?.spatial?.projection?.groundT || 0.56);
+    }
+
+    radiusUnitsToPixels(radiusUnits, zoneId = null) {
+        return Math.max(0, radiusUnits || 0) * this.getBoardPixelsPerUnit(zoneId);
+    }
+
+    radiusPixelsToUnits(radiusPx, zoneId = null) {
+        const ppu = this.getBoardPixelsPerUnit(zoneId);
+        return ppu ? (Math.max(0, radiusPx || 0) / ppu) : 0;
+    }
+
+    getEntityBoardPos(entity, zoneId = null) {
+        if (!entity) return null;
+        const resolvedZoneId = zoneId || entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null;
+        if (entity.boardPos && Number.isFinite(entity.boardPos.u) && Number.isFinite(entity.boardPos.v)) {
+            return {
+                zoneId: entity.boardPos.zoneId || resolvedZoneId,
+                u: entity.boardPos.u,
+                v: entity.boardPos.v,
+                h: Number.isFinite(entity.boardPos.h) ? entity.boardPos.h : 0
+            };
+        }
+        const activeRenderManager = typeof renderManager !== 'undefined' ? renderManager : null;
+        if (activeRenderManager?.screenToBoard && Number.isFinite(entity.x) && Number.isFinite(entity.y)) {
+            return activeRenderManager.screenToBoard(entity.x, entity.y, resolvedZoneId, 0);
+        }
+        return null;
+    }
+
+    getProjectedBoardDistanceUnits(left, right, zoneId = null) {
+        const leftBoard = this.getEntityBoardPos(left, zoneId);
+        const rightBoard = this.getEntityBoardPos(right, zoneId);
+        if (!leftBoard || !rightBoard) return null;
+        const groundT = this.getGroundProjectionScale(zoneId || leftBoard.zoneId || rightBoard.zoneId);
+        const du = (rightBoard.u || 0) - (leftBoard.u || 0);
+        const dv = ((rightBoard.v || 0) - (leftBoard.v || 0)) * groundT;
+        return Math.hypot(du, dv);
+    }
+
+    isEntityWithinRadius(source, target, radiusPx = 0, radiusUnits = null, zoneId = null) {
+        if (!source || !target) return false;
+        if (Number.isFinite(radiusUnits)) {
+            const boardDistance = this.getProjectedBoardDistanceUnits(source, target, zoneId);
+            if (Number.isFinite(boardDistance)) {
+                return boardDistance <= (radiusUnits + 0.025);
+            }
+        }
+        if (!Number.isFinite(radiusUnits)) {
+            this.warnLegacyRadiusPxOnly('isEntityWithinRadius');
+        }
+        const dx = (source.x || 0) - (target.x || 0);
+        const dy = (source.y || 0) - (target.y || 0);
+        return Math.hypot(dx, dy) <= Math.max(0, radiusPx || 0);
+    }
+
+    warnLegacyRadiusPxOnly(label = 'unknown') {
+        const stackLine = (() => {
+            try {
+                return String(new Error().stack || '')
+                    .split('\n')
+                    .map(line => line.trim())
+                    .find(line => line && !line.includes('warnLegacyRadiusPxOnly') && !line.includes('isEntityWithinRadius'))
+                    || label;
+            } catch (_error) {
+                return label;
+            }
+        })();
+        const key = stackLine || label;
+        if (this.legacyRadiusWarningSites.has(key)) return;
+        this.legacyRadiusWarningSites.add(key);
+        gameCore?.telemetrySystem?.recordRuntimeIssue?.('legacy-radius-px-only', {
+            callSite: key,
+            recommendation: 'pass radiusUnits and zoneId so communication radius resolves in board space'
+        });
     }
 
     buildNameSeed(...parts) {
@@ -256,8 +501,12 @@ class CommunicationSystem {
         }
 
         const zoneId = entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null;
-        const radius = options.radius || 104;
-        const radiusSq = radius * radius;
+        const radiusUnits = Number.isFinite(options.radiusUnits)
+            ? options.radiusUnits
+            : this.radiusPixelsToUnits(options.radius || 104, zoneId);
+        const radius = Number.isFinite(options.radius)
+            ? options.radius
+            : this.radiusUnitsToPixels(radiusUnits, zoneId);
         const counts = {
             warning: 0,
             teaching: 0,
@@ -288,9 +537,9 @@ class CommunicationSystem {
 
             const targeted = Array.isArray(signal.targetIds) && signal.targetIds.includes(entity.id);
             if (signal.sourceId !== entity.id) {
-                const dx = (source.x || 0) - (entity.x || 0);
-                const dy = (source.y || 0) - (entity.y || 0);
-                if (!targeted && ((dx * dx) + (dy * dy)) > radiusSq) continue;
+                const signalRadiusUnits = Number.isFinite(signal.radiusUnits) ? signal.radiusUnits : radiusUnits;
+                const signalRadius = Number.isFinite(signal.radius) ? signal.radius : radius;
+                if (!targeted && !this.isEntityWithinRadius(source, entity, signalRadius, signalRadiusUnits, zoneId)) continue;
             }
 
             const field = this.getSignalFieldKey(signal.signalType);
@@ -1428,6 +1677,11 @@ class CommunicationSystem {
         const learnLabel = learnEligible
             ? `Held onto ${speakerName}'s lesson.`
             : null;
+        const interpretation = this.buildDialogueResidueInterpretation(recipient, dialogue, {
+            clarity,
+            stance,
+            intentTags
+        });
 
         return {
             id: `residue_${dialogue.id}_${recipient.id}`,
@@ -1449,12 +1703,45 @@ class CommunicationSystem {
             repairContext,
             pairMode: pairState.mode,
             pairTexture: this.getPairConversationTextureState(recipient, source.id).key,
+            edgeDeltas: { ...(deltas || {}) },
             relationshipDeltas,
+            interpretation,
+            heardMeaning: interpretation.misunderstood ? interpretation.heardMeaning : null,
             learnEligible,
             learnCategory: learnEligible ? 'dialogue_teaching' : null,
             learnLabel,
             learnOutcome: null,
             createdAtSeconds: dialogue.createdAtSeconds
+        };
+    }
+
+    formatHeardMeaning(value = '') {
+        const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+        if (!normalized) return null;
+        return normalized.length > 60 ? `${normalized.slice(0, 57)}...` : normalized;
+    }
+
+    buildDialogueResidueInterpretation(recipient, dialogue, context = {}) {
+        const local = recipient?.lifeSim?.interpretation || {};
+        const dialogueInterpretation = dialogue?.interpretation || {};
+        const misunderstood = dialogueInterpretation.misunderstood === true || local.misunderstood === true;
+        if (!misunderstood) {
+            return {
+                misunderstood: false,
+                clarity: Number(this.clamp01(context.clarity ?? local.clarity ?? 0.5).toFixed(3))
+            };
+        }
+        const heardMeaning = this.formatHeardMeaning(
+            dialogueInterpretation.heardMeaning
+            || local.heardMeaning
+            || local.lastHeardMeaning
+            || 'meaning unclear'
+        );
+        return {
+            misunderstood: true,
+            heardMeaning,
+            clarity: Number(this.clamp01(context.clarity ?? local.clarity ?? 0.5).toFixed(3)),
+            stance: context.stance || null
         };
     }
 
@@ -2891,73 +3178,88 @@ class CommunicationSystem {
     }
 
     getSignalConfig(signalType) {
+        const withRadiusUnits = (config, radiusUnits = null) => {
+            const resolvedUnits = Number.isFinite(radiusUnits)
+                ? radiusUnits
+                : (Number.isFinite(config.radiusUnits)
+                    ? config.radiusUnits
+                    : this.radiusPixelsToUnits(config.radius || 0));
+            return {
+                ...config,
+                radiusUnits: resolvedUnits,
+                radius: Number.isFinite(config.radius)
+                    ? config.radius
+                    : this.radiusUnitsToPixels(resolvedUnits)
+            };
+        };
         const defaults = {
             trust_display: {
                 durationSeconds: 2.4,
                 radius: 0,
+                radiusUnits: 0,
                 indicator: 'trust',
                 indicatorGlyph: '\u2665',
                 intensity: 0.72,
                 clarityDelta: 0.02
             },
-            teaching_signal: {
+            teaching_signal: withRadiusUnits({
                 durationSeconds: 3.2,
-                radius: gameConfig?.balance?.social?.teachingPulseRadius || 80,
+                radiusUnits: gameConfig?.balance?.social?.teachingPulseRadiusUnits ?? 3.8,
                 indicator: 'teach',
                 indicatorGlyph: '\u2736',
                 intensity: 0.88,
                 clarityDelta: 0.06
-            },
-            calming_signal: {
+            }),
+            calming_signal: withRadiusUnits({
                 durationSeconds: 2.8,
-                radius: gameConfig?.balance?.social?.trustCascadeRadius || 78,
+                radiusUnits: gameConfig?.balance?.social?.trustCascadeRadiusUnits ?? 6.6,
                 indicator: 'calm',
                 indicatorGlyph: '~',
                 intensity: 0.78,
                 clarityDelta: 0.05
-            },
-            warning_signal: {
+            }),
+            warning_signal: withRadiusUnits({
                 durationSeconds: 2.0,
-                radius: 92,
+                radiusUnits: 4.6,
                 indicator: 'warn',
                 indicatorGlyph: '!',
                 intensity: 0.82,
                 clarityDelta: 0.03
-            },
-            courtship_signal: {
+            }),
+            courtship_signal: withRadiusUnits({
                 durationSeconds: 2.6,
-                radius: 70,
+                radiusUnits: 3.5,
                 indicator: 'court',
                 indicatorGlyph: '\u2661',
                 intensity: 0.86,
                 clarityDelta: 0.04
-            },
-            acknowledgement_signal: {
+            }),
+            acknowledgement_signal: withRadiusUnits({
                 durationSeconds: 2.0,
-                radius: 56,
+                radiusUnits: 2.8,
                 indicator: 'reply',
                 indicatorGlyph: '\u21ba',
                 intensity: 0.7,
                 clarityDelta: 0.04
-            },
-            guidance_signal: {
+            }),
+            guidance_signal: withRadiusUnits({
                 durationSeconds: 2.3,
-                radius: 74,
+                radiusUnits: 3.7,
                 indicator: 'guide',
                 indicatorGlyph: '\u27a4',
                 intensity: 0.78,
                 clarityDelta: 0.05
-            }
+            })
         };
 
-        return defaults[signalType] || {
+        return defaults[signalType] || withRadiusUnits({
             durationSeconds: 2.2,
-            radius: 72,
+            radiusUnits: 3.6,
             indicator: 'signal',
             indicatorGlyph: '\u2022',
             intensity: 0.7,
             clarityDelta: 0.03
-        };
+        });
     }
 
     getZoneCommunicationStyle(zoneId = null) {
@@ -3047,6 +3349,29 @@ class CommunicationSystem {
         });
     }
 
+    getFeelingDialogueBias(source) {
+        const feelings = source?.lifeSim?.derived?.derivedFeelings || {};
+        const sourceKey = feelings.motiveBias || feelings.dominant || null;
+        if (!sourceKey || sourceKey === 'steady') return null;
+        const table = {
+            companionship: { family: 'social', subtype: 'check_in', tags: ['companionship', 'comfort'], source: 'loneliness' },
+            distress: { family: 'support', subtype: 'reassure', tags: ['comfort', 'soft-repair'], source: 'comfortSeeking' },
+            guarded: { family: 'social', subtype: 'acknowledge', tags: ['guarded', 'repair'], source: 'socialInsecurity' },
+            observation: { family: 'memory', subtype: 'quiet_companionship', tags: ['observation', 'soft-repair'], source: 'grief' },
+            statusPerformance: { family: 'social', subtype: 'small_praise', tags: ['admiration', 'statusPerformance'], source: 'pride' },
+            repair: { family: 'social', subtype: 'soft_repair', tags: ['repair', 'soft-repair'], source: 'shame' },
+            loneliness: { family: 'social', subtype: 'check_in', tags: ['companionship', 'comfort'], source: 'loneliness' },
+            comfortSeeking: { family: 'support', subtype: 'reassure', tags: ['comfort', 'soft-repair'], source: 'comfortSeeking' },
+            socialInsecurity: { family: 'social', subtype: 'acknowledge', tags: ['guarded', 'repair'], source: 'socialInsecurity' },
+            grief: { family: 'memory', subtype: 'quiet_companionship', tags: ['observation', 'soft-repair'], source: 'grief' },
+            pride: { family: 'social', subtype: 'small_praise', tags: ['admiration', 'statusPerformance'], source: 'pride' },
+            shame: { family: 'social', subtype: 'soft_repair', tags: ['repair', 'soft-repair'], source: 'shame' },
+            jealousy: { family: 'social', subtype: 'gentle_tease', tags: ['guarded', 'rivalry'], source: 'jealousy' },
+            loyaltyBias: { family: 'social', subtype: 'quiet_companionship', tags: ['companionship', 'loyalty'], source: 'loyaltyBias' }
+        };
+        return table[sourceKey] || null;
+    }
+
     createDialogueRecord(signal, source, recipients = [], overrides = {}) {
         const dialogueSpec = this.getDialogueSpec(signal?.signalType);
         if (!dialogueSpec.verbal || !source?.id) return null;
@@ -3102,6 +3427,15 @@ class CommunicationSystem {
         const conversationId = overrides.conversationId || (targetIds.length === 1
             ? this.getConversationId(source.id, targetIds[0], zoneId)
             : null);
+        const feelingBias = this.getFeelingDialogueBias(source);
+        const intentFamily = overrides.intentFamily || signal?.intentFamily || feelingBias?.family || intentProfile.family;
+        const intentSubtype = overrides.intentSubtype || feelingBias?.subtype || intentProfile.subtype;
+        const feelingSource = overrides.feelingSource || signal?.feelingSource || feelingBias?.source || null;
+        const metadata = {
+            ...(signal?.metadata || {}),
+            ...(overrides.metadata || {}),
+            feelingSource
+        };
 
         return {
             id: overrides.id || `dialogue_${signal?.signalType || 'speech'}_${source.id}_${Math.round((overrides.createdAtSeconds ?? signal?.createdAtSeconds ?? this.simulationClockSeconds) * 1000)}`,
@@ -3112,6 +3446,7 @@ class CommunicationSystem {
             sourceZoneId: zoneId,
             sourceSignalType: signal?.signalType || overrides.sourceSignalType || null,
             phrase,
+            category: this.normalizeFeedCategory(overrides.category || signal?.category || dialogueSpec.category || 'talk'),
             tone,
             register,
             languageBand: band,
@@ -3121,17 +3456,20 @@ class CommunicationSystem {
             targetLabels,
             targetLabel: overrides.targetLabel || signal?.targetLabel || null,
             targetCount: targetIds.length,
-            intentFamily: overrides.intentFamily || intentProfile.family,
-            intentSubtype: overrides.intentSubtype || intentProfile.subtype,
+            intentFamily,
+            intentSubtype,
             pairMode: overrides.pairMode || intentProfile.pairMode || null,
             pairTexture: overrides.pairTexture || intentProfile.pairTexture || null,
             pairTextureLabel: overrides.pairTextureLabel || intentProfile.pairTextureLabel || null,
             stance: overrides.stance || null,
-            intentTags: [...new Set([...(dialogueSpec.intentTags || []), ...(intentProfile.intentTags || []), ...(overrides.intentTags || [])])],
+            intentTags: [...new Set([...(dialogueSpec.intentTags || []), ...(intentProfile.intentTags || []), ...(feelingBias?.tags || []), ...(signal?.intentTags || []), ...(overrides.intentTags || [])])],
+            feelingSource,
+            metadata,
             responseToId: overrides.responseToId || null,
             responseToSignalType: overrides.responseToSignalType || null,
             responseToIntentTags: Array.isArray(overrides.responseToIntentTags) ? [...new Set(overrides.responseToIntentTags.filter(Boolean))] : [],
             responseToSourceId: overrides.responseToSourceId || null,
+            interpretation: overrides.interpretation || signal?.interpretation || null,
             autoReplyDepth: overrides.autoReplyDepth || 0,
             responseExpected: overrides.responseExpected ?? (dialogueSpec.allowResponse && (intentProfile.allowResponse ?? true))
         };
@@ -3276,7 +3614,8 @@ class CommunicationSystem {
             indicator: data.indicator || config.indicator,
             indicatorGlyph: data.indicatorGlyph || config.indicatorGlyph,
             intensity: data.intensity ?? config.intensity,
-            radius: data.radius ?? config.radius,
+            radiusUnits: data.radiusUnits ?? config.radiusUnits,
+            radius: data.radius ?? this.radiusUnitsToPixels(data.radiusUnits ?? config.radiusUnits, zoneId) ?? config.radius,
             phrase: data.phrase || this.buildSignalPhrase(source, signalType, zoneId, data.intent || '', {
                 recipients,
                 targetCount: targetIds.length,
@@ -3285,6 +3624,10 @@ class CommunicationSystem {
             }),
             targetLabel: data.targetLabel || null,
             targetIds,
+            category: this.normalizeFeedCategory(data.category || 'talk'),
+            intentFamily: data.intentFamily || null,
+            intentTags: Array.isArray(data.intentTags) ? [...new Set(data.intentTags.filter(Boolean))] : [],
+            metadata: data.metadata || null,
             createdAtSeconds,
             expiresAtSeconds: createdAtSeconds + (data.durationSeconds ?? config.durationSeconds),
             clarityDelta: data.clarityDelta ?? config.clarityDelta
@@ -3304,15 +3647,49 @@ class CommunicationSystem {
         }
 
         if (!signal.radius) return [];
-        const radiusSq = signal.radius * signal.radius;
         return allEntities.filter(entity => {
             if (!entity?.id || entity.id === source.id) return false;
             const entityZoneId = entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null;
             if (signal.sourceZoneId && entityZoneId && entityZoneId !== signal.sourceZoneId) return false;
-            const dx = source.x - entity.x;
-            const dy = source.y - entity.y;
-            return (dx * dx + dy * dy) <= radiusSq;
+            return this.isEntityWithinRadius(source, entity, signal.radius, signal.radiusUnits, signal.sourceZoneId);
         });
+    }
+
+    emitSignalAt(zoneId, sourceBoardPos, signalType = 'generic_signal', overrides = {}) {
+        const source = overrides.sourceButterfly || this.getEntityById(overrides.sourceId);
+        if (!source?.id || !sourceBoardPos) return null;
+        const activeRenderManager = typeof renderManager !== 'undefined' ? renderManager : null;
+        const projected = activeRenderManager?.boardToScreen
+            ? activeRenderManager.boardToScreen({ ...sourceBoardPos, zoneId: zoneId || sourceBoardPos.zoneId || source.currentZoneId || null })
+            : null;
+        const previous = {
+            x: source.x,
+            y: source.y,
+            boardPos: source.boardPos,
+            currentZoneId: source.currentZoneId
+        };
+        try {
+            source.boardPos = { ...sourceBoardPos, zoneId: zoneId || sourceBoardPos.zoneId || source.currentZoneId || null };
+            source.currentZoneId = source.boardPos.zoneId || source.currentZoneId;
+            if (projected) {
+                source.x = projected.x;
+                source.y = projected.y;
+            }
+            return this.handleSignal({
+                ...overrides,
+                sourceButterfly: source,
+                sourceId: source.id,
+                zoneId: source.currentZoneId,
+                signalType
+            });
+        } finally {
+            if (overrides.restoreSource !== false) {
+                source.x = previous.x;
+                source.y = previous.y;
+                source.boardPos = previous.boardPos;
+                source.currentZoneId = previous.currentZoneId;
+            }
+        }
     }
 
     createCommunicationEntry(entity, signal, role) {
@@ -3834,6 +4211,7 @@ class CommunicationSystem {
             }));
         }
 
+        lifeSimSystem?.recordWitnessedAffection?.(source, recipients, stored, gameCore?.gameState);
         this.applyDialogueWitnessCarryover(source, dialogue, recipients);
         this.maybeQueueResponse(recipients, dialogue);
         return stored;
@@ -4216,6 +4594,115 @@ class CommunicationSystem {
         return 'moving through the zone';
     }
 
+    getFeedTraceBand() {
+        return 0.01;
+    }
+
+    normalizeFeedCategory(category = 'action') {
+        const key = String(category || 'action').trim().toLowerCase();
+        if (key === 'talk' || key === 'dialogue') return 'talk';
+        if (['learn', 'teach', 'teaching', 'lesson', 'tutoring'].includes(key)) return 'learn';
+        if (['warning', 'danger', 'threat'].includes(key)) return 'warning';
+        if (['system', 'signal', 'signals', 'save'].includes(key)) return 'system';
+        return 'action';
+    }
+
+    getDialoguePairKey(entry = {}) {
+        if (entry.conversationId) return entry.conversationId;
+        const ids = [entry.sourceId, ...(entry.targetIds || [])].filter(Boolean).sort();
+        return ids.length >= 2 ? `${entry.sourceZoneId || 'zone'}:${ids.join('<->')}` : null;
+    }
+
+    getDialogueMotiveFamily(entry = {}) {
+        if (entry.intentFamily) return entry.intentFamily;
+        const tags = entry.intentTags || [];
+        if (tags.includes('teaching')) return 'teaching';
+        if (tags.includes('warning') || tags.includes('guidance') || tags.includes('coordination')) return 'guidance';
+        if (tags.includes('comfort') || tags.includes('repair') || tags.includes('forgiveness')) return 'care';
+        if (tags.includes('courtship')) return 'courtship';
+        if (tags.includes('playful') || tags.includes('shared_attention') || tags.includes('companionship')) return 'social';
+        return 'social';
+    }
+
+    getDialogueConsequenceTail(residues = []) {
+        const traceBand = this.getFeedTraceBand();
+        const totals = {};
+        let lessonTaken = false;
+        let warningIgnored = false;
+        const labels = {
+            trust: 'trust',
+            comfort: 'comfort',
+            admiration: 'admiration',
+            attachment: 'attachment',
+            resentment: 'resentment',
+            reciprocityDelta: 'reciprocity',
+            rejectionDelta: 'rejection',
+            followThroughDelta: 'follow-through',
+            forgivenessDelta: 'forgiveness',
+            warmthDelta: 'warmth',
+            easeDelta: 'ease',
+            frictionDelta: 'friction',
+            frictionRelief: 'friction',
+            mutualAttentionDelta: 'attention',
+            resentmentRelief: 'resentment'
+        };
+
+        for (const residue of residues || []) {
+            if (!residue) continue;
+            if (residue.learnOutcome || residue.learnEligible) {
+                lessonTaken = true;
+            }
+            if ((residue.intentTags || []).includes('warning') && ['hesitate', 'ignore'].includes(residue.stance)) {
+                warningIgnored = true;
+            }
+            const deltaBuckets = [
+                residue.edgeDeltas || {},
+                residue.relationshipDeltas || {}
+            ];
+            for (const bucket of deltaBuckets) {
+                for (const [key, value] of Object.entries(bucket || {})) {
+                    const numeric = Number(value || 0);
+                    if (!Number.isFinite(numeric) || Math.abs(numeric) < traceBand) continue;
+                    const label = labels[key] || key.replace(/Delta$/, '');
+                    const sign = key.endsWith('Relief') ? -1 : 1;
+                    totals[label] = (totals[label] || 0) + (numeric * sign);
+                }
+            }
+        }
+
+        const parts = Object.entries(totals)
+            .filter(([, value]) => Math.abs(value) >= traceBand)
+            .sort((left, right) => Math.abs(right[1]) - Math.abs(left[1]))
+            .slice(0, 3)
+            .map(([label, value]) => `${label} ${value >= 0 ? '+' : ''}${Math.round(value * 100)}`);
+        if (lessonTaken) parts.push('lesson taken');
+        if (warningIgnored) parts.push('warning ignored');
+        return parts.length ? parts.join(', ') : null;
+    }
+
+    buildDialogueThreadDetail(threadLines = [], consequenceTail = null) {
+        const lines = [];
+        for (const line of threadLines || []) {
+            const spoken = `${line.speakerLabel || 'Butterfly'}: ${line.phrase || ''}`;
+            if (spoken.trim()) lines.push(spoken);
+            if (line?.heardMeaning) {
+                lines.push(`(heard: ${this.formatHeardMeaning(line.heardMeaning)})`);
+            }
+        }
+        if (consequenceTail) {
+            lines.push(`=> ${consequenceTail}`);
+        }
+        return lines.join('\n');
+    }
+
+    getDialogueHeardMeaning(residues = []) {
+        const residue = (residues || []).find(entry =>
+            entry?.interpretation?.misunderstood === true
+            && (entry.interpretation.heardMeaning || entry.heardMeaning)
+        );
+        return this.formatHeardMeaning(residue?.interpretation?.heardMeaning || residue?.heardMeaning || null);
+    }
+
     buildDialogueFeedPresentation(entry, focusResidue = null) {
         const sourceEntity = this.getEntityById(entry?.sourceId);
         const partnerId = entry?.targetIds?.length === 1 ? entry.targetIds[0] : null;
@@ -4241,8 +4728,10 @@ class CommunicationSystem {
         const visibleContext = this.getDialogueVisibleContextLabel(grounding);
         const contextTags = [
             talkModeLabel,
+            `${this.getDialogueMotiveFamily(entry)} motive`,
             zoneLabel,
             visibleContext,
+            entry?.feelingSource ? `${entry.feelingSource} feeling` : null,
             pairTexture?.label ? `${pairTexture.label} texture` : null,
             pairState?.label ? `${pairState.label} exchange` : null,
             focusResidue?.label || null,
@@ -4262,7 +4751,8 @@ class CommunicationSystem {
             pairTexture: pairTexture.key,
             pairTextureLabel: pairTexture.label,
             threadHeadline: headlineTarget ? `${headlineSource} <-> ${headlineTarget}` : headlineSource,
-            partnerId
+            partnerId,
+            motiveFamily: this.getDialogueMotiveFamily(entry)
         };
     }
 
@@ -4273,21 +4763,22 @@ class CommunicationSystem {
             const sameThread = previous
                 && previous.category === 'talk'
                 && entry.category === 'talk'
-                && previous.conversationId
-                && entry.conversationId
-                && previous.conversationId === entry.conversationId
-                && ((entry.timestamp || 0) - (previous.lastThreadAt || previous.timestamp || 0)) <= 24000
-                && (previous.threadLines?.length || 0) < 3;
+                && previous.pairKey
+                && entry.pairKey
+                && previous.pairKey === entry.pairKey
+                && previous.motiveFamily === entry.motiveFamily
+                && ((entry.timestamp || 0) - (previous.lastThreadAt || previous.timestamp || 0)) <= 3000
+                && (previous.threadLines?.length || 0) < 4;
 
             if (sameThread) {
                 previous.threadLines.push({
                     speakerLabel: entry.threadSpeaker,
                     phrase: entry.threadPhrase,
-                    timeLabel: entry.timeLabel
+                    timeLabel: entry.timeLabel,
+                    heardMeaning: entry.threadHeardMeaning || null
                 });
-                previous.detail = previous.threadLines
-                    .map(line => `${line.speakerLabel}: ${line.phrase}`)
-                    .join('\n');
+                previous.consequenceTail = entry.consequenceTail || previous.consequenceTail;
+                previous.detail = this.buildDialogueThreadDetail(previous.threadLines, previous.consequenceTail);
                 previous.threadCount = previous.threadLines.length;
                 previous.timeLabel = entry.timeLabel;
                 previous.timestamp = entry.timestamp;
@@ -4295,14 +4786,14 @@ class CommunicationSystem {
                 previous.grounding = entry.grounding || previous.grounding;
                 previous.contextTags = entry.contextTags?.length ? entry.contextTags : previous.contextTags;
                 previous.pairTextureLabel = entry.pairTextureLabel || previous.pairTextureLabel;
-                previous.signature = `dialogue-thread:${previous.conversationId}:${previous.threadStartedAt}:${previous.threadCount}`;
+                previous.signature = `dialogue-thread:${previous.pairKey}:${previous.motiveFamily}:${previous.threadStartedAt}:${previous.threadCount}`;
                 continue;
             }
 
             grouped.push({
                 ...entry,
                 pairTextureLabel: entry.pairTextureLabel || null,
-                signature: `dialogue-thread:${entry.conversationId || entry.signature}:${entry.timestamp}:${entry.threadLines?.length || 1}`,
+                signature: `dialogue-thread:${entry.pairKey || entry.signature}:${entry.motiveFamily || 'social'}:${entry.timestamp}:${entry.threadLines?.length || 1}`,
                 threadStartedAt: entry.timestamp,
                 lastThreadAt: entry.timestamp,
                 threadCount: entry.threadLines?.length || 1
@@ -4360,24 +4851,35 @@ class CommunicationSystem {
             });
             const focusResidue = relevantResidues[0] || (entry.residues || [])[0] || null;
             const presentation = this.buildDialogueFeedPresentation(entry, focusResidue);
+            const heardMeaning = this.getDialogueHeardMeaning(relevantResidues);
             return {
                 timestamp: entry.timestamp,
                 signature: `dialogue:${entry.id}`,
                 line: `${time}-${presentation.sourceLabel}: ${entry.phrase}`,
-                category: 'talk',
+                category: this.normalizeFeedCategory(entry.category || 'talk'),
                 headline: presentation.threadHeadline,
-                detail: presentation.detail,
+                detail: this.buildDialogueThreadDetail([{
+                    speakerLabel: presentation.sourceLabel,
+                    phrase: presentation.detail,
+                    timeLabel: time,
+                    heardMeaning
+                }], this.getDialogueConsequenceTail(relevantResidues)),
                 grounding: presentation.grounding,
                 contextTags: presentation.contextTags,
                 timeLabel: time,
                 targetText: presentation.targetText,
                 conversationId: entry.conversationId || (entry.targetIds?.length === 1 ? this.getConversationId(entry.sourceId, entry.targetIds[0], entry.sourceZoneId) : null),
+                pairKey: this.getDialoguePairKey(entry),
+                motiveFamily: presentation.motiveFamily,
+                consequenceTail: this.getDialogueConsequenceTail(relevantResidues),
                 threadSpeaker: presentation.sourceLabel,
                 threadPhrase: presentation.detail,
+                threadHeardMeaning: heardMeaning,
                 threadLines: [{
                     speakerLabel: presentation.sourceLabel,
                     phrase: presentation.detail,
-                    timeLabel: time
+                    timeLabel: time,
+                    heardMeaning
                 }],
                 pairModeLabel: presentation.pairModeLabel,
                 pairTextureLabel: presentation.pairTextureLabel

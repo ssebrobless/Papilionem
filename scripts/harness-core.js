@@ -81,18 +81,23 @@ async function launchHarness({
     viewport = { width: 1280, height: 720 },
     deviceScaleFactor = 1,
     headless = true,
-    flagOverrides = { memoryAttributionEnabled: true }
+    flagOverrides = { memoryAttributionEnabled: true },
+    worldRenderMode = null
 } = {}) {
     if (!baseUrl) throw new Error('launchHarness requires baseUrl');
     const chromium = loadChromium();
     const browser = await chromium.launch({ headless });
     const context = await browser.newContext({ viewport, deviceScaleFactor });
-    await context.addInitScript(({ overrides }) => {
+    await context.addInitScript(({ overrides, renderMode }) => {
         window.__PAPILIONEM_HARNESS_MODE__ = true;
         if (overrides && typeof overrides === 'object') {
             window.__PAPILIONEM_PERFORMANCE_FLAG_OVERRIDES__ = overrides;
         }
-    }, { overrides: flagOverrides });
+        if (renderMode) {
+            window.__PAPILIONEM_WORLD_RENDERMODE__ = renderMode;
+            window.localStorage.setItem('papilionem-world-rendermode', renderMode);
+        }
+    }, { overrides: flagOverrides, renderMode: worldRenderMode });
     const page = await context.newPage();
     const errors = [];
     const consoleErrors = [];
@@ -193,6 +198,7 @@ async function runScenario({
     focusZoneId = null,
     viewMode = 'focused-garden',
     scatterButterfliesAcrossZone = false,
+    disableAutoHabitatTravel = false,
     warmupFrames = 30,
     captureFrames = 600,
     label = 'bench-scenario',
@@ -200,6 +206,15 @@ async function runScenario({
     onCaptureEnd = null
 }) {
     await applySeed(page, seed);
+    if (disableAutoHabitatTravel) {
+        await page.evaluate(() => {
+            if (typeof gameConfig !== 'undefined') {
+                gameConfig.balance = gameConfig.balance || {};
+                gameConfig.balance.migration = gameConfig.balance.migration || {};
+                gameConfig.balance.migration.autoHabitatTravel = false;
+            }
+        });
+    }
     let focusResult = null;
     if (focusZoneId) {
         focusResult = await forceZoneFocus(page, focusZoneId, { mode: viewMode });
@@ -232,7 +247,7 @@ async function runScenario({
     const finalCount = await getButterflyCount(page);
     const finalCounts = await getEntityCounts(page);
     return {
-        scenario: { seed, butterflyCount, flowerCount, blockCount, focusZoneId, viewMode, scatterButterfliesAcrossZone, warmupFrames, captureFrames, label },
+        scenario: { seed, butterflyCount, flowerCount, blockCount, focusZoneId, viewMode, scatterButterfliesAcrossZone, disableAutoHabitatTravel, warmupFrames, captureFrames, label },
         focus: focusResult,
         spawn: spawnResult,
         flowerSpawn,

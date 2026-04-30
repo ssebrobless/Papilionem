@@ -8,11 +8,13 @@ class ZoneSystem {
         this.initialized = false;
         this.viewMode = 'focused-garden';
         this.ecologySchemaVersion = 'a1-zone-pressure-v1';
+        this.legacyGridLookupWarnings = new Set();
     }
 
     initialize(gridManagerInstance = null) {
         const configuredZones = gameConfig.world?.zones || [];
         const configuredDoorways = gameConfig.world?.doorways || [];
+        const projectionDefaults = gameConfig?.spatial?.projection || {};
         this.overviewMode = !!gameConfig.world?.overviewMode;
         this.viewMode = this.overviewMode ? 'overview' : 'focused-garden';
         this.zones.clear();
@@ -20,6 +22,7 @@ class ZoneSystem {
         this.ecologyStates.clear();
 
         for (const zone of configuredZones) {
+            const board = this.createZoneBoardConfig(zone, projectionDefaults);
             const nextZone = {
                 id: zone.id,
                 label: zone.label,
@@ -29,6 +32,8 @@ class ZoneSystem {
                 adjacentZoneIds: [...(zone.adjacentZoneIds || [])],
                 bounds: { ...(zone.bounds || {}) },
                 renderProfile: { ...(zone.renderProfile || {}) },
+                board,
+                exits: [],
                 ecologyProfile: {
                     ...(zone.ecologyProfile || {}),
                     preferredPersonalities: [...(zone.ecologyProfile?.preferredPersonalities || [])],
@@ -43,6 +48,7 @@ class ZoneSystem {
             this.zones.set(zone.id, nextZone);
             this.ecologyStates.set(zone.id, this.createDefaultZoneEcologyState(zone.id, nextZone));
         }
+        this.buildZoneExits();
 
         for (const doorway of configuredDoorways) {
             this.doorways.set(doorway.id, {
@@ -66,7 +72,117 @@ class ZoneSystem {
         this.initialized = true;
     }
 
-    update() {}
+    createZoneBoardConfig(zone = {}, projectionDefaults = gameConfig?.spatial?.projection || {}) {
+        const configuredBoard = zone.board || {};
+        const screenRegion = zone.renderProfile?.screenRegion || {};
+        const origin = configuredBoard.origin || {};
+        return {
+            widthUnits: Math.max(1, Math.round(configuredBoard.widthUnits ?? projectionDefaults.defaultWidthUnits ?? 36)),
+            depthUnits: Math.max(1, Math.round(configuredBoard.depthUnits ?? projectionDefaults.defaultDepthUnits ?? 22)),
+            origin: {
+                screenX: Number.isFinite(origin.screenX)
+                    ? origin.screenX
+                    : (projectionDefaults.origin?.screenX ?? screenRegion.minX ?? 0),
+                screenY: Number.isFinite(origin.screenY)
+                    ? origin.screenY
+                    : (projectionDefaults.origin?.screenY ?? screenRegion.minY ?? 0)
+            },
+            ppu: Number.isFinite(configuredBoard.ppu) ? configuredBoard.ppu : (projectionDefaults.ppu ?? 20),
+            groundT: Number.isFinite(configuredBoard.groundT) ? configuredBoard.groundT : (projectionDefaults.groundT ?? 0.56),
+            hStep: Number.isFinite(configuredBoard.hStep) ? configuredBoard.hStep : (projectionDefaults.hStep ?? 8)
+        };
+    }
+
+    resolveExitDirection(sourceZone, targetZone) {
+        const sourceBounds = sourceZone?.bounds || {};
+        const targetBounds = targetZone?.bounds || {};
+        const sourceCenter = {
+            x: ((sourceBounds.minX ?? 0) + (sourceBounds.maxX ?? 0)) / 2,
+            y: ((sourceBounds.minY ?? 0) + (sourceBounds.maxY ?? 0)) / 2
+        };
+        const targetCenter = {
+            x: ((targetBounds.minX ?? 0) + (targetBounds.maxX ?? 0)) / 2,
+            y: ((targetBounds.minY ?? 0) + (targetBounds.maxY ?? 0)) / 2
+        };
+        const dx = targetCenter.x - sourceCenter.x;
+        const dy = targetCenter.y - sourceCenter.y;
+        if (Math.abs(dx) > Math.abs(dy) * 1.2) return dx > 0 ? 'E' : 'W';
+        if (Math.abs(dy) > Math.abs(dx) * 1.2) return dy > 0 ? 'S' : 'N';
+        if (dx >= 0 && dy >= 0) return 'SE';
+        if (dx >= 0 && dy < 0) return 'NE';
+        if (dx < 0 && dy >= 0) return 'SW';
+        return 'NW';
+    }
+
+    getDirectionVector(direction) {
+        return {
+            N: { du: 0, dv: -1 },
+            S: { du: 0, dv: 1 },
+            E: { du: 1, dv: 0 },
+            W: { du: -1, dv: 0 },
+            NE: { du: 1, dv: -1 },
+            NW: { du: -1, dv: -1 },
+            SE: { du: 1, dv: 1 },
+            SW: { du: -1, dv: 1 }
+        }[direction] || { du: 1, dv: 0 };
+    }
+
+    buildEdgeSegment(board, direction) {
+        const widthUnits = board?.widthUnits || 36;
+        const depthUnits = board?.depthUnits || 22;
+        const uInset = widthUnits * 0.28;
+        const vInset = depthUnits * 0.28;
+        if (direction === 'E') return { uStart: widthUnits, vStart: vInset, uEnd: widthUnits, vEnd: depthUnits - vInset };
+        if (direction === 'W') return { uStart: 0, vStart: vInset, uEnd: 0, vEnd: depthUnits - vInset };
+        if (direction === 'N') return { uStart: uInset, vStart: 0, uEnd: widthUnits - uInset, vEnd: 0 };
+        if (direction === 'S') return { uStart: uInset, vStart: depthUnits, uEnd: widthUnits - uInset, vEnd: depthUnits };
+        if (direction === 'NE') return { uStart: widthUnits * 0.7, vStart: 0, uEnd: widthUnits, vEnd: depthUnits * 0.3 };
+        if (direction === 'NW') return { uStart: 0, vStart: depthUnits * 0.3, uEnd: widthUnits * 0.3, vEnd: 0 };
+        if (direction === 'SE') return { uStart: widthUnits * 0.7, vStart: depthUnits, uEnd: widthUnits, vEnd: depthUnits * 0.7 };
+        if (direction === 'SW') return { uStart: 0, vStart: depthUnits * 0.7, uEnd: widthUnits * 0.3, vEnd: depthUnits };
+        return { uStart: widthUnits, vStart: vInset, uEnd: widthUnits, vEnd: depthUnits - vInset };
+    }
+
+    getOppositeExitDirection(direction) {
+        return {
+            N: 'S',
+            S: 'N',
+            E: 'W',
+            W: 'E',
+            NE: 'SW',
+            NW: 'SE',
+            SE: 'NW',
+            SW: 'NE'
+        }[direction] || 'W';
+    }
+
+    buildZoneExits() {
+        for (const zone of this.zones.values()) {
+            zone.exits = [];
+        }
+        for (const sourceZone of this.zones.values()) {
+            for (const targetZoneId of sourceZone.adjacentZoneIds || []) {
+                const targetZone = this.getZone(targetZoneId);
+                if (!targetZone) continue;
+                const direction = this.resolveExitDirection(sourceZone, targetZone);
+                const arrivalDirection = this.getOppositeExitDirection(direction);
+                sourceZone.exits.push({
+                    id: `${sourceZone.id}->${targetZoneId}`,
+                    targetZoneId,
+                    direction,
+                    exitSegment: this.buildEdgeSegment(sourceZone.board, direction),
+                    arrivalSegment: this.buildEdgeSegment(targetZone.board, arrivalDirection),
+                    flightVector: this.getDirectionVector(direction)
+                });
+            }
+        }
+    }
+
+    update(gameState = gameCore?.gameState) {
+        if (gameConfig?.world?.zoneScarcityPulse === false) return null;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        return this.tickScarcityPulse(gameState, currentFrame);
+    }
 
     clampUnit(value) {
         return Math.max(0, Math.min(1, value ?? 0));
@@ -105,6 +221,11 @@ class ZoneSystem {
             consumptionPressure: 0,
             residentRatio: 0.5,
             wildRatio: 0.5,
+            scarcityActive: false,
+            scarcityStartedFrame: null,
+            scarcityUntilFrame: null,
+            scarcityReason: null,
+            lastScarcitySignalFrame: null,
             lastUpdatedFrame: 0,
             lastFlowerConsumptionFrame: 0,
             cadenceIntervalFrames: 1,
@@ -131,6 +252,11 @@ class ZoneSystem {
             consumptionPressure: this.clampUnit(state.consumptionPressure ?? defaults.consumptionPressure),
             residentRatio: this.clampUnit(state.residentRatio ?? defaults.residentRatio),
             wildRatio: this.clampUnit(state.wildRatio ?? defaults.wildRatio),
+            scarcityActive: !!state.scarcityActive,
+            scarcityStartedFrame: Number.isFinite(state.scarcityStartedFrame) ? state.scarcityStartedFrame : defaults.scarcityStartedFrame,
+            scarcityUntilFrame: Number.isFinite(state.scarcityUntilFrame) ? state.scarcityUntilFrame : defaults.scarcityUntilFrame,
+            scarcityReason: state.scarcityReason || defaults.scarcityReason,
+            lastScarcitySignalFrame: Number.isFinite(state.lastScarcitySignalFrame) ? state.lastScarcitySignalFrame : defaults.lastScarcitySignalFrame,
             lastUpdatedFrame: Number.isFinite(state.lastUpdatedFrame) ? state.lastUpdatedFrame : defaults.lastUpdatedFrame,
             lastFlowerConsumptionFrame: Number.isFinite(state.lastFlowerConsumptionFrame) ? state.lastFlowerConsumptionFrame : defaults.lastFlowerConsumptionFrame,
             cadenceIntervalFrames: Math.max(1, Math.round(state.cadenceIntervalFrames ?? defaults.cadenceIntervalFrames)),
@@ -159,6 +285,93 @@ class ZoneSystem {
             : this.normalizeZoneEcologyState(zoneId, { ...current, ...partial });
         this.ecologyStates.set(zoneId, nextState);
         return { ...nextState };
+    }
+
+    getOpenScarcityZones() {
+        return [...this.zones.values()].filter(zone => zone?.id && zone.id !== 'sun-court');
+    }
+
+    tickScarcityPulse(gameState = gameCore?.gameState, currentFrame = 0, options = {}) {
+        const safeFrame = Math.max(0, Math.round(currentFrame || 0));
+        const intervalFrames = Math.max(600, Math.round(options.intervalFrames || 21600));
+        const durationFrames = Math.max(300, Math.round(options.durationFrames || 1800));
+        const active = [];
+        for (const zone of this.zones.values()) {
+            const state = this.ensureZoneEcologyState(zone.id);
+            if (!state) continue;
+            if (state.scarcityActive && Number.isFinite(state.scarcityUntilFrame) && safeFrame >= state.scarcityUntilFrame) {
+                state.scarcityActive = false;
+                state.scarcityReason = null;
+                state.foodRichness = this.clampUnit(Math.max(state.foodRichness, 0.24));
+                state.resourceReserve = this.clampUnit(Math.max(state.resourceReserve, 0.3));
+            }
+            if (state.scarcityActive) active.push(zone.id);
+        }
+        if (active.length && !options.force) return { activeZoneId: active[0], started: false };
+        if (!options.force && (safeFrame <= 0 || safeFrame % intervalFrames !== 0)) return null;
+        const candidateZones = this.getOpenScarcityZones();
+        const selected = options.zoneId
+            ? this.getZone(options.zoneId)
+            : candidateZones[(Math.floor(safeFrame / intervalFrames)) % Math.max(1, candidateZones.length)];
+        if (!selected?.id) return null;
+        return this.triggerScarcityPulse(selected.id, {
+            currentFrame: safeFrame,
+            durationFrames,
+            reason: options.reason || 'periodic-scarcity',
+            gameState
+        });
+    }
+
+    triggerScarcityPulse(zoneId, options = {}) {
+        const state = this.ensureZoneEcologyState(zoneId);
+        if (!state) return null;
+        const currentFrame = Math.max(0, Math.round(options.currentFrame ?? gameCore?.getCurrentFrame?.() ?? 0));
+        const durationFrames = Math.max(300, Math.round(options.durationFrames || 1800));
+        state.scarcityActive = true;
+        state.scarcityStartedFrame = currentFrame;
+        state.scarcityUntilFrame = currentFrame + durationFrames;
+        state.scarcityReason = options.reason || 'scarcity';
+        state.lastScarcitySignalFrame = currentFrame;
+        state.foodRichness = this.clampUnit(state.foodRichness * 0.42);
+        state.resourceReserve = this.clampUnit(state.resourceReserve * 0.55);
+        state.depletionPressure = this.clampUnit(Math.max(state.depletionPressure, 0.68));
+        state.migrationPull = this.clampUnit(Math.max(state.migrationPull, 0.62));
+        state.lastUpdatedFrame = currentFrame;
+
+        const gameState = options.gameState || gameCore?.gameState;
+        const zoneButterflies = (gameState?.butterflies || []).filter(entity =>
+            (entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null) === zoneId
+        );
+        const caller = zoneButterflies[0] || null;
+        if (caller) {
+            communicationSystem?.emitCooperationSignal?.(caller, {
+                signalType: 'warning_signal',
+                intentFamily: 'guidance',
+                intentTags: ['warning', 'guidance', 'coordination'],
+                phrase: 'Food is getting scarce here; we should share or scout.',
+                targetIds: zoneButterflies.slice(1, 4).map(entity => entity.id),
+                zoneId,
+                reason: 'zone-scarcity'
+            });
+        }
+        const reserve = (gameState?.flowers || []).find(flower =>
+            flower?.isReserveFoodBall?.()
+            && (flower.currentZoneId || flower.boardPos?.zoneId || null) === zoneId
+        ) || null;
+        let shared = false;
+        if (caller && reserve && zoneButterflies[1]) {
+            communicationSystem?.emitReserveFoodSharing?.(caller, zoneButterflies[1], reserve, {
+                reason: 'zone-scarcity'
+            });
+            shared = true;
+        }
+        return {
+            activeZoneId: zoneId,
+            started: true,
+            untilFrame: state.scarcityUntilFrame,
+            warningEmitted: !!caller,
+            reserveFoodShared: shared
+        };
     }
 
     describeZoneEcologySignature(zoneId, state, profile = {}) {
@@ -231,6 +444,9 @@ class ZoneSystem {
             depletionPressure: this.roundUnit(state.depletionPressure),
             recoveryFloor: this.roundUnit(state.recoveryFloor),
             consumptionPressure: this.roundUnit(state.consumptionPressure),
+            scarcityActive: !!state.scarcityActive,
+            scarcityReason: state.scarcityReason || null,
+            scarcityUntilFrame: state.scarcityUntilFrame,
             freshness,
             residentRatio: this.roundUnit(residentRatio),
             wildRatio: this.roundUnit(wildRatio),
@@ -244,6 +460,55 @@ class ZoneSystem {
 
     getZone(zoneId) {
         return this.zones.get(zoneId) || null;
+    }
+
+    getBoardConfigForZone(zoneId = this.focusedZoneId) {
+        const zone = this.getZone(zoneId) || this.getFocusedZone();
+        return zone?.board ? {
+            ...zone.board,
+            origin: { ...(zone.board.origin || {}) }
+        } : null;
+    }
+
+    getZonePlacementRegion(zoneId = this.focusedZoneId) {
+        const zone = this.getZone(zoneId) || this.getFocusedZone();
+        if (!zone) return null;
+
+        if (gameConfig?.world?.renderMode === 'sim-board') {
+            const board = zone.board || this.createZoneBoardConfig(zone);
+            const origin = board.origin || {};
+            const ppu = board.ppu ?? gameConfig?.spatial?.projection?.ppu ?? 20;
+            const groundT = board.groundT ?? gameConfig?.spatial?.projection?.groundT ?? 0.56;
+            const hStep = board.hStep ?? gameConfig?.spatial?.projection?.hStep ?? 8;
+            const widthUnits = board.widthUnits ?? gameConfig?.spatial?.projection?.defaultWidthUnits ?? 36;
+            const depthUnits = board.depthUnits ?? gameConfig?.spatial?.projection?.defaultDepthUnits ?? 22;
+            const screenX = Number.isFinite(origin.screenX) ? origin.screenX : (origin.x ?? 0);
+            const screenY = Number.isFinite(origin.screenY) ? origin.screenY : (origin.y ?? 0);
+
+            return {
+                minX: screenX + (0.5 * ppu),
+                maxX: screenX + ((widthUnits - 0.5) * ppu),
+                minY: screenY + (0.5 * hStep),
+                maxY: screenY + ((depthUnits - 0.5) * ppu * groundT)
+            };
+        }
+
+        const region = zone.renderProfile?.screenRegion || null;
+        return region ? { ...region } : null;
+    }
+
+    getExits(zoneId = this.focusedZoneId) {
+        const zone = this.getZone(zoneId);
+        return (zone?.exits || []).map(exit => ({
+            ...exit,
+            exitSegment: { ...(exit.exitSegment || {}) },
+            arrivalSegment: { ...(exit.arrivalSegment || {}) },
+            flightVector: { ...(exit.flightVector || {}) }
+        }));
+    }
+
+    getExitForTarget(zoneId, targetZoneId) {
+        return this.getExits(zoneId).find(exit => exit.targetZoneId === targetZoneId) || null;
     }
 
     getZones() {
@@ -272,7 +537,17 @@ class ZoneSystem {
     }
 
     getZoneAtGrid(gridX, gridY) {
-        if (gameConfig?.world?.renderMode === 'section-scenes') {
+        if (['section-scenes', 'sim-board'].includes(gameConfig?.world?.renderMode)) {
+            const warningKey = 'getZoneAtGrid:focused-render-mode';
+            if (!this.legacyGridLookupWarnings.has(warningKey)) {
+                this.legacyGridLookupWarnings.add(warningKey);
+                gameCore?.telemetrySystem?.recordRuntimeIssue?.('legacy-zone-grid-lookup', {
+                    mode: gameConfig?.world?.renderMode || null,
+                    gridX,
+                    gridY,
+                    recommendation: 'pass boardPos to zoneSystem.getZoneAtBoard(boardPos)'
+                });
+            }
             return this.getFocusedZone();
         }
         for (const zone of this.zones.values()) {
@@ -283,6 +558,29 @@ class ZoneSystem {
             }
         }
         return null;
+    }
+
+    getZoneAtBoard(boardPos = null) {
+        if (!boardPos || !Number.isFinite(boardPos.u) || !Number.isFinite(boardPos.v)) return null;
+        if (gameConfig?.spatial?.boardZoneLookup === false) {
+            return this.getFocusedZone();
+        }
+        const preferredZone = boardPos.zoneId ? this.getZone(boardPos.zoneId) : null;
+        const contains = (zone) => {
+            const board = zone?.board || null;
+            if (!board) return false;
+            const widthUnits = board.widthUnits ?? gameConfig?.spatial?.projection?.defaultWidthUnits ?? 36;
+            const depthUnits = board.depthUnits ?? gameConfig?.spatial?.projection?.defaultDepthUnits ?? 22;
+            return boardPos.u >= 0
+                && boardPos.u <= widthUnits
+                && boardPos.v >= 0
+                && boardPos.v <= depthUnits;
+        };
+        if (preferredZone && contains(preferredZone)) return preferredZone;
+        for (const zone of this.zones.values()) {
+            if (contains(zone)) return zone;
+        }
+        return preferredZone || null;
     }
 
     getAdjacentZones(zoneId = this.focusedZoneId) {
@@ -322,14 +620,19 @@ class ZoneSystem {
 
     serializeDurableState() {
         const ecologyStates = {};
+        const boardConfigs = {};
         for (const [zoneId, state] of this.ecologyStates.entries()) {
             if (!this.zones.has(zoneId)) continue;
             ecologyStates[zoneId] = this.normalizeZoneEcologyState(zoneId, state);
+        }
+        for (const zone of this.getZones()) {
+            boardConfigs[zone.id] = this.getBoardConfigForZone(zone.id);
         }
         return {
             focusedZoneId: this.focusedZoneId,
             overviewMode: this.overviewMode,
             viewMode: this.viewMode,
+            boardConfigs,
             ecologyStates
         };
     }

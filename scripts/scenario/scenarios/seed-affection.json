@@ -1,0 +1,17 @@
+{
+  "id": "seed-affection",
+  "seed": 101,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 8, "v": 8, "h": 0 }, "emotions": { "joy": 0.6 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 8, "h": 0 }, "emotions": { "calm": 0.6 } }
+  ],
+  "actions": [
+    { "type": "emit_signal", "source": "a", "targets": ["b"], "signalType": "acknowledgement_signal", "intentFamily": "social", "intentTags": ["companionship"], "phrase": "Stay with me here." }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 2 },
+    { "type": "dialogue_count", "min": 1 },
+    { "type": "near", "left": "a", "right": "b", "max": 2 }
+  ]
+}

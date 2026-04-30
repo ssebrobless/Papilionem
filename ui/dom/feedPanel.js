@@ -73,8 +73,10 @@ class FeedDomPanel {
         this.filterRow.replaceChildren();
         const descriptors = [
             ['talk', 'Talk'],
-            ['actions', 'Actions'],
-            ['learn', 'Learn']
+            ['action', 'Action'],
+            ['learn', 'Learn'],
+            ['warning', 'Warning'],
+            ['system', 'System']
         ];
         for (const [id, label] of descriptors) {
             const button = document.createElement('button');
@@ -108,7 +110,7 @@ class FeedDomPanel {
         for (const entry of entries) {
             const card = document.createElement('article');
             card.className = 'shell-feed-entry';
-            card.dataset.category = entry.category || 'actions';
+            card.dataset.category = entry.category || 'action';
 
             if (entry.headline) {
                 const headline = document.createElement('div');

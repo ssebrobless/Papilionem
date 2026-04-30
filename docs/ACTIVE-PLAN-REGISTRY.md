@@ -44,7 +44,11 @@ goal-alignment companion set
 ├─ GAME-SUCCESS-CRITERIA.md
 ├─ CURRENT-STATE-GAP-ASSESSMENT.md
 ├─ GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md
-└─ GOAL-ALIGNMENT-REVIEW-PACKET.md
+├─ GOAL-ALIGNMENT-REVIEW-PACKET.md
+├─ G0-BAR-STAGE-A-SIGNOFF.md
+├─ G1-SPATIAL-ACCEPTANCE-SWEEP.md
+├─ G2-LIVE-BUILDING-BEHAVIOR-PROOF.md
+└─ G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md
 ```
 
 Use these when the question is not "which historical phase landed?" but:
@@ -53,6 +57,27 @@ Use these when the question is not "which historical phase landed?" but:
 what does success actually mean now?
 what still does not line up with that target?
 what should reopen next, if anything?
+```
+
+Additional runtime benchmark companions:
+
+- [COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md](./COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md)
+- [COMPOSED-BENCHMARK-BASELINE-2026-04-27.md](./COMPOSED-BENCHMARK-BASELINE-2026-04-27.md)
+
+Latest harness-accounting correction:
+
+```text
+2026-04-28 benchmark telemetry correction
+|- composite total now includes direct-flower present cost
+|- top-contributor attribution now ranks timing keys only
+`- do not treat counters, widths, heights, or ratios as millisecond costs
+```
+
+Use these when the question is:
+
+```text
+what does the runtime really cost under realistic single-zone play?
+which lane should own the next hotspot diagnosis?
 ```
 
 ## Shared Contracts
@@ -64,7 +89,8 @@ shared contracts
 |- spatial-unit contract (`s1`)
 |- social-family lock (`n1`)
 |- CROSS-TRACK-ARBITRATION.md
-`- COGNITION-ML-CONTRACT.md
+|- COGNITION-ML-CONTRACT.md
+`- PLAYER-CURSOR-SOCIAL-SEAM.md
 ```
 
 | Contract | Purpose |
@@ -75,6 +101,7 @@ shared contracts
 | [SOCIAL-FAMILY-LOCK.md](./SOCIAL-FAMILY-LOCK.md) | canonical `n1` lock for feeling, pair-chemistry, society, and motive families, with the detailed sequence preserved in [SOCIAL-COGNITION-ROADMAP.md](./SOCIAL-COGNITION-ROADMAP.md) |
 | [CROSS-TRACK-ARBITRATION.md](./CROSS-TRACK-ARBITRATION.md) | contested-file owner table and merge-time tie-breaker |
 | [COGNITION-ML-CONTRACT.md](./COGNITION-ML-CONTRACT.md) | ML boundary rules, including the later P6 audit requirement |
+| [PLAYER-CURSOR-SOCIAL-SEAM.md](./PLAYER-CURSOR-SOCIAL-SEAM.md) | R9 reservation for future player-name, cursor-as-social-actor, to-player dialogue, and relationship-to-player fields; docs-only, not implemented |
 
 ## Cross-Track Gates
 
@@ -147,6 +174,7 @@ ACTIVE-PUBLIC-SHARE-BOARD
 6. [NEURAL-SOCIAL-SCORING-AUDIT.md](./NEURAL-SOCIAL-SCORING-AUDIT.md)
 7. [DIALOGUE-MEMORY-RELATIONSHIP-CONTRACT.md](./DIALOGUE-MEMORY-RELATIONSHIP-CONTRACT.md)
 8. [COGNITION-ML-CONTRACT.md](./COGNITION-ML-CONTRACT.md)
+9. [PLAYER-CURSOR-SOCIAL-SEAM.md](./PLAYER-CURSOR-SOCIAL-SEAM.md)
 
 ## Supporting Evidence Docs
 
@@ -203,10 +231,40 @@ do not lose this distinction
 Updated by the `2026-04-26` Claude Review.
 
 ```text
+runtime benchmark truth
+|- composed harness is now the active runtime reality reference
+|- retained local recovery stack has materially repaired the realistic lane
+|  |- clustered `single-zone-122` -> 127.77 / 45.91 / 172.5 -> 52.18 / 43.53 / 94.9
+|  `- scattered `single-zone-122` -> 52.43 / 50.20 / 102.8 on `56c9a4f`, then 43.77 / 44.98 / 89.4 after the structure-query cut, then 40.84 / 42.69 / 88.4 after the dense-flower gate, then 36.62 / 43.15 / 81.1 after the communication/trace-cache cut, then 39.27 / 43.54 / 81.3 after the structure runtime-cache hold
+|- retained dense-flower gate has materially repaired the flower-heavy lane
+|  `- `flower-feed-storm` -> 45.68 / 73.37 / 117.5 -> 32.54 / 63.95 / 98.2 -> 33.31 / 63.55 / 98.9 hold
+|- retained communication-maintenance + decision-trace cache has materially repaired the stress lane
+|  |- `single-zone-200` -> 96.94 / 56.00 / 153.1 -> 86.37 / 55.22 / 141.5 retained
+|  `- social guardrails -> r6 pass / f5-f6 pass
+|- retained structure-system frame-local runtime caches have materially repaired the next stress-lane slice
+|  |- `single-zone-200` -> 86.37 / 55.22 / 141.5 -> 81.39 / 55.82 / 135.3 retained
+|  `- spatial/build guardrails -> a4 pass / b4 pass
+|- retained pressure-gated crowd/cursor checks + critical communication cadence have repaired the next smaller stress-lane slice
+|  |- `single-zone-200` -> 81.39 / 55.82 / 135.3 -> 80.87 / 54.92 / 134.0 retained
+|  |- `single-zone-122` -> 34.71 / 41.86 / 74.7 hold
+|  |- `flower-feed-storm` -> 29.66 / 61.31 / 88.7 hold
+|  |- `block-carry-active` -> 30.47 / 25.78 / 55.1 hold
+|  `- guardrails -> r6 pass / f5-f6 pass / r1 pass
+`- next composed benchmark order
+   |- keep fixing `single-zone-200`, now with composite / drawImage first
+   |- keep `flower-feed-storm` green as a repaired watch lane
+   |- keep `block-carry-active` green as a repaired watch lane
+   `- only reopen `single-zone-122` if we want extra margin beyond the old `83ms p50` note
+```
+
+```text
 start now (Stage A acceptance closure)
 ├─ g1 spatial acceptance sweep
+│  └─ local companion proof is green; human g0-bar signoff still pending
 ├─ g2 live building behavior proof
+│  └─ first guided lived-in proof lane is green; formal close still pending
 └─ g3 movement naturalness acceptance
+   └─ local companion proof is now green; human g0-bar signoff still pending
 
 run in parallel with Stage A (prep-only early-start)
 ├─ g4-observation: begin ambient social observation now
@@ -217,6 +275,7 @@ run in parallel with Stage A (prep-only early-start)
 precondition (one-time)
 └─ g0-bar: adopt the acceptance-bar definition in
    GAME-SUCCESS-CRITERIA.md before closing any of g1-g5
+   └─ Stage A human signoff sheet now lives in G0-BAR-STAGE-A-SIGNOFF.md
 ```
 
 Why early-start g4 and g5:
@@ -228,6 +287,17 @@ Why early-start g4 and g5:
 - the parallel-safe shape in
   [GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md](./GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md#parallel-safe-shape)
   already permits this; this section surfaces it as the active next move
+
+Active runtime benchmark method:
+
+```text
+runtime benchmark method
+|- reality baseline -> single-zone-122
+|- stress baseline  -> single-zone-200
+|- block lane       -> block-carry-active
+|- flower lane      -> flower-feed-storm
+`- profile rule     -> profile the heaviest failing composed lane
+```
 
 
 ## Recommended Next Review Hand-Off

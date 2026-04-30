@@ -6,6 +6,8 @@
     "blockCount": 130,
     "focusZoneId": "ivy-cloister",
     "viewMode": "focused-garden",
+    "worldRenderMode": "section-scenes",
+    "disableAutoHabitatTravel": true,
     "warmupFrames": 60,
     "captureFrames": 600,
     "notes": "Single-zone density above the observed real-play regime; useful for finding the cliff above 122."

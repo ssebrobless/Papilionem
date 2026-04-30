@@ -53,6 +53,13 @@ class Flower extends Entity {
         // Unique ID for tracking feeding cooldowns
         this.id = `flower_${Date.now()}_${Math.floor(x)}_${Math.floor(y)}_${random(1000)}`;
         this.currentZoneId = options.currentZoneId || null;
+        this.lifecycleKind = options.lifecycleKind || 'flower';
+        this.spawnedAtFrame = Number.isFinite(options.spawnedAtFrame)
+            ? Math.round(options.spawnedAtFrame)
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
+        this.decayedAtFrame = Number.isFinite(options.decayedAtFrame) ? Math.round(options.decayedAtFrame) : null;
+        this.reserveFoodSource = options.reserveFoodSource || null;
+        this.cleanedAtFrame = Number.isFinite(options.cleanedAtFrame) ? Math.round(options.cleanedAtFrame) : null;
         
         // Immortality flag for starting flowers
         this.isImmortal = isImmortal;
@@ -65,20 +72,12 @@ class Flower extends Entity {
         
         const flowerTypes = gameConfig?.entities?.flower?.types || ['daisy', 'tulip', 'sprout', 'lavender', 'bush'];
         this.flowerType = normalizeFlowerTypeName(options.flowerType, flowerTypes);
-        this.visualStyle = 'garden-bloom';
+        this.visualStyle = this.lifecycleKind === 'flower' ? 'garden-bloom' : this.lifecycleKind;
         this.size = 13;
         this.stemHeight = gameConfig?.entities?.flower?.stemHeight || 16;
         this.petalCount = 7;
         this.petalStyle = 'garden-bloom';
-        this.objectProfile = createObjectProfile({
-            entityType: 'flower',
-            subtype: this.flowerType,
-            resourceTags: ['nectar', 'care', 'garden-object'],
-            carryable: false,
-            consumable: true,
-            occupancyState: 'normal',
-            lifecycleStage: this.stage
-        });
+        this.objectProfile = this.createLifecycleObjectProfile();
         
         const flowerPalettes = gameConfig?.entities?.flower?.palettes || [
             { petals: [255, 180, 120], center: [255, 240, 180] },
@@ -123,19 +122,157 @@ class Flower extends Entity {
     }
 
     ensureLifecycleData() {
+        this.lifecycleKind = this.lifecycleKind || 'flower';
+        if (!Number.isFinite(this.spawnedAtFrame)) {
+            this.spawnedAtFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        }
+        this.objectProfile = this.objectProfile || this.createLifecycleObjectProfile();
         this.occupancyState = this.occupancyState || 'normal';
         this.allowedButterflyId = this.allowedButterflyId || null;
         this.eggData = this.eggData || null;
         this.chrysalisData = this.chrysalisData || null;
         this.postHatchFadeTimer = this.postHatchFadeTimer || 0;
         this.currentFeeder = this.currentFeeder || null;
+        this.refreshLifecycleObjectProfile();
+    }
+
+    createLifecycleObjectProfile() {
+        if (this.lifecycleKind === 'dirt-pile') {
+            return createObjectProfile({
+                entityType: 'flower-lifecycle',
+                subtype: 'dirt-pile',
+                resourceTags: ['garden-object', 'soiled-place', 'cleanup'],
+                carryable: false,
+                consumable: false,
+                occupancyState: 'normal',
+                lifecycleStage: 'decayed'
+            });
+        }
+        if (this.lifecycleKind === 'reserve-food-ball') {
+            return createObjectProfile({
+                entityType: 'flower-lifecycle',
+                subtype: 'reserve-food-ball',
+                resourceTags: ['food-reserve', 'nectar', 'garden-object'],
+                carryable: false,
+                consumable: true,
+                occupancyState: 'normal',
+                lifecycleStage: 'stable'
+            });
+        }
+        return createObjectProfile({
+            entityType: 'flower',
+            subtype: this.flowerType,
+            resourceTags: ['nectar', 'care', 'garden-object'],
+            carryable: false,
+            consumable: true,
+            occupancyState: this.occupancyState || 'normal',
+            lifecycleStage: this.stage
+        });
+    }
+
+    refreshLifecycleObjectProfile() {
+        const profile = this.objectProfile || this.createLifecycleObjectProfile();
+        if (this.lifecycleKind === 'dirt-pile') {
+            profile.entityType = 'flower-lifecycle';
+            profile.subtype = 'dirt-pile';
+            profile.resourceTags = ['garden-object', 'soiled-place', 'cleanup'];
+            profile.consumable = false;
+            profile.carryable = false;
+            profile.lifecycleStage = 'decayed';
+        } else if (this.lifecycleKind === 'reserve-food-ball') {
+            profile.entityType = 'flower-lifecycle';
+            profile.subtype = 'reserve-food-ball';
+            profile.resourceTags = ['food-reserve', 'nectar', 'garden-object'];
+            profile.consumable = true;
+            profile.carryable = false;
+            profile.lifecycleStage = 'stable';
+        } else {
+            profile.entityType = 'flower';
+            profile.subtype = this.flowerType;
+            profile.resourceTags = ['nectar', 'care', 'garden-object'];
+            profile.consumable = true;
+            profile.carryable = false;
+            profile.lifecycleStage = this.stage;
+        }
+        profile.occupancyState = this.occupancyState || 'normal';
+        this.objectProfile = profile;
+        return profile;
+    }
+
+    isFoodFlower() {
+        return (this.lifecycleKind || 'flower') === 'flower';
+    }
+
+    isDirtPile() {
+        return this.lifecycleKind === 'dirt-pile';
+    }
+
+    isReserveFoodBall() {
+        return this.lifecycleKind === 'reserve-food-ball';
+    }
+
+    getDecayFrames() {
+        return Math.max(1, Math.round(gameConfig?.entities?.flower?.decayFrames || 3600));
+    }
+
+    shouldDecayToPile() {
+        if (!this.isFoodFlower()) return false;
+        if (gameConfig?.entities?.flower?.decayEnabled === false) return false;
+        if (this.isImmortal) return false;
+        if (this.occupancyState !== 'normal') return false;
+        if (this.currentFeeder) return false;
+        if (this.consumed) return false;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        return currentFrame - (this.spawnedAtFrame || 0) >= this.getDecayFrames();
+    }
+
+    tryCleanupDirtPile(butterflies = []) {
+        if (!this.isDirtPile()) return false;
+        const radius = Math.max(8, gameConfig?.entities?.flower?.pileCleanupRadius || 24);
+        const driveThreshold = Math.max(0, gameConfig?.entities?.flower?.pileCleanupSelfMaintenance || 0.56);
+        for (const butterfly of butterflies || []) {
+            if (!butterfly?.id) continue;
+            if (this.currentZoneId && butterfly.currentZoneId && butterfly.currentZoneId !== this.currentZoneId) continue;
+            const selfMaintenance = butterfly.lifeSim?.drives?.selfMaintenance
+                ?? butterfly.lifeSim?.derived?.driveTargets?.selfMaintenance
+                ?? 0;
+            if (selfMaintenance < driveThreshold) continue;
+            if (Math.hypot((butterfly.x || 0) - this.x, (butterfly.y || 0) - this.y) > radius) continue;
+            this.cleanedAtFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+            objectSystem?.recordInteraction?.(this.id, 'cleaned dirt pile', butterfly.id, {
+                zoneId: this.currentZoneId || null
+            });
+            if (typeof appendLifeMemory === 'function') {
+                appendLifeMemory(butterfly, 'object', {
+                    subjectId: this.id,
+                    valence: 0.12,
+                    strength: 0.28,
+                    tags: ['soiled-place', 'cleanup', 'garden-object'],
+                    metadata: {
+                        zoneId: this.currentZoneId || null
+                    }
+                });
+            }
+            gameCore?.removeFlowerFromGame?.(this, 'dirt-pile-cleaned');
+            return true;
+        }
+        return false;
     }
     
     update(gameState) {
         const { butterflies, particleSystem } = gameState;
         this.ensureLifecycleData();
-        this.objectProfile.lifecycleStage = this.stage;
-        this.objectProfile.occupancyState = this.occupancyState;
+        if (this.shouldDecayToPile()) {
+            gameCore?.transformFlowerToDirtPile?.(this, { source: 'flower-decay' });
+        }
+        if (this.tryCleanupDirtPile(butterflies)) {
+            return;
+        }
+        this.refreshLifecycleObjectProfile();
+        if (!this.isFoodFlower()) {
+            this.updateZIndex();
+            return;
+        }
         
         // Update golden blessing timer
         if (this.goldenBlessing > 0) {
@@ -300,6 +437,15 @@ class Flower extends Entity {
     
     // Override parent's entity drawing
     drawEntity(graphics, alpha) {
+        if (this.isDirtPile()) {
+            this.drawDirtPile(graphics, alpha);
+            return;
+        }
+        if (this.isReserveFoodBall()) {
+            this.drawReserveFoodBall(graphics, alpha);
+            return;
+        }
+
         // Handle flower-specific alpha during dissolve
         if (this.stage === 'dissolve') {
             alpha = map(this.stageTimer, 0, this.stageDurations.dissolve, 255, 0);
@@ -330,6 +476,35 @@ class Flower extends Entity {
         this.drawFlowerHead(graphics, alpha);
         this.drawLifecycleAttachment(graphics, alpha);
         
+        graphics.pop();
+    }
+
+    drawDirtPile(graphics, alpha) {
+        graphics.push();
+        graphics.translate(this.x, this.y);
+        graphics.noStroke();
+        graphics.fill(38, 32, 24, alpha * 0.42);
+        graphics.ellipse(0, 3, 17, 7);
+        graphics.fill(58, 45, 30, alpha);
+        graphics.ellipse(-4, 0, 9, 6);
+        graphics.fill(42, 34, 26, alpha);
+        graphics.ellipse(2, 0, 11, 7);
+        graphics.fill(78, 62, 39, alpha * 0.65);
+        graphics.ellipse(4, -1, 4, 3);
+        graphics.pop();
+    }
+
+    drawReserveFoodBall(graphics, alpha) {
+        graphics.push();
+        graphics.translate(this.x, this.y);
+        const color = Array.isArray(this.petalColor) ? this.petalColor : [255, 220, 150];
+        graphics.noStroke();
+        graphics.fill(0, 0, 0, alpha * 0.18);
+        graphics.ellipse(0, 3, 10, 4);
+        graphics.fill(color[0], color[1], color[2], alpha);
+        graphics.ellipse(0, -1, 8, 8);
+        graphics.fill(255, 255, 255, alpha * 0.32);
+        graphics.ellipse(-2, -3, 2.4, 2);
         graphics.pop();
     }
 
@@ -730,6 +905,7 @@ class Flower extends Entity {
     
     // Override isDead to check stage instead of lifetime
     isDead() {
+        if (this.isDirtPile() || this.isReserveFoodBall()) return false;
         // Immortal flowers never die
         if ((this.isImmortal || this.persistentUntilConsumed) && !this.consumed) return false;
         if (this.occupancyState === 'egg' || this.occupancyState === 'chrysalis') return false;
@@ -748,6 +924,7 @@ class Flower extends Entity {
 
     canAcceptButterfly(butterfly) {
         this.ensureLifecycleData();
+        if (!this.isFoodFlower()) return false;
         if (this.occupancyState === 'normal') return true;
         if (this.occupancyState === 'egg') {
             return this.allowedButterflyId === butterfly.id;
@@ -757,6 +934,7 @@ class Flower extends Entity {
 
     canReceiveEggFrom(butterfly) {
         this.ensureLifecycleData();
+        if (!this.isFoodFlower()) return false;
         return this.occupancyState === 'normal' && this.stage !== 'dissolve' && (!this.currentFeeder || this.currentFeeder === butterfly);
     }
 
@@ -787,6 +965,7 @@ class Flower extends Entity {
 
     canHostCaterpillar(phase) {
         this.ensureLifecycleData();
+        if (!this.isFoodFlower()) return false;
         if (this.stage === 'dissolve') return false;
         return this.occupancyState === 'normal';
     }

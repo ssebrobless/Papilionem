@@ -1,0 +1,14 @@
+{
+    "label": "single-zone-200-sim-board",
+    "seed": 17,
+    "butterflyCount": 200,
+    "flowerCount": 60,
+    "blockCount": 130,
+    "focusZoneId": "ivy-cloister",
+    "viewMode": "focused-garden",
+    "worldRenderMode": "sim-board",
+    "disableAutoHabitatTravel": true,
+    "warmupFrames": 60,
+    "captureFrames": 600,
+    "notes": "P7 promotion lane mirroring single-zone-200 in sim-board render mode. Legacy single-zone-200 remains pinned to section-scenes for one release-cycle comparison."
+}

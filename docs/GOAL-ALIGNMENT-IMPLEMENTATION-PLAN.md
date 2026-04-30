@@ -48,6 +48,24 @@ g0-bar
 Without `g0-bar`, "lived-in" closure is subjective and prone to
 reviewer-fatigue drift.
 
+## Runtime Harness Rule
+
+For any runtime-facing change or runtime-facing closure claim, the composed
+benchmark harness is now the local proof owner.
+
+```text
+runtime benchmark routing
+|- reality baseline    -> single-zone-122
+|- stress baseline     -> single-zone-200
+|- block lane          -> block-carry-active
+|- flower lane         -> flower-feed-storm
+|- scaling only        -> butterflies-100 / 200 / 400
+`- deep diagnosis      -> rerun the heaviest failing composed lane with --profile
+```
+
+Synthetic `butterflies-N` sweeps remain useful, but they are no longer the
+primary answer to "did this help the real game?"
+
 ## Exact Ladder
 
 ### `g1 spatial acceptance sweep`
@@ -82,6 +100,12 @@ Close when:
 - no visual contradiction appears in the lived-in acceptance sweep
 - or any remaining contradiction is promoted as a named blocker
 
+Current execution note (`2026-04-26`):
+
+- local companion proof is now green in
+  [G1-SPATIAL-ACCEPTANCE-SWEEP.md](./G1-SPATIAL-ACCEPTANCE-SWEEP.md)
+- formal close still waits on one human `g0-bar` lived-in signoff
+
 ### `g2 live building behavior proof`
 
 ```text
@@ -107,6 +131,13 @@ Close when:
 - at least one lived-in free-play session shows repeated choose/carry/place/revisit behavior
 - any remaining thinness is promoted as a named richness blocker rather than hidden inside "placement passed"
 
+Current execution note (`2026-04-26`):
+
+- the first guided lived-in proof lane is now green in
+  [G2-LIVE-BUILDING-BEHAVIOR-PROOF.md](./G2-LIVE-BUILDING-BEHAVIOR-PROOF.md)
+- formal close still waits on an uncontrolled free-play acceptance session
+  plus a broader colony-shaped richness read
+
 ### `g3 movement naturalness acceptance`
 
 ```text
@@ -128,6 +159,13 @@ Outputs:
 Close when:
 
 - no obvious snap/zoom/route ugliness remains in ordinary play
+
+Current execution note (`2026-04-26`):
+
+- local companion proof is now recorded in
+  [G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md](./G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md)
+- current local read is green on correctness/dispersal, with the remaining
+  open item being one human `g0-bar` free-play signoff
 
 ### `g4 ambient social breadth pass`
 

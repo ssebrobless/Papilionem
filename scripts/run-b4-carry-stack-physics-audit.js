@@ -13,6 +13,19 @@ const STORAGE_KEYS = [
   'papilionem-audit-reports-v1'
 ];
 
+function getWorldRenderModeOverride() {
+  const mode = process.env.PAPILIONEM_WORLD_RENDER_MODE;
+  return ['section-scenes', 'sim-board'].includes(mode) ? mode : null;
+}
+
+async function applyRuntimeOverrides(context, worldRenderMode) {
+  if (!worldRenderMode) return;
+  await context.addInitScript((renderMode) => {
+    window.__PAPILIONEM_WORLD_RENDERMODE__ = renderMode;
+    window.localStorage.setItem('papilionem-world-rendermode', renderMode);
+  }, worldRenderMode);
+}
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -64,10 +77,14 @@ async function saveShot(page, outputDir, name) {
   return file;
 }
 
-async function resetBaseline(page) {
-  await page.evaluate((keys) => {
+async function resetBaseline(page, worldRenderMode = null) {
+  await page.evaluate(({ keys, renderMode }) => {
     keys.forEach(key => window.localStorage.removeItem(key));
-  }, STORAGE_KEYS);
+    if (renderMode) {
+      window.__PAPILIONEM_WORLD_RENDERMODE__ = renderMode;
+      window.localStorage.setItem('papilionem-world-rendermode', renderMode);
+    }
+  }, { keys: STORAGE_KEYS, renderMode: worldRenderMode });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitForGame(page);
   await dismissTitle(page);
@@ -214,6 +231,7 @@ async function run() {
     pageErrors: [],
     consoleErrors: [],
     server: null,
+    worldRenderModeOverride: getWorldRenderModeOverride(),
     overall: 'pending'
   };
 
@@ -227,6 +245,7 @@ async function run() {
     context = await browser.newContext({
       viewport: { width: 1600, height: 900 }
     });
+    await applyRuntimeOverrides(context, report.worldRenderModeOverride);
     page = await context.newPage();
 
     page.on('pageerror', error => report.pageErrors.push(String(error)));
@@ -241,7 +260,7 @@ async function run() {
     await dismissTitle(page);
 
     await phase(page, report, outputDir, '01-carry-anchor-owned-by-physics', async () => {
-      await resetBaseline(page);
+      await resetBaseline(page, report.worldRenderModeOverride);
       const fixture = await setupCarryStackScenario(page);
       const details = await page.evaluate(() => {
         const state = gameCore.getGameState();
@@ -296,7 +315,7 @@ async function run() {
     });
 
     await phase(page, report, outputDir, '02-stacked-placement-routes-through-physics', async () => {
-      await resetBaseline(page);
+      await resetBaseline(page, report.worldRenderModeOverride);
       await setupCarryStackScenario(page);
       const details = await page.evaluate(() => {
         const state = gameCore.getGameState();
@@ -387,7 +406,7 @@ async function run() {
     });
 
     await phase(page, report, outputDir, '03-invalid-placement-normalizes-to-safe-target', async () => {
-      await resetBaseline(page);
+      await resetBaseline(page, report.worldRenderModeOverride);
       await setupCarryStackScenario(page);
       const details = await page.evaluate(() => {
         const state = gameCore.getGameState();
@@ -461,7 +480,7 @@ async function run() {
     });
 
     await phase(page, report, outputDir, '04-flower-conflict-relocates-before-placement', async () => {
-      await resetBaseline(page);
+      await resetBaseline(page, report.worldRenderModeOverride);
       await setupCarryStackScenario(page);
       const details = await page.evaluate(() => {
         const state = gameCore.getGameState();
@@ -556,7 +575,7 @@ async function run() {
     });
 
     await phase(page, report, outputDir, '05-unsupported-stack-settles-to-ground', async () => {
-      await resetBaseline(page);
+      await resetBaseline(page, report.worldRenderModeOverride);
       await setupCarryStackScenario(page);
       const details = await page.evaluate(() => {
         const state = gameCore.getGameState();

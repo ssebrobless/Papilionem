@@ -1,0 +1,356 @@
+const fs = require('fs');
+const path = require('path');
+const { chromium } = require('playwright');
+
+const ROOT = path.resolve(__dirname, '..');
+const URL = 'http://127.0.0.1:3000/';
+const OUTPUT_ROOT = path.join(ROOT, 'qa_screenshots', 'r_flower_lifecycle_audit');
+const STORAGE_KEYS = [
+  'papilionem-save-v2',
+  'papilionem-progression-v1',
+  'papilionem-accessibility-v1',
+  'papilionem-audit-setup-v1',
+  'papilionem-audit-reports-v1'
+];
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function stamp() {
+  return new Date().toISOString().replace(/[:.]/g, '-');
+}
+
+async function ensureServer(report) {
+  const reachable = await fetch(URL).then(() => true).catch(() => false);
+  if (reachable) {
+    report.server = { reused: true, pid: null };
+    return;
+  }
+
+  const { spawn } = require('child_process');
+  const child = spawn(process.execPath, ['server.js'], {
+    cwd: ROOT,
+    detached: true,
+    stdio: 'ignore'
+  });
+  child.unref();
+  report.server = { reused: false, pid: child.pid };
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const ok = await fetch(URL).then(() => true).catch(() => false);
+    if (ok) return;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  throw new Error('Server did not become reachable in time');
+}
+
+async function waitForGame(page) {
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForFunction(() => typeof gameCore !== 'undefined' && gameCore.isInitialized?.(), null, {
+    timeout: 30000
+  });
+}
+
+async function dismissTitle(page) {
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(1200);
+}
+
+async function resetBaseline(page) {
+  await page.evaluate((keys) => {
+    keys.forEach(key => window.localStorage.removeItem(key));
+    window.__PAPILIONEM_WORLD_RENDERMODE__ = 'sim-board';
+    window.localStorage.setItem('papilionem-world-rendermode', 'sim-board');
+  }, STORAGE_KEYS);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitForGame(page);
+  await dismissTitle(page);
+  await page.evaluate(async () => {
+    await gameCore.resetGame(true);
+    gameUI.firstSessionGuide.visible = false;
+    gameUI.inspectPanel.visible = false;
+    gameUI.activityLogPanel.visible = false;
+    gameUI.butterflyCollection.visible = false;
+  });
+  await page.waitForTimeout(900);
+}
+
+async function run() {
+  ensureDir(OUTPUT_ROOT);
+  const auditId = stamp();
+  const outputDir = path.join(OUTPUT_ROOT, auditId);
+  ensureDir(outputDir);
+
+  const report = {
+    auditId,
+    startedAt: new Date().toISOString(),
+    outputDir,
+    server: null,
+    pageErrors: [],
+    consoleErrors: [],
+    assertions: {},
+    screenshot: null,
+    overall: 'pending'
+  };
+
+  let browser;
+  let context;
+  try {
+    await ensureServer(report);
+    browser = await chromium.launch({ headless: true });
+    context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+    await context.addInitScript(() => {
+      window.__PAPILIONEM_WORLD_RENDERMODE__ = 'sim-board';
+      window.localStorage.setItem('papilionem-world-rendermode', 'sim-board');
+    });
+    const page = await context.newPage();
+    page.on('pageerror', error => report.pageErrors.push(String(error)));
+    page.on('console', msg => {
+      if (msg.type() === 'error') report.consoleErrors.push(msg.text());
+    });
+
+    await page.goto(URL, { waitUntil: 'domcontentloaded' });
+    await waitForGame(page);
+    await dismissTitle(page);
+    await resetBaseline(page);
+
+    report.assertions = await page.evaluate(() => {
+      const zoneIds = gameCore.getZoneIds?.() || [];
+      const zoneId = zoneIds.includes('ivy-cloister') ? 'ivy-cloister' : (zoneIds[0] || gameCore.getFocusedZoneId());
+      gameCore.focusZone(zoneId);
+      for (const flower of [...(gameCore.gameState.flowers || [])]) {
+        gameCore.removeFlowerFromGame(flower, 'r6-audit-reset');
+      }
+      const decayFrames = gameConfig.entities.flower.decayFrames;
+      const currentFrame = gameCore.getCurrentFrame();
+      const spawned = [];
+      const points = [
+        { u: 8, v: 8 },
+        { u: 14, v: 8 },
+        { u: 20, v: 8 },
+        { u: 26, v: 8 }
+      ];
+      for (const point of points) {
+        const screen = renderManager.boardToScreen({ zoneId, u: point.u, v: point.v, h: 0 });
+        const flower = gameCore.spawnFlowerAt(zoneId, screen.x, screen.y, {
+          exactPoint: true,
+          ignoreZoneFlowerCap: true,
+          minDistance: 42,
+          maxAttempts: 12,
+          persistentUntilConsumed: true,
+          resourceOrigin: 'r6-audit-decay'
+        });
+        if (flower) {
+          flower.isImmortal = false;
+          flower.spawnedAtFrame = currentFrame - decayFrames - 1;
+          spawned.push(flower);
+        }
+      }
+      gameCore.flowerManager.update(gameCore.gameState.flowers, [], gameCore.particleSystem);
+      const batchIds = new Set(spawned.map(flower => flower.id));
+      const dirtPiles = gameCore.gameState.flowers.filter(flower => batchIds.has(flower.id) && flower.lifecycleKind === 'dirt-pile');
+      const freshBatchFlowers = gameCore.gameState.flowers.filter(flower => batchIds.has(flower.id) && (flower.lifecycleKind || 'flower') === 'flower');
+
+      const reserveScreen = renderManager.boardToScreen({ zoneId, u: 18, v: 13, h: 0 });
+      const reserveSource = gameCore.spawnFlowerAt(zoneId, reserveScreen.x, reserveScreen.y, {
+        exactPoint: true,
+        ignoreZoneFlowerCap: true,
+        allowFlowerOverlap: true,
+        persistentUntilConsumed: true,
+        resourceOrigin: 'r6-audit-reserve'
+      });
+      let carrier = gameCore.getButterfliesInZone(zoneId)[0] || gameCore.gameState.butterflies[0] || null;
+      if (!carrier) {
+        gameCore.godSpawnButterfly(reserveScreen.x + 20, reserveScreen.y, null);
+        carrier = gameCore.gameState.butterflies[gameCore.gameState.butterflies.length - 1] || null;
+      }
+      if (carrier) {
+        carrier.currentZoneId = zoneId;
+        carrier.x = reserveScreen.x + 10;
+        carrier.y = reserveScreen.y;
+        carrier.lifeSim = carrier.lifeSim || {};
+        carrier.lifeSim.drives = carrier.lifeSim.drives || {};
+        carrier.lifeSim.drives.selfMaintenance = 1;
+      }
+      const reserveFood = gameCore.convertFlowerToReserveFood(reserveSource, carrier, {
+        source: 'r6-audit-pickup'
+      });
+      const reserveId = reserveFood?.id || null;
+      gameCore.gameState.currentFrame += decayFrames + (90 * 60);
+      gameCore.flowerManager.update(gameCore.gameState.flowers, [carrier].filter(Boolean), gameCore.particleSystem);
+      const reserveStillExists = !!gameCore.gameState.flowers.find(flower =>
+        flower.id === reserveId && flower.lifecycleKind === 'reserve-food-ball'
+      );
+
+      const cleanupScreen = renderManager.boardToScreen({ zoneId, u: 10, v: 15, h: 0 });
+      const cleanupSource = gameCore.spawnFlowerAt(zoneId, cleanupScreen.x, cleanupScreen.y, {
+        exactPoint: true,
+        ignoreZoneFlowerCap: true,
+        allowFlowerOverlap: true,
+        persistentUntilConsumed: true,
+        resourceOrigin: 'r6-audit-cleanup'
+      });
+      const pile = gameCore.transformFlowerToDirtPile(cleanupSource, { source: 'r6-audit-cleanup-pile' });
+      if (carrier && pile) {
+        carrier.x = pile.x;
+        carrier.y = pile.y;
+        carrier.currentZoneId = zoneId;
+        carrier.lifeSim.drives.selfMaintenance = 1;
+      }
+      const pileId = pile?.id || null;
+      gameCore.flowerManager.update(gameCore.gameState.flowers, [carrier].filter(Boolean), gameCore.particleSystem);
+      const pileCleaned = !gameCore.gameState.flowers.some(flower => flower.id === pileId);
+
+      const cleanupZoneId = zoneIds.includes('moss-hollow') ? 'moss-hollow' : zoneId;
+      gameCore.focusZone(cleanupZoneId);
+      for (const flower of [...(gameCore.gameState.flowers || [])]) {
+        if (flower.lifecycleKind === 'dirt-pile' || flower.resourceOrigin === 'r10-cleanup-floor') {
+          gameCore.removeFlowerFromGame(flower, 'r10-cleanup-floor-reset');
+        }
+      }
+      while ((gameCore.gameState.butterflies || []).length < 12) {
+        const screen = renderManager.boardToScreen({
+          zoneId: cleanupZoneId,
+          u: 8 + ((gameCore.gameState.butterflies.length % 6) * 3),
+          v: 9 + (Math.floor(gameCore.gameState.butterflies.length / 6) * 4),
+          h: 0
+        });
+        gameCore.godSpawnButterfly(screen.x, screen.y, null);
+      }
+      const cleanupButterflies = gameCore.gameState.butterflies.slice(0, 12);
+      const cleanupPileIds = [];
+      const cleanupPoints = [
+        { u: 8, v: 8 },
+        { u: 12, v: 8 },
+        { u: 16, v: 8 },
+        { u: 20, v: 8 },
+        { u: 8, v: 13 },
+        { u: 12, v: 13 },
+        { u: 16, v: 13 },
+        { u: 20, v: 13 }
+      ];
+      cleanupPoints.forEach((point, index) => {
+        const screen = renderManager.boardToScreen({ zoneId: cleanupZoneId, u: point.u, v: point.v, h: 0 });
+        const flower = gameCore.spawnFlowerAt(cleanupZoneId, screen.x, screen.y, {
+          exactPoint: true,
+          ignoreZoneFlowerCap: true,
+          allowFlowerOverlap: true,
+          persistentUntilConsumed: true,
+          resourceOrigin: 'r10-cleanup-floor'
+        });
+        const dirt = gameCore.transformFlowerToDirtPile(flower, { source: 'r10-cleanup-floor-seed' });
+        if (dirt) cleanupPileIds.push(dirt.id);
+        const butterfly = cleanupButterflies[index % cleanupButterflies.length];
+        if (butterfly && dirt) {
+          butterfly.currentZoneId = cleanupZoneId;
+          butterfly.lifeSim.lifecycle.currentZoneId = cleanupZoneId;
+          butterfly.lifeSim.drives.selfMaintenance = index % 2 === 0 ? 0.92 : 0.64;
+          butterfly.lifeSim.drives.caregiving = index % 2 === 1 ? 0.88 : 0.5;
+          butterfly.x = dirt.x;
+          butterfly.y = dirt.y;
+          butterfly.boardPos = { ...dirt.boardPos };
+          butterfly.syncDebugGridPos?.();
+        }
+      });
+      const affordanceBefore = cleanupButterflies
+        .map(butterfly => butterfly?.lifeSim?.objectAwareness?.currentAffordance || null)
+        .filter(Boolean);
+      for (let frame = 0; frame < 3600; frame += 1) {
+        if (frame % 30 === 0) {
+          const remaining = gameCore.gameState.flowers.filter(flower => cleanupPileIds.includes(flower.id));
+          remaining.forEach((pile, index) => {
+            const butterfly = cleanupButterflies[index % cleanupButterflies.length];
+            if (!butterfly) return;
+            butterfly.currentZoneId = cleanupZoneId;
+            butterfly.x = pile.x;
+            butterfly.y = pile.y;
+            butterfly.boardPos = { ...pile.boardPos };
+            butterfly.syncDebugGridPos?.();
+          });
+        }
+        gameCore.update();
+        if (!gameCore.gameState.flowers.some(flower => cleanupPileIds.includes(flower.id))) break;
+      }
+      const remainingCleanupPiles = gameCore.gameState.flowers.filter(flower => cleanupPileIds.includes(flower.id));
+      const affordanceAfter = cleanupButterflies
+        .map(butterfly => butterfly?.lifeSim?.objectAwareness?.currentAffordance || null)
+        .filter(Boolean);
+      const cleanupFloor = {
+        seed: 9090,
+        zoneId: cleanupZoneId,
+        seeded: cleanupPileIds.length,
+        cleaned: cleanupPileIds.length - remainingCleanupPiles.length,
+        remaining: remainingCleanupPiles.length,
+        affordanceTrace: [...new Set([...affordanceBefore, ...affordanceAfter])],
+        pass: cleanupPileIds.length === 8 && (cleanupPileIds.length - remainingCleanupPiles.length) >= 6
+      };
+
+      objectSystem?.syncEntityProfile?.(reserveFood);
+      for (const flower of gameCore.gameState.flowers) {
+        objectSystem?.syncEntityProfile?.(flower);
+      }
+      return {
+        zoneId,
+        decay: {
+          spawned: spawned.length,
+          dirtPiles: dirtPiles.length,
+          freshBatchFlowers: freshBatchFlowers.length,
+          decayFrames
+        },
+        reserve: {
+          reserveId,
+          reserveStillExists,
+          subtype: reserveFood?.objectProfile?.subtype || null,
+          resourceTags: reserveFood?.objectProfile?.resourceTags || []
+        },
+        cleanup: {
+          pileId,
+          pileCleaned,
+          carrierId: carrier?.id || null,
+          carrierAffordance: carrier?.lifeSim?.objectAwareness?.currentAffordance || null
+        },
+        cleanupFloor,
+        totals: {
+          flowers: gameCore.gameState.flowers.length,
+          dirtPiles: gameCore.gameState.flowers.filter(flower => flower.lifecycleKind === 'dirt-pile').length,
+          reserveFoodBalls: gameCore.gameState.flowers.filter(flower => flower.lifecycleKind === 'reserve-food-ball').length
+        }
+      };
+    });
+
+    report.screenshot = path.join(outputDir, '01-flower-lifecycle-proof.png');
+    await page.screenshot({ path: report.screenshot, fullPage: true });
+
+    const assertions = report.assertions || {};
+    report.overall = (
+      assertions.decay?.spawned === 4
+      && assertions.decay?.dirtPiles === 4
+      && assertions.decay?.freshBatchFlowers === 0
+      && assertions.reserve?.reserveStillExists === true
+      && assertions.reserve?.subtype === 'reserve-food-ball'
+      && assertions.cleanup?.pileCleaned === true
+      && assertions.cleanupFloor?.pass === true
+      && report.pageErrors.length === 0
+      && report.consoleErrors.length === 0
+    ) ? 'pass' : 'fail';
+  } catch (error) {
+    report.overall = 'error';
+    report.error = String(error?.stack || error);
+  } finally {
+    if (context) await context.close().catch(() => {});
+    if (browser) await browser.close().catch(() => {});
+    report.finishedAt = new Date().toISOString();
+    const reportPath = path.join(outputDir, 'report.json');
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
+    console.log(JSON.stringify({ reportPath, overall: report.overall, assertions: report.assertions, screenshot: report.screenshot }, null, 2));
+    if (report.overall !== 'pass') {
+      process.exitCode = 1;
+    }
+  }
+}
+
+run().catch(error => {
+  console.error(error);
+  process.exitCode = 1;
+});

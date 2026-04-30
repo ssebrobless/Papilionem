@@ -389,14 +389,14 @@ async function main() {
         return state.mlRuntime?.modelVersionId === 'm4-garden-policy-v1' &&
           state.mlRuntime?.featureSchemaVersion === 'm4-feature-schema-v1' &&
           state.mlRuntime?.traceSchemaVersion === 'm4-trace-schema-v1' &&
-          state.mlRuntime?.featureContract?.groupCount === 14 &&
-        state.mlRuntime?.featureContract?.flatFeatureCount === 98 &&
+          state.mlRuntime?.featureContract?.groupCount === 15 &&
+        state.mlRuntime?.featureContract?.flatFeatureCount === 106 &&
         state.mlRuntime?.featureContract?.vectorLength === 124 &&
           state.mlRuntime?.performanceBudget?.focusedGardenInferenceMs === 3.5 &&
           state.mlRuntime?.performanceBudget?.battleDecisionMs === 0.75 &&
           !!state.mlRuntime?.performanceProfile &&
-          state.mlSummary?.featureTrace?.groupCount === 14 &&
-        state.mlSummary?.featureTrace?.flatFeatureCount === 98 &&
+          state.mlSummary?.featureTrace?.groupCount === 15 &&
+        state.mlSummary?.featureTrace?.flatFeatureCount === 106 &&
         state.mlSummary?.featureTrace?.vectorLength === 124 &&
           labels.includes('Path') &&
           labels.includes('Why') &&

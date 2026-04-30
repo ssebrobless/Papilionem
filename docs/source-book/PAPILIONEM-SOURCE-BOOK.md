@@ -2,7 +2,7 @@
 
 _Master reference for systems, contracts, plans, and player/developer guidance_
 
-Generated: April 26, 2026 at 5:00 PM
+Generated: April 28, 2026 at 2:10 PM
 
 Refresh command: `node scripts/build-source-book.js`
 
@@ -357,6 +357,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [Program Shape](#program-shape-2)
     - [Non-Negotiables](#non-negotiables-2)
     - [g0-bar Precondition](#g0-bar-precondition)
+    - [Runtime Harness Rule](#runtime-harness-rule)
     - [Exact Ladder](#exact-ladder)
     - [Parallel-Safe Shape](#parallel-safe-shape)
     - [What Not To Reopen](#what-not-to-reopen)
@@ -377,8 +378,60 @@ Refresh command: `node scripts/build-source-book.js`
     - [Recommended Claude Review Conclusion Target](#recommended-claude-review-conclusion-target)
     - [Bottom Line](#bottom-line)
     - [Claude Review Integration](#claude-review-integration)
-  - [Active Playtest Follow-Up Board](#active-playtest-follow-up-board)
+  - [G0-Bar Stage A Signoff](#g0-bar-stage-a-signoff)
     - [Purpose](#purpose-25)
+    - [Session Bar](#session-bar)
+    - [Session Info](#session-info)
+    - [G1 Spatial Acceptance Sweep](#g1-spatial-acceptance-sweep-2)
+    - [G2 Live Building Behavior Proof](#g2-live-building-behavior-proof-2)
+    - [G3 Movement Naturalness Acceptance](#g3-movement-naturalness-acceptance-2)
+    - [Closure Call](#closure-call)
+    - [Final Signoff](#final-signoff)
+  - [G1 Spatial Acceptance Sweep](#g1-spatial-acceptance-sweep-3)
+    - [Purpose](#purpose-26)
+    - [Current Read](#current-read)
+    - [Lived-In Anchor](#lived-in-anchor)
+    - [Local Proof Stack](#local-proof-stack)
+    - [What The Local Sweep Established](#what-the-local-sweep-established)
+    - [What Is Still Open](#what-is-still-open)
+    - [Honest Result](#honest-result)
+  - [G2 Live Building Behavior Proof](#g2-live-building-behavior-proof-3)
+    - [Purpose](#purpose-27)
+    - [Current Read](#current-read-2)
+    - [Proof Lane](#proof-lane)
+    - [What The Passing Lane Shows](#what-the-passing-lane-shows)
+    - [Honest Limits](#honest-limits)
+  - [G3 Movement Naturalness Acceptance](#g3-movement-naturalness-acceptance-3)
+    - [Purpose](#purpose-28)
+    - [Current Read](#current-read-3)
+    - [Local Proof Stack](#local-proof-stack-2)
+    - [What The Current Stack Proves](#what-the-current-stack-proves)
+    - [What Is Still Open](#what-is-still-open-2)
+    - [Honest Result](#honest-result-2)
+  - [Composed Benchmark Harness Workflow](#composed-benchmark-harness-workflow)
+    - [Purpose](#purpose-29)
+    - [Workflow Shape](#workflow-shape)
+    - [Scenario Roles](#scenario-roles)
+    - [Runtime Claim Rule](#runtime-claim-rule)
+    - [Standard Runtime Loop](#standard-runtime-loop)
+    - [Current Harness Notes](#current-harness-notes)
+    - [Profile Rule](#profile-rule)
+    - [What This Does Not Replace](#what-this-does-not-replace)
+  - [Composed Benchmark Baseline 2026-04-27](#composed-benchmark-baseline-2026-04-27)
+    - [Purpose](#purpose-30)
+    - [Packet Shape](#packet-shape)
+    - [Artifact Paths](#artifact-paths)
+    - [Baseline Summary](#baseline-summary)
+    - [Immediate Read](#immediate-read)
+    - [Named Contradiction](#named-contradiction)
+    - [Top Realistic Hotspots](#top-realistic-hotspots)
+    - [Stress-Lane Reads](#stress-lane-reads)
+    - [Current Interpretation](#current-interpretation)
+    - [Retained Reality-Lane Recovery](#retained-reality-lane-recovery)
+    - [Post-56c9a4f Refresh Packet](#post-56c9a4f-refresh-packet)
+    - [Next Diagnosis Order](#next-diagnosis-order)
+  - [Active Playtest Follow-Up Board](#active-playtest-follow-up-board)
+    - [Purpose](#purpose-31)
     - [Current Shape](#current-shape)
     - [Status Key](#status-key-7)
     - [Invariants](#invariants-5)
@@ -387,7 +440,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [Current Focus](#current-focus-2)
     - [Open Items This Board Covers](#open-items-this-board-covers)
   - [Active Runtime Hardening Board](#active-runtime-hardening-board)
-    - [Purpose](#purpose-26)
+    - [Purpose](#purpose-32)
     - [Current Shape](#current-shape-2)
     - [Status Key](#status-key-8)
     - [Invariants](#invariants-6)
@@ -397,7 +450,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [Current Focus](#current-focus-3)
     - [Open Items This Board Covers](#open-items-this-board-covers-2)
   - [Active Visual-First Runtime Board](#active-visual-first-runtime-board)
-    - [Purpose](#purpose-27)
+    - [Purpose](#purpose-33)
     - [Current Honest Block](#current-honest-block)
     - [Status Key](#status-key-9)
     - [Non-Negotiables](#non-negotiables-3)
@@ -410,9 +463,12 @@ Refresh command: `node scripts/build-source-book.js`
     - [Latest V6 Note](#latest-v6-note)
     - [Latest V7 Note](#latest-v7-note)
     - [Latest V8a Note](#latest-v8a-note)
+    - [Latest Composed Harness Note](#latest-composed-harness-note)
+    - [Latest Single-Zone-200 Note](#latest-single-zone-200-note)
+    - [Latest Harness Accounting Note](#latest-harness-accounting-note)
     - [Latest V3 Note](#latest-v3-note)
   - [Public-Share Readiness Roadmap](#public-share-readiness-roadmap)
-    - [Purpose](#purpose-28)
+    - [Purpose](#purpose-34)
     - [Program Shape](#program-shape-3)
     - [Release Levels](#release-levels)
     - [R1 - Startup / Package Sanity](#r1-startup-package-sanity)
@@ -421,7 +477,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [R4 - Feedback Triage + Readability Hardening](#r4-feedback-triage-readability-hardening)
     - [R5 - Public Alpha Freeze](#r5-public-alpha-freeze)
   - [Playtest Follow-Up Roadmap](#playtest-follow-up-roadmap)
-    - [Purpose](#purpose-29)
+    - [Purpose](#purpose-35)
     - [Program Shape](#program-shape-4)
     - [F1 - Session Capture + Freeze Triage](#f1-session-capture-freeze-triage)
     - [F2 - Freeze / Performance Hardening](#f2-freeze-performance-hardening)
@@ -436,7 +492,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [Exact Implementation Order](#exact-implementation-order-2)
     - [Why This Order](#why-this-order)
   - [Runtime Hardening Roadmap](#runtime-hardening-roadmap)
-    - [Purpose](#purpose-30)
+    - [Purpose](#purpose-36)
     - [Program Shape](#program-shape-5)
     - [H1 - Real-Save Lag Capture + Attribution](#h1-real-save-lag-capture-attribution)
     - [H2 - Render-Pass Slimming](#h2-render-pass-slimming)
@@ -446,7 +502,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [H6 - Outside Retest + Public-Share Handoff](#h6-outside-retest-public-share-handoff)
     - [Exact Implementation Order](#exact-implementation-order-3)
     - [Why This Order](#why-this-order-2)
-    - [Current Read](#current-read)
+    - [Current Read](#current-read-4)
   - [Visual-First Runtime Optimization Plan](#visual-first-runtime-optimization-plan)
     - [Hard Guardrails](#hard-guardrails)
     - [Why The Game Is Currently Demanding](#why-the-game-is-currently-demanding)
@@ -470,7 +526,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [Open Questions (to resolve during the review gate)](#open-questions-to-resolve-during-the-review-gate)
     - [Recommended Next Step](#recommended-next-step-2)
   - [Baseline Ledger](#baseline-ledger)
-    - [Purpose](#purpose-31)
+    - [Purpose](#purpose-37)
     - [Current Status](#current-status)
     - [Required Inputs](#required-inputs)
     - [Closure Conditions](#closure-conditions)
@@ -478,7 +534,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [V7 Restoration Proof](#v7-restoration-proof)
     - [Notes](#notes)
   - [V0.5 Free-Wins Audit](#v05-free-wins-audit)
-    - [Purpose](#purpose-32)
+    - [Purpose](#purpose-38)
     - [Live Runtime State](#live-runtime-state)
     - [Evidence](#evidence)
     - [Honest Read](#honest-read)
@@ -514,35 +570,35 @@ Refresh command: `node scripts/build-source-book.js`
     - [Honest Read](#honest-read-3)
     - [Carry Forward](#carry-forward)
   - [V4 Sim Cadence Audit](#v4-sim-cadence-audit)
-    - [Purpose](#purpose-33)
+    - [Purpose](#purpose-39)
     - [Live Runtime Shape](#live-runtime-shape)
     - [Files](#files)
     - [Proof](#proof)
     - [Guardrail Read](#guardrail-read)
     - [Honest Phase State](#honest-phase-state)
   - [V5 Composite Reduction Audit](#v5-composite-reduction-audit)
-    - [Purpose](#purpose-34)
+    - [Purpose](#purpose-40)
     - [Live Runtime Shape](#live-runtime-shape-2)
     - [Files](#files-2)
     - [Proof](#proof-2)
     - [Guardrail Read](#guardrail-read-2)
     - [Honest Phase State](#honest-phase-state-2)
   - [V6 Worker Offload Audit](#v6-worker-offload-audit)
-    - [Purpose](#purpose-35)
+    - [Purpose](#purpose-41)
     - [Live Runtime Shape](#live-runtime-shape-3)
     - [Files](#files-3)
     - [Proof](#proof-3)
     - [Guardrail Read](#guardrail-read-3)
     - [Honest Phase State](#honest-phase-state-3)
   - [V7 Visual Restoration Audit](#v7-visual-restoration-audit)
-    - [Purpose](#purpose-36)
+    - [Purpose](#purpose-42)
     - [Live Runtime Shape](#live-runtime-shape-4)
     - [Files](#files-4)
     - [Proof](#proof-4)
     - [Guardrail Read](#guardrail-read-4)
     - [Honest Phase State](#honest-phase-state-4)
   - [Active Spatial Unification Board](#active-spatial-unification-board)
-    - [Purpose](#purpose-37)
+    - [Purpose](#purpose-43)
     - [Non-Negotiables](#non-negotiables-4)
     - [Current Diagnosis](#current-diagnosis)
     - [Status Key](#status-key-10)
@@ -552,43 +608,43 @@ Refresh command: `node scripts/build-source-book.js`
     - [Current Focus](#current-focus-5)
     - [Relationship To Current Runtime Work](#relationship-to-current-runtime-work)
   - [Spatial Unit Contract](#spatial-unit-contract)
-    - [Purpose](#purpose-38)
+    - [Purpose](#purpose-44)
     - [Canonical Rule](#canonical-rule)
     - [Live Mapping](#live-mapping)
     - [Required Boundary](#required-boundary)
     - [Transitional Mismatch Ledger](#transitional-mismatch-ledger)
     - [Phase Gate](#phase-gate)
   - [Spatial Boundary Expansion Audit](#spatial-boundary-expansion-audit)
-    - [Purpose](#purpose-39)
+    - [Purpose](#purpose-45)
     - [Runtime Closure](#runtime-closure)
     - [Proof Snapshot](#proof-snapshot)
     - [Honest Boundary](#honest-boundary)
   - [Doorway Corridor Alignment Audit](#doorway-corridor-alignment-audit)
-    - [Purpose](#purpose-40)
+    - [Purpose](#purpose-46)
     - [Runtime Closure](#runtime-closure-2)
     - [Proof Snapshot](#proof-snapshot-2)
     - [Honest Boundary](#honest-boundary-2)
   - [Entity Footprint Unification Audit](#entity-footprint-unification-audit)
-    - [Purpose](#purpose-41)
+    - [Purpose](#purpose-47)
     - [Runtime Closure](#runtime-closure-3)
     - [Proof Snapshot](#proof-snapshot-3)
     - [Honest Boundary](#honest-boundary-3)
   - [Block Placement + Support Unification Audit](#block-placement-support-unification-audit)
-    - [Purpose](#purpose-42)
+    - [Purpose](#purpose-48)
     - [What Landed](#what-landed-3)
     - [Spatial Truth Closed In `s5`](#spatial-truth-closed-in-s5)
     - [Proof](#proof-5)
     - [Honest Boundary](#honest-boundary-4)
     - [Next Move](#next-move)
   - [Shared Interaction-Space Reconciliation Audit](#shared-interaction-space-reconciliation-audit)
-    - [Purpose](#purpose-43)
+    - [Purpose](#purpose-49)
     - [What Landed](#what-landed-4)
     - [Spatial Truth Closed In `s6`](#spatial-truth-closed-in-s6)
     - [Proof](#proof-6)
     - [Honest Boundary](#honest-boundary-5)
     - [Next Move](#next-move-2)
   - [Spatial Save Migration Audit](#spatial-save-migration-audit)
-    - [Purpose](#purpose-44)
+    - [Purpose](#purpose-50)
     - [What Landed](#what-landed-5)
     - [Proof Shape](#proof-shape)
     - [Evidence](#evidence-4)
@@ -605,7 +661,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [Exact Order](#exact-order-6)
     - [Current Next Move](#current-next-move)
   - [Active Social-Cognition Board](#active-social-cognition-board)
-    - [Purpose](#purpose-45)
+    - [Purpose](#purpose-51)
     - [Problem Shape](#problem-shape)
     - [Non-Negotiables](#non-negotiables-5)
     - [Ownership Map](#ownership-map-5)
@@ -625,7 +681,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [Exact Order](#exact-order-8)
     - [Current Next Move](#current-next-move-2)
   - [Social Truth Audit](#social-truth-audit)
-    - [Purpose](#purpose-46)
+    - [Purpose](#purpose-52)
     - [Primary Evidence](#primary-evidence)
     - [Manual Playtest Snapshot](#manual-playtest-snapshot)
     - [Most Repeated Phrase Shapes](#most-repeated-phrase-shapes)
@@ -634,13 +690,13 @@ Refresh command: `node scripts/build-source-book.js`
     - [`n0` Outcome](#n0-outcome)
     - [Immediate Requirements For `n0.5`](#immediate-requirements-for-n05)
   - [Social Measurement Harness](#social-measurement-harness)
-    - [Purpose](#purpose-47)
+    - [Purpose](#purpose-53)
     - [Harness Outputs](#harness-outputs)
     - [Current Evidence](#current-evidence-2)
     - [Owner Boundaries](#owner-boundaries)
     - [Phase Gate](#phase-gate-2)
   - [Social Family Lock](#social-family-lock)
-    - [Purpose](#purpose-48)
+    - [Purpose](#purpose-54)
     - [Canonical Family Map](#canonical-family-map)
     - [Owner Map](#owner-map)
     - [Durable vs Derived Rule](#durable-vs-derived-rule)
@@ -648,33 +704,33 @@ Refresh command: `node scripts/build-source-book.js`
     - [Cadence Handshake](#cadence-handshake)
     - [Phase Gate](#phase-gate-3)
   - [Social Motive Rebalance Audit](#social-motive-rebalance-audit)
-    - [Purpose](#purpose-49)
+    - [Purpose](#purpose-55)
     - [What Landed](#what-landed-6)
     - [Proof Artifacts](#proof-artifacts)
     - [n2 Exit Shape](#n2-exit-shape)
     - [Remaining Gap](#remaining-gap)
     - [Status](#status)
   - [Pair Chemistry Texture Audit](#pair-chemistry-texture-audit)
-    - [Purpose](#purpose-50)
+    - [Purpose](#purpose-56)
     - [What Landed](#what-landed-7)
     - [Proof Artifacts](#proof-artifacts-2)
     - [n3 Exit Shape](#n3-exit-shape)
     - [Remaining Gap](#remaining-gap-2)
     - [Status](#status-2)
   - [Butterfly Society Group Tone Audit](#butterfly-society-group-tone-audit)
-    - [Purpose](#purpose-51)
+    - [Purpose](#purpose-57)
     - [Phase Shape](#phase-shape)
     - [Live Runtime Truth](#live-runtime-truth)
     - [Proof Snapshot](#proof-snapshot-4)
     - [Honest Boundaries](#honest-boundaries)
   - [Dialogue-Behavior Follow-Through Audit](#dialogue-behavior-follow-through-audit)
-    - [Purpose](#purpose-52)
+    - [Purpose](#purpose-58)
     - [Phase Shape](#phase-shape-2)
     - [Live Runtime Truth](#live-runtime-truth-2)
     - [Proof Snapshot](#proof-snapshot-5)
     - [Honest Boundaries](#honest-boundaries-2)
   - [Neural-Social Scoring Audit](#neural-social-scoring-audit)
-    - [Purpose](#purpose-53)
+    - [Purpose](#purpose-59)
     - [Phase Shape](#phase-shape-3)
     - [Live Runtime Truth](#live-runtime-truth-3)
     - [Proof Snapshot](#proof-snapshot-6)
@@ -684,13 +740,13 @@ Refresh command: `node scripts/build-source-book.js`
     - [Proof](#proof-7)
     - [Closure](#closure-2)
   - [Social Save Continuity Audit](#social-save-continuity-audit)
-    - [Purpose](#purpose-54)
+    - [Purpose](#purpose-60)
     - [Runtime Closure](#runtime-closure-4)
     - [Proof Snapshot](#proof-snapshot-7)
     - [Regression Check](#regression-check)
     - [Honest Boundary](#honest-boundary-6)
   - [External Playtest Matrix](#external-playtest-matrix)
-    - [Purpose](#purpose-55)
+    - [Purpose](#purpose-61)
     - [Status Key](#status-key-12)
     - [Current Baseline](#current-baseline)
     - [Intake Path](#intake-path)
@@ -700,24 +756,24 @@ Refresh command: `node scripts/build-source-book.js`
     - [Failure Buckets](#failure-buckets)
     - [Promotion Rule](#promotion-rule)
   - [Playtest Triage Log](#playtest-triage-log)
-    - [Purpose](#purpose-56)
+    - [Purpose](#purpose-62)
     - [Intake Rule](#intake-rule)
     - [Status Key](#status-key-13)
     - [Entry Template](#entry-template)
     - [Active Queue](#active-queue)
   - [Implementation Parity Audit](#implementation-parity-audit)
-    - [Purpose](#purpose-57)
+    - [Purpose](#purpose-63)
     - [Current Summary](#current-summary)
     - [System Audit](#system-audit)
     - [Active Gap Order](#active-gap-order)
     - [Closure Baseline](#closure-baseline)
   - [Player-Facing Polish Audit](#player-facing-polish-audit)
-    - [Purpose](#purpose-58)
+    - [Purpose](#purpose-64)
     - [Current Snapshot](#current-snapshot-2)
     - [Audit Detail](#audit-detail)
     - [Active Gap Order](#active-gap-order-2)
   - [Intent and Exclusions Ledger](#intent-and-exclusions-ledger)
-    - [Purpose](#purpose-59)
+    - [Purpose](#purpose-65)
     - [Current Classification Shape](#current-classification-shape)
     - [Live Now](#live-now)
     - [Deferred / Later](#deferred-later)
@@ -747,7 +803,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [Final Audit Closure](#final-audit-closure)
     - [Phase Advancement Rule](#phase-advancement-rule)
   - [Source-Book De-Staling Rules](#source-book-de-staling-rules)
-    - [Purpose](#purpose-60)
+    - [Purpose](#purpose-66)
     - [Core Shape](#core-shape)
     - [Authority Order](#authority-order)
     - [What Counts As Stale](#what-counts-as-stale)
@@ -766,7 +822,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [Entry Template](#entry-template-2)
     - [Active Entries](#active-entries)
   - [Current Spatial Truth](#current-spatial-truth)
-    - [Purpose](#purpose-61)
+    - [Purpose](#purpose-67)
     - [Live Runtime Shape](#live-runtime-shape-5)
     - [Hard Truths](#hard-truths)
     - [What Is Live Right Now](#what-is-live-right-now)
@@ -778,7 +834,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [`s1` Contract Lock](#s1-contract-lock)
     - [Implementation Rule](#implementation-rule)
   - [Later 3D Physics Implementation Plan](#later-3d-physics-implementation-plan)
-    - [Purpose](#purpose-62)
+    - [Purpose](#purpose-68)
     - [What 3D Means In This Game](#what-3d-means-in-this-game)
     - [Zone Border Invariant](#zone-border-invariant)
     - [Current Grounded Runtime Truth](#current-grounded-runtime-truth)
@@ -803,7 +859,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [Exact Next Implementation Order](#exact-next-implementation-order)
     - [Definition Of Done](#definition-of-done-6)
   - [Closure Audit Matrix](#closure-audit-matrix)
-    - [Purpose](#purpose-63)
+    - [Purpose](#purpose-69)
     - [Shape](#shape-5)
     - [Contract Anchors](#contract-anchors)
     - [Matrix](#matrix)
@@ -836,7 +892,7 @@ Refresh command: `node scripts/build-source-book.js`
     - [7. Save / Load / Audit Workflow](#7-save-load-audit-workflow)
     - [8. Battle Snapshot Separation](#8-battle-snapshot-separation)
   - [Diagram Asset Registry](#diagram-asset-registry)
-    - [Purpose](#purpose-64)
+    - [Purpose](#purpose-70)
     - [Save Convention](#save-convention)
     - [Review Standard](#review-standard)
     - [Canonical Sources](#canonical-sources)
@@ -951,6 +1007,12 @@ This source book is now the primary reading copy for the project.
 - [CURRENT-STATE-GAP-ASSESSMENT.md](./CURRENT-STATE-GAP-ASSESSMENT.md)
 - [GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md](./GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md)
 - [GOAL-ALIGNMENT-REVIEW-PACKET.md](./GOAL-ALIGNMENT-REVIEW-PACKET.md)
+- [G0-BAR-STAGE-A-SIGNOFF.md](./G0-BAR-STAGE-A-SIGNOFF.md)
+- [G1-SPATIAL-ACCEPTANCE-SWEEP.md](./G1-SPATIAL-ACCEPTANCE-SWEEP.md)
+- [G2-LIVE-BUILDING-BEHAVIOR-PROOF.md](./G2-LIVE-BUILDING-BEHAVIOR-PROOF.md)
+- [G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md](./G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md)
+- [COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md](./COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md)
+- [COMPOSED-BENCHMARK-BASELINE-2026-04-27.md](./COMPOSED-BENCHMARK-BASELINE-2026-04-27.md)
 
 The current implementation board is frozen clean after `I1` through `I5`.
 Use the matrix for the live hold/deferred picture, and only reopen a new
@@ -965,6 +1027,26 @@ tracks, and which older boards are only historical context.
 The active completion board is now the one-page closure ladder that says what
 still has to land, in what exact order, before the active runtime, spatial,
 social, and public-share tracks can all be called complete together.
+The `g0-bar` Stage A signoff sheet now packages the human acceptance closure
+for `g1` through `g3`, so the remaining blocker is a concrete 20-minute
+review artifact rather than an abstract "someone should sign this off" step.
+The `g1` spatial acceptance sweep companion now records the local lived-in
+proof stack and the remaining human-signoff/mixed-stage thinness against the
+new goal-alignment acceptance bar.
+The `g2` live building behavior proof now records the first passing lived-in
+builder-pocket lane, showing repeated choose/carry/place/revisit behavior
+without claiming that uncontrolled free-play colony-building is fully closed.
+The `g3` movement naturalness companion now records that the current local
+movement/dispersal stack is mechanically green, while the remaining closure
+item is a human free-play grace/readability signoff rather than a named route
+bug.
+The composed benchmark harness workflow now defines how runtime work should use
+the new deterministic single-zone/block/flower scenarios instead of relying on
+synthetic `butterflies-N` sweeps as the main runtime truth.
+The composed benchmark baseline packet now freezes the first official runtime
+reality packet from those new scenarios, including the named realistic-lane
+hotspots and the current contradiction between the `single-zone-122` validation
+note and the current branch tip.
 The external playtest matrix now defines which environments are actually
 validated versus merely prepared.
 The triage log now acts as the intake landing spot for real outside-tester
@@ -10812,7 +10894,11 @@ goal-alignment companion set
 ├─ GAME-SUCCESS-CRITERIA.md
 ├─ CURRENT-STATE-GAP-ASSESSMENT.md
 ├─ GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md
-└─ GOAL-ALIGNMENT-REVIEW-PACKET.md
+├─ GOAL-ALIGNMENT-REVIEW-PACKET.md
+├─ G0-BAR-STAGE-A-SIGNOFF.md
+├─ G1-SPATIAL-ACCEPTANCE-SWEEP.md
+├─ G2-LIVE-BUILDING-BEHAVIOR-PROOF.md
+└─ G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md
 ```
 
 Use these when the question is not "which historical phase landed?" but:
@@ -10821,6 +10907,27 @@ Use these when the question is not "which historical phase landed?" but:
 what does success actually mean now?
 what still does not line up with that target?
 what should reopen next, if anything?
+```
+
+Additional runtime benchmark companions:
+
+- [COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md](./COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md)
+- [COMPOSED-BENCHMARK-BASELINE-2026-04-27.md](./COMPOSED-BENCHMARK-BASELINE-2026-04-27.md)
+
+Latest harness-accounting correction:
+
+```text
+2026-04-28 benchmark telemetry correction
+|- composite total now includes direct-flower present cost
+|- top-contributor attribution now ranks timing keys only
+`- do not treat counters, widths, heights, or ratios as millisecond costs
+```
+
+Use these when the question is:
+
+```text
+what does the runtime really cost under realistic single-zone play?
+which lane should own the next hotspot diagnosis?
 ```
 
 ### Shared Contracts
@@ -10971,10 +11078,40 @@ do not lose this distinction
 Updated by the `2026-04-26` Claude Review.
 
 ```text
+runtime benchmark truth
+|- composed harness is now the active runtime reality reference
+|- retained local recovery stack has materially repaired the realistic lane
+|  |- clustered `single-zone-122` -> 127.77 / 45.91 / 172.5 -> 52.18 / 43.53 / 94.9
+|  `- scattered `single-zone-122` -> 52.43 / 50.20 / 102.8 on `56c9a4f`, then 43.77 / 44.98 / 89.4 after the structure-query cut, then 40.84 / 42.69 / 88.4 after the dense-flower gate, then 36.62 / 43.15 / 81.1 after the communication/trace-cache cut, then 39.27 / 43.54 / 81.3 after the structure runtime-cache hold
+|- retained dense-flower gate has materially repaired the flower-heavy lane
+|  `- `flower-feed-storm` -> 45.68 / 73.37 / 117.5 -> 32.54 / 63.95 / 98.2 -> 33.31 / 63.55 / 98.9 hold
+|- retained communication-maintenance + decision-trace cache has materially repaired the stress lane
+|  |- `single-zone-200` -> 96.94 / 56.00 / 153.1 -> 86.37 / 55.22 / 141.5 retained
+|  `- social guardrails -> r6 pass / f5-f6 pass
+|- retained structure-system frame-local runtime caches have materially repaired the next stress-lane slice
+|  |- `single-zone-200` -> 86.37 / 55.22 / 141.5 -> 81.39 / 55.82 / 135.3 retained
+|  `- spatial/build guardrails -> a4 pass / b4 pass
+|- retained pressure-gated crowd/cursor checks + critical communication cadence have repaired the next smaller stress-lane slice
+|  |- `single-zone-200` -> 81.39 / 55.82 / 135.3 -> 80.87 / 54.92 / 134.0 retained
+|  |- `single-zone-122` -> 34.71 / 41.86 / 74.7 hold
+|  |- `flower-feed-storm` -> 29.66 / 61.31 / 88.7 hold
+|  |- `block-carry-active` -> 30.47 / 25.78 / 55.1 hold
+|  `- guardrails -> r6 pass / f5-f6 pass / r1 pass
+`- next composed benchmark order
+   |- keep fixing `single-zone-200`, now with composite / drawImage first
+   |- keep `flower-feed-storm` green as a repaired watch lane
+   |- keep `block-carry-active` green as a repaired watch lane
+   `- only reopen `single-zone-122` if we want extra margin beyond the old `83ms p50` note
+```
+
+```text
 start now (Stage A acceptance closure)
 ├─ g1 spatial acceptance sweep
+│  └─ local companion proof is green; human g0-bar signoff still pending
 ├─ g2 live building behavior proof
+│  └─ first guided lived-in proof lane is green; formal close still pending
 └─ g3 movement naturalness acceptance
+   └─ local companion proof is now green; human g0-bar signoff still pending
 
 run in parallel with Stage A (prep-only early-start)
 ├─ g4-observation: begin ambient social observation now
@@ -10985,6 +11122,7 @@ run in parallel with Stage A (prep-only early-start)
 precondition (one-time)
 └─ g0-bar: adopt the acceptance-bar definition in
    GAME-SUCCESS-CRITERIA.md before closing any of g1-g5
+   └─ Stage A human signoff sheet now lives in G0-BAR-STAGE-A-SIGNOFF.md
 ```
 
 Why early-start g4 and g5:
@@ -10996,6 +11134,17 @@ Why early-start g4 and g5:
 - the parallel-safe shape in
   [GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md](./GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md#parallel-safe-shape)
   already permits this; this section surfaces it as the active next move
+
+Active runtime benchmark method:
+
+```text
+runtime benchmark method
+|- reality baseline -> single-zone-122
+|- stress baseline  -> single-zone-200
+|- block lane       -> block-carry-active
+|- flower lane      -> flower-feed-storm
+`- profile rule     -> profile the heaviest failing composed lane
+```
 
 ### Recommended Next Review Hand-Off
 
@@ -11668,7 +11817,7 @@ What still does not line up fully:
 
 Concrete blockers:
 
-- no dedicated lived-in manual acceptance sweep for all visible pseudo-3D cases
+- local companion proof now exists in [G1-SPATIAL-ACCEPTANCE-SWEEP.md](./G1-SPATIAL-ACCEPTANCE-SWEEP.md), but no human `g0-bar` signoff is recorded yet
 - no explicit acceptance lane for eggs/cocoons/caterpillars plus carry/cover in one longer free-play review
 
 Type of remaining work:
@@ -11705,8 +11854,8 @@ What still does not line up fully:
 
 Concrete blockers:
 
-- no "live colony building" proof lane
-- no longer-form manual review of carry -> relocate flower -> place -> stack -> revisit structure in ordinary play
+- the first guided lived-in proof lane now exists in [G2-LIVE-BUILDING-BEHAVIOR-PROOF.md](./G2-LIVE-BUILDING-BEHAVIOR-PROOF.md), but uncontrolled free-play acceptance is still missing
+- no longer-form manual review of carry -> place -> revisit structure in ordinary play with broader colony-shaped richness judgment
 
 Type of remaining work:
 
@@ -11742,7 +11891,7 @@ What still does not line up fully:
 
 Concrete blockers:
 
-- no explicit "does this still look graceful in ordinary play?" acceptance gate
+- local companion proof now exists in [G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md](./G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md), but no human `g0-bar` grace/readability signoff is recorded yet
 - no recent manual capture review focused only on naturalness of movement style across calm, social, scared, and carrying states
 
 Type of remaining work:
@@ -11909,6 +12058,43 @@ What still does not line up fully:
   the local proof is frozen live
 - a6 dispersal logs 56 identical Canvas2D `willReadFrequently` warnings
   per run; treating that volume as pure tooling noise is generous
+- the refreshed composed benchmark packet on `56c9a4f` is healthier in the
+  reality lane but still exposes real local implementation gaps:
+  - scattered `single-zone-122` first landed at `102.8ms p50` / `52.43ms avg update`
+  - after the internal structure-query no-clone cut, it now lands at
+    `89.4ms p50` / `43.77ms avg update`, which is much closer to the scenario
+    note's `83ms p50`
+  - the dense-flower direct-present gate then moved scattered `single-zone-122`
+    again to `88.4ms p50` / `40.84ms avg update`
+  - the communication-maintenance + decision-trace cache follow-up then moved
+    scattered `single-zone-122` again to `81.1ms p50` / `36.62ms avg update`
+  - the follow-up structure-system frame-local runtime caches then held
+    scattered `single-zone-122` at `81.3ms p50` / `39.27ms avg update`
+  - `single-zone-200` also dropped again to `86.37ms avg update`, then
+    `81.39ms avg update`, so the old physics-sync cliff is no longer the main
+    story there
+  - pressure-gated crowd/cursor checks plus a critical communication cadence
+    follow-up then moved `single-zone-200` again to `80.87ms avg update` /
+    `134.0ms p50`
+  - the same retained follow-up moved scattered `single-zone-122` to
+    `34.71ms avg update` / `74.7ms p50`, leaving it well below the old
+    `83ms p50` note
+  - `block-carry-active` was the strongest local blocker, but it is now
+    materially repaired at `30.47ms avg update` / `73.1ms p95`
+  - `flower-feed-storm` was the remaining stronger local hotspot, but the new
+    dense-flower gate repairs it to `63.95ms avg render` / `98.2ms p50`, and it
+    now holds at `61.31ms avg render` / `88.7ms p50` after the communication/runtime cuts
+  - the new `physics.*` stage fields proved that the old carry-lane cliff was
+    driven by clone-heavy structure query work, not an irreducible opaque
+    physics budget
+  - the new frame-local structure caches prove that repeated same-frame
+    collision and spatial-context queries were still a real stress-lane tax
+  - follow-up social guardrails still pass after the communication maintenance
+    cut (`r6` and `f5/f6`)
+  - follow-up spatial/build guardrails also still pass after the structure
+    runtime-cache cut (`a4` and `b4`)
+  - follow-up social and movement guardrails still pass after the pressure-gated
+    crowd/cursor and communication-cadence cut (`r6`, `f5/f6`, and `r1`)
 
 Concrete blockers:
 
@@ -11918,14 +12104,24 @@ Concrete blockers:
 - full-stack migrated-save runtime proof is still open
 - warning-noise cleanup is not yet fully closed
 - ML cadence cost is not yet justified (gates on g6)
+- the composed benchmark packet now points to a live runtime implementation gap
+  in the remaining composed lanes:
+  - `single-zone-200` -> smaller but still real above-real-play density stress lane,
+    now most visibly led by composite / drawImage tail plus residual butterfly update
+  - `flower-feed-storm` -> repaired watch lane that should stay green during
+    later stress-lane work
+  - `block-carry-active` -> repaired watch lane that should stay green during
+    later stress-lane work
+  - `single-zone-122` -> now locally below the old `83ms p50` note, so it is no
+    longer an active blocker unless we choose to chase extra margin
 
 Type of remaining work:
 
 ```text
-primary: proof gap
-secondary: outside-evidence gap
-watch-item: implementation gap if long-session rerun stays critical
-not a local runtime-emergency gap, but stronger than gate-pass evidence
+primary: implementation gap
+secondary: proof gap
+tertiary: outside-evidence gap
+not a save/ownership emergency gap, but stronger than gate-pass runtime evidence
 ```
 
 #### 8. Persistence / Continuity
@@ -11968,11 +12164,15 @@ not a current migration-contract gap
 
 ```text
 top remaining mismatches
+├─ runtime stress-lane cost is still above the new composed target
+│  ├─ single-zone-200 composite / drawImage tail
+│  ├─ single-zone-200 residual butterfly-update pressure
+│  └─ residual structure-query misses after the new frame-local caches
 ├─ social/emotional breadth is real but not yet acceptance-closed
 ├─ dialogue naturalness and ambient variety are still under-proven
 ├─ autonomous building behavior is under-proven compared with placement correctness
 ├─ ML value is proven in scenarios more than in long free play
-└─ runtime/persistence still need v8b + outside-session closure
+└─ persistence/public-share still need v8b + outside-session closure
 ```
 
 ### What This Means
@@ -11986,11 +12186,12 @@ good news
 
 honest next step
 └─ stop treating every remaining problem like a core architecture bug
-   and focus on:
+   and split the work cleanly into:
    1. acceptance proof
    2. social/dialect breadth
    3. behavior richness
-   4. final outside/full-stack closure
+   4. composed-lane runtime hotspot diagnosis
+   5. final outside/full-stack closure
 ```
 
 ## Goal-Alignment Implementation Plan
@@ -12045,6 +12246,24 @@ g0-bar
 Without `g0-bar`, "lived-in" closure is subjective and prone to
 reviewer-fatigue drift.
 
+### Runtime Harness Rule
+
+For any runtime-facing change or runtime-facing closure claim, the composed
+benchmark harness is now the local proof owner.
+
+```text
+runtime benchmark routing
+|- reality baseline    -> single-zone-122
+|- stress baseline     -> single-zone-200
+|- block lane          -> block-carry-active
+|- flower lane         -> flower-feed-storm
+|- scaling only        -> butterflies-100 / 200 / 400
+`- deep diagnosis      -> rerun the heaviest failing composed lane with --profile
+```
+
+Synthetic `butterflies-N` sweeps remain useful, but they are no longer the
+primary answer to "did this help the real game?"
+
 ### Exact Ladder
 
 #### `g1 spatial acceptance sweep`
@@ -12079,6 +12298,12 @@ Close when:
 - no visual contradiction appears in the lived-in acceptance sweep
 - or any remaining contradiction is promoted as a named blocker
 
+Current execution note (`2026-04-26`):
+
+- local companion proof is now green in
+  [G1-SPATIAL-ACCEPTANCE-SWEEP.md](./G1-SPATIAL-ACCEPTANCE-SWEEP.md)
+- formal close still waits on one human `g0-bar` lived-in signoff
+
 #### `g2 live building behavior proof`
 
 ```text
@@ -12104,6 +12329,13 @@ Close when:
 - at least one lived-in free-play session shows repeated choose/carry/place/revisit behavior
 - any remaining thinness is promoted as a named richness blocker rather than hidden inside "placement passed"
 
+Current execution note (`2026-04-26`):
+
+- the first guided lived-in proof lane is now green in
+  [G2-LIVE-BUILDING-BEHAVIOR-PROOF.md](./G2-LIVE-BUILDING-BEHAVIOR-PROOF.md)
+- formal close still waits on an uncontrolled free-play acceptance session
+  plus a broader colony-shaped richness read
+
 #### `g3 movement naturalness acceptance`
 
 ```text
@@ -12125,6 +12357,13 @@ Outputs:
 Close when:
 
 - no obvious snap/zoom/route ugliness remains in ordinary play
+
+Current execution note (`2026-04-26`):
+
+- local companion proof is now recorded in
+  [G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md](./G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md)
+- current local read is green on correctness/dispersal, with the remaining
+  open item being one human `g0-bar` free-play signoff
 
 #### `g4 ambient social breadth pass`
 
@@ -13114,6 +13353,1106 @@ Findings are propagated as targeted edits to:
 
 The frozen child boards (`n0-n8`, `s0-s8`, `v0-v8a`) are not reopened.
 
+## G0-Bar Stage A Signoff
+
+_Source: `docs/G0-BAR-STAGE-A-SIGNOFF.md`_
+
+### Purpose
+
+This is the human-review signoff sheet for Stage A goal-alignment closure:
+
+```text
+Stage A
+├─ g1 spatial acceptance sweep
+├─ g2 live building behavior proof
+└─ g3 movement naturalness acceptance
+```
+
+Use this after a real lived-in free-play session.
+
+It exists so Stage A does not stall at:
+
+```text
+"needs human signoff"
+```
+
+without a concrete signoff artifact.
+
+### Session Bar
+
+```text
+g0-bar session requirements
+├─ duration    -> at least 20 continuous minutes
+├─ observer    -> one human reviewer
+├─ entry state -> real lived-in save, not a fresh seed
+└─ closure     -> written signoff against this named rubric
+```
+
+Recommended setup:
+
+- launch with [../PLAYTEST.md](../PLAYTEST.md)
+- use the same lived-in save family referenced by:
+  - [G1-SPATIAL-ACCEPTANCE-SWEEP.md](./G1-SPATIAL-ACCEPTANCE-SWEEP.md)
+  - [G2-LIVE-BUILDING-BEHAVIOR-PROOF.md](./G2-LIVE-BUILDING-BEHAVIOR-PROOF.md)
+  - [G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md](./G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md)
+- if comfortable, run `Start Capture` before play and `Export Capture` after play
+
+### Session Info
+
+```text
+session info
+├─ reviewer            :
+├─ date                :
+├─ branch / build      :
+├─ device / browser    :
+├─ session duration    :
+├─ save used           :
+├─ capture exported    : yes / no
+└─ capture path        :
+```
+
+### G1 Spatial Acceptance Sweep
+
+Rate each item:
+
+- `good`
+- `mixed`
+- `rough`
+
+```text
+g1 rubric
+├─ butterflies read at the correct height/band
+├─ flowers sit/read correctly against the board
+├─ blocks read correctly on ground / connected / stacked states
+├─ eggs read correctly if present
+├─ cocoons read correctly if present
+├─ caterpillars read correctly if present
+├─ carry / cover / overhead states read correctly
+├─ doorway travel matches the visible corridor/path truth
+└─ no obvious pseudo-3D contradiction appeared during ordinary play
+```
+
+Notes:
+
+- strongest contradiction seen:
+- where it happened:
+- repeatable:
+
+### G2 Live Building Behavior Proof
+
+Rate each item:
+
+- `good`
+- `mixed`
+- `rough`
+
+```text
+g2 rubric
+├─ butterflies choose blocks under ordinary motivation
+├─ carry behavior looks intentional, not glitchy
+├─ placement resolves cleanly
+├─ flower conflict resolution reads cleanly when it occurs
+├─ stacking / support results read cleanly
+├─ butterflies revisit or grow an earlier structure pocket
+├─ resulting change feels colony-shaped, not random prop shuffling
+└─ building is readable without opening debug truth
+```
+
+Notes:
+
+- best building moment:
+- weakest / thinnest building moment:
+- did the colony create a readable structural change:
+
+### G3 Movement Naturalness Acceptance
+
+Rate each item:
+
+- `good`
+- `mixed`
+- `rough`
+
+```text
+g3 rubric
+├─ calm wandering feels natural
+├─ social linger / approach feels natural
+├─ doorway travel feels graceful
+├─ carrying movement feels grounded
+├─ threat / scared motion reads clearly
+├─ recovery after pressure reads naturally
+└─ no snap / zoom / route ugliness stood out in ordinary play
+```
+
+Notes:
+
+- best movement moment:
+- ugliest movement moment:
+- did any motion feel like teleport choreography:
+
+### Closure Call
+
+```text
+Stage A closure call
+├─ g1 -> close / hold
+├─ g2 -> close / hold
+├─ g3 -> close / hold
+└─ overall Stage A -> close / hold
+```
+
+If any item is `hold`, name the blocker type:
+
+- `implementation gap`
+- `acceptance gap`
+- `proof gap`
+- `outside-evidence gap`
+
+Blockers:
+
+```text
+1.
+├─ phase / pillar :
+├─ blocker type   :
+├─ what happened  :
+└─ next action    :
+
+2.
+├─ phase / pillar :
+├─ blocker type   :
+├─ what happened  :
+└─ next action    :
+```
+
+### Final Signoff
+
+```text
+final signoff
+├─ reviewer:
+├─ result  : Stage A accepted / Stage A held
+└─ date    :
+```
+
+If accepted, copy the result into:
+
+- [ACTIVE-PLAN-REGISTRY.md](./ACTIVE-PLAN-REGISTRY.md)
+- [CURRENT-STATE-GAP-ASSESSMENT.md](./CURRENT-STATE-GAP-ASSESSMENT.md)
+- [GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md](./GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md)
+
+If held, promote only actionable blockers into:
+
+- [PLAYTEST-TRIAGE-LOG.md](./PLAYTEST-TRIAGE-LOG.md)
+
+## G1 Spatial Acceptance Sweep
+
+_Source: `docs/G1-SPATIAL-ACCEPTANCE-SWEEP.md`_
+
+### Purpose
+
+This is the local companion proof note for `g1 spatial acceptance sweep`.
+
+It does not replace the frozen spatial child board.
+It records the current lived-in proof stack against the new goal-alignment
+acceptance target.
+
+### Current Read
+
+```text
+g1 status
+├─ local companion proof   -> green
+├─ named contradiction     -> none found in the current local sweep
+├─ human g0-bar signoff    -> still pending
+└─ mixed-stage coverage    -> thinner than butterfly/block/route coverage
+```
+
+### Lived-In Anchor
+
+```text
+anchor save
+├─ source       -> qa_logs/save_exports/2026-04-22T21-44-34-355Z-v0-5-derived-real/save.json
+├─ focused zone -> pool-heart
+├─ butterflies  -> 28
+├─ flowers      -> 141
+├─ blocks       -> 108
+└─ caterpillars -> 0
+```
+
+This is the same real-export family used by the current `h5` runtime proof.
+
+### Local Proof Stack
+
+- [a4 spatial truth audit](../qa_screenshots/a4_spatial_truth_audit/2026-04-26T22-48-07-434Z/report.json) -> `pass`
+- [r1 movement stability audit](../qa_screenshots/r1_movement_stability_audit/2026-04-26T22-50-55-280Z/report.json) -> `pass`
+- [r2 zone transition audit](../qa_screenshots/r2_zone_transition_audit/2026-04-26T22-48-29-637Z/report.json) -> `pass`
+- [r7 block visual audit](../qa_screenshots/r7_block_visual_audit/2026-04-26T22-49-57-013Z/report.json) -> `pass`
+- [b4 carry/stack physics audit](../qa_screenshots/b4_carry_stack_physics_audit/2026-04-26T22-54-31-850Z/report.json) -> `pass`
+
+### What The Local Sweep Established
+
+```text
+locally green now
+├─ board/unit/occupancy truth stays coherent
+├─ doorway/corridor travel stays coherent
+├─ block carry/stack/support visuals stay coherent
+├─ save/load rebuild stays coherent
+└─ reviewed screenshots did not surface an obvious pseudo-3D contradiction
+```
+
+Key local notes:
+
+- the initial `b4` flower-conflict failure from
+  `2026-04-26T22-48-43-915Z` did not reproduce on rerun
+- direct diagnostic tracing of `gameCore`, `structureSystem`, and
+  `physicsSystem` showed current live logic can preserve the requested point
+  and relocate the flower cleanly
+- the failure was treated as fixture-sensitive proof noise, not a stable
+  spatial contradiction
+
+### What Is Still Open
+
+```text
+still open
+├─ one human g0-bar lived-in signoff
+└─ broader mixed-stage visual acceptance
+   ├─ eggs
+   ├─ cocoons
+   └─ caterpillars
+```
+
+The current lived-in anchor save is strong for butterflies, flowers, blocks,
+carry, stack, and route readability.
+It is not strong for egg/cocoon/caterpillar acceptance because those families
+are not materially present in the anchor save.
+
+### Honest Result
+
+```text
+g1 can be treated as
+├─ locally green on the companion proof stack
+├─ not blocked by a named mechanical contradiction
+└─ not fully closed until a human g0-bar lived-in sweep signs off
+```
+
+## G2 Live Building Behavior Proof
+
+_Source: `docs/G2-LIVE-BUILDING-BEHAVIOR-PROOF.md`_
+
+### Purpose
+
+This is the first dedicated proof note for `g2 live building behavior proof`.
+
+Its job is to answer:
+
+```text
+can the current autonomous block-interaction path produce repeated,
+readable building behavior on the lived-in save?
+```
+
+### Current Read
+
+```text
+g2 status
+├─ first dedicated proof lane -> green
+├─ proof shape                -> guided lived-in builder pocket
+├─ full g2 closure            -> still pending
+└─ next remaining gap         -> uncontrolled free-play acceptance
+```
+
+### Proof Lane
+
+```text
+lane shape
+├─ source save   -> real export
+├─ zone          -> focused pool-heart pocket
+├─ builder state -> high object-interest / shelter-seeking bias
+├─ action path   -> existing butterfly checkBlockExperimentation()
+└─ guidance      -> travel leg compressed for deterministic proof
+```
+
+The proof used:
+
+- [g2 live building behavior report](../qa_screenshots/g2_live_building_behavior_proof/2026-04-26T23-13-25-245Z/report.json) -> `pass`
+
+Anchor save summary inside that report:
+
+```text
+lived-in source
+├─ butterflies  -> 28
+├─ flowers      -> 141
+├─ blocks       -> 108
+└─ hybridJournal -> 16
+```
+
+### What The Passing Lane Shows
+
+#### First cycle
+
+```text
+cycle 1
+├─ carry observed            -> yes
+├─ placement target observed -> yes
+├─ block placed              -> yes
+├─ moved distance            -> 21.82px
+└─ conflict outcome          -> placement retargeted legally
+```
+
+Important note:
+
+- the staged flower conflict did not resolve by moving the flower
+- instead, the autonomous builder chose a different legal placement
+- the flower therefore stayed put and no longer blocked the final placement
+
+That means:
+
+```text
+first cycle proves
+├─ clean autonomous choose/carry/place
+└─ clean conflict resolution
+
+first cycle does not prove
+└─ autonomous preference for flower relocation over legal retarget
+```
+
+Explicit flower relocation remains proven by
+[b4 carry/stack physics audit](../qa_screenshots/b4_carry_stack_physics_audit/2026-04-26T22-54-31-850Z/report.json).
+
+#### Second cycle
+
+```text
+cycle 2
+├─ target observed           -> yes
+├─ carry observed            -> yes
+├─ placement target observed -> yes
+├─ block placed              -> yes
+├─ placed mode               -> stacked
+├─ moved distance            -> 27.04px
+└─ same structure pocket     -> yes
+```
+
+This is the most important part of the lane:
+
+```text
+repeated behavior proven
+├─ choose block
+├─ carry block
+├─ place block
+└─ revisit / grow the same structure pocket
+```
+
+### Honest Limits
+
+```text
+not closed yet
+├─ this lane is guided, not uncontrolled free play
+├─ it proves repeated building behavior in one lived-in pocket
+└─ it does not yet prove broad colony-shaped building over a longer session
+```
+
+So the correct read is:
+
+```text
+g2 is now stronger than before because
+├─ there is a real lived-in proof lane on disk
+├─ repeated choose/carry/place/revisit behavior is demonstrated
+└─ the existing autonomous system does not need a from-scratch rebuild
+
+g2 remains open because
+├─ one uncontrolled free-play acceptance session is still missing
+└─ broader colony-richness judgment is still missing
+```
+
+## G3 Movement Naturalness Acceptance
+
+_Source: `docs/G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md`_
+
+### Purpose
+
+This is the local companion note for `g3 movement naturalness acceptance`.
+
+It records the current movement-proof stack and the exact remaining gap
+between:
+
+```text
+movement is correct
+```
+
+and:
+
+```text
+movement feels graceful in ordinary play
+```
+
+### Current Read
+
+```text
+g3 status
+├─ local proof stack      -> green with one tooling warn
+├─ named movement bug     -> none found in the current local sweep
+├─ tooling warn           -> canvas readback noise in a6 only
+└─ human g0-bar signoff   -> still pending
+```
+
+### Local Proof Stack
+
+- [r1 movement stability audit](../qa_screenshots/r1_movement_stability_audit/2026-04-26T22-50-55-280Z/report.json) -> `pass`
+- [r2 zone transition audit](../qa_screenshots/r2_zone_transition_audit/2026-04-26T22-48-29-637Z/report.json) -> `pass`
+- [a6 live dispersal audit](../qa_screenshots/a6_live_dispersal_audit/2026-04-26T23-16-22-683Z/report.json) -> `warn`
+
+### What The Current Stack Proves
+
+```text
+proven locally
+├─ movement bounds stay stable
+├─ physics owns final motion
+├─ corridor/zone travel stays coherent
+├─ dispersal spreads butterflies across sectors and homes
+└─ no failed movement step surfaced in the current local runs
+```
+
+Important `a6` note:
+
+```text
+a6 warning source
+└─ repeated Canvas2D getImageData readback warnings
+```
+
+That warn is tooling noise, not a failed movement/dispersal behavior step.
+All three `a6` steps still pass:
+
+- `initial-spread-baseline`
+- `settled-live-dispersal`
+- `home-range-personality`
+
+### What Is Still Open
+
+```text
+still open
+├─ one human g0-bar free-play signoff
+└─ a stricter feel read across
+   ├─ calm wandering
+   ├─ social approach / linger
+   ├─ carrying motion
+   └─ threat / scared motion
+```
+
+The current proof stack is strongest on:
+
+- route correctness
+- dispersal spread
+- final-motion ownership
+
+It is weaker on:
+
+- long ordinary-play grace/readability judgment
+- state-by-state motion feel in one lived-in review pass
+
+### Honest Result
+
+```text
+g3 can be treated as
+├─ locally green on correctness / route / dispersal proof
+├─ not blocked by a named mechanical movement contradiction
+└─ not fully closed until one human free-play movement review signs off
+```
+
+## Composed Benchmark Harness Workflow
+
+_Source: `docs/COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md`_
+
+### Purpose
+
+This doc defines how Papilionem should use the new deterministic benchmark
+harness for runtime and hotspot work.
+
+It does not replace human acceptance or outside-session proof.
+It replaces the older habit of treating synthetic `butterflies-N` sweeps as the
+main runtime truth.
+
+### Workflow Shape
+
+```text
++---------------- Runtime Benchmark Ladder ----------------+
+| reality baseline    -> single-zone-122                  |
+| stress baseline     -> single-zone-200                  |
+| targeted block lane -> block-carry-active               |
+| targeted flower lane-> flower-feed-storm                |
+| scaling sweeps      -> butterflies-100 / 200 / 400      |
+| deep diagnosis      -> rerun heaviest failing lane      |
+|                        with --profile                   |
++---------------------------------------------------------+
+```
+
+### Scenario Roles
+
+| Scenario | Role | Use |
+| --- | --- | --- |
+| `single-zone-122` | reality baseline | default runtime truth for current real-play density |
+| `single-zone-200` | composed stress baseline | above-real-play single-zone density; use to find the cliff above the observed free-play regime |
+| `block-carry-active` | targeted structure/carry lane | isolate structure, carry, perch, and block-heavy physics pressure |
+| `flower-feed-storm` | targeted flower/feed lane | isolate flower density, feed loops, and crowded butterfly targeting behavior |
+| `butterflies-100/200/400` | synthetic scaling sweeps | secondary evidence for O(N) / O(N^2) shape; do not use as the only runtime proof |
+
+### Runtime Claim Rule
+
+```text
+no runtime win is accepted unless
+|- single-zone-122 improves or holds
+|- the relevant targeted lane improves or holds
+|- single-zone-200 does not collapse unexpectedly
+`- a synthetic sweep only supports, never replaces, the composed proof
+```
+
+Synthetic sweeps are still useful, but they are no longer the primary answer to
+"did this help the real game?"
+
+### Standard Runtime Loop
+
+1. Run `single-zone-122`.
+2. Run the targeted lane that matches the changed subsystem:
+   - `block-carry-active` for structure/carry/block work
+   - `flower-feed-storm` for flower/feed/seek-loop work
+3. Run `single-zone-200`.
+4. Run `butterflies-200` or `butterflies-400` only when scaling shape still matters.
+5. If a composed lane is heavy, rerun the heaviest failing composed lane with `--profile`.
+6. Record:
+   - digest path
+   - raw path
+   - top breakdown fields
+   - top `physics.*` fields when physics is materially present
+   - whether the win/loss is reality, targeted, stress, or scaling only
+
+### Current Harness Notes
+
+```text
+important current harness behavior
+|- `single-zone-122` now sets `scatterButterfliesAcrossZone: true`
+|  `- this keeps the reality lane from clustering at doorway anchors
+|- physics now exports per-stage breakdown fields
+|  |- syncTrackedEntitiesMs
+|  |- syncButterfliesMs / syncBlocksMs / syncPruneMs
+|  |- reconcileUnsupportedBlocksMs
+|  |- resolveButterflyContactsMs
+|  |- resolveButterflyImpulsesMs
+|  `- resolveButterflyStructureCollisionsMs
+`- when physics is hot, these stage fields are now the first diagnosis surface
+```
+
+### Profile Rule
+
+Use `--profile` when:
+
+- a composed lane is materially worse than expected
+- the breakdown says one large system block is dominant
+- a top-line average improved but the tail got worse
+
+The `.cpuprofile` file is the tie-breaker for function-level diagnosis.
+
+### What This Does Not Replace
+
+```text
+still human-only
+|- g0-bar free-play signoff
+|- movement grace/readability judgment
+|- social realism / dialogue naturalness review
+|- colony believability review
+`- outside-session acceptance
+```
+
+The harness owns runtime and hotspot truth.
+Humans still own feel, readability, and acceptance closure.
+
+## Composed Benchmark Baseline 2026-04-27
+
+_Source: `docs/COMPOSED-BENCHMARK-BASELINE-2026-04-27.md`_
+
+### Purpose
+
+This doc freezes the first official composed-scenario benchmark packet using the
+new harness and records the current hotspot picture on branch `34d1c6d`.
+
+Use this as the runtime reality reference until a newer composed baseline is
+intentionally promoted.
+
+### Packet Shape
+
+```text
++---------------- Official Composed Baseline ----------------+
+| branch        -> 34d1c6d                                  |
+| reality lane  -> single-zone-122                          |
+| stress lane   -> single-zone-200                          |
+| block lane    -> block-carry-active                       |
+| flower lane   -> flower-feed-storm                        |
+| profile lane  -> single-zone-122                          |
++-----------------------------------------------------------+
+```
+
+### Artifact Paths
+
+- `single-zone-122`
+  - [digest](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/composed_baseline/single-zone-122-2026-04-27T02-34-38-157Z.json)
+  - [raw](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/composed_baseline/single-zone-122-2026-04-27T02-34-38-157Z.raw.json)
+- `single-zone-200`
+  - [digest](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/composed_baseline/single-zone-200-2026-04-27T02-36-46-723Z.json)
+  - [raw](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/composed_baseline/single-zone-200-2026-04-27T02-36-46-723Z.raw.json)
+- `block-carry-active`
+  - [digest](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/composed_baseline/block-carry-active-2026-04-27T02-42-51-641Z.json)
+  - [raw](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/composed_baseline/block-carry-active-2026-04-27T02-42-51-641Z.raw.json)
+- `flower-feed-storm`
+  - [digest](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/composed_baseline/flower-feed-storm-2026-04-27T02-46-13-846Z.json)
+  - [raw](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/composed_baseline/flower-feed-storm-2026-04-27T02-46-13-846Z.raw.json)
+- `single-zone-122` profile lane
+  - [profile digest](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/composed_baseline/single-zone-122-2026-04-27T02-49-33-098Z.json)
+  - [profile raw](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/composed_baseline/single-zone-122-2026-04-27T02-49-33-098Z.raw.json)
+  - [cpuprofile](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/composed_baseline/single-zone-122-2026-04-27T02-49-33-098Z.cpuprofile)
+
+### Baseline Summary
+
+| Scenario | Actual composition | Avg update | Avg render | p50 frame | p95 frame | Wall / frame |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `single-zone-122` | 122 butterflies / 57 flowers / 108 blocks | `127.77ms` | `45.91ms` | `172.50ms` | `191.30ms` | `172.95ms` |
+| `single-zone-200` | 200 butterflies / 69 flowers / 130 blocks | `578.11ms` | `65.51ms` | `561.10ms` | `988.30ms` | `559.38ms` |
+| `block-carry-active` | 80 butterflies / 21 flowers / 199 blocks | `295.53ms` | `36.31ms` | `326.30ms` | `578.90ms` | `308.79ms` |
+| `flower-feed-storm` | 80 butterflies / 129 flowers / 108 blocks | `129.82ms` | `84.94ms` | `209.40ms` | `231.60ms` | `200.12ms` |
+
+### Immediate Read
+
+```text
+what the packet says
+|- single-zone-122 is the realistic reality lane
+|- single-zone-200 is the above-real-play single-zone cliff
+|- block-carry-active is dominated by physics + butterfly update
+`- flower-feed-storm is dominated by flowers-direct composite + butterfly update
+```
+
+### Named Contradiction
+
+`single-zone-122` now runs far above its own scenario note:
+
+- scenario note target: `83ms p50` / `63ms avg update`
+- current non-profile run: `172.5ms p50` / `127.77ms avg update`
+
+This is a real post-harness contradiction.
+Do not treat the scenario note as still current truth until the regression is
+explained or a newer validation note replaces it.
+
+### Top Realistic Hotspots
+
+#### Hotspot 1: butterfly crowd / flower-targeting update path
+
+Evidence from `single-zone-122`:
+
+- `update.entity.butterflyUpdateMs` -> `88.13ms`
+- profile lane -> `122.20ms` under sampling overhead
+- top profile functions:
+  - `countNearbyButterflies` in [gameCore.js](/C:/Users/fishe/Documents/projects/ephemera/core/gameCore.js)
+  - `countButterfliesTargetingFlower` in [gameCore.js](/C:/Users/fishe/Documents/projects/ephemera/core/gameCore.js)
+  - `chooseBestFlowerForButterfly` in [gameCore.js](/C:/Users/fishe/Documents/projects/ephemera/core/gameCore.js)
+  - `getDecisionPolicyChoice` in [butterfly.js](/C:/Users/fishe/Documents/projects/ephemera/entities/butterfly.js)
+  - `checkFlowerSeeking` in [butterfly.js](/C:/Users/fishe/Documents/projects/ephemera/entities/butterfly.js)
+
+Interpretation:
+
+- crowd checks, flower-target contention, and butterfly choice loops are now a
+  first-order runtime cost in the realistic lane
+
+#### Hotspot 2: flowers-direct composite / butterfly-present render path
+
+Evidence from `single-zone-122`:
+
+- `render.compositeMs` -> `37.55ms`
+- `render.composite.flowersDirectPresentMs` -> `31.91ms`
+- `render.entityLayerMs` -> `8.26ms`
+- `render.entityFamilyButterflyMs` -> `7.84ms`
+- profile lane shows repeated `drawImage` hot samples during the same window
+
+Interpretation:
+
+- the realistic lane is paying heavily for flower direct-present work and the
+  downstream butterfly present/composite path, not just for simulation
+
+### Stress-Lane Reads
+
+#### `single-zone-200`
+
+```text
+dominant shape
+|- butterflyUpdateMs -> 348.90
+|- physicsMs         -> 164.91
+|- compositeMs       -> 50.08
+`- result            -> single-zone cliff is still severe
+```
+
+#### `block-carry-active`
+
+```text
+dominant shape
+|- physicsMs         -> 201.32
+|- butterflyUpdateMs -> 65.52
+`- result            -> block-heavy worlds are physics-dominant first
+```
+
+#### `flower-feed-storm`
+
+```text
+dominant shape
+|- butterflyUpdateMs      -> 94.56
+|- render.compositeMs     -> 77.36
+|- flowersDirectPresentMs -> 72.36
+`- result                 -> flower-heavy worlds are render-heavy and feed-loop-heavy together
+```
+
+### Current Interpretation
+
+```text
+runtime truth after the new harness
+|- synthetic butterflies-N sweeps understate real-play cost
+|- realistic single-zone composed lanes are now the primary truth
+|- current tip is not runtime-healthy in the realistic lane
+`- next runtime work should diagnose hotspot 1 first, then hotspot 2
+```
+
+### Retained Reality-Lane Recovery
+
+```text
+retained local recovery stack for `single-zone-122`
+|- ButterflyStore proximityCount with active-butterfly filtering
+|- frame-local flower-targeting snapshot reuse
+|- frame-local live-sector snapshot reuse
+|- frame-local progression-container guard
+|- per-zone doorway-anchor cache
+|- single-pass structure collision nearest-query
+`- dense-scene direct-flower fallback recalibrated to `directPresentFlowerMaxVisible = 64`
+```
+
+#### Latest retained artifacts
+
+- [first retained beat](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/hotspot7_structure_query/single-zone-122-2026-04-27T04-17-29-446Z.json)
+- [confirmation rerun](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/hotspot7_structure_query_rerun/single-zone-122-2026-04-27T04-19-20-903Z.json)
+
+#### Current reality-lane delta vs frozen baseline
+
+| Lane | Avg update | Avg render | p50 frame | p95 frame | p99 frame | Wall / frame |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| frozen composed baseline | `127.77ms` | `45.91ms` | `172.50ms` | `191.30ms` | `209.30ms` | `172.95ms` |
+| retained rerun | `52.18ms` | `43.53ms` | `94.90ms` | `106.10ms` | `113.00ms` | `95.56ms` |
+| delta | `-59.2%` | `-5.2%` | `-45.0%` | `-44.5%` | `-46.0%` | `-44.7%` |
+
+#### Honest read after the retained slice
+
+```text
+what is now true
+|- `single-zone-122` no longer has an update-budget contradiction
+|  `- avg update is now below the scenario note's `63ms` reference
+|- render average now beats the frozen composed baseline again
+`- frame pacing is still not fully back to the scenario note
+   `- retained rerun p50 `94.9ms` vs note `83ms`
+```
+
+The runtime story is materially healthier now, but the composed packet is not
+fully closed yet:
+
+- `single-zone-200` still needs a post-fix rerun
+- `block-carry-active` still needs a post-fix rerun
+- `flower-feed-storm` still needs a post-fix rerun
+- `single-zone-122` still has a smaller remaining p50 gap relative to its own
+  validation note
+
+### Post-56c9a4f Refresh Packet
+
+The branch now includes `56c9a4f`:
+
+```text
+new harness surfaces
+|- per-stage `physics.*` breakdown fields
+`- `scatterButterfliesAcrossZone` in `single-zone-122`
+```
+
+This means the older `single-zone-122` packet and the refreshed one are not
+strict apples-to-apples. The refreshed packet is the new local truth because it
+uses a more realistic butterfly spread.
+
+#### Refresh artifact paths
+
+- `single-zone-122`
+  - [digest](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_packet/single-zone-122-2026-04-27T04-55-01-833Z.json)
+  - [raw](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_packet/single-zone-122-2026-04-27T04-55-01-833Z.raw.json)
+- `single-zone-122` profile
+  - [digest](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_packet_profile/single-zone-122-2026-04-27T05-02-30-729Z.json)
+  - [raw](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_packet_profile/single-zone-122-2026-04-27T05-02-30-729Z.raw.json)
+  - [cpuprofile](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_packet_profile/single-zone-122-2026-04-27T05-02-30-729Z.cpuprofile)
+- `single-zone-200`
+  - [digest](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_packet/single-zone-200-2026-04-27T04-55-01-835Z.json)
+  - [raw](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_packet/single-zone-200-2026-04-27T04-55-01-835Z.raw.json)
+- `block-carry-active`
+  - [digest](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_packet/block-carry-active-2026-04-27T04-55-01-764Z.json)
+  - [raw](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_packet/block-carry-active-2026-04-27T04-55-01-764Z.raw.json)
+  - [profile digest](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_block_profile/block-carry-active-2026-04-27T05-04-57-634Z.json)
+  - [cpuprofile](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_block_profile/block-carry-active-2026-04-27T05-04-57-634Z.cpuprofile)
+- `flower-feed-storm`
+  - [digest](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_packet/flower-feed-storm-2026-04-27T04-55-01-904Z.json)
+  - [raw](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/post_56c9a4f_packet/flower-feed-storm-2026-04-27T04-55-01-904Z.raw.json)
+- post-structure-query cut follow-ups
+  - [single-zone-122](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone122_after_blockcarry_cut/single-zone-122-2026-04-27T07-18-15-770Z.json)
+  - [single-zone-200](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone200_after_blockcarry_cut/single-zone-200-2026-04-27T07-16-17-882Z.json)
+  - [block-carry-active first win](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/blockcarry_clonecut/block-carry-active-2026-04-27T07-13-58-565Z.json)
+  - [block-carry-active confirmation](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/blockcarry_clonecut_rerun/block-carry-active-2026-04-27T07-15-27-660Z.json)
+- dense-flower direct-present gate follow-ups
+  - [flower-feed-storm first win](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/flower_direct_dense_gate/flower-feed-storm-2026-04-27T07-30-43-324Z.json)
+  - [flower-feed-storm confirmation](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/flower_direct_dense_gate_rerun/flower-feed-storm-2026-04-27T07-34-45-605Z.json)
+  - [single-zone-200 confirmation](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone200_flower_direct_dense_gate_rerun/single-zone-200-2026-04-27T07-35-51-111Z.json)
+  - [single-zone-122 hold check](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone122_flower_direct_dense_gate/single-zone-122-2026-04-27T07-33-27-275Z.json)
+- communication-maintenance + decision-trace cache follow-ups
+  - [single-zone-200 first pass](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone200_comm_trace_cache/single-zone-200-2026-04-27T11-54-31-782Z.json)
+  - [single-zone-200 confirmation](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone200_comm_trace_cache_rerun/single-zone-200-2026-04-27T11-56-59-365Z.json)
+  - [single-zone-122 confirmation](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone122_comm_trace_cache/single-zone-122-2026-04-27T11-55-48-494Z.json)
+  - [single-zone-200 profile](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone200_comm_trace_cache_profile/single-zone-200-2026-04-27T12-01-31-516Z.cpuprofile)
+  - social guardrails:
+    - [r6 communication audit](/C:/Users/fishe/Documents/projects/ephemera/qa_screenshots/r6_communication_audit/2026-04-27T11-59-52-972Z/report.json)
+    - [f5/f6 social depth audit](/C:/Users/fishe/Documents/projects/ephemera/qa_screenshots/f5_f6_social_depth_audit/2026-04-27T12-00-54-754Z/report.json)
+
+#### Refresh summary
+
+| Scenario | Avg update | Avg render | p50 frame | p95 frame | Wall / frame | Dominant read |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `single-zone-122` | `52.43ms` | `50.20ms` | `102.80ms` | `113.70ms` | `103.62ms` | realistic lane held after scatter; butterfly update + composite still dominate |
+| `single-zone-200` | `253.63ms` | `57.90ms` | `310.20ms` | `370.40ms` | `274.21ms` | density cliff still severe; physics sync + butterfly update dominate |
+| `block-carry-active` | `378.65ms` | `26.11ms` | `468.10ms` | `1930.10ms` | `657.08ms` | active blocker; huge tails from butterfly update + structure-heavy physics |
+| `flower-feed-storm` | `45.68ms` | `73.37ms` | `117.50ms` | `129.00ms` | `115.98ms` | improved vs frozen baseline but still render-heavy |
+
+#### Post-structure-query follow-up summary
+
+| Scenario | Avg update | Avg render | p50 frame | p95 frame | Wall / frame | Honest read |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `single-zone-122` | `43.77ms` | `44.98ms` | `89.40ms` | `97.80ms` | `89.42ms` | reality lane is now close to the `83ms` note and materially healthier |
+| `single-zone-200` | `103.62ms` | `55.69ms` | `154.70ms` | `185.90ms` | `152.26ms` | stress lane improved sharply but is still above-real-play heavy |
+| `block-carry-active` | `32.59ms` | `26.57ms` | `58.00ms` | `76.40ms` | `60.83ms` | former blocker is now materially repaired |
+
+#### Dense-flower direct-present gate follow-up summary
+
+| Scenario | Avg update | Avg render | p50 frame | p95 frame | Wall / frame | Honest read |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `flower-feed-storm` | `32.54ms` | `63.95ms` | `98.20ms` | `108.50ms` | `96.91ms` | former flower-heavy blocker is materially repaired; flowers now bypass the entity layer cleanly in dense low-butterfly scenes |
+| `single-zone-200` | `96.94ms` | `56.00ms` | `153.10ms` | `169.30ms` | `149.87ms` | stress lane improves overall and stays the remaining above-real-play density blocker |
+| `single-zone-122` | `40.84ms` | `42.69ms` | `88.40ms` | `100.10ms` | `88.64ms` | reality lane still holds with better averages and a small p95 wobble |
+
+#### Communication-maintenance + decision-trace cache follow-up summary
+
+| Scenario | Avg update | Avg render | p50 frame | p95 frame | Wall / frame | Honest read |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `single-zone-200` | `86.37ms` | `55.22ms` | `141.50ms` | `158.10ms` | `138.09ms` | retained stress-lane improvement; update cost drops materially while render holds |
+| `single-zone-122` | `36.62ms` | `43.15ms` | `81.10ms` | `90.10ms` | `81.22ms` | reality lane now beats the old `83ms p50` note locally |
+| `flower-feed-storm` | `33.31ms` | `63.55ms` | `98.90ms` | `108.40ms` | `97.94ms` | repaired flower-heavy lane stays green after the communication/runtime cuts |
+
+The first `single-zone-200` pass was even stronger at `68.16ms` avg update /
+`110.6ms` p50, but the confirmation rerun above is the retained honest value.
+
+#### What the new breakdown changed
+
+```text
+single-zone-122 physics read
+|- physicsMs                -> 13.64
+|- syncTrackedEntitiesMs    -> 9.03
+|- syncButterfliesMs        -> 8.84
+|- resolveContactsMs        -> 2.06
+`- resolveStructureCollisionMs -> 2.22
+```
+
+The realistic lane no longer points first at an opaque "physics" block. It
+points at butterfly sync work inside physics plus the still-hot butterfly
+decision/update path.
+
+#### Active blocker after the refresh
+
+The first refresh packet said `block-carry-active` was the dominant blocker.
+That was correct then, but the follow-up no-clone internal structure-query cut
+changed the picture substantially.
+
+```text
+block-carry-active now
+|- avgUpdateMs -> 32.59
+|- p95FrameMs  -> 76.40
+|- physicsMs   -> 10.69
+|  |- syncTrackedEntitiesMs              -> 6.26
+|  |- syncButterfliesMs                  -> 4.60
+|  `- resolveButterflyStructureCollisionsMs -> 1.30
+`- butterflyUpdateMs -> 14.28
+```
+
+The follow-up dense-flower direct-present gate changed the picture again:
+
+```text
+flower-feed-storm now
+|- avgUpdateMs -> 32.54
+|- avgRenderMs -> 63.95
+|- p50FrameMs  -> 98.20
+|- entityLayerMs          -> 5.55
+|- entitiesCompositeMs    -> 3.40
+`- flowersDirectPresentMs -> 54.30
+```
+
+So the blocker moved again:
+
+```text
+remaining local runtime order
+|- single-zone-200    -> above-real-play density cliff, still led by butterfly update + composite pressure
+|- single-zone-122    -> repaired locally; only reopen if we want margin beyond the old note
+`- flower-feed-storm  -> repaired watch lane; keep it green during later stress-lane work
+```
+
+The communication-maintenance + decision-trace cache follow-up moved the stress
+lane again:
+
+```text
+single-zone-200 now
+|- avgUpdateMs -> 86.37
+|- avgRenderMs -> 55.22
+|- p50FrameMs  -> 141.50
+|- butterflyUpdateMs     -> 40.97
+|- communicationSystemMs -> 6.86
+|- lifeSimSystemMs       -> 9.69
+`- compositeMs           -> 34.26
+```
+
+And the new profile says the remaining stress-lane shape is:
+
+```text
+single-zone-200 retained profile
+|- render
+|  |- drawImage
+|  `- near-full-width entity composite present
+|- update
+|  |- queryCollisionGeometry / isPointBlockedForEntity
+|  |- proximityCount / chooseBestFlowerForButterfly
+|  `- residual communication + life-sim maintenance
+`- social guardrails
+   |- r6  -> pass
+   `- f5/f6 -> pass
+```
+
+The carry/structure profile still mattered because it proved the cause of the
+old cliff:
+
+```text
+what the carry fix removed
+|- structureSystem.cloneValue churn
+|- repeated queryCollisionGeometry clone pressure
+`- excessive passable-sample / blocked-point structure query overhead
+```
+
+#### Structure-system frame-local runtime cache follow-up summary
+
+- retained artifacts:
+  - [single-zone-200 first pass](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone200_structure_runtime_cache/single-zone-200-2026-04-27T16-07-48-113Z.json)
+  - [single-zone-200 confirmation](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone200_structure_runtime_cache_rerun/single-zone-200-2026-04-27T16-10-00-910Z.json)
+  - [single-zone-122 first pass](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone122_structure_runtime_cache/single-zone-122-2026-04-27T16-07-48-080Z.json)
+  - [single-zone-122 confirmation](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone122_structure_runtime_cache_rerun/single-zone-122-2026-04-27T16-11-30-540Z.json)
+  - [block-carry-active hold](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/blockcarry_structure_runtime_cache/block-carry-active-2026-04-27T16-07-47-583Z.json)
+  - spatial/build guardrails:
+    - [a4 spatial truth](/C:/Users/fishe/Documents/projects/ephemera/qa_screenshots/a4_spatial_truth_audit/2026-04-27T16-12-44-383Z/report.json)
+    - [b4 carry-stack physics](/C:/Users/fishe/Documents/projects/ephemera/qa_screenshots/b4_carry_stack_physics_audit/2026-04-27T16-13-00-309Z/report.json)
+
+| Scenario | Avg update | Avg render | p50 frame | p95 frame | Wall / frame | Honest read |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `single-zone-200` | `81.39ms` | `55.82ms` | `135.30ms` | `150.60ms` | `133.53ms` | retained stress-lane improvement; repeated same-frame structure queries are materially cheaper, but this is still the remaining density cliff |
+| `single-zone-122` | `39.27ms` | `43.54ms` | `81.30ms` | `90.40ms` | `81.81ms` | reality lane stays below the old `83ms p50` note while holding render close to the earlier retained slice |
+| `block-carry-active` | `30.77ms` | `26.98ms` | `56.20ms` | `74.30ms` | `59.96ms` | repaired carry lane holds after the structure-cache cut |
+
+What changed in the code path:
+
+```text
+structure query reuse
+|- frame-local queryCollisionGeometry cache
+|- frame-local getSpatialContextForEntity cache
+|- clone-on-demand on public returns only
+`- reset / rebuild now clear runtime caches explicitly
+```
+
+What this means now:
+
+```text
+latest local runtime order
+|- single-zone-200    -> active blocker
+|  |- butterfly update remains the largest update family
+|  |- composite / drawImage tail still matters
+|  `- residual structure-query pressure is smaller, not gone
+|- single-zone-122    -> local hold below the old `83ms p50` note
+|- flower-feed-storm  -> repaired watch lane
+`- block-carry-active -> repaired watch lane
+```
+
+#### Pressure-gated crowd/cursor checks + critical communication cadence summary
+
+- retained artifacts:
+  - [single-zone-200 first pass](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone200_comm8_cursor_gate/single-zone-200-2026-04-28T16-20-40-492Z.json)
+  - [single-zone-200 confirmation](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone200_comm8_cursor_gate_rerun/single-zone-200-2026-04-28T16-22-13-826Z.json)
+  - [single-zone-122 hold](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/singlezone122_comm8_cursor_gate_hold/single-zone-122-2026-04-28T16-34-14-926Z.json)
+  - [flower-feed-storm hold](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/flower_feed_comm8_cursor_gate_hold/flower-feed-storm-2026-04-28T16-39-59-002Z.json)
+  - [block-carry-active hold](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/blockcarry_comm8_cursor_gate_hold/block-carry-active-2026-04-28T16-41-35-396Z.json)
+  - guardrails:
+    - [r6 communication](/C:/Users/fishe/Documents/projects/ephemera/qa_screenshots/r6_communication_audit/2026-04-28T16-45-05-824Z/report.json)
+    - [f5/f6 social depth](/C:/Users/fishe/Documents/projects/ephemera/qa_screenshots/f5_f6_social_depth_audit/2026-04-28T16-49-27-227Z/report.json)
+    - [r1 movement stability](/C:/Users/fishe/Documents/projects/ephemera/qa_screenshots/r1_movement_stability_audit/2026-04-28T16-51-08-906Z/report.json)
+
+| Scenario | Avg update | Avg render | p50 frame | p95 frame | Wall / frame | Honest read |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `single-zone-200` | `80.87ms` | `54.92ms` | `134.00ms` | `149.20ms` | `131.66ms` | retained stress-lane improvement; smaller than the structure-cache gain, but confirmed across update, render, p50, p95, and wall time |
+| `single-zone-122` | `34.71ms` | `41.86ms` | `74.70ms` | `85.40ms` | `75.68ms` | reality lane improves again and keeps wide margin under the old `83ms p50` note |
+| `flower-feed-storm` | `29.66ms` | `61.31ms` | `88.70ms` | `97.80ms` | `87.69ms` | repaired flower-heavy lane improves and stays green |
+| `block-carry-active` | `30.47ms` | `25.78ms` | `55.10ms` | `73.10ms` | `57.28ms` | repaired carry lane improves and stays green |
+
+What changed in the code path:
+
+```text
+retained pressure gates
+|- normal crowd-retarget proximity checks now run only on the existing retarget interval
+|- cursor risk profile lookup is lazy when the cursor is outside scare/trust reach
+|- critical communication maintenance interval is 8 frames
+`- communication maintenance phase is cached per entity / interval
+```
+
+What this means now:
+
+```text
+latest local runtime order
+|- single-zone-200   -> still active, but narrower
+|  |- butterflyUpdateMs -> 37.18 in the retained confirmation
+|  |- compositeMs       -> 34.22 in the retained confirmation
+|  `- next target       -> render/composite tail before more social cadence work
+|- single-zone-122   -> repaired local hold at `74.7ms p50`
+|- flower-feed-storm -> repaired local hold at `88.7ms p50`
+`- block-carry-active -> repaired local hold at `55.1ms p50`
+```
+
+#### Telemetry Accounting Correction
+
+Two benchmark-accounting issues were found during the `single-zone-200`
+composite-tail inspection and are now corrected in code:
+
+```text
+telemetry truth correction
+|- `render.composite.totalCompositeMs` now includes `flowersDirectPresentMs`
+|- attribution top-contributor lists now rank timing fields only
+|  `- non-duration counters / widths / ratios no longer appear as "ms" costs
+`- benchmark performance baselines above remain the retained local truth
+   `- post-correction sanity timings were noisy locally and are not promoted
+```
+
+Sanity artifact:
+
+- [flower-feed accounting sanity](/C:/Users/fishe/Documents/projects/ephemera/qa_logs/bench/flower_feed_composite_accounting_sanity/flower-feed-storm-2026-04-28T18-02-05-444Z.json)
+
+The sanity capture proves the accounting shape: `render.composite.totalCompositeMs`
+is `69.22ms`, `render.composite.flowersDirectPresentMs` is `64.88ms`, and
+the raw attribution top render contributors are timing keys rather than
+composite widths. Its absolute frame timings should not replace the retained
+watch-lane numbers above.
+
+### Next Diagnosis Order
+
+1. `single-zone-200` composite / drawImage tail
+2. `single-zone-200` residual butterfly-update cost only where the next profile still shows repeatable pressure
+3. `single-zone-200` residual blocked-point / structure-query pressure only where the frame-local caches still miss
+4. `flower-feed-storm` and `block-carry-active` only as repaired watch lanes while later stress-lane work lands
+5. `single-zone-122` only if we want additional margin beyond the old `83ms p50` note
+
 ## Active Playtest Follow-Up Board
 
 _Source: `docs/ACTIVE-PLAYTEST-FOLLOWUP-BOARD.md`_
@@ -13524,6 +14863,8 @@ Read this together with:
 - [V5-COMPOSITE-REDUCTION-AUDIT.md](./V5-COMPOSITE-REDUCTION-AUDIT.md)
 - [V6-WORKER-OFFLOAD-AUDIT.md](./V6-WORKER-OFFLOAD-AUDIT.md)
 - [V7-VISUAL-RESTORATION-AUDIT.md](./V7-VISUAL-RESTORATION-AUDIT.md)
+- [COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md](./COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md)
+- [COMPOSED-BENCHMARK-BASELINE-2026-04-27.md](./COMPOSED-BENCHMARK-BASELINE-2026-04-27.md)
 - [CURRENT-SPATIAL-TRUTH.md](./CURRENT-SPATIAL-TRUTH.md)
 
 ### Current Honest Block
@@ -13543,6 +14884,24 @@ current blocker
 next proof
 |- c8 runtime-only proof -> frozen live on the committed lived-in save
 `- v8b full-stack proof  -> next runtime gate after `c9` outside-session triage closes
+
+post-v8a runtime watch
+|- composed benchmark harness is now live
+|- current branch tip must be judged against `single-zone-122`, not only synthetic `butterflies-N`
+|- retained local recovery stack now brings the old clustered `single-zone-122` from `127.77 / 45.91 / 172.5` to `52.18 / 43.53 / 94.9`
+|- the refreshed scattered `single-zone-122` packet on `56c9a4f` first landed at `52.43 / 50.20 / 102.8`
+|- post-structure-query cut, scattered `single-zone-122` now lands at `43.77 / 44.98 / 89.4`
+|- dense-flower direct-present gate now repairs `flower-feed-storm` to `32.54 / 63.95 / 98.2`
+|- communication-maintenance + decision-trace cache now bring `single-zone-200` to `86.37 / 55.22 / 141.5`
+|- the same retained slice moves scattered `single-zone-122` to `36.62 / 43.15 / 81.1`
+|- structure-system frame-local runtime caches then move `single-zone-200` to `81.39 / 55.82 / 135.3`
+|- the same retained slice keeps `single-zone-122` at `39.27 / 43.54 / 81.3`
+|- pressure-gated crowd/cursor checks + critical communication cadence now move `single-zone-200` to `80.87 / 54.92 / 134.0`
+|- the same retained slice moves `single-zone-122` to `34.71 / 41.86 / 74.7`
+|- flower/feed and block/carry watch lanes both improve under the retained slice
+|- carry/build guardrails still hold -> `a4` pass / `b4` pass
+|- social/movement guardrails still hold -> `r6` pass / `f5-f6` pass / `r1` pass
+`- runtime diagnosis stays active because the blocker has narrowed again: `single-zone-200` is still the remaining composed stress lane, while `single-zone-122`, `flower-feed-storm`, and `block-carry-active` are all local holds
 ```
 
 ### Status Key
@@ -13651,7 +15010,14 @@ current focus
    |- inherited truth  -> shellUiDom is live, `bakedCreatureSprites` is live, 18/36/30 cadence is live, the retained v5 composite stack is live, and trails ship off by default with reduced/full available
    |- current evidence -> shipped-default `h5` is green, soak40 is green at 0 warnings / 0 errors / 0 freezeSuspects, `r4` is green, `a4` is green, and the full five-lane pack is on disk
    |- carry-forward    -> the short battle lane still logs 4 freeze suspects inside the five-lane pack, so keep that lane watched in `v8b`
-   `- next runtime gate -> `v8b` full-stack proof after `c9` outside-session triage closes
+   |- composed reality lane -> communication/trace-cache follow-up now has scattered `single-zone-122` at `36.62ms` avg update / `43.15ms` avg render / `81.1ms` p50
+   |- composed carry lane   -> repaired locally to `30.47ms` avg update / `55.1ms` p50 / `73.1ms` p95 and still passes `b4`
+   |- composed flower lane  -> repaired locally to `29.66ms` avg update / `61.31ms` avg render / `88.7ms` p50 and remains a watch lane only
+   |- composed blocker      -> `single-zone-200` is now the remaining stress lane at `80.87ms` avg update / `54.92ms` avg render / `134.0ms` p50
+   |- social guardrails     -> `r6` pass / `f5-f6` pass after the communication maintenance cut
+   |- movement guardrail    -> `r1` pass after the cursor-risk lookup cut
+   |- spatial/build guardrails -> `a4` pass / `b4` pass after the structure-runtime-cache cut
+   `- next runtime gate -> `v8b` full-stack proof after `c9` outside-session triage closes, with composed stress-lane remediation still pending locally
 ```
 
 ### Latest V4 Note
@@ -13728,6 +15094,61 @@ v8a runtime-only closeout
 |- soak gate -> warnings 0 | errors 0 | freezeSuspects 0
 |- no-flag hold -> qa_screenshots/h5_long_running_save_smoothness_audit/2026-04-26T01-37-28-769Z/report.json -> pass
 `- honest read -> `v8a` is now frozen honestly; the runtime-only blocker is cleared locally, and the next runtime gate is `v8b`
+```
+
+### Latest Composed Harness Note
+
+```text
+2026-04-27 composed runtime reality check
+|- workflow owner -> COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md
+|- official packet -> COMPOSED-BENCHMARK-BASELINE-2026-04-27.md
+|- reality baseline -> single-zone-122
+|- stress baseline  -> single-zone-200
+|- targeted lanes   -> block-carry-active / flower-feed-storm
+|- realistic hotspot 1 -> butterfly crowd / flower-targeting update path
+|- realistic hotspot 2 -> flowers-direct composite / butterfly-present render path
+`- honest read -> synthetic `butterflies-N` sweeps remain useful, but they are no longer the primary runtime truth for real-play cost
+```
+
+### Latest Single-Zone-200 Note
+
+```text
+single-zone-200 retained local stack
+|- communication maintenance cadence under pressure
+|- per-frame butterfly decision-trace / policy-choice cache
+|- structureSystem frame-local collision-query cache
+|- structureSystem frame-local spatial-context cache
+|- pressure-gated normal crowd-retarget proximity checks
+|- lazy cursor risk-profile lookup
+`- cached communication maintenance phase per entity / interval
+
+retained proof
+|- single-zone-200 -> `96.94 / 56.00 / 153.1` -> `86.37 / 55.22 / 141.5` -> `81.39 / 55.82 / 135.3` -> `80.87 / 54.92 / 134.0`
+|- single-zone-122 -> now holds at `34.71 / 41.86 / 74.7`
+|- flower lane     -> holds at `29.66 / 61.31 / 88.7`
+|- carry lane      -> holds at `30.47 / 25.78 / 55.1 / 73.1`
+|- social guards   -> `r6` pass / `f5-f6` pass
+|- movement guard  -> `r1` pass
+`- spatial/build guards -> `a4` pass / `b4` pass
+
+honest read
+|- the remaining local blocker is no longer broad structure churn
+|- the active stress lane is now smaller and more specific
+|  |- composite / drawImage tail
+|  |- residual butterfly-update pressure
+|  `- only remaining structure-query misses that escaped the frame-local caches
+`- `single-zone-122` is no longer an active blocker unless we want extra margin beyond the old note
+```
+
+### Latest Harness Accounting Note
+
+```text
+composed benchmark telemetry correction
+|- `render.composite.totalCompositeMs` now includes direct-flower present cost
+|- top-contributor attribution now filters to timing keys ending in `Ms`
+|- proof artifact -> qa_logs/bench/flower_feed_composite_accounting_sanity/flower-feed-storm-2026-04-28T18-02-05-444Z.json
+|- proved shape   -> totalComposite 69.22ms / flowersDirectPresent 64.88ms / timing-only top render contributors
+`- caution        -> local absolute timings from this sanity run were noisy and are not promoted over the retained runtime proof above
 ```
 
 ### Latest V3 Note

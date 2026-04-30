@@ -1,0 +1,20 @@
+{
+  "id": "seed-bond-progression",
+  "seed": 606,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 9, "h": 0 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 9, "h": 0 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.62, "comfort": 0.58, "attachment": 0.56, "coTimeSeconds": 590 } }
+  ],
+  "actions": [
+    { "type": "advance_cognition", "seconds": 20 }
+  ],
+  "assertions": [
+    { "type": "bond_tier", "entity": "a", "target": "b", "minTier": "companion" },
+    { "type": "save_roundtrip_cognition", "entity": "a", "requireBondTier": true },
+    { "type": "ml_feature", "entity": "a", "path": "groups.derivedFeelings.loneliness", "min": 0 }
+  ]
+}

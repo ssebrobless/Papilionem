@@ -1,0 +1,16 @@
+{
+  "id": "seed-ml-value",
+  "seed": 1001,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 8, "v": 13, "h": 0 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 13, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "step", "frames": 20 }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 2 },
+    { "type": "ml_runtime" }
+  ]
+}

@@ -188,6 +188,346 @@ class StructureSystem {
         return Math.max(2, Math.round(gameConfig?.entities?.block?.maxStackHeight || 3));
     }
 
+    getProjectionPpu(zoneId = null) {
+        const board = typeof zoneSystem !== 'undefined'
+            ? zoneSystem?.getBoardConfigForZone?.(zoneId || zoneSystem.focusedZoneId)
+            : null;
+        return Number.isFinite(board?.ppu)
+            ? board.ppu
+            : (gameConfig?.spatial?.projection?.ppu ?? 20);
+    }
+
+    normalizeBoardPoint(value = {}) {
+        const boardPos = value?.boardPos || value || {};
+        return {
+            u: Number.isFinite(boardPos.u) ? boardPos.u : 0,
+            v: Number.isFinite(boardPos.v) ? boardPos.v : 0,
+            h: Number.isFinite(boardPos.h) ? boardPos.h : 0
+        };
+    }
+
+    distanceBoard(a, b) {
+        const left = this.normalizeBoardPoint(a);
+        const right = this.normalizeBoardPoint(b);
+        return Math.hypot(left.u - right.u, left.v - right.v, left.h - right.h);
+    }
+
+    getEntityBoardPos(entity, options = {}) {
+        const zoneId = options.zoneId || entity?.currentZoneId || gameCore?.getFocusedZoneId?.() || null;
+        const fallbackH = Number.isFinite(options.h)
+            ? options.h
+            : Math.max(0, entity?.stackIndex || 0);
+        if (entity?.boardPos && Number.isFinite(entity.boardPos.u) && Number.isFinite(entity.boardPos.v)) {
+            return {
+                zoneId: entity.boardPos.zoneId || zoneId,
+                u: entity.boardPos.u,
+                v: entity.boardPos.v,
+                h: Number.isFinite(entity.boardPos.h) ? entity.boardPos.h : fallbackH
+            };
+        }
+        const renderer = typeof renderManager !== 'undefined' ? renderManager : null;
+        if (!zoneId || !renderer?.screenToBoard || !Number.isFinite(entity?.x) || !Number.isFinite(entity?.y)) {
+            return null;
+        }
+        const boardPos = renderer.screenToBoard(entity.x, entity.y, zoneId, 0);
+        return {
+            zoneId,
+            u: boardPos.u,
+            v: boardPos.v,
+            h: fallbackH
+        };
+    }
+
+    areBoardColumnsAligned(left, right, tolerance = 0.08) {
+        const leftBoard = this.getEntityBoardPos(left);
+        const rightBoard = this.getEntityBoardPos(right);
+        if (!leftBoard || !rightBoard) return null;
+        return Math.hypot(leftBoard.u - rightBoard.u, leftBoard.v - rightBoard.v) <= tolerance;
+    }
+
+    isBlockCellSnapEnabled() {
+        return gameConfig?.entities?.block?.snapToCellInt !== false;
+    }
+
+    isHeavyBlockCooperationEnabled() {
+        return gameConfig?.world?.heavyBlockCooperation !== false;
+    }
+
+    isShelterTrustScalingEnabled() {
+        return gameConfig?.world?.shelterTrustScaling !== false;
+    }
+
+    isHeavyBlock(block) {
+        if (!this.isHeavyBlockCooperationEnabled() || !block) return false;
+        if (block.weightProfile === 'heavy' || block.objectProfile?.weightProfile === 'heavy') return true;
+        const h = Math.max(
+            0,
+            Math.round(block.boardPos?.h ?? block.stackIndex ?? 0)
+        );
+        return h >= 3;
+    }
+
+    getBoardPixelsPerUnit(zoneId = null) {
+        const projection = typeof renderManager !== 'undefined'
+            ? renderManager?.getProjectionForZone?.(zoneId) || null
+            : null;
+        const board = typeof zoneSystem !== 'undefined'
+            ? zoneSystem?.getBoardConfigForZone?.(zoneId) || null
+            : null;
+        return Math.max(
+            1,
+            Number(projection?.ppu)
+            || Number(board?.ppu)
+            || Number(gameConfig?.spatial?.projection?.ppu)
+            || 20
+        );
+    }
+
+    getBoardDistanceBetweenEntities(left, right) {
+        const leftBoard = this.getEntityBoardPos(left);
+        const rightBoard = this.getEntityBoardPos(right);
+        if (leftBoard && rightBoard) {
+            return Math.hypot((leftBoard.u || 0) - (rightBoard.u || 0), (leftBoard.v || 0) - (rightBoard.v || 0));
+        }
+        const zoneId = leftBoard?.zoneId
+            || rightBoard?.zoneId
+            || left?.currentZoneId
+            || right?.currentZoneId
+            || left?.lifeSim?.lifecycle?.currentZoneId
+            || right?.lifeSim?.lifecycle?.currentZoneId
+            || null;
+        return Math.hypot((left?.x || 0) - (right?.x || 0), (left?.y || 0) - (right?.y || 0)) / this.getBoardPixelsPerUnit(zoneId);
+    }
+
+    getAdjacentBlockCarrierCandidates(block, actor = null, gameState = gameCore?.gameState) {
+        if (!block) return [];
+        const zoneId = block.currentZoneId || block.boardPos?.zoneId || null;
+        const candidates = (gameState?.butterflies || [])
+            .filter(entity => entity?.id && entity.state === 'normal' && !entity.isSpawning && !entity.zoneTravel)
+            .filter(entity => !zoneId || (entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null) === zoneId)
+            .filter(entity => this.getBoardDistanceBetweenEntities(block, entity) <= 1.5);
+        if (actor?.id && !candidates.some(entity => entity.id === actor.id)) {
+            candidates.unshift(actor);
+        }
+        return candidates.slice(0, 4);
+    }
+
+    canCarryBlock(block, actor = null, gameState = gameCore?.gameState) {
+        if (!this.isHeavyBlock(block)) return true;
+        const candidates = this.getAdjacentBlockCarrierCandidates(block, actor, gameState);
+        const uniqueIds = new Set(candidates.map(entity => entity?.id).filter(Boolean));
+        const accepted = uniqueIds.size >= 2;
+        block.cooperativeCarrierIds = accepted ? [...uniqueIds].slice(0, 2) : [];
+        block.cooperativeCarryRequired = true;
+        return accepted;
+    }
+
+    recordHeavyBlockCarryAttempt(block, actor = null, options = {}) {
+        if (!this.isHeavyBlock(block) || !actor?.id) return null;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        const lastFrame = Number.isFinite(block.lastCooperationCallFrame) ? block.lastCooperationCallFrame : -Infinity;
+        if ((currentFrame - lastFrame) < 180) {
+            return {
+                emitted: false,
+                reason: 'cooldown',
+                carrierCount: this.getAdjacentBlockCarrierCandidates(block, actor, options.gameState).length
+            };
+        }
+        block.lastCooperationCallFrame = currentFrame;
+        const zoneId = block.currentZoneId || actor.currentZoneId || null;
+        const candidates = this.getAdjacentBlockCarrierCandidates(block, actor, options.gameState);
+        communicationSystem?.emitCooperationSignal?.(actor, {
+            signalType: 'guidance_signal',
+            intentFamily: 'social',
+            intentTags: ['guidance', 'companionship'],
+            phrase: 'I need help moving this heavy block.',
+            zoneId,
+            targetIds: candidates.filter(entity => entity.id !== actor.id).map(entity => entity.id),
+            blockId: block.id,
+            reason: 'heavy-block'
+        });
+        return {
+            emitted: true,
+            reason: 'heavy-block',
+            carrierCount: candidates.length,
+            blockId: block.id,
+            actorId: actor.id
+        };
+    }
+
+    getShelterTrustRecoveryScale(entity, gameState = gameCore?.gameState, spatialContext = null) {
+        if (!this.isShelterTrustScalingEnabled() || !entity?.id) return 1;
+        const inShelter = !!(spatialContext?.insideShelter || entity.lifeSim?.spatialAwareness?.insideShelter || spatialContext?.shelterCandidate);
+        if (!inShelter) return 1;
+        const zoneId = entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null;
+        const nearby = (gameState?.butterflies || [])
+            .filter(candidate => candidate?.id && candidate.id !== entity.id)
+            .filter(candidate => !zoneId || (candidate.currentZoneId || candidate.lifeSim?.lifecycle?.currentZoneId || null) === zoneId)
+            .filter(candidate => {
+                const candidateSheltered = candidate.lifeSim?.spatialAwareness?.insideShelter || candidate.lifeSim?.spatialAwareness?.shelterCandidate;
+                return candidateSheltered && this.getBoardDistanceBetweenEntities(entity, candidate) <= 2.2;
+            });
+        if (!nearby.length) return 1;
+        const trustedBonus = nearby.reduce((sum, candidate) => {
+            const edge = entity.lifeSim?.socialEdges?.[candidate.id] || {};
+            const trust = Math.max(edge.trust || 0, edge.comfort || 0, edge.attachment || 0);
+            const tierBonus = edge.bondTier === 'bonded' ? 0.16 : edge.bondTier === 'companion' ? 0.1 : edge.bondTier === 'familiar' ? 0.04 : 0;
+            return sum + Math.max(0, trust - 0.28) + tierBonus;
+        }, 0);
+        const strongestTier = nearby.reduce((rank, candidate) => {
+            const edge = entity.lifeSim?.socialEdges?.[candidate.id] || {};
+            const tierRank = { acquaintance: 0, familiar: 1, companion: 2, bonded: 3 }[edge.bondTier || 'acquaintance'] || 0;
+            return Math.max(rank, tierRank);
+        }, 0);
+        const cap = strongestTier >= 3 ? 1.9 : strongestTier >= 2 ? 1.75 : 1.6;
+        return Math.min(cap, 1 + trustedBonus * 0.5);
+    }
+
+    getBoardDimensions(zoneId) {
+        const board = typeof zoneSystem !== 'undefined'
+            ? zoneSystem?.getBoardConfigForZone?.(zoneId)
+            : null;
+        const renderer = typeof renderManager !== 'undefined' ? renderManager : null;
+        const dimensions = board?.dimensions
+            || (Number.isFinite(board?.widthUnits) && Number.isFinite(board?.depthUnits)
+                ? {
+                    widthUnits: board.widthUnits,
+                    depthUnits: board.depthUnits
+                }
+                : null)
+            || renderer?.getProjectionForZone?.(zoneId)?.dimensions
+            || null;
+        return dimensions && Number.isFinite(dimensions.widthUnits) && Number.isFinite(dimensions.depthUnits)
+            ? dimensions
+            : null;
+    }
+
+    normalizeBlockCell(zoneId, u, v, h = 0) {
+        return {
+            zoneId,
+            u: Math.round(Number.isFinite(u) ? u : 0),
+            v: Math.round(Number.isFinite(v) ? v : 0),
+            h: Math.max(0, Math.round(Number.isFinite(h) ? h : 0))
+        };
+    }
+
+    getBlockCell(block, options = {}) {
+        if (!block) return null;
+        const zoneId = options.zoneId || block.currentZoneId || block.boardPos?.zoneId || null;
+        if (!zoneId) return null;
+        const h = Number.isFinite(options.h)
+            ? options.h
+            : Math.max(0, block.stackIndex || block.boardPos?.h || 0);
+        const boardPos = this.getEntityBoardPos(block, { zoneId, h });
+        if (!boardPos) return null;
+        return this.normalizeBlockCell(zoneId, boardPos.u, boardPos.v, h);
+    }
+
+    buildBlockCellKey(zoneId, u, v, h = 0) {
+        const cell = this.normalizeBlockCell(zoneId, u, v, h);
+        return `${cell.zoneId}:${cell.u}:${cell.v}:${cell.h}`;
+    }
+
+    getCandidateBlocksForCell(zoneId, candidateBlocks = null) {
+        const source = Array.isArray(candidateBlocks)
+            ? candidateBlocks
+            : (gameCore?.getBlocksInZone?.(zoneId) || gameCore?.gameState?.blocks || []);
+        return (source || []).filter(block =>
+            block
+            && !block.carriedById
+            && (block.currentZoneId || block.boardPos?.zoneId || null) === zoneId
+        );
+    }
+
+    cellOccupiedBySolid(zoneId, u, v, h = 0, options = {}) {
+        if (!zoneId) return false;
+        const targetKey = this.buildBlockCellKey(zoneId, u, v, h);
+        const ignoreBlockIds = new Set(options.ignoreBlockIds || []);
+        if (options.ignoreBlockId) {
+            ignoreBlockIds.add(options.ignoreBlockId);
+        }
+
+        return this.getCandidateBlocksForCell(zoneId, options.candidateBlocks).some(block => {
+            if (!block?.id || ignoreBlockIds.has(block.id)) return false;
+            const cell = this.getBlockCell(block, { zoneId });
+            return !!cell && this.buildBlockCellKey(cell.zoneId, cell.u, cell.v, cell.h) === targetKey;
+        });
+    }
+
+    acceptCellPlacement(request = {}) {
+        const zoneId = request.zoneId || request.block?.currentZoneId || request.block?.boardPos?.zoneId || null;
+        if (!zoneId) return { accepted: false, reason: 'missing-zone' };
+        if (!request.allowTrainingZoneBlocks && gameCore?.canSpawnBlocksInZone?.(zoneId) === false) {
+            return { accepted: false, reason: 'training-no-blocks', zoneId };
+        }
+
+        const cell = this.normalizeBlockCell(zoneId, request.u, request.v, request.h || 0);
+        const dimensions = this.getBoardDimensions(zoneId);
+        if (dimensions) {
+            const outOfRange = cell.u < 0
+                || cell.v < 0
+                || cell.u >= dimensions.widthUnits
+                || cell.v >= dimensions.depthUnits;
+            if (outOfRange) {
+                return { accepted: false, reason: 'out-of-zone', ...cell, dimensions };
+            }
+        }
+
+        const maxStackHeight = this.getMaxStackHeight();
+        if (cell.h >= maxStackHeight) {
+            return { accepted: false, reason: 'over-stack', ...cell, maxStackHeight };
+        }
+
+        const ignoreBlockIds = new Set(request.ignoreBlockIds || []);
+        if (request.block?.id) {
+            ignoreBlockIds.add(request.block.id);
+        }
+        if (this.cellOccupiedBySolid(zoneId, cell.u, cell.v, cell.h, {
+            candidateBlocks: request.candidateBlocks,
+            ignoreBlockIds: [...ignoreBlockIds]
+        })) {
+            return { accepted: false, reason: 'duplicate-cell', ...cell };
+        }
+
+        if (cell.h > 0 && !this.cellOccupiedBySolid(zoneId, cell.u, cell.v, cell.h - 1, {
+            candidateBlocks: request.candidateBlocks,
+            ignoreBlockIds: [...ignoreBlockIds]
+        })) {
+            return { accepted: false, reason: 'unsupported', ...cell, supportH: cell.h - 1 };
+        }
+
+        return {
+            accepted: true,
+            reason: 'accepted',
+            ...cell
+        };
+    }
+
+    findNearestAcceptedCell(request = {}, maxRadius = 8) {
+        const zoneId = request.zoneId || request.block?.currentZoneId || request.block?.boardPos?.zoneId || null;
+        if (!zoneId) return null;
+        const origin = this.normalizeBlockCell(zoneId, request.u, request.v, request.h || 0);
+        const first = this.acceptCellPlacement({ ...request, ...origin });
+        if (first.accepted) return first;
+
+        for (let radius = 1; radius <= maxRadius; radius += 1) {
+            for (let du = -radius; du <= radius; du += 1) {
+                for (let dv = -radius; dv <= radius; dv += 1) {
+                    if (Math.max(Math.abs(du), Math.abs(dv)) !== radius) continue;
+                    const candidate = this.acceptCellPlacement({
+                        ...request,
+                        zoneId,
+                        u: origin.u + du,
+                        v: origin.v + dv,
+                        h: origin.h
+                    });
+                    if (candidate.accepted) return candidate;
+                }
+            }
+        }
+        return first;
+    }
+
     getSpatialFootprintRegistry() {
         return gameConfig?.entities?.spatialFootprints || {};
     }
@@ -367,19 +707,30 @@ class StructureSystem {
         const component = this.getNearestComponentForPoint(zoneProfile, point);
         const column = component ? this.getNearestOccupancyColumn(component, point, blockUnit.columnQueryRadius) : null;
         const supportBlock = block.supportBlockId ? blockById.get(block.supportBlockId) || null : null;
+        const boardSupportAligned = supportBlock ? this.areBoardColumnsAligned(block, supportBlock) : null;
         const supportAligned = !!supportBlock
-            && Math.hypot((supportBlock.x || 0) - point.x, (supportBlock.y || 0) - point.y) <= Math.max(10, blockUnit.radius * 0.9);
+            && (boardSupportAligned ?? (Math.hypot((supportBlock.x || 0) - point.x, (supportBlock.y || 0) - point.y) <= Math.max(10, blockUnit.radius * 0.9)));
         const supportStable = !!supportBlock
             && !supportBlock.carriedById
             && (supportBlock.currentZoneId || null) === zoneId
             && Math.max(0, supportBlock.stackIndex || 0) === Math.max(0, stackIndex - 1)
             && supportAligned;
+        const blockBoard = this.getEntityBoardPos(block);
+        const boardColumnAligned = blockBoard && column?.boardPos
+            ? Math.hypot(blockBoard.u - column.boardPos.u, blockBoard.v - column.boardPos.v) <= 0.08
+            : null;
         const columnAligned = !!column
-            && Math.hypot((column.x || 0) - point.x, (column.y || 0) - point.y) <= Math.max(10, (column.radius || 12) * 0.9);
+            && (boardColumnAligned ?? (Math.hypot((column.x || 0) - point.x, (column.y || 0) - point.y) <= Math.max(10, (column.radius || 12) * 0.9)));
+        const cellSupportStable = stackIndex > 0 && this.isBlockCellSnapEnabled()
+            ? !!this.cellOccupiedBySolid(zoneId, blockBoard?.u, blockBoard?.v, stackIndex - 1, {
+                candidateBlocks: zoneBlocks,
+                ignoreBlockIds: [block.id].filter(Boolean)
+            })
+            : false;
         const withinLimit = stackIndex < maxStackHeight;
         const stackedStable = stackIndex === 0
             ? true
-            : withinLimit && supportStable && columnAligned;
+            : withinLimit && supportStable && (columnAligned || cellSupportStable);
         const supportState = block.carriedById
             ? 'carried'
             : stackIndex > 0
@@ -650,8 +1001,11 @@ class StructureSystem {
                 for (const candidate of blocks) {
                     if (!candidate || visited.has(candidate.id) || candidate.id === current.id) continue;
                     const shareSupport = candidate.supportBlockId === current.id || current.supportBlockId === candidate.id;
-                    const sameColumn = quantize(candidate.x) === quantize(current.x)
-                        && quantize(candidate.y) === quantize(current.y);
+                    const boardAligned = this.areBoardColumnsAligned(candidate, current);
+                    const sameColumn = boardAligned ?? (
+                        quantize(candidate.x) === quantize(current.x)
+                        && quantize(candidate.y) === quantize(current.y)
+                    );
                     if (shareSupport || sameColumn) {
                         pending.push(candidate);
                     }
@@ -671,12 +1025,14 @@ class StructureSystem {
             );
             const baseBlock = stackBlocks[0];
             const topBlock = stackBlocks[stackBlocks.length - 1];
+            const baseBoardPos = this.getEntityBoardPos(baseBlock, { h: 0 });
             stacks.push({
                 id: `stack_${stackIndex++}`,
                 blockIds: stackBlocks.map(entry => entry.id),
                 blocks: this.cloneValue(stackBlocks, []),
                 x: baseBlock?.x || 0,
                 y: baseBlock?.y || 0,
+                boardPos: baseBoardPos,
                 baseBlockId: baseBlock?.id || null,
                 topBlockId: topBlock?.id || null,
                 height
@@ -956,15 +1312,23 @@ class StructureSystem {
     }
 
     buildOccupancyColumns(stacks) {
-        return (stacks || []).map(stack => ({
-            id: stack.id,
-            x: stack.x || 0,
-            y: stack.y || 0,
-            height: stack.height || 1,
-            topBlockId: stack.topBlockId || null,
-            baseBlockId: stack.baseBlockId || null,
-            radius: this.getCanonicalBlockUnit(stack.height || 1).columnRadius
-        }));
+        return (stacks || []).map(stack => {
+            const height = stack.height || 1;
+            return {
+                id: stack.id,
+                x: stack.x || 0,
+                y: stack.y || 0,
+                boardPos: stack.boardPos ? { ...stack.boardPos, h: 0 } : null,
+                u: Number.isFinite(stack.boardPos?.u) ? stack.boardPos.u : null,
+                v: Number.isFinite(stack.boardPos?.v) ? stack.boardPos.v : null,
+                topH: Math.max(0, height - 1),
+                height,
+                topBlockId: stack.topBlockId || null,
+                baseBlockId: stack.baseBlockId || null,
+                supportChain: [...(stack.blockIds || [])],
+                radius: this.getCanonicalBlockUnit(height).columnRadius
+            };
+        });
     }
 
     buildBlockProfile(block, component) {
@@ -997,6 +1361,7 @@ class StructureSystem {
             stackId: stack?.id || null,
             x: block.x || 0,
             y: block.y || 0,
+            boardPos: this.getEntityBoardPos(block, { h: block.stackIndex ?? 0 }),
             renderWidth: block.renderWidth || 18,
             renderHeight: block.renderHeight || 18,
             footprintFamily: blockMetrics.family,
@@ -1573,6 +1938,25 @@ class StructureSystem {
             || zoneProfile.components[0]
             || null;
         const point = { x: placement.x, y: placement.y };
+        if (this.isBlockCellSnapEnabled()) {
+            const renderer = typeof renderManager !== 'undefined' ? renderManager : null;
+            const boardPoint = placement.boardPos && Number.isFinite(placement.boardPos.u) && Number.isFinite(placement.boardPos.v)
+                ? placement.boardPos
+                : renderer?.screenToBoard?.(point.x, point.y, zoneId, 0);
+            if (!boardPoint) return false;
+            const cellAcceptance = this.acceptCellPlacement({
+                zoneId,
+                u: boardPoint.u,
+                v: boardPoint.v,
+                h: requestedStackIndex,
+                block,
+                candidateBlocks,
+                ignoreBlockIds: [block.id].filter(Boolean)
+            });
+            if (!cellAcceptance.accepted) {
+                return false;
+            }
+        }
 
         if (!isStackedPlacement && preferredComponent && this.pointConflictsWithOpening(preferredComponent, point, spacing)) {
             return false;
@@ -1595,6 +1979,9 @@ class StructureSystem {
                 stack?.blockIds?.includes?.(placement.supportBlockId)
             ) || null;
             if (!supportStack) {
+                return false;
+            }
+            if (supportComponent && this.pointConflictsWithOpening(supportComponent, point, spacing)) {
                 return false;
             }
             if (requestedStackIndex !== supportStack.height) {
@@ -1626,6 +2013,63 @@ class StructureSystem {
         }
 
         return true;
+    }
+
+    normalizeBlockPlacementToCell(placement, block, candidateBlocks = [], actor = null) {
+        if (!placement || !block || !this.isBlockCellSnapEnabled()) return placement;
+        const renderer = typeof renderManager !== 'undefined' ? renderManager : null;
+        const zoneId = placement.zoneId || block.currentZoneId || block.boardPos?.zoneId || null;
+        if (!zoneId || !renderer?.screenToBoard || !renderer?.boardToScreen) {
+            return placement;
+        }
+        const boardPoint = placement.boardPos && Number.isFinite(placement.boardPos.u) && Number.isFinite(placement.boardPos.v)
+            ? placement.boardPos
+            : renderer.screenToBoard(placement.x, placement.y, zoneId, 0);
+        if (!boardPoint) return placement;
+        const origin = this.normalizeBlockCell(zoneId, boardPoint.u, boardPoint.v, Math.max(0, Math.round(placement.stackIndex || 0)));
+        const request = {
+            zoneId,
+            h: origin.h,
+            block,
+            candidateBlocks,
+            ignoreBlockIds: [block.id].filter(Boolean)
+        };
+        for (let radius = 0; radius <= 8; radius += 1) {
+            for (let du = -radius; du <= radius; du += 1) {
+                for (let dv = -radius; dv <= radius; dv += 1) {
+                    if (radius > 0 && Math.max(Math.abs(du), Math.abs(dv)) !== radius) continue;
+                    const cell = this.acceptCellPlacement({
+                        ...request,
+                        u: origin.u + du,
+                        v: origin.v + dv
+                    });
+                    if (!cell?.accepted) continue;
+                    const screen = renderer.boardToScreen({
+                        zoneId,
+                        u: cell.u,
+                        v: cell.v,
+                        h: 0
+                    });
+                    if (!screen) continue;
+                    const normalized = {
+                        ...placement,
+                        x: screen.x,
+                        y: screen.y,
+                        stackIndex: Math.max(0, Math.round(cell.h || 0)),
+                        boardPos: {
+                            zoneId,
+                            u: cell.u,
+                            v: cell.v,
+                            h: Math.max(0, Math.round(cell.h || 0))
+                        }
+                    };
+                    if (!actor || this.validatePlacementTargetForBlock(actor, block, normalized, candidateBlocks)) {
+                        return normalized;
+                    }
+                }
+            }
+        }
+        return placement;
     }
 
     findSafeDropPlacementForBlock(butterfly, block, candidateBlocks = []) {
@@ -1660,7 +2104,7 @@ class StructureSystem {
                 zoneId
             };
             if (this.validatePlacementTargetForBlock(butterfly, block, placement, candidateBlocks)) {
-                return placement;
+                return this.normalizeBlockPlacementToCell(placement, block, candidateBlocks, butterfly);
             }
         }
 
@@ -1763,8 +2207,16 @@ class StructureSystem {
                 const clamped = gameCore?.clampPlacementPoint?.(proposed.x, proposed.y, blockUnit.clampPadding) || proposed;
                 if (!isClear(clamped, 'connected', 0, nearestStack?.baseBlockId || null, perimeterComponent.id)) continue;
                 return {
-                    x: clamped.x,
-                    y: clamped.y,
+                    ...this.normalizeBlockPlacementToCell({
+                        x: clamped.x,
+                        y: clamped.y,
+                        stackIndex: 0,
+                        supportBlockId: nearestStack?.baseBlockId || null,
+                        placementMode: 'connected',
+                        zoneId,
+                        componentId: perimeterComponent.id,
+                        supportComponentId: perimeterComponent.id
+                    }, carriedBlock, candidateBlocks, butterfly),
                     stackIndex: 0,
                     supportBlockId: nearestStack?.baseBlockId || null,
                     placementMode: 'connected',
@@ -1788,8 +2240,15 @@ class StructureSystem {
             };
             if (!isClear(proposed, 'ground', 0, null, preferredComponent?.id || null)) continue;
             return {
-                x: proposed.x,
-                y: proposed.y,
+                ...this.normalizeBlockPlacementToCell({
+                    x: proposed.x,
+                    y: proposed.y,
+                    stackIndex: 0,
+                    supportBlockId: null,
+                    placementMode: 'ground',
+                    zoneId,
+                    componentId: preferredComponent?.id || null
+                }, carriedBlock, candidateBlocks, butterfly),
                 stackIndex: 0,
                 supportBlockId: null,
                 placementMode: 'ground',

@@ -230,10 +230,10 @@ async function run() {
       const labels = details.filters.map(button => button.label);
       return {
         pass:
-          JSON.stringify(labels) === JSON.stringify(['Talk', 'Actions', 'Learn']) &&
+          JSON.stringify(labels) === JSON.stringify(['Talk', 'Action', 'Learn', 'Warning', 'System']) &&
           !labels.includes('Signals') &&
           !labels.includes('Save') &&
-          JSON.stringify(details.filterKeys) === JSON.stringify(['talk', 'actions', 'learn']),
+          JSON.stringify(details.filterKeys) === JSON.stringify(['talk', 'action', 'learn', 'warning', 'system']),
         details
       };
     });
@@ -713,7 +713,7 @@ async function run() {
         gameUI.activityLogPanel.visible = true;
         const feedEntries = gameUI.getRecentActivityEntries();
         const battleEvents = eventBus.getHistory(GameEvents.BATTLE_ACTION_OCCURRED);
-        const actionFeedEntries = feedEntries.filter(entry => entry.category === 'actions');
+        const actionFeedEntries = feedEntries.filter(entry => entry.category === 'action');
         const battleActionFeed = actionFeedEntries.find(entry =>
           /Struck for|Rallied for|Guarded and recovered|Retreated from battle/i.test(entry.line || '')
         ) || null;
@@ -993,6 +993,7 @@ async function run() {
         const learner = (gameCore.getGameState().butterflies || []).find(entry => entry.id === learnerId) || null;
         const learnerSummary = communicationSystem.getCommunicationSummary(learnerId);
         const teacherSummary = communicationSystem.getCommunicationSummary(teacherId);
+        const learnerTeacherEdge = learner?.lifeSim?.socialEdges?.[teacherId] || null;
         const feedEntries = gameUI.getRecentActivityEntries();
         const learnEntries = feedEntries.filter(entry => entry.category === 'learn');
         return {
@@ -1001,6 +1002,12 @@ async function run() {
           learnerResidueLabel: learnerSummary?.recentResidueLabel || null,
           learnerRelationship: learnerSummary?.relationship || null,
           teacherRelationship: teacherSummary?.relationship || null,
+          learnerTeacherEdge: learnerTeacherEdge ? {
+            anchoringDialogueCount: learnerTeacherEdge.anchoringDialogueCount || 0,
+            learnedDialogueCount: learnerTeacherEdge.learnedDialogueCount || 0,
+            followThroughScore: learnerTeacherEdge.followThroughScore || 0,
+            recentResidues: learnerTeacherEdge.recentResidues || []
+          } : null,
           learnEntries
         };
       }, setup);
@@ -1010,8 +1017,8 @@ async function run() {
           details.learnerLessonCount >= 1 &&
           !!details.retainedLessonLabel &&
           !/No retained dialogue lesson/i.test(details.retainedLessonLabel) &&
-          !!details.learnerRelationship &&
-          details.learnerRelationship.learnedDialogueCount >= 1 &&
+          !!details.learnerTeacherEdge &&
+          details.learnerTeacherEdge.learnedDialogueCount >= 1 &&
           learnEntriesContain(details.learnEntries, 'Held onto'),
         details
       };

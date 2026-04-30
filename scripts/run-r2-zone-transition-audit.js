@@ -13,6 +13,19 @@ const STORAGE_KEYS = [
   'papilionem-audit-reports-v1'
 ];
 
+function getWorldRenderModeOverride() {
+  const mode = process.env.PAPILIONEM_WORLD_RENDER_MODE;
+  return ['section-scenes', 'sim-board'].includes(mode) ? mode : null;
+}
+
+async function applyRuntimeOverrides(context, worldRenderMode) {
+  if (!worldRenderMode) return;
+  await context.addInitScript((renderMode) => {
+    window.__PAPILIONEM_WORLD_RENDERMODE__ = renderMode;
+    window.localStorage.setItem('papilionem-world-rendermode', renderMode);
+  }, worldRenderMode);
+}
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -64,10 +77,14 @@ async function saveShot(page, outputDir, name) {
   return file;
 }
 
-async function resetBaseline(page) {
-  await page.evaluate((keys) => {
+async function resetBaseline(page, worldRenderMode = null) {
+  await page.evaluate(({ keys, renderMode }) => {
     keys.forEach(key => window.localStorage.removeItem(key));
-  }, STORAGE_KEYS);
+    if (renderMode) {
+      window.__PAPILIONEM_WORLD_RENDERMODE__ = renderMode;
+      window.localStorage.setItem('papilionem-world-rendermode', renderMode);
+    }
+  }, { keys: STORAGE_KEYS, renderMode: worldRenderMode });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitForGame(page);
   await dismissTitle(page);
@@ -103,6 +120,7 @@ async function run() {
     pageErrors: [],
     consoleErrors: [],
     server: null,
+    worldRenderModeOverride: getWorldRenderModeOverride(),
     overall: 'pending'
   };
 
@@ -116,6 +134,7 @@ async function run() {
     context = await browser.newContext({
       viewport: { width: 1600, height: 900 }
     });
+    await applyRuntimeOverrides(context, report.worldRenderModeOverride);
     page = await context.newPage();
 
     page.on('pageerror', error => report.pageErrors.push(String(error)));
@@ -128,7 +147,7 @@ async function run() {
     await page.goto(URL, { waitUntil: 'domcontentloaded' });
     await waitForGame(page);
     await dismissTitle(page);
-    await resetBaseline(page);
+    await resetBaseline(page, report.worldRenderModeOverride);
 
     await page.evaluate(() => {
       const zones = gameCore.getZoneIds?.() || [];
@@ -193,6 +212,7 @@ async function run() {
             const invalidSortedIds = sortedIds.filter(id => !visibleIds.includes(id));
 
             snapshots.push({
+              renderMode: gameConfig.world.renderMode,
               zoneId,
               gameCoreFocusedZoneId: state.focusedZoneId || null,
               zoneSystemFocusedZoneId: zoneSystem.focusedZoneId || null,
@@ -220,7 +240,7 @@ async function run() {
         && entry.zoneId === entry.zoneSystemFocusedZoneId
         && entry.zoneId === entry.renderFocusedZoneId
         && entry.renderViewMode === 'focused-garden'
-        && entry.activeWorldSectionId === entry.zoneId
+        && (entry.renderMode === 'sim-board' || entry.activeWorldSectionId === entry.zoneId)
         && Array.isArray(entry.invalidSortedIds)
         && entry.invalidSortedIds.length === 0
       );
@@ -328,6 +348,7 @@ async function run() {
           ok: true,
           zoneId,
           zoneTruth: {
+            renderMode: gameConfig.world.renderMode,
             gameCoreFocusedZoneId: gameCore.getGameState().focusedZoneId || null,
             zoneSystemFocusedZoneId: zoneSystem.focusedZoneId || null,
             renderFocusedZoneId: renderManager.viewState?.focusedZoneId || null,
@@ -346,7 +367,7 @@ async function run() {
           details.zoneTruth?.gameCoreFocusedZoneId === details.zoneId &&
           details.zoneTruth?.zoneSystemFocusedZoneId === details.zoneId &&
           details.zoneTruth?.renderFocusedZoneId === details.zoneId &&
-          details.zoneTruth?.activeWorldSectionId === details.zoneId &&
+          (details.zoneTruth?.renderMode === 'sim-board' || details.zoneTruth?.activeWorldSectionId === details.zoneId) &&
           details.openingContext?.structureRole === 'opening' &&
           details.openingContext?.bodyFit === 'canShelterInside' &&
           details.openingAllowed === false &&

@@ -1,0 +1,33 @@
+{
+  "id": "seed-loneliness",
+  "seed": 505,
+  "world": { "focusedZoneId": "pool-heart", "renderMode": "sim-board" },
+  "entities": [
+    {
+      "id": "a",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "pool-heart", "u": 4, "v": 4, "h": 0 },
+      "drives": { "socialConnection": 0.08 },
+      "emotions": { "rejection": 0.62 }
+    },
+    {
+      "id": "b",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "pool-heart", "u": 17, "v": 17, "h": 0 },
+      "drives": { "socialConnection": 0.16 }
+    }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.05, "comfort": 0.05, "attachment": 0.04 } }
+  ],
+  "actions": [
+    { "type": "advance_cognition", "seconds": 30 },
+    { "type": "emit_signal", "source": "a", "targets": ["b"], "signalType": "guidance_signal", "intentFamily": "social", "intentTags": ["companionship"], "phrase": "Come closer." }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 2 },
+    { "type": "feeling_min", "entity": "a", "key": "loneliness", "min": 0.25 },
+    { "type": "ml_feature", "entity": "a", "path": "groups.derivedFeelings.loneliness", "min": 0.25 },
+    { "type": "dialogue_count", "min": 1 }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "seed-flower-lifecycle",
+  "seed": 808,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 9, "v": 9, "h": 0 } }
+  ],
+  "objects": [
+    { "id": "flower-a", "type": "flower", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 9, "h": 0 } },
+    { "id": "pile-a", "type": "dirt-pile", "boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 9, "h": 0 } }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 1 },
+    { "type": "object_count", "min": 1 },
+    { "type": "object_count", "kind": "dirt-pile", "min": 1 }
+  ]
+}

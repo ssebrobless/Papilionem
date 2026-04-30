@@ -84,7 +84,7 @@ What still does not line up fully:
 
 Concrete blockers:
 
-- no dedicated lived-in manual acceptance sweep for all visible pseudo-3D cases
+- local companion proof now exists in [G1-SPATIAL-ACCEPTANCE-SWEEP.md](./G1-SPATIAL-ACCEPTANCE-SWEEP.md), but no human `g0-bar` signoff is recorded yet
 - no explicit acceptance lane for eggs/cocoons/caterpillars plus carry/cover in one longer free-play review
 
 Type of remaining work:
@@ -121,8 +121,8 @@ What still does not line up fully:
 
 Concrete blockers:
 
-- no "live colony building" proof lane
-- no longer-form manual review of carry -> relocate flower -> place -> stack -> revisit structure in ordinary play
+- the first guided lived-in proof lane now exists in [G2-LIVE-BUILDING-BEHAVIOR-PROOF.md](./G2-LIVE-BUILDING-BEHAVIOR-PROOF.md), but uncontrolled free-play acceptance is still missing
+- no longer-form manual review of carry -> place -> revisit structure in ordinary play with broader colony-shaped richness judgment
 
 Type of remaining work:
 
@@ -158,7 +158,7 @@ What still does not line up fully:
 
 Concrete blockers:
 
-- no explicit "does this still look graceful in ordinary play?" acceptance gate
+- local companion proof now exists in [G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md](./G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md), but no human `g0-bar` grace/readability signoff is recorded yet
 - no recent manual capture review focused only on naturalness of movement style across calm, social, scared, and carrying states
 
 Type of remaining work:
@@ -325,6 +325,43 @@ What still does not line up fully:
   the local proof is frozen live
 - a6 dispersal logs 56 identical Canvas2D `willReadFrequently` warnings
   per run; treating that volume as pure tooling noise is generous
+- the refreshed composed benchmark packet on `56c9a4f` is healthier in the
+  reality lane but still exposes real local implementation gaps:
+  - scattered `single-zone-122` first landed at `102.8ms p50` / `52.43ms avg update`
+  - after the internal structure-query no-clone cut, it now lands at
+    `89.4ms p50` / `43.77ms avg update`, which is much closer to the scenario
+    note's `83ms p50`
+  - the dense-flower direct-present gate then moved scattered `single-zone-122`
+    again to `88.4ms p50` / `40.84ms avg update`
+  - the communication-maintenance + decision-trace cache follow-up then moved
+    scattered `single-zone-122` again to `81.1ms p50` / `36.62ms avg update`
+  - the follow-up structure-system frame-local runtime caches then held
+    scattered `single-zone-122` at `81.3ms p50` / `39.27ms avg update`
+  - `single-zone-200` also dropped again to `86.37ms avg update`, then
+    `81.39ms avg update`, so the old physics-sync cliff is no longer the main
+    story there
+  - pressure-gated crowd/cursor checks plus a critical communication cadence
+    follow-up then moved `single-zone-200` again to `80.87ms avg update` /
+    `134.0ms p50`
+  - the same retained follow-up moved scattered `single-zone-122` to
+    `34.71ms avg update` / `74.7ms p50`, leaving it well below the old
+    `83ms p50` note
+  - `block-carry-active` was the strongest local blocker, but it is now
+    materially repaired at `30.47ms avg update` / `73.1ms p95`
+  - `flower-feed-storm` was the remaining stronger local hotspot, but the new
+    dense-flower gate repairs it to `63.95ms avg render` / `98.2ms p50`, and it
+    now holds at `61.31ms avg render` / `88.7ms p50` after the communication/runtime cuts
+  - the new `physics.*` stage fields proved that the old carry-lane cliff was
+    driven by clone-heavy structure query work, not an irreducible opaque
+    physics budget
+  - the new frame-local structure caches prove that repeated same-frame
+    collision and spatial-context queries were still a real stress-lane tax
+  - follow-up social guardrails still pass after the communication maintenance
+    cut (`r6` and `f5/f6`)
+  - follow-up spatial/build guardrails also still pass after the structure
+    runtime-cache cut (`a4` and `b4`)
+  - follow-up social and movement guardrails still pass after the pressure-gated
+    crowd/cursor and communication-cadence cut (`r6`, `f5/f6`, and `r1`)
 
 Concrete blockers:
 
@@ -334,14 +371,24 @@ Concrete blockers:
 - full-stack migrated-save runtime proof is still open
 - warning-noise cleanup is not yet fully closed
 - ML cadence cost is not yet justified (gates on g6)
+- the composed benchmark packet now points to a live runtime implementation gap
+  in the remaining composed lanes:
+  - `single-zone-200` -> smaller but still real above-real-play density stress lane,
+    now most visibly led by composite / drawImage tail plus residual butterfly update
+  - `flower-feed-storm` -> repaired watch lane that should stay green during
+    later stress-lane work
+  - `block-carry-active` -> repaired watch lane that should stay green during
+    later stress-lane work
+  - `single-zone-122` -> now locally below the old `83ms p50` note, so it is no
+    longer an active blocker unless we choose to chase extra margin
 
 Type of remaining work:
 
 ```text
-primary: proof gap
-secondary: outside-evidence gap
-watch-item: implementation gap if long-session rerun stays critical
-not a local runtime-emergency gap, but stronger than gate-pass evidence
+primary: implementation gap
+secondary: proof gap
+tertiary: outside-evidence gap
+not a save/ownership emergency gap, but stronger than gate-pass runtime evidence
 ```
 
 ### 8. Persistence / Continuity
@@ -384,11 +431,15 @@ not a current migration-contract gap
 
 ```text
 top remaining mismatches
+├─ runtime stress-lane cost is still above the new composed target
+│  ├─ single-zone-200 composite / drawImage tail
+│  ├─ single-zone-200 residual butterfly-update pressure
+│  └─ residual structure-query misses after the new frame-local caches
 ├─ social/emotional breadth is real but not yet acceptance-closed
 ├─ dialogue naturalness and ambient variety are still under-proven
 ├─ autonomous building behavior is under-proven compared with placement correctness
 ├─ ML value is proven in scenarios more than in long free play
-└─ runtime/persistence still need v8b + outside-session closure
+└─ persistence/public-share still need v8b + outside-session closure
 ```
 
 ## What This Means
@@ -402,9 +453,10 @@ good news
 
 honest next step
 └─ stop treating every remaining problem like a core architecture bug
-   and focus on:
+   and split the work cleanly into:
    1. acceptance proof
    2. social/dialect breadth
    3. behavior richness
-   4. final outside/full-stack closure
+   4. composed-lane runtime hotspot diagnosis
+   5. final outside/full-stack closure
 ```

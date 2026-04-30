@@ -97,6 +97,64 @@ remaining active stack
 ```
 
 ```text
+2026-04-29 sim-board rebuild promotion read
+|- P0 sprite fidelity          -> green
+|- P1/P2 spatial board render  -> green behind `world.renderMode`
+|- P3 edge travel              -> green; legacy doorway-cover presentation is now a regression-only lane
+|- P4 building/occupancy       -> green on board-unit blocks
+|- P5 ability/battle radius    -> green with board-unit radii
+|- P6 save migration v4 -> v5  -> green on lived-in v4 and long-running save proof
+`- P7 promotion                -> active; default render mode flips to `sim-board`, while `section-scenes` remains selectable for one release cycle
+```
+
+```text
+2026-04-29 P7 machine evidence read
+|- report -> docs/P7-SIM-BOARD-PROMOTION-REPORT-2026-04-29.md
+|- composed bench 122 -> sim-board passes the +1.5ms average gate against post-P0
+|- composed bench 200 -> sim-board improves average update/render against section-scenes, but tail latency remains a stress note
+|- density captures -> 12 / 50 / 100 clean; 200 captured as stress evidence with cadence pressure
+|- frozen lanes -> spatial, save, sprite, movement, blocks, ability, battle, social, dialogue, ML, life-sim all green
+`- remaining P7 gate -> human g0-bar visual/naturalness signoff
+```
+
+```text
+2026-04-29 P8 ML trace-capture read
+|- report -> docs/P8-ML-TRACE-CAPTURE-REPORT-2026-04-29.md
+|- outcome windows -> runtime-only decision-history rows fill lazily after 60 frames
+|- focused audit -> 63 / 63 due windows populated; rollback flag disables capture
+|- C2 corpus -> 3 garden records export 11 outcome-window entries; digest rebuild is stable
+|- ML cadence config -> unchanged at 48 frames x 3.5ms
+`- note -> no save, projection, render, or durable cognition ownership changed
+```
+
+```text
+2026-04-29 next-session packet
+|- packet -> docs/NEXT-SESSION-RUN-PACKET-2026-04-29.md
+|- next local gate -> G0-bar human signoff for G1/G2/G3
+|- next outside gate -> M2 same-LAN desktop Chromium
+`- next implementation gate -> only after a named G0/M2 blocker exists
+```
+
+```text
+2026-04-29 G0 hold read
+|- capture -> qa_logs/session_captures/2026-04-29T23-39-22-983Z-playtest-manual-capture-1777505666832
+|- triage -> docs/G0-HOLD-TRIAGE-PLAN-2026-04-29.md
+|- signoff -> docs/STAGE-A-G0-SIGNOFF-2026-04-29.md now records Stage A held
+|- top blocker -> ambient zone travel changed focus 83 times in about 5 minutes
+|- visual blockers -> sim-board rectangle/overlay readability, sprite clarity, flower stacking, upward/scattered motion
+`- social blockers -> feed filters and talk lines need event-grounded social loops before Stage A can close
+```
+
+```text
+2026-04-29 G0 immediate cleanup slice
+|- zone meaning -> top-right `sun-court` remains Training Grounds; other three zones are open land
+|- block rule -> ambient/debug/refresh block spawns are disabled in Training Grounds
+|- flower rule -> unsafe preferred-point flower overlap fallback removed
+|- loaded-save cleanup -> next normal load prunes/reflows flowers and removes non-carried blocks from no-block zones
+`- proof -> focused runtime check removed 5 seeded training blocks and reduced 26 stacked open-land flowers to 9 with ~59px minimum spacing
+```
+
+```text
 done does not mean
 |- "the game systems exist"
 `- "the old boards are frozen"
@@ -212,5 +270,14 @@ right now
 |- keep c4 frozen -> the runtime composite/present/HUD stack is now live through v5
 |- keep c6 frozen -> sharp creatures are live again and trails are back as off/reduced/full with off shipped by default
 |- keep c7 frozen -> schemaVersion 4 is now the signed shared save contract for runtime/spatial/social
-`- continue c9 -> close the first real outside-session triage loop before `v8b` full-stack proof
+|- continue c9 -> close the first real outside-session triage loop before `v8b` full-stack proof
+`- continue P7 -> machine evidence is ready; collect human g0-bar signoff before public promotion is called complete
+```
+
+```text
+2026-04-29 G0 hold repair roadmap
+|- source -> [G0-HOLD-TRIAGE-PLAN-2026-04-29.md](./G0-HOLD-TRIAGE-PLAN-2026-04-29.md)
+|- key blockers -> forced focus switching, confusing inner field rectangle, focused-mode zone overlay, no visible unit grid, unclear movement envelope, no readable butterfly altitude cue, legacy exit anchors, top-edge movement pressure, butterfly vibration, sprite fidelity, flower stacking, block grid ambiguity, feed filters, shallow talk loops
+|- first slice -> H1 forced-focus fix, H3 overlay suppression, H2 full-field board/grid presentation, H2.1 one-overlay rule, H2.2 height cue probe, H2.5 border-based travel, H4 movement/top-edge/jitter instrumentation
+`- close gate -> rerun human G0 capture; do not close until camera, field, movement, sprites, flowers, blocks, feed, and social-thread proofs pass
 ```

@@ -182,14 +182,14 @@ async function run() {
           state.runtime?.modelVersionId === 'm4-garden-policy-v1' &&
           state.runtime?.featureSchemaVersion === 'm4-feature-schema-v1' &&
           state.runtime?.traceSchemaVersion === 'm4-trace-schema-v1' &&
-          state.contract?.groupCount === 14 &&
-          state.contract?.flatFeatureCount === 98 &&
+          state.contract?.groupCount === 15 &&
+          state.contract?.flatFeatureCount === 106 &&
           state.contract?.vectorLength === 124 &&
           JSON.stringify(sharedHooks) === JSON.stringify(['verticality', 'structureRole', 'pathState', 'bodyFit']) &&
           JSON.stringify(b3Stable) === JSON.stringify(['verticality', 'structureRole', 'pathState', 'bodyFit']) &&
           JSON.stringify(b7Stable) === JSON.stringify(['occupancyBand', 'obstacleDensity', 'shelterCandidate', 'insideShelter', 'canUseInterior']) &&
-          state.featureStats.groupCount === 14 &&
-          state.featureStats.flatFeatureCount === 98 &&
+          state.featureStats.groupCount === 15 &&
+          state.featureStats.flatFeatureCount === 106 &&
           state.featureStats.vectorLength === 124 &&
           state.featureStats.hasNaN === false,
         details: state
@@ -221,7 +221,7 @@ async function run() {
           state.rowLabels.includes('Space') &&
           schemaRow?.value?.includes('m4-feature-schema-v1') &&
           schemaRow?.value?.includes('m4-trace-schema-v1') &&
-          featureRow?.value === '14 groups | 98 flat | 124 vec' &&
+          featureRow?.value === '15 groups | 106 flat | 124 vec' &&
           spaceRow?.value?.includes('b3 verticality/structureRole/pathState/bodyFit') &&
           spaceRow?.value?.includes('b7 occupancyBand/obstacleDensity/shelterCandidate/insideShelter/canUseInterior') &&
           typeof state.summary?.featureTrace?.currentSpatial?.occupancyBand === 'string' &&
@@ -278,9 +278,9 @@ async function run() {
           state.sameTraceSummary &&
           !!state.battlePreview?.canStart &&
           state.battleFeatures?.schemaVersion === 'm4-feature-schema-v1' &&
-          state.battleFeatures?.flatFeatureCount === 98 &&
+          state.battleFeatures?.flatFeatureCount === 106 &&
           state.battleFeatures?.vectorLength === 124 &&
-          state.battleFeatures?.groupCount === 14 &&
+          state.battleFeatures?.groupCount === 15 &&
           state.battleFeatures?.currentMode === 'battle',
         details: state
       };
@@ -343,13 +343,13 @@ async function run() {
           state.beforeFoundation?.modelConfig?.modelVersionId === 'm4-garden-policy-v1' &&
           state.beforeFoundation?.modelConfig?.featureSchemaVersion === 'm4-feature-schema-v1' &&
           state.beforeFoundation?.modelConfig?.traceSchemaVersion === 'm4-trace-schema-v1' &&
-          state.beforeSummary?.featureTrace?.flatFeatureCount === 98 &&
+          state.beforeSummary?.featureTrace?.flatFeatureCount === 106 &&
           state.beforeSummary?.featureTrace?.vectorLength === 124 &&
-          state.restoredSummary?.featureTrace?.flatFeatureCount === 98 &&
+          state.restoredSummary?.featureTrace?.flatFeatureCount === 106 &&
           state.restoredSummary?.featureTrace?.vectorLength === 124 &&
-          restoredFeatureRow?.value === '14 groups | 98 flat | 124 vec' &&
+          restoredFeatureRow?.value === '15 groups | 106 flat | 124 vec' &&
           state.fallbackSummary?.source === 'heuristic-fallback' &&
-          state.fallbackSummary?.featureTrace?.flatFeatureCount === 98 &&
+          state.fallbackSummary?.featureTrace?.flatFeatureCount === 106 &&
           state.fallbackSummary?.featureTrace?.vectorLength === 124 &&
           typeof state.fallbackRuntime?.lastLoadError === 'string' &&
           state.fallbackRuntime.lastLoadError.length > 0,

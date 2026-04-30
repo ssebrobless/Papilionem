@@ -1,0 +1,13 @@
+{
+  "id": "seed-battle-radius",
+  "seed": 909,
+  "world": { "focusedZoneId": "sun-court", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "sun-court", "u": 8, "v": 8, "h": 0 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "sun-court", "u": 10, "v": 8, "h": 0 } }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 2 },
+    { "type": "distance_ppu", "zones": ["sun-court"] }
+  ]
+}

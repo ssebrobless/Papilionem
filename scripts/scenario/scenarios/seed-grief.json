@@ -1,0 +1,23 @@
+{
+  "id": "seed-grief",
+  "seed": 202,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 10, "h": 0 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 10, "h": 0 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.72, "comfort": 0.7, "attachment": 0.72, "bondTier": "bonded", "coTimeSeconds": 1900 } }
+  ],
+  "actions": [
+    { "type": "kill", "source": "b" },
+    { "type": "advance_cognition", "seconds": 5 },
+    { "type": "emit_signal", "source": "a", "targets": ["b"], "signalType": "acknowledgement_signal", "intentFamily": "care", "intentTags": ["comfort"], "phrase": "I will stay close." }
+  ],
+  "assertions": [
+    { "type": "memory_packet", "entity": "a", "family": "social", "kind": "bereavement", "min": 1 },
+    { "type": "feeling_min", "entity": "a", "key": "grief", "min": 0.3 },
+    { "type": "save_roundtrip_cognition", "entity": "a", "requirePackets": true },
+    { "type": "dialogue_count", "min": 1 }
+  ]
+}

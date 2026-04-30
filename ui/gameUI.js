@@ -85,8 +85,10 @@ class GameUI {
             frozenEntries: null,
             filters: {
                 talk: true,
-                actions: true,
-                learn: true
+                action: true,
+                learn: true,
+                warning: true,
+                system: true
             }
         };
         this.activityLogCache = {
@@ -516,6 +518,7 @@ class GameUI {
     buildFeedDomState(gameState) {
         this.syncPanelLayouts(gameState);
         const panel = this.activityLogPanel;
+        this.normalizeActivityLogFilters();
         const selectedTarget = this.getLockedInspectTarget(gameState);
         const contextKey = `${selectedTarget?.id || 'all'}:${gameState?.focusedZoneId || 'garden'}`;
         const enabledFilters = Object.entries(panel.filters || {})
@@ -531,22 +534,28 @@ class GameUI {
                 headline: enabledFilters.length ? 'No visible activity' : 'No filters enabled',
                 detail: enabledFilters.length
                     ? 'Nothing in view matches the active feed filters.'
-                    : 'Turn Talk, Actions, or Learn back on to refill the feed.',
+                    : 'Turn a feed filter back on to refill the feed.',
                 line: enabledFilters.length ? 'No visible activity for current filters' : 'Select at least one feed filter',
-                category: 'actions'
+                category: 'system'
             })];
         this.lastFeedPresentation = {
             contextLabel,
             entryCount: entries.length,
             entries: entries.slice(-16).map(entry => ({
-                category: entry.category || 'actions',
+                category: this.normalizeFeedCategory(entry.category || 'action'),
                 headline: entry.headline || null,
                 detail: entry.detail || entry.line || null,
                 footer: this.buildFeedContextFooter(entry),
                 grounding: entry.grounding || null,
                 pairTextureLabel: entry.pairTextureLabel || null,
                 conversationId: entry.conversationId || null,
-                threadCount: Array.isArray(entry.threadLines) ? entry.threadLines.length : 0
+                threadCount: Array.isArray(entry.threadLines) ? entry.threadLines.length : 0,
+                threadLines: Array.isArray(entry.threadLines) ? entry.threadLines.map(line => ({
+                    speakerLabel: line?.speakerLabel || null,
+                    phrase: line?.phrase || null,
+                    heardMeaning: line?.heardMeaning || null
+                })) : null,
+                consequenceTail: entry.consequenceTail || null
             })),
             updatedAt: Date.now()
         };
@@ -606,6 +615,11 @@ class GameUI {
             return filtered.length ? filtered.slice(0, 2).join(' | ') : fallback;
         };
         const relationshipSummary = communicationSummary?.relationship || null;
+        const cognition = lifeSimSummary?.cognition || {};
+        const feelings = cognition?.feelings || {};
+        const feelingLine = cognition?.strongestFeeling && cognition.strongestFeeling !== 'steady'
+            ? `Feeling ${cognition.strongestFeeling} | lonely ${Math.round((feelings.loneliness || 0) * 100)} | comfort ${Math.round((feelings.comfortSeeking || 0) * 100)} | insecure ${Math.round((feelings.socialInsecurity || 0) * 100)}`
+            : `Feeling steady | lonely ${Math.round((feelings.loneliness || 0) * 100)} | comfort ${Math.round((feelings.comfortSeeking || 0) * 100)} | insecure ${Math.round((feelings.socialInsecurity || 0) * 100)}`;
         return {
             targetId: target.id,
             targetLabel: this.getInspectButterflyTitle(target),
@@ -644,6 +658,7 @@ class GameUI {
                         relationshipSummary
                             ? this.normalizePresentationText(`${relationshipSummary.partnerLabel} | ${relationshipSummary.pairTextureLabel || 'steady'} | attachment ${relationshipSummary.attachment} | chemistry ${relationshipSummary.chemistry}`)
                             : 'No strong bond tracked yet',
+                        this.normalizePresentationText(feelingLine),
                         this.normalizePresentationText(lifeSimSummary?.memories?.headline || 'No reinforced residue yet'),
                         this.normalizePresentationText(lifeSimSummary?.routines?.headline || 'No strong routine anchors yet')
                     ].filter(Boolean)
@@ -1355,6 +1370,20 @@ class GameUI {
             .replaceAll('Ã¢â‚¬Â¢', '|')
             .replaceAll('Â·', '·')
             .trim();
+    }
+
+    isFeedThreadInterpretationItalicEnabled() {
+        return gameConfig?.ui?.feedThreads?.interpretationItalic !== false;
+    }
+
+    formatFeedHeardMeaning(value = '') {
+        const normalized = this.normalizePresentationText(value).replace(/\s+/g, ' ');
+        if (!normalized) return null;
+        return normalized.length > 60 ? `${normalized.slice(0, 57)}...` : normalized;
+    }
+
+    isFeedHeardMeaningLine(line = '') {
+        return /^\(heard:\s/i.test(String(line || ''));
     }
 
     getPrimaryPresentationClause(value = '', fallback = 'none') {
@@ -2533,28 +2562,63 @@ class GameUI {
         detail = '',
         grounding = '',
         line = '',
-        category = 'actions',
+        category = 'action',
         targetText = null,
         contextTags = [],
         threadLines = null,
         conversationId = null,
         pairModeLabel = null,
-        pairTextureLabel = null
+        pairTextureLabel = null,
+        consequenceTail = null,
+        threatSignalId = null,
+        dangerMemoryId = null,
+        safetyAvoidanceTrigger = null
     } = {}) {
+        const normalizedCategory = this.normalizeFeedCategory(category);
+        const groundedWarning = !!(threatSignalId || dangerMemoryId || safetyAvoidanceTrigger);
         return {
             timeLabel,
             headline,
             detail,
             grounding,
             line,
-            category,
+            category: normalizedCategory === 'warning' && !groundedWarning ? 'action' : normalizedCategory,
             targetText,
             contextTags,
             threadLines,
             conversationId,
             pairModeLabel,
-            pairTextureLabel
+            pairTextureLabel,
+            consequenceTail,
+            threatSignalId,
+            dangerMemoryId,
+            safetyAvoidanceTrigger
         };
+    }
+
+    normalizeFeedCategory(category = 'action') {
+        const key = String(category || 'action').trim().toLowerCase();
+        if (key === 'talk' || key === 'dialogue') return 'talk';
+        if (['learn', 'teach', 'teaching', 'lesson', 'tutoring'].includes(key)) return 'learn';
+        if (['warning', 'danger', 'threat'].includes(key)) return 'warning';
+        if (['system', 'signal', 'signals', 'save'].includes(key)) return 'system';
+        return 'action';
+    }
+
+    normalizeActivityLogFilters() {
+        const previous = this.activityLogPanel.filters || {};
+        this.activityLogPanel.filters = {
+            talk: previous.talk !== false,
+            action: (previous.action ?? previous.actions) !== false,
+            learn: previous.learn !== false,
+            warning: previous.warning !== false,
+            system: previous.system !== false
+        };
+        return this.activityLogPanel.filters;
+    }
+
+    hasWarningGrounding(entry = {}) {
+        return !!(entry?.threatSignalId || entry?.dangerMemoryId || entry?.safetyAvoidanceTrigger);
     }
 
     getFeedContextLabel(gameState, selectedTarget = null) {
@@ -2568,7 +2632,8 @@ class GameUI {
         return `${this.getZoneDisplayName(gameState?.focusedZoneId || null)} • live garden`;
     }
 
-    getFeedCategoryStyle(category = 'actions', highContrast = false) {
+    getFeedCategoryStyle(category = 'action', highContrast = false) {
+        const resolvedCategory = this.normalizeFeedCategory(category);
         if (highContrast) {
             return {
                 cardFill: [0, 0, 0, 255],
@@ -2603,7 +2668,7 @@ class GameUI {
                 detail: [249, 240, 246, 255],
                 meta: [228, 188, 214, 255]
             },
-            actions: {
+            action: {
                 cardFill: [22, 31, 47, 188],
                 cardStroke: [142, 182, 238, 92],
                 accent: [120, 176, 255, 255],
@@ -2612,10 +2677,30 @@ class GameUI {
                 title: [236, 244, 252, 255],
                 detail: [242, 247, 252, 255],
                 meta: [182, 204, 236, 255]
+            },
+            warning: {
+                cardFill: [50, 36, 18, 190],
+                cardStroke: [255, 190, 98, 110],
+                accent: [255, 184, 78, 255],
+                filterFill: [255, 184, 78, 230],
+                filterText: [36, 22, 4, 255],
+                title: [255, 246, 228, 255],
+                detail: [255, 244, 222, 255],
+                meta: [232, 197, 142, 255]
+            },
+            system: {
+                cardFill: [32, 32, 38, 184],
+                cardStroke: [176, 184, 196, 86],
+                accent: [188, 198, 210, 255],
+                filterFill: [188, 198, 210, 230],
+                filterText: [18, 22, 28, 255],
+                title: [244, 246, 248, 255],
+                detail: [236, 240, 244, 255],
+                meta: [196, 202, 212, 255]
             }
         };
 
-        return byCategory[category] || byCategory.actions;
+        return byCategory[resolvedCategory] || byCategory.action;
     }
 
     getGraphicsTextStateKey(graphics) {
@@ -2655,8 +2740,15 @@ class GameUI {
     buildFeedEntryDetailLines(graphics, entry, width, maxLines = 3) {
         const availableWidth = Math.max(36, width);
         const detailText = entry.detail || entry.line || '';
-        if (!Array.isArray(entry?.threadLines) || entry.threadLines.length <= 1) {
-            return this.wrapTextLines(graphics, detailText, availableWidth, maxLines);
+        const hasHeardMeaning = this.isFeedThreadInterpretationItalicEnabled()
+            && Array.isArray(entry?.threadLines)
+            && entry.threadLines.some(line => !!this.formatFeedHeardMeaning(line?.heardMeaning));
+        if ((!Array.isArray(entry?.threadLines) || entry.threadLines.length <= 1) && !hasHeardMeaning) {
+            const baseLines = this.wrapTextLines(graphics, detailText, availableWidth, maxLines);
+            if (entry?.consequenceTail && baseLines.length < maxLines) {
+                baseLines.push(...this.wrapTextLines(graphics, `=> ${entry.consequenceTail}`, availableWidth, maxLines - baseLines.length));
+            }
+            return baseLines;
         }
 
         const rendered = [];
@@ -2670,6 +2762,21 @@ class GameUI {
                 if (rendered.length >= maxLines) break;
                 rendered.push(line);
             }
+            const heardMeaning = hasHeardMeaning ? this.formatFeedHeardMeaning(item?.heardMeaning) : null;
+            if (heardMeaning && rendered.length < maxLines) {
+                const heardLines = this.wrapTextLines(graphics, `(heard: ${heardMeaning})`, availableWidth, Math.max(1, maxLines - rendered.length));
+                for (const line of heardLines) {
+                    if (rendered.length >= maxLines) break;
+                    rendered.push(line);
+                }
+            }
+        }
+        if (entry?.consequenceTail && rendered.length < maxLines) {
+            const wrappedTail = this.wrapTextLines(graphics, `=> ${entry.consequenceTail}`, availableWidth, Math.max(1, maxLines - rendered.length));
+            for (const line of wrappedTail) {
+                if (rendered.length >= maxLines) break;
+                rendered.push(line);
+            }
         }
         return rendered.length ? rendered : this.wrapTextLines(graphics, detailText, availableWidth, maxLines);
     }
@@ -2679,7 +2786,10 @@ class GameUI {
         const detailSize = Math.max(5, Math.round(5.5 * compactScale));
         const lineHeight = Math.max(8, Math.round(8 * compactScale));
         const titleWidth = width - Math.round(54 * compactScale);
-        const detailMaxLines = entry?.threadLines?.length > 1 ? 5 : 3;
+        const hasHeardMeaning = this.isFeedThreadInterpretationItalicEnabled()
+            && Array.isArray(entry?.threadLines)
+            && entry.threadLines.some(line => !!this.formatFeedHeardMeaning(line?.heardMeaning));
+        const detailMaxLines = entry?.threadLines?.length > 1 || hasHeardMeaning ? 5 : 3;
         const footerText = this.buildFeedContextFooter(entry);
         const cacheKey = [
             'feed',
@@ -2690,10 +2800,11 @@ class GameUI {
             entry?.headline || '',
             entry?.detail || '',
             entry?.line || '',
-            entry?.category || 'actions',
+            this.normalizeFeedCategory(entry?.category || 'action'),
             Array.isArray(entry?.threadLines)
-                ? entry.threadLines.map(line => `${line?.speakerLabel || ''}:${line?.phrase || ''}`).join('¦')
+                ? entry.threadLines.map(line => `${line?.speakerLabel || ''}:${line?.phrase || ''}:${line?.heardMeaning || ''}`).join('¦')
                 : '',
+            entry?.consequenceTail || '',
             footerText || ''
         ].join('|');
 
@@ -3340,6 +3451,7 @@ class GameUI {
 
     getRecentActivityEntries() {
         if (typeof eventBus === 'undefined' || !eventBus.getHistory) return [];
+        this.normalizeActivityLogFilters();
         const currentState = gameCore?.getGameState ? gameCore.getGameState() : gameCore?.gameState;
         const targetId = currentState ? this.getLockedInspectTarget(currentState)?.id : null;
         const focusedZoneId = currentState?.focusedZoneId || null;
@@ -3389,13 +3501,16 @@ class GameUI {
                     signature: formatted.signature,
                     line: formatted.line,
                     event: entry.event,
-                    category: formatted.category || 'actions',
+                    category: this.normalizeFeedCategory(formatted.category || 'action'),
                     headline: formatted.headline || null,
                     detail: formatted.detail || null,
                     grounding: formatted.grounding || null,
                     contextTags: formatted.contextTags || [],
                     timeLabel: formatted.timeLabel || null,
-                    targetText: formatted.targetText || null
+                    targetText: formatted.targetText || null,
+                    threatSignalId: formatted.threatSignalId || null,
+                    dangerMemoryId: formatted.dangerMemoryId || null,
+                    safetyAvoidanceTrigger: formatted.safetyAvoidanceTrigger || null
                 };
             })
             .filter(Boolean);
@@ -3410,7 +3525,7 @@ class GameUI {
                 signature: entry.signature,
                 line: entry.line,
                 event: GameEvents?.DIALOGUE_SPOKEN || 'communication:dialogueSpoken',
-                category: entry.category || 'talk',
+                category: this.normalizeFeedCategory(entry.category || 'talk'),
                 headline: entry.headline || null,
                 detail: entry.detail || null,
                 grounding: entry.grounding || null,
@@ -3420,7 +3535,8 @@ class GameUI {
                 threadLines: entry.threadLines || null,
                 conversationId: entry.conversationId || null,
                 pairModeLabel: entry.pairModeLabel || null,
-                pairTextureLabel: entry.pairTextureLabel || null
+                pairTextureLabel: entry.pairTextureLabel || null,
+                consequenceTail: entry.consequenceTail || null
             }))
             : [];
 
@@ -3444,13 +3560,17 @@ class GameUI {
                 previous.conversationId = entry.conversationId || previous.conversationId;
                 previous.pairModeLabel = entry.pairModeLabel || previous.pairModeLabel;
                 previous.pairTextureLabel = entry.pairTextureLabel || previous.pairTextureLabel;
+                previous.consequenceTail = entry.consequenceTail || previous.consequenceTail;
+                previous.threatSignalId = entry.threatSignalId || previous.threatSignalId;
+                previous.dangerMemoryId = entry.dangerMemoryId || previous.dangerMemoryId;
+                previous.safetyAvoidanceTrigger = entry.safetyAvoidanceTrigger || previous.safetyAvoidanceTrigger;
                 previous.timestamp = entry.timestamp || previous.timestamp;
             } else {
                 collapsed.push({
                     signature: entry.signature,
                     line: entry.line,
                     count: 1,
-                    category: entry.category || 'actions',
+                    category: this.normalizeFeedCategory(entry.category || 'action'),
                     headline: entry.headline || null,
                     detail: entry.detail || null,
                     grounding: entry.grounding || null,
@@ -3461,6 +3581,10 @@ class GameUI {
                     conversationId: entry.conversationId || null,
                     pairModeLabel: entry.pairModeLabel || null,
                     pairTextureLabel: entry.pairTextureLabel || null,
+                    consequenceTail: entry.consequenceTail || null,
+                    threatSignalId: entry.threatSignalId || null,
+                    dangerMemoryId: entry.dangerMemoryId || null,
+                    safetyAvoidanceTrigger: entry.safetyAvoidanceTrigger || null,
                     timestamp: entry.timestamp || Date.now()
                 });
             }
@@ -3515,11 +3639,14 @@ class GameUI {
     }
 
     getFeedFilterButtons() {
+        this.normalizeActivityLogFilters();
         const panel = this.activityLogPanel;
         const descriptors = [
             ['talk', 'Talk'],
-            ['actions', 'Actions'],
-            ['learn', 'Learn']
+            ['action', 'Action'],
+            ['learn', 'Learn'],
+            ['warning', 'Warning'],
+            ['system', 'System']
         ];
         const gap = 2;
         const width = Math.floor((panel.width - 12 - (gap * (descriptors.length - 1))) / descriptors.length);
@@ -3817,9 +3944,15 @@ class GameUI {
         graphics.textSize(measurement.detailSize);
         let detailY = detailStartY;
         for (const line of measurement.detailLines) {
+            if (this.isFeedHeardMeaningLine(line) && this.isFeedThreadInterpretationItalicEnabled()) {
+                graphics.textStyle(typeof ITALIC !== 'undefined' ? ITALIC : 'italic');
+            } else {
+                graphics.textStyle(typeof NORMAL !== 'undefined' ? NORMAL : 'normal');
+            }
             graphics.text(line, textX, detailY);
             detailY += measurement.lineHeight;
         }
+        graphics.textStyle(typeof NORMAL !== 'undefined' ? NORMAL : 'normal');
 
         if (measurement.footerText) {
             graphics.noStroke();
@@ -3869,9 +4002,12 @@ class GameUI {
             line: targetLabel
                 ? `${time}-${actorLabel}->${targetLabel}: ${action}`
                 : `${time}-${actorLabel}: ${action}`,
-            category: 'actions',
+            category: options.category || 'action',
             targetText: targetLabel || null,
-            contextTags: options.contextTags || []
+            contextTags: options.contextTags || [],
+            threatSignalId: options.threatSignalId || null,
+            dangerMemoryId: options.dangerMemoryId || null,
+            safetyAvoidanceTrigger: options.safetyAvoidanceTrigger || null
         });
     }
 
@@ -3987,16 +4123,16 @@ class GameUI {
             [GameEvents?.DIALOGUE_SPOKEN || 'communication:dialogueSpoken']: 'talk',
             [GameEvents?.TEACHING_COMPLETED || 'teaching:completed']: 'learn',
             [GameEvents?.TRAINING_DRILL_COMPLETED || 'training:drillCompleted']: 'learn',
-            [GameEvents?.FLOWER_EGG_LAID || 'flower:eggLaid']: 'actions',
-            [GameEvents?.CATERPILLAR_HATCHED || 'lifecycle:caterpillarHatched']: 'actions',
-            [GameEvents?.CHRYSALIS_FORMED || 'lifecycle:chrysalisFormed']: 'actions',
-            [GameEvents?.HYBRID_BORN || 'lifecycle:hybridBorn']: 'actions',
-            [GameEvents?.BUTTERFLY_STATE_CHANGED || 'butterfly:stateChanged']: 'actions',
-            [GameEvents?.OBJECT_PICKED_UP || 'object:pickedUp']: 'actions',
-            [GameEvents?.OBJECT_DROPPED || 'object:dropped']: 'actions',
-            [GameEvents?.OBJECT_DELIVERED || 'object:delivered']: 'actions',
-            ['object:placed']: 'actions',
-            [GameEvents?.BATTLE_ACTION_OCCURRED || 'battle:actionOccurred']: 'actions'
+            [GameEvents?.FLOWER_EGG_LAID || 'flower:eggLaid']: 'action',
+            [GameEvents?.CATERPILLAR_HATCHED || 'lifecycle:caterpillarHatched']: 'action',
+            [GameEvents?.CHRYSALIS_FORMED || 'lifecycle:chrysalisFormed']: 'action',
+            [GameEvents?.HYBRID_BORN || 'lifecycle:hybridBorn']: 'action',
+            [GameEvents?.BUTTERFLY_STATE_CHANGED || 'butterfly:stateChanged']: 'action',
+            [GameEvents?.OBJECT_PICKED_UP || 'object:pickedUp']: 'action',
+            [GameEvents?.OBJECT_DROPPED || 'object:dropped']: 'action',
+            [GameEvents?.OBJECT_DELIVERED || 'object:delivered']: 'action',
+            ['object:placed']: 'action',
+            [GameEvents?.BATTLE_ACTION_OCCURRED || 'battle:actionOccurred']: 'action'
         };
 
         const signatureParts = [
@@ -4016,18 +4152,33 @@ class GameUI {
         return {
             line: message.line,
             signature: signatureParts.join('|'),
-            category: message.category || categoryByEvent[event] || 'actions',
+            category: this.normalizeFeedCategory(message.category || categoryByEvent[event] || 'action'),
             headline: message.headline || null,
             detail: message.detail || null,
             grounding: message.grounding || null,
             contextTags: message.contextTags || [],
             timeLabel: message.timeLabel || null,
-            targetText: message.targetText || null
+            targetText: message.targetText || null,
+            threatSignalId: message.threatSignalId || data?.threatSignalId || null,
+            dangerMemoryId: message.dangerMemoryId || data?.dangerMemoryId || null,
+            safetyAvoidanceTrigger: message.safetyAvoidanceTrigger || data?.safetyAvoidanceTrigger || null
         };
     }
 
     formatButterflyStateFeedEntry(time, data = {}) {
         const butterflyLabel = this.getEntityDisplayName(data?.butterfly, 'Butterfly');
+        const warningGrounding = data?.threatSignalId || data?.dangerMemoryId || data?.safetyAvoidanceTrigger;
+        if (data?.to === 'scared' && warningGrounding) {
+            return this.formatFeedActionLine(time, butterflyLabel, 'Reacted to danger.', null, {
+                category: 'warning',
+                grounding: data?.safetyAvoidanceTrigger
+                    ? `Safety trigger: ${data.safetyAvoidanceTrigger}`
+                    : 'Danger signal in view',
+                threatSignalId: data?.threatSignalId || null,
+                dangerMemoryId: data?.dangerMemoryId || null,
+                safetyAvoidanceTrigger: data?.safetyAvoidanceTrigger || null
+            });
+        }
         if (data?.to !== 'mating') return null;
         const partnerId = data?.butterfly?.breeding?.partnerId || null;
         const partnerLabel = partnerId
@@ -4070,6 +4221,7 @@ class GameUI {
     drawActivityLogPanel(graphics, gameState) {
         this.syncPanelLayouts(gameState);
         const panel = this.activityLogPanel;
+        this.normalizeActivityLogFilters();
         const highContrast = this.accessibilitySettings.highContrastUI;
         const compactScale = Math.max(0.42, this.getEffectiveUiScale() * 0.52);
         const liveEntries = this.getRecentActivityEntries();
@@ -4126,22 +4278,28 @@ class GameUI {
                 headline: enabledFilters.length ? 'No visible activity' : 'No filters enabled',
                 detail: enabledFilters.length
                     ? 'Nothing in view matches the active feed filters.'
-                    : 'Turn Talk, Actions, or Learn back on to refill the feed.',
+                    : 'Turn a feed filter back on to refill the feed.',
                 line: enabledFilters.length ? 'No visible activity for current filters' : 'Select at least one feed filter',
-                category: 'actions'
+                category: 'system'
             })];
         this.lastFeedPresentation = {
             contextLabel,
             entryCount: entries.length,
             entries: entries.slice(-16).map(entry => ({
-                category: entry.category || 'actions',
+                category: this.normalizeFeedCategory(entry.category || 'action'),
                 headline: entry.headline || null,
                 detail: entry.detail || entry.line || null,
                 footer: this.buildFeedContextFooter(entry),
                 grounding: entry.grounding || null,
                 pairTextureLabel: entry.pairTextureLabel || null,
                 conversationId: entry.conversationId || null,
-                threadCount: Array.isArray(entry.threadLines) ? entry.threadLines.length : 0
+                threadCount: Array.isArray(entry.threadLines) ? entry.threadLines.length : 0,
+                threadLines: Array.isArray(entry.threadLines) ? entry.threadLines.map(line => ({
+                    speakerLabel: line?.speakerLabel || null,
+                    phrase: line?.phrase || null,
+                    heardMeaning: line?.heardMeaning || null
+                })) : null,
+                consequenceTail: entry.consequenceTail || null
             })),
             updatedAt: Date.now()
         };

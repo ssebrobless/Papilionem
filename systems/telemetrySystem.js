@@ -808,6 +808,8 @@ class TelemetrySystem {
             .map(entry => Number(entry?.payload?.particleCount || 0));
         const heapMilestones = this.buildHeapMilestones(heapSamples, capture.startedAtMs || null);
         const runtimeIssueSummary = this.summarizeRuntimeIssues(runtimeIssues);
+        const runtimeSpriteManager = typeof spriteManager !== 'undefined' ? spriteManager : null;
+        const spriteCache = runtimeSpriteManager?.getBakedSpriteCacheTelemetry?.() || {};
         return {
             active: !!capture.active,
             sessionId: capture.sessionId || null,
@@ -846,6 +848,12 @@ class TelemetrySystem {
             runtimeIssuesDroppedCount: Number(capture.runtimeIssuesDroppedCount || 0),
             startState: capture.startState ? { ...capture.startState } : null,
             endState: capture.endState ? { ...capture.endState } : null,
+            spriteCacheEntryCount: Number(spriteCache.entryCount || 0),
+            spriteCacheMaxEntries: Number(spriteCache.maxEntries || 0),
+            spriteCacheEstimatedSurfaceMB: Number(spriteCache.estimatedSurfaceMB || 0),
+            spriteCacheCacheHits: Number(spriteCache.cacheHits || 0),
+            spriteCacheCacheMisses: Number(spriteCache.cacheMisses || 0),
+            spriteCacheTopFamilies: this.cloneJson(spriteCache.topFamilies, []) || [],
             latestHeapSample: heapSamples.length
                 ? this.cloneJson(heapSamples[heapSamples.length - 1], null)
                 : null

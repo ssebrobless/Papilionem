@@ -89,8 +89,10 @@ async function resetBaseline(page) {
     gameUI.activityLogPanel.scrollOffset = 0;
     gameUI.activityLogPanel.filters = {
       talk: true,
-      actions: true,
-      learn: true
+      action: true,
+      learn: true,
+      warning: true,
+      system: true
     };
     gameUI.activityLogCache = { key: null, entries: [] };
     gameUI.resumeLatestFeedView?.();

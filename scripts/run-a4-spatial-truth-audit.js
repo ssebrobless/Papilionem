@@ -27,11 +27,22 @@ function getFlagOverrides() {
   return JSON.parse(raw);
 }
 
-async function applyFlagOverrides(context, flagOverrides) {
-  if (!flagOverrides || typeof flagOverrides !== 'object') return;
-  await context.addInitScript((overrides) => {
-    window.__PAPILIONEM_PERFORMANCE_FLAG_OVERRIDES__ = overrides;
-  }, flagOverrides);
+function getWorldRenderModeOverride() {
+  const mode = process.env.PAPILIONEM_WORLD_RENDER_MODE;
+  return ['section-scenes', 'sim-board'].includes(mode) ? mode : null;
+}
+
+async function applyRuntimeOverrides(context, flagOverrides, worldRenderMode) {
+  if (!flagOverrides && !worldRenderMode) return;
+  await context.addInitScript(({ overrides, renderMode }) => {
+    if (overrides && typeof overrides === 'object') {
+      window.__PAPILIONEM_PERFORMANCE_FLAG_OVERRIDES__ = overrides;
+    }
+    if (renderMode) {
+      window.__PAPILIONEM_WORLD_RENDERMODE__ = renderMode;
+      window.localStorage.setItem('papilionem-world-rendermode', renderMode);
+    }
+  }, { overrides: flagOverrides, renderMode: worldRenderMode });
 }
 
 async function ensureServer(report) {
@@ -231,6 +242,8 @@ async function run() {
   let context;
   let page;
   const flagOverrides = getFlagOverrides();
+  const worldRenderMode = getWorldRenderModeOverride();
+  report.worldRenderModeOverride = worldRenderMode;
 
   try {
     await ensureServer(report);
@@ -238,7 +251,7 @@ async function run() {
     context = await browser.newContext({
       viewport: { width: 1600, height: 900 }
     });
-    await applyFlagOverrides(context, flagOverrides);
+    await applyRuntimeOverrides(context, flagOverrides, worldRenderMode);
     page = await context.newPage();
 
     page.on('pageerror', error => report.pageErrors.push(String(error)));
@@ -271,9 +284,10 @@ async function run() {
         };
       });
 
+      const expectedRenderMode = worldRenderMode || 'sim-board';
       return {
         pass:
-          details.renderMode === 'section-scenes' &&
+          details.renderMode === expectedRenderMode &&
           details.usesSharedSectionPlacementRegion === true &&
           Array.isArray(details.placementSignatures) &&
           details.placementSignatures.length === 1 &&

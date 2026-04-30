@@ -1,0 +1,16 @@
+{
+  "id": "seed-shame",
+  "seed": 707,
+  "world": { "focusedZoneId": "pool-heart", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "pool-heart", "u": 8, "v": 8, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "outcome_anchor", "source": "a", "anchor": "shame", "reason": "ignored-warning", "strength": 0.68 }
+  ],
+  "assertions": [
+    { "type": "memory_packet", "entity": "a", "family": "outcome", "anchor": "shame", "min": 1 },
+    { "type": "feeling_min", "entity": "a", "key": "shame", "min": 0.4 },
+    { "type": "save_roundtrip_cognition", "entity": "a", "requirePackets": true }
+  ]
+}

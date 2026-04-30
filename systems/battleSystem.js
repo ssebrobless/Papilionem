@@ -218,24 +218,42 @@ class BattleSystem {
 
     getMotionConfig() {
         const configured = gameConfig?.battle?.motion || {};
+        const pixelsPerArenaUnit = configured.pixelsPerArenaUnit || gameConfig?.spatial?.projection?.ppu || 20;
+        const unitsToPx = (units, fallbackPx = 0) => Number.isFinite(units)
+            ? units * pixelsPerArenaUnit
+            : fallbackPx;
         return {
-            attackAdvancePx: configured.attackAdvancePx || 32,
+            pixelsPerArenaUnit,
+            unitsPerArenaCell: configured.unitsPerArenaCell ?? 1,
+            attackAdvanceUnits: configured.attackAdvanceUnits ?? 1.6,
+            attackAdvancePx: unitsToPx(configured.attackAdvanceUnits, configured.attackAdvancePx || 32),
             attackDurationMs: configured.attackDurationMs || 560,
-            hitRecoilPx: configured.hitRecoilPx || 16,
+            hitRecoilUnits: configured.hitRecoilUnits ?? 0.8,
+            hitRecoilPx: unitsToPx(configured.hitRecoilUnits, configured.hitRecoilPx || 16),
             hitReactionDurationMs: configured.hitReactionDurationMs || 340,
-            rallyAdvancePx: configured.rallyAdvancePx || 12,
+            rallyAdvanceUnits: configured.rallyAdvanceUnits ?? 0.6,
+            rallyAdvancePx: unitsToPx(configured.rallyAdvanceUnits, configured.rallyAdvancePx || 12),
             rallyDurationMs: configured.rallyDurationMs || 520,
-            rallyLiftPx: configured.rallyLiftPx || 6,
-            guardBobPx: configured.guardBobPx || 3,
+            rallyLiftUnits: configured.rallyLiftUnits ?? 0.3,
+            rallyLiftPx: unitsToPx(configured.rallyLiftUnits, configured.rallyLiftPx || 6),
+            guardBobUnits: configured.guardBobUnits ?? 0.15,
+            guardBobPx: unitsToPx(configured.guardBobUnits, configured.guardBobPx || 3),
             guardDurationMs: configured.guardDurationMs || 420,
-            retreatAdvancePx: configured.retreatAdvancePx || 34,
+            retreatAdvanceUnits: configured.retreatAdvanceUnits ?? 1.7,
+            retreatAdvancePx: unitsToPx(configured.retreatAdvanceUnits, configured.retreatAdvancePx || 34),
             retreatDurationMs: configured.retreatDurationMs || 520,
             projectileDurationMs: configured.projectileDurationMs || 460,
-            idleBobPx: configured.idleBobPx || 2.2,
+            idleBobUnits: configured.idleBobUnits ?? 0.11,
+            idleBobPx: unitsToPx(configured.idleBobUnits, configured.idleBobPx || 2.2),
+            projectileArcHeightUnits: configured.projectileArcHeightUnits ?? 0.9,
+            projectileArcHeightPx: unitsToPx(configured.projectileArcHeightUnits, configured.projectileArcHeightPx || 18),
             releaseDurationMs: configured.releaseDurationMs || 980,
-            roamRadiusX: configured.roamRadiusX || 20,
-            roamRadiusY: configured.roamRadiusY || 12,
-            engagementDriftPx: configured.engagementDriftPx || 14
+            roamRadiusXUnits: configured.roamRadiusXUnits ?? 1,
+            roamRadiusX: unitsToPx(configured.roamRadiusXUnits, configured.roamRadiusX || 20),
+            roamRadiusYUnits: configured.roamRadiusYUnits ?? 0.6,
+            roamRadiusY: unitsToPx(configured.roamRadiusYUnits, configured.roamRadiusY || 12),
+            engagementDriftUnits: configured.engagementDriftUnits ?? 0.7,
+            engagementDriftPx: unitsToPx(configured.engagementDriftUnits, configured.engagementDriftPx || 14)
         };
     }
 
@@ -244,9 +262,14 @@ class BattleSystem {
             ? BUTTERFLY_ABILITY_VISUALS[ability]
             : null;
         if (profile) {
+            const pixelsPerArenaUnit = gameConfig?.battle?.motion?.pixelsPerArenaUnit || gameConfig?.spatial?.projection?.ppu || 20;
+            const radiusUnits = Number.isFinite(profile.radiusUnits)
+                ? profile.radiusUnits
+                : (Number.isFinite(profile.radius) && pixelsPerArenaUnit ? profile.radius / pixelsPerArenaUnit : null);
             return {
                 style: profile.style || 'symbol',
                 radius: profile.radius ?? null,
+                radiusUnits,
                 symbol: profile.symbol || null,
                 fallbackSymbol: profile.fallbackSymbol || null
             };
@@ -254,6 +277,7 @@ class BattleSystem {
         return {
             style: 'symbol',
             radius: null,
+            radiusUnits: null,
             symbol: null,
             fallbackSymbol: '*'
         };
@@ -301,6 +325,7 @@ class BattleSystem {
             ability,
             visualStyle: profile.style || 'symbol',
             abilityRadius: profile.radius ?? null,
+            abilityRadiusUnits: profile.radiusUnits ?? null,
             symbol: profile.symbol || null,
             fallbackSymbol: profile.fallbackSymbol || null,
             primaryColor: palette.primaryColor,
@@ -339,6 +364,7 @@ class BattleSystem {
             const palette = this.getAbilityVisualPalette(participant);
             participant.battleVisual.visualStyle = profile.style || 'symbol';
             participant.battleVisual.abilityRadius = profile.radius ?? null;
+            participant.battleVisual.abilityRadiusUnits = profile.radiusUnits ?? null;
             participant.battleVisual.symbol = profile.symbol || null;
             participant.battleVisual.fallbackSymbol = profile.fallbackSymbol || null;
             participant.battleVisual.primaryColor = palette.primaryColor;
@@ -415,6 +441,8 @@ class BattleSystem {
                 targetId,
                 startedAtMs: nowMs,
                 durationMs: motion.projectileDurationMs,
+                arcHeightUnits: motion.projectileArcHeightUnits,
+                arcHeightPx: motion.projectileArcHeightPx,
                 ability: participant.abilities?.specialAbility || null,
                 abilityLabel: presentation.abilityLabel,
                 projectileStyle: presentation.projectileStyle,

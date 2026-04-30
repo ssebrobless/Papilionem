@@ -91,6 +91,12 @@ This source book is now the primary reading copy for the project.
 - [CURRENT-STATE-GAP-ASSESSMENT.md](./CURRENT-STATE-GAP-ASSESSMENT.md)
 - [GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md](./GOAL-ALIGNMENT-IMPLEMENTATION-PLAN.md)
 - [GOAL-ALIGNMENT-REVIEW-PACKET.md](./GOAL-ALIGNMENT-REVIEW-PACKET.md)
+- [G0-BAR-STAGE-A-SIGNOFF.md](./G0-BAR-STAGE-A-SIGNOFF.md)
+- [G1-SPATIAL-ACCEPTANCE-SWEEP.md](./G1-SPATIAL-ACCEPTANCE-SWEEP.md)
+- [G2-LIVE-BUILDING-BEHAVIOR-PROOF.md](./G2-LIVE-BUILDING-BEHAVIOR-PROOF.md)
+- [G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md](./G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md)
+- [COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md](./COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md)
+- [COMPOSED-BENCHMARK-BASELINE-2026-04-27.md](./COMPOSED-BENCHMARK-BASELINE-2026-04-27.md)
 
 The current implementation board is frozen clean after `I1` through `I5`.
 Use the matrix for the live hold/deferred picture, and only reopen a new
@@ -105,6 +111,26 @@ tracks, and which older boards are only historical context.
 The active completion board is now the one-page closure ladder that says what
 still has to land, in what exact order, before the active runtime, spatial,
 social, and public-share tracks can all be called complete together.
+The `g0-bar` Stage A signoff sheet now packages the human acceptance closure
+for `g1` through `g3`, so the remaining blocker is a concrete 20-minute
+review artifact rather than an abstract "someone should sign this off" step.
+The `g1` spatial acceptance sweep companion now records the local lived-in
+proof stack and the remaining human-signoff/mixed-stage thinness against the
+new goal-alignment acceptance bar.
+The `g2` live building behavior proof now records the first passing lived-in
+builder-pocket lane, showing repeated choose/carry/place/revisit behavior
+without claiming that uncontrolled free-play colony-building is fully closed.
+The `g3` movement naturalness companion now records that the current local
+movement/dispersal stack is mechanically green, while the remaining closure
+item is a human free-play grace/readability signoff rather than a named route
+bug.
+The composed benchmark harness workflow now defines how runtime work should use
+the new deterministic single-zone/block/flower scenarios instead of relying on
+synthetic `butterflies-N` sweeps as the main runtime truth.
+The composed benchmark baseline packet now freezes the first official runtime
+reality packet from those new scenarios, including the named realistic-lane
+hotspots and the current contradiction between the `single-zone-122` validation
+note and the current branch tip.
 The external playtest matrix now defines which environments are actually
 validated versus merely prepared.
 The triage log now acts as the intake landing spot for real outside-tester

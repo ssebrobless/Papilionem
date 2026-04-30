@@ -1,0 +1,18 @@
+{
+  "id": "seed-spatial-truth",
+  "seed": 707,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 8, "v": 8, "h": 0 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 8, "h": 0 } }
+  ],
+  "objects": [
+    { "id": "block-a", "type": "block", "boardPos": { "zoneId": "ivy-cloister", "u": 12, "v": 8, "h": 0 } }
+  ],
+  "assertions": [
+    { "type": "zone_at_board", "zones": ["ivy-cloister", "sun-court", "moss-hollow", "pool-heart"] },
+    { "type": "grid_board_agreement", "maxDrift": 0.5 },
+    { "type": "distance_ppu", "zones": ["ivy-cloister", "sun-court", "moss-hollow", "pool-heart"] },
+    { "type": "entity_count", "min": 2 }
+  ]
+}

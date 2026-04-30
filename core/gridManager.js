@@ -360,7 +360,7 @@ class GridManager {
     }
 
     isUsingSharedSectionPlacementRegion() {
-        return gameConfig?.world?.renderMode === 'section-scenes';
+        return ['section-scenes', 'sim-board'].includes(gameConfig?.world?.renderMode);
     }
 
     getZonePlacementRegion(zoneId) {

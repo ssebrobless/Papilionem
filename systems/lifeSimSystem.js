@@ -7,6 +7,12 @@ class LifeSimSystem {
 
     initialize() {
         this.initialized = true;
+        if (typeof eventBus !== 'undefined' && GameEvents?.BUTTERFLY_DIED && !this.deathListenerAttached) {
+            eventBus.on(GameEvents.BUTTERFLY_DIED, data => {
+                this.recordBereavementForDeath(data?.entity, gameCore?.gameState);
+            });
+            this.deathListenerAttached = true;
+        }
     }
 
     reset() {
@@ -33,6 +39,20 @@ class LifeSimSystem {
         entity.lifeSim.distortion = entity.lifeSim.distortion || createDistortionProfile();
         entity.lifeSim.social = entity.lifeSim.social || createSocialProfile();
         entity.lifeSim.derived = entity.lifeSim.derived || createDerivedLifeSimProfile();
+        entity.lifeSim.derived.derivedFeelings = entity.lifeSim.derived.derivedFeelings || {
+            loneliness: 0,
+            comfortSeeking: 0,
+            socialInsecurity: 0,
+            jealousy: 0,
+            grief: 0,
+            pride: 0,
+            shame: 0,
+            loyaltyBias: 0,
+            dominant: 'steady',
+            motiveBias: null,
+            targetPartnerId: null,
+            updatedAtFrame: 0
+        };
         entity.lifeSim.playerInteraction = entity.lifeSim.playerInteraction || createPlayerInteractionProfile();
         entity.lifeSim.objectAwareness = entity.lifeSim.objectAwareness || createObjectAwarenessProfile();
         entity.lifeSim.spatialAwareness = entity.lifeSim.spatialAwareness || createSpatialAwarenessProfile();
@@ -42,6 +62,11 @@ class LifeSimSystem {
         entity.lifeSim.upbringing = entity.lifeSim.upbringing || { imprintSources: [], lessons: [], routineReinforcement: {} };
         entity.lifeSim.interpretation = entity.lifeSim.interpretation || { clarity: 1, lastSignals: [], warpedSignals: 0 };
         entity.lifeSim.lifecycle = entity.lifeSim.lifecycle || createLifecycleProfile();
+        entity.lifeSim.memories.social = Array.isArray(entity.lifeSim.memories.social) ? entity.lifeSim.memories.social : [];
+        entity.lifeSim.memories.outcome = Array.isArray(entity.lifeSim.memories.outcome) ? entity.lifeSim.memories.outcome : [];
+        for (const targetId of Object.keys(entity.lifeSim.socialEdges || {})) {
+            ensureLifeSocialEdge?.(entity, targetId);
+        }
         return entity.lifeSim;
     }
 
@@ -241,12 +266,69 @@ class LifeSimSystem {
         };
     }
 
-    getNearbyEntityCount(entity, allEntities = [], radius = 72, filterFn = null) {
+    getBoardPixelsPerUnit(zoneId = null) {
+        const activeRenderManager = typeof renderManager !== 'undefined' ? renderManager : null;
+        const projection = activeRenderManager?.getProjectionForZone?.(zoneId) || {};
+        return Number.isFinite(projection.ppu)
+            ? projection.ppu
+            : (gameConfig?.spatial?.projection?.ppu || 20);
+    }
+
+    radiusPixelsToUnits(radiusPx, zoneId = null) {
+        const ppu = this.getBoardPixelsPerUnit(zoneId);
+        return ppu ? (Math.max(0, radiusPx || 0) / ppu) : 0;
+    }
+
+    getEntityBoardPos(entity, zoneId = null) {
+        if (!entity) return null;
+        const resolvedZoneId = zoneId || this.getZoneId(entity);
+        if (entity.boardPos && Number.isFinite(entity.boardPos.u) && Number.isFinite(entity.boardPos.v)) {
+            return {
+                zoneId: entity.boardPos.zoneId || resolvedZoneId,
+                u: entity.boardPos.u,
+                v: entity.boardPos.v,
+                h: Number.isFinite(entity.boardPos.h) ? entity.boardPos.h : 0
+            };
+        }
+        const activeRenderManager = typeof renderManager !== 'undefined' ? renderManager : null;
+        if (activeRenderManager?.screenToBoard && Number.isFinite(entity.x) && Number.isFinite(entity.y)) {
+            return activeRenderManager.screenToBoard(entity.x, entity.y, resolvedZoneId, 0);
+        }
+        return null;
+    }
+
+    getProjectedBoardDistanceUnits(left, right, zoneId = null) {
+        const leftBoard = this.getEntityBoardPos(left, zoneId);
+        const rightBoard = this.getEntityBoardPos(right, zoneId);
+        if (!leftBoard || !rightBoard) return null;
+        const activeRenderManager = typeof renderManager !== 'undefined' ? renderManager : null;
+        const projection = activeRenderManager?.getProjectionForZone?.(zoneId || leftBoard.zoneId || rightBoard.zoneId) || {};
+        const groundT = Number.isFinite(projection.groundT)
+            ? projection.groundT
+            : (gameConfig?.spatial?.projection?.groundT || 0.56);
+        return Math.hypot((rightBoard.u - leftBoard.u), (rightBoard.v - leftBoard.v) * groundT);
+    }
+
+    isWithinProjectedBoardRadius(left, right, radiusPx = 0, radiusUnits = null, zoneId = null) {
+        if (Number.isFinite(radiusUnits)) {
+            const boardDistance = this.getProjectedBoardDistanceUnits(left, right, zoneId);
+            if (Number.isFinite(boardDistance)) {
+                return boardDistance <= (radiusUnits + 0.025);
+            }
+        }
+        return Math.hypot((right.x || 0) - (left.x || 0), (right.y || 0) - (left.y || 0)) <= radiusPx;
+    }
+
+    getNearbyEntityCount(entity, allEntities = [], radius = 72, filterFn = null, options = {}) {
         if (!entity) return 0;
+        const zoneId = options.zoneId || this.getZoneId(entity);
+        const radiusUnits = Number.isFinite(options.radiusUnits)
+            ? options.radiusUnits
+            : this.radiusPixelsToUnits(radius, zoneId);
         return (allEntities || []).filter(candidate => {
             if (!candidate || candidate === entity) return false;
             if (filterFn && !filterFn(candidate)) return false;
-            return Math.hypot((candidate.x || 0) - (entity.x || 0), (candidate.y || 0) - (entity.y || 0)) <= radius;
+            return this.isWithinProjectedBoardRadius(entity, candidate, radius, radiusUnits, zoneId);
         }).length;
     }
 
@@ -589,7 +671,7 @@ class LifeSimSystem {
             ? options.nearbyButterflies
             : this.getButterfliesInZone(zoneId, gameState).filter(candidate => candidate?.id && candidate.id !== entity.id);
         const localButterflies = nearbyButterflies.filter(candidate =>
-            Math.hypot((candidate.x || 0) - (entity.x || 0), (candidate.y || 0) - (entity.y || 0)) <= 96
+            this.isWithinProjectedBoardRadius(entity, candidate, 96, this.radiusPixelsToUnits(96, zoneId), zoneId)
         );
         const spatialContext = options.spatialContext
             || (typeof structureSystem !== 'undefined'
@@ -680,6 +762,7 @@ class LifeSimSystem {
         const shelterCandidate = !!(spatialContext?.shelterCandidate || lifeSim.spatialAwareness?.shelterCandidate);
         const insideShelter = !!(spatialContext?.insideShelter || lifeSim.spatialAwareness?.insideShelter);
         const canUseInterior = !!(spatialContext?.canUseInterior || lifeSim.spatialAwareness?.canUseInterior);
+        const shelterTrustRecoveryScale = structureSystem?.getShelterTrustRecoveryScale?.(entity, gameState, spatialContext) || 1;
         const zoneCrowdingPressure = this.clamp01(zoneSummary?.crowdingPressure || 0);
         const zoneShelterCapacity = this.clamp01(zoneSummary?.shelterCapacity || 0);
         const zoneSocialValence = this.clamp01(zoneSummary?.socialValence || 0);
@@ -693,6 +776,7 @@ class LifeSimSystem {
             + Math.min(0.2, nearbySleeping * 0.08)
             + Math.min(0.16, nearbySheltered * 0.05)
             + (signalField?.calmingPressure || 0) * 0.18
+            + Math.max(0, shelterTrustRecoveryScale - 1) * 0.22
             + zoneShelterCapacity * 0.1
             + socialConfidence * 0.06
             - (signalField?.warningPressure || 0) * 0.18
@@ -1357,12 +1441,372 @@ class LifeSimSystem {
         };
     }
 
+    getCognitionFlags() {
+        return gameConfig?.cognition || {};
+    }
+
+    getBoardDistanceBetweenEntities(left, right, zoneId = null) {
+        if (!left || !right) return Infinity;
+        if (typeof structureSystem !== 'undefined' && structureSystem?.getBoardDistanceBetweenEntities) {
+            return structureSystem.getBoardDistanceBetweenEntities(left, right, zoneId || this.getZoneId(left) || this.getZoneId(right));
+        }
+        return Math.hypot((left.x || 0) - (right.x || 0), (left.y || 0) - (right.y || 0)) / 20;
+    }
+
+    getCognitionMemory(entity, family, predicate = null) {
+        const memories = entity?.lifeSim?.memories?.[family];
+        if (!Array.isArray(memories)) return [];
+        return predicate ? memories.filter(predicate) : memories;
+    }
+
+    createCognitionPacket(kind, fields = {}) {
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        const stableBasis = [
+            kind,
+            currentFrame,
+            fields.partnerId || '',
+            fields.bondPartnerId || '',
+            fields.thirdPartyId || '',
+            fields.chosenPartnerId || '',
+            fields.rejectedPartnerId || '',
+            fields.anchor || ''
+        ].join(':');
+        const stableSuffix = stableBasis.split('').reduce((sum, char) => (sum + char.charCodeAt(0)) % 100000, 0);
+        return {
+            id: `${kind}_${currentFrame}_${stableSuffix}`,
+            kind,
+            createdAtFrame: currentFrame,
+            createdAtSeconds: this.simulationClockSeconds,
+            strength: this.clamp01(fields.strength ?? fields.intensity ?? 0.5),
+            ...fields
+        };
+    }
+
+    pushCognitionPacket(entity, family, packet, limit = 8) {
+        const lifeSim = this.ensureLifeSimState(entity);
+        if (!lifeSim || !packet) return null;
+        const bucket = lifeSim.memories[family] = Array.isArray(lifeSim.memories[family]) ? lifeSim.memories[family] : [];
+        bucket.unshift(packet);
+        if (bucket.length > limit) bucket.length = limit;
+        return packet;
+    }
+
+    getEdgeComposite(edge = {}) {
+        return this.clamp01(((edge.trust || 0) + (edge.comfort || 0) + (edge.attachment || 0)) / 3);
+    }
+
+    getBondRank(tier = 'acquaintance') {
+        return { acquaintance: 0, familiar: 1, companion: 2, bonded: 3 }[tier] ?? 0;
+    }
+
+    deriveBondTier(edge = {}) {
+        const trust = this.clamp01(edge.trust || 0);
+        const comfort = this.clamp01(edge.comfort || 0);
+        const attachment = this.clamp01(edge.attachment || 0);
+        const coTimeSeconds = Math.max(0, edge.coTimeSeconds || 0);
+        if (attachment >= 0.7 && comfort >= 0.55 && trust >= 0.55 && coTimeSeconds >= 1800) return 'bonded';
+        if (attachment >= 0.5 && comfort >= 0.4 && trust >= 0.4 && coTimeSeconds >= 600) return 'companion';
+        if (Math.max(trust, comfort, attachment, edge.admiration || 0, edge.protectiveness || 0) >= 0.3 && coTimeSeconds >= 60) return 'familiar';
+        return 'acquaintance';
+    }
+
+    updateBondTiers(entity, gameState = gameCore?.gameState, options = {}) {
+        if (this.getCognitionFlags()?.bondTier?.enabled === false) return null;
+        const lifeSim = this.ensureLifeSimState(entity);
+        if (!lifeSim) return null;
+        const deltaSeconds = Math.max(0, options.deltaSeconds || 0);
+        const zoneId = this.getZoneId(entity);
+        const currentFrame = Number.isFinite(options.currentFrame)
+            ? options.currentFrame
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
+        for (const [targetId, edge] of Object.entries(lifeSim.socialEdges || {})) {
+            ensureLifeSocialEdge?.(entity, targetId);
+            const partner = this.getEntityById(targetId, gameState);
+            if (partner && zoneId && zoneId === this.getZoneId(partner)) {
+                const distance = this.getBoardDistanceBetweenEntities(entity, partner, zoneId);
+                if (distance <= 3.2) {
+                    edge.coTimeSeconds = Math.max(0, edge.coTimeSeconds || 0) + deltaSeconds;
+                }
+            }
+            const nextTier = this.deriveBondTier(edge);
+            if (this.getBondRank(nextTier) > this.getBondRank(edge.bondTier)) {
+                edge.bondTier = nextTier;
+                edge.lastTierChangeAtFrame = currentFrame;
+            } else {
+                edge.bondTier = edge.bondTier || 'acquaintance';
+            }
+        }
+        return lifeSim.socialEdges;
+    }
+
+    pruneCognitionPackets(entity, currentFrame = gameCore?.getCurrentFrame?.() ?? 0) {
+        const lifeSim = this.ensureLifeSimState(entity);
+        if (!lifeSim) return;
+        const keepSocial = [];
+        for (const packet of lifeSim.memories.social || []) {
+            if (!packet?.kind) {
+                keepSocial.push(packet);
+                continue;
+            }
+            const ageFrames = Math.max(0, currentFrame - (packet.createdAtFrame || packet.lostAtFrame || packet.watchedAtFrame || currentFrame));
+            if (packet.kind === 'witnessedAffection' && ageFrames > 3600) continue;
+            if (packet.kind === 'bereavement' && ageFrames > 10800) continue;
+            if (packet.kind === 'loyaltyChoice' && ageFrames > 21600) continue;
+            keepSocial.push(packet);
+        }
+        lifeSim.memories.social = keepSocial;
+        const keepOutcome = [];
+        for (const packet of lifeSim.memories.outcome || []) {
+            if (!packet?.anchor || !packet.createdAtFrame) {
+                keepOutcome.push(packet);
+                continue;
+            }
+            packet.activeStrength = this.clamp01((packet.strength || 0.5) * (1 - Math.min(1, (currentFrame - packet.createdAtFrame) / 18000)));
+            keepOutcome.push(packet);
+        }
+        lifeSim.memories.outcome = keepOutcome;
+    }
+
+    deriveDerivedFeelings(entity, gameState = gameCore?.gameState, options = {}) {
+        const lifeSim = this.ensureLifeSimState(entity);
+        if (!lifeSim) return null;
+        const currentFrame = Number.isFinite(options.currentFrame)
+            ? options.currentFrame
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
+        if (this.getCognitionFlags()?.derivedFeelings?.enabled === false) {
+            lifeSim.derived.derivedFeelings = lifeSim.derived.derivedFeelings || {};
+            return lifeSim.derived.derivedFeelings;
+        }
+        const zoneId = this.getZoneId(entity);
+        const zoneMates = this.getButterfliesInZone(zoneId, gameState).filter(candidate => candidate?.id !== entity.id);
+        const recentSocialActivity = this.clamp01(
+            ((lifeSim.communication?.recentEmitted?.length || 0)
+            + (lifeSim.communication?.recentReceived?.length || 0)
+            + (lifeSim.communication?.recentConversations?.length || 0)) / 10
+        );
+        let nearbyEdgeAffection = 0;
+        let caregiverCandidate = null;
+        for (const candidate of zoneMates) {
+            const edge = lifeSim.socialEdges?.[candidate.id] || {};
+            const affection = this.getEdgeComposite(edge);
+            if (affection > nearbyEdgeAffection) {
+                nearbyEdgeAffection = affection;
+                caregiverCandidate = candidate;
+            }
+        }
+        const recentCare = Math.max(
+            0,
+            ...(lifeSim.communication?.recentReceived || []).map(entry => entry?.intentTags?.includes?.('comfort') ? 0.8 : 0)
+        );
+        const witnessedEmbarrassment = this.clamp01(
+            this.getCognitionMemory(entity, 'social', packet => packet?.kind === 'witnessedAffection').length / 3
+        );
+        const bereavement = this.getCognitionMemory(entity, 'social', packet => packet?.kind === 'bereavement')[0] || null;
+        const jealousyPacket = this.getCognitionMemory(entity, 'social', packet => packet?.kind === 'witnessedAffection')[0] || null;
+        const prideAnchor = this.getCognitionMemory(entity, 'outcome', packet => packet?.anchor === 'pride')[0] || null;
+        const shameAnchor = this.getCognitionMemory(entity, 'outcome', packet => packet?.anchor === 'shame')[0] || null;
+        const loyaltyPacket = this.getCognitionMemory(entity, 'social', packet => packet?.kind === 'loyaltyChoice')[0] || null;
+
+        const lonelinessBase = this.clamp01(
+            (1 - this.clamp01(lifeSim.drives?.socialConnection || 0)) * 0.4
+            + (1 - this.clamp01(lifeSim.social?.belonging || 0)) * 0.2
+            + (1 - recentSocialActivity) * 0.2
+            + Math.max(0, 0.5 - nearbyEdgeAffection) * 0.4
+            + (zoneMates.length === 0 ? 0.24 : 0)
+        );
+        const comfortSeekingBase = this.clamp01(
+            this.clamp01(lifeSim.emotions?.threat || 0) * 0.4
+            + this.clamp01(lifeSim.emotions?.exhaustion || 0) * 0.3
+            + Math.max(0, 0.4 - recentCare) * 0.3
+        );
+        const socialInsecurityBase = this.clamp01(
+            (1 - this.clamp01(lifeSim.social?.confidence || 0)) * 0.4
+            + this.clamp01(lifeSim.emotions?.rejection || 0) * 0.3
+            + witnessedEmbarrassment * 0.3
+        );
+        const ageFactor = packet => {
+            if (!packet) return 0;
+            const frame = packet.createdAtFrame || packet.lostAtFrame || packet.watchedAtFrame || currentFrame;
+            return this.clamp01(1 - Math.max(0, currentFrame - frame) / (packet.decayFrames || 10800));
+        };
+        const feelings = lifeSim.derived.derivedFeelings || {};
+        feelings.loneliness = this.clamp01(this.lerpValue(feelings.loneliness || 0, lonelinessBase, 0.18));
+        feelings.comfortSeeking = this.clamp01(this.lerpValue(feelings.comfortSeeking || 0, comfortSeekingBase, 0.18));
+        feelings.socialInsecurity = this.clamp01(this.lerpValue(feelings.socialInsecurity || 0, socialInsecurityBase, 0.14));
+        feelings.jealousy = this.clamp01((jealousyPacket?.intensity || 0) * ageFactor(jealousyPacket));
+        feelings.grief = this.clamp01((bereavement?.intensity || 0) * ageFactor(bereavement));
+        feelings.pride = this.clamp01((prideAnchor?.activeStrength ?? prideAnchor?.strength ?? 0) * ageFactor({ ...prideAnchor, decayFrames: 18000 }));
+        feelings.shame = this.clamp01((shameAnchor?.activeStrength ?? shameAnchor?.strength ?? 0) * ageFactor({ ...shameAnchor, decayFrames: 18000 }));
+        feelings.loyaltyBias = this.clamp01((loyaltyPacket?.strength || 0) * ageFactor({ ...loyaltyPacket, decayFrames: 21600 }));
+        const ranked = [
+            ['loneliness', feelings.loneliness],
+            ['comfortSeeking', feelings.comfortSeeking],
+            ['socialInsecurity', feelings.socialInsecurity],
+            ['jealousy', feelings.jealousy],
+            ['grief', feelings.grief],
+            ['pride', feelings.pride],
+            ['shame', feelings.shame],
+            ['loyaltyBias', feelings.loyaltyBias]
+        ].sort((left, right) => right[1] - left[1]);
+        feelings.dominant = ranked[0]?.[1] > 0.28 ? ranked[0][0] : 'steady';
+        feelings.motiveBias = feelings.grief > 0.25
+            ? 'observation'
+            : feelings.loneliness > 0.55
+                ? 'companionship'
+                : feelings.comfortSeeking > 0.55
+                    ? 'distress'
+                    : feelings.socialInsecurity > 0.55
+                        ? 'guarded'
+                        : feelings.pride > 0.25
+                            ? 'statusPerformance'
+                            : feelings.shame > 0.25
+                                ? 'repair'
+                                : null;
+        feelings.targetPartnerId = bereavement?.partnerId || jealousyPacket?.bondPartnerId || loyaltyPacket?.chosenPartnerId || caregiverCandidate?.id || null;
+        feelings.updatedAtFrame = currentFrame;
+        lifeSim.derived.derivedFeelings = feelings;
+        return feelings;
+    }
+
+    updateCognitionExpansion(entity, gameState = gameCore?.gameState, options = {}) {
+        const lifeSim = this.ensureLifeSimState(entity);
+        if (!lifeSim) return null;
+        const currentFrame = Number.isFinite(options.currentFrame)
+            ? options.currentFrame
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
+        this.updateBondTiers(entity, gameState, options);
+        this.pruneCognitionPackets(entity, currentFrame);
+        return this.deriveDerivedFeelings(entity, gameState, options);
+    }
+
+    recordBereavementForDeath(deceased, gameState = gameCore?.gameState) {
+        if (!deceased?.id || this.getCognitionFlags()?.grief?.enabled === false) return [];
+        const created = [];
+        for (const survivor of gameState?.butterflies || []) {
+            if (!survivor?.id || survivor.id === deceased.id) continue;
+            const lifeSim = this.ensureLifeSimState(survivor);
+            const edge = lifeSim?.socialEdges?.[deceased.id] || null;
+            if (!edge || this.getBondRank(edge.bondTier) < this.getBondRank('companion')) continue;
+            const packet = this.createCognitionPacket('bereavement', {
+                partnerId: deceased.id,
+                lostAtFrame: gameCore?.getCurrentFrame?.() ?? 0,
+                lastSharedZoneId: survivor.currentZoneId || lifeSim.lifecycle?.currentZoneId || null,
+                lastSharedBoardPos: survivor.boardPos ? { ...survivor.boardPos } : null,
+                intensity: this.clamp01(0.35 + this.getEdgeComposite(edge) * 0.55),
+                decayFrames: 10800,
+                tags: ['observation', 'soft-repair']
+            });
+            this.pushCognitionPacket(survivor, 'social', packet);
+            created.push(packet);
+        }
+        return created;
+    }
+
+    recordWitnessedAffection(source, recipients = [], dialogue = {}, gameState = gameCore?.gameState) {
+        if (!source?.id || this.getCognitionFlags()?.jealousy?.enabled === false) return [];
+        const tags = dialogue?.intentTags || [];
+        const positive = tags.some(tag => ['comfort', 'companionship', 'warmth', 'admiration', 'playful', 'shared_attention'].includes(tag))
+            || dialogue?.metadata?.affectionIntensity > 0.5;
+        if (!positive) return [];
+        const target = recipients?.[0] || null;
+        if (!target?.id) return [];
+        const zoneId = source.currentZoneId || source.lifeSim?.lifecycle?.currentZoneId || null;
+        const created = [];
+        for (const witness of gameState?.butterflies || []) {
+            if (!witness?.id || witness.id === source.id || witness.id === target.id) continue;
+            if ((witness.currentZoneId || witness.lifeSim?.lifecycle?.currentZoneId || null) !== zoneId) continue;
+            const edgeToSource = witness.lifeSim?.socialEdges?.[source.id] || {};
+            if (this.getBondRank(edgeToSource.bondTier) < this.getBondRank('companion')) continue;
+            if (this.getBoardDistanceBetweenEntities(witness, source, zoneId) > 6) continue;
+            const recent = this.getCognitionMemory(witness, 'social', packet =>
+                packet?.kind === 'witnessedAffection'
+                && packet.bondPartnerId === source.id
+                && ((gameCore?.getCurrentFrame?.() ?? 0) - (packet.watchedAtFrame || 0)) < 3600
+            );
+            if (recent.length) continue;
+            const intensity = this.clamp01((dialogue?.metadata?.affectionIntensity || 0.55) + this.getEdgeComposite(edgeToSource) * 0.3);
+            const packet = this.createCognitionPacket('witnessedAffection', {
+                watchedAtFrame: gameCore?.getCurrentFrame?.() ?? 0,
+                bondPartnerId: source.id,
+                thirdPartyId: target.id,
+                intensity,
+                decayFrames: 1800
+            });
+            this.pushCognitionPacket(witness, 'social', packet);
+            adjustLifeSocialEdge?.(witness, target.id, { rivalry: 0.06 }, {
+                updatedAtSeconds: this.simulationClockSeconds,
+                tag: 'witnessed-affection'
+            });
+            created.push(packet);
+        }
+        return created;
+    }
+
+    createOutcomeAnchor(entity, anchor, reason = 'scenario', options = {}) {
+        if (!entity?.id || this.getCognitionFlags()?.anchors?.enabled === false) return null;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? 0;
+        const existing = this.getCognitionMemory(entity, 'outcome', packet =>
+            packet?.anchor === anchor && (currentFrame - (packet.createdAtFrame || 0)) < 18000
+        );
+        if (existing.length) return existing[0];
+        const packet = this.createCognitionPacket(`${anchor}Anchor`, {
+            family: 'outcome',
+            anchor,
+            reason,
+            strength: this.clamp01(options.strength ?? 0.58),
+            activeStrength: this.clamp01(options.strength ?? 0.58),
+            tags: anchor === 'pride' ? ['admiration', 'statusPerformance'] : ['observation', 'repair']
+        });
+        this.pushCognitionPacket(entity, 'outcome', packet);
+        if (anchor === 'pride') {
+            entity.lifeSim.drives.statusExpression = this.clamp01((entity.lifeSim.drives.statusExpression || 0) + 0.05);
+        } else if (anchor === 'shame') {
+            entity.lifeSim.distortion.withdrawalBias = this.clamp01((entity.lifeSim.distortion.withdrawalBias || 0) + 0.05);
+        }
+        return packet;
+    }
+
+    recordLoyaltyChoice(entity, chosenPartnerId, rejectedPartnerId, options = {}) {
+        if (!entity?.id || !chosenPartnerId || !rejectedPartnerId || this.getCognitionFlags()?.loyalty?.enabled === false) return null;
+        const chosenEdge = ensureLifeSocialEdge?.(entity, chosenPartnerId);
+        const rejectedEdge = ensureLifeSocialEdge?.(entity, rejectedPartnerId);
+        if (chosenEdge) chosenEdge.loyalty = this.clamp01((chosenEdge.loyalty || 0) + 0.05);
+        if (rejectedEdge) rejectedEdge.loyalty = this.clamp01((rejectedEdge.loyalty || 0) - 0.02);
+        const packet = this.createCognitionPacket('loyaltyChoice', {
+            chosenPartnerId,
+            rejectedPartnerId,
+            chosenComposite: this.getEdgeComposite(chosenEdge || {}),
+            rejectedComposite: this.getEdgeComposite(rejectedEdge || {}),
+            strength: this.clamp01(options.strength ?? 0.55),
+            decayFrames: 21600
+        });
+        return this.pushCognitionPacket(entity, 'social', packet);
+    }
+
+    getCognitionSummary(entity) {
+        const feelings = entity?.lifeSim?.derived?.derivedFeelings || {};
+        const socialPackets = entity?.lifeSim?.memories?.social || [];
+        const outcomePackets = entity?.lifeSim?.memories?.outcome || [];
+        return {
+            feelings: { ...feelings },
+            strongestFeeling: feelings.dominant || 'steady',
+            motiveBias: feelings.motiveBias || null,
+            bondTiers: Object.fromEntries(Object.entries(entity?.lifeSim?.socialEdges || {}).map(([id, edge]) => [id, edge?.bondTier || 'acquaintance'])),
+            griefPackets: socialPackets.filter(packet => packet?.kind === 'bereavement'),
+            witnessedAffection: socialPackets.filter(packet => packet?.kind === 'witnessedAffection'),
+            loyaltyChoices: socialPackets.filter(packet => packet?.kind === 'loyaltyChoice'),
+            prideAnchors: outcomePackets.filter(packet => packet?.anchor === 'pride'),
+            shameAnchors: outcomePackets.filter(packet => packet?.anchor === 'shame')
+        };
+    }
+
     updateDerivedState(lifeSim, options = {}) {
         const drivePeaks = this.getTopLabels(lifeSim.drives, 2);
         const emotionPeaks = this.getTopLabels(lifeSim.emotions, 2);
         const social = lifeSim.social || {};
         const distortion = lifeSim.distortion || {};
         const socialEcology = options.socialEcology || lifeSim.derived?.socialEcology || null;
+        const feelings = options.derivedFeelings || lifeSim.derived?.derivedFeelings || {};
 
         lifeSim.social.focus = drivePeaks[0]?.label || 'rest';
         lifeSim.derived.dominantDrive = drivePeaks[0]?.label || 'rest';
@@ -1381,6 +1825,8 @@ class LifeSimSystem {
                 - lifeSim.drives.rest * 0.3
                 - distortion.withdrawalBias * 0.12
                 - (options.lingerBias ?? 0) * 0.18
+                - (feelings.grief || 0) * 0.08
+                - (feelings.comfortSeeking || 0) * 0.05
             ) + 0.1,
             feedUrgency: this.clamp01(lifeSim.drives.resourceControl * 0.72 + lifeSim.emotions.failure * 0.18 + lifeSim.drives.selfMaintenance * 0.1),
             displayConfidence: this.clamp01(
@@ -1391,6 +1837,8 @@ class LifeSimSystem {
                 - lifeSim.emotions.threat * 0.16
                 - distortion.withdrawalBias * 0.12
                 + (options.displayConfidenceBoost ?? 0)
+                + (feelings.pride || 0) * 0.18
+                - (feelings.shame || 0) * 0.14
             ),
             socialConfidence: this.clamp01(
                 lifeSim.drives.socialConnection * 0.34
@@ -1399,6 +1847,9 @@ class LifeSimSystem {
                 - lifeSim.emotions.rejection * 0.18
                 - distortion.withdrawalBias * 0.2
                 + (options.socialConfidenceBoost ?? 0)
+                + (feelings.loyaltyBias || 0) * 0.08
+                - (feelings.socialInsecurity || 0) * 0.16
+                - (feelings.shame || 0) * 0.08
             ),
             caution: this.clamp01(
                 lifeSim.drives.safetyAvoidance * 0.44
@@ -1417,12 +1868,14 @@ class LifeSimSystem {
                 + distortion.traumaBias * 0.14
                 + distortion.insomniaBias * 0.04
                 + (options.shelterSeekingBoost ?? 0)
+                + (feelings.comfortSeeking || 0) * 0.12
+                + (feelings.grief || 0) * 0.08
             ),
             battleAggression: this.clamp01((options.battleAggression ?? 0) + distortion.fixationBias * 0.08 - distortion.withdrawalBias * 0.08),
-            followThroughDrive: this.clamp01(options.followThroughDrive ?? 0),
-            socialAvoidance: this.clamp01(options.socialAvoidance ?? 0),
+            followThroughDrive: this.clamp01((options.followThroughDrive ?? 0) + (feelings.loyaltyBias || 0) * 0.16 + (feelings.loneliness || 0) * 0.08),
+            socialAvoidance: this.clamp01((options.socialAvoidance ?? 0) + (feelings.socialInsecurity || 0) * 0.18 + (feelings.jealousy || 0) * 0.1 + (feelings.shame || 0) * 0.12),
             migrationUrgency: this.clamp01(options.migrationUrgency ?? 0),
-            returnHomeBias: this.clamp01(options.returnHomeBias ?? 0),
+            returnHomeBias: this.clamp01((options.returnHomeBias ?? 0) + (feelings.grief || 0) * 0.12),
             noveltySeeking: this.clamp01(options.noveltySeeking ?? 0),
             mateSeeking: this.clamp01((options.mateSeeking ?? 0) + (options.mateSeekingBoost ?? 0)),
             overcrowdingEscape: this.clamp01(options.overcrowdingEscape ?? 0),
@@ -1436,7 +1889,7 @@ class LifeSimSystem {
             scoutTargetZoneId: options.scoutTargetZoneId || null,
             preferredMateZoneId: options.preferredMateZoneId || null,
             travelTargetZoneId: options.travelTargetZoneId || null,
-            travelIntent: options.travelIntent || 'settling',
+            travelIntent: feelings.motiveBias || options.travelIntent || 'settling',
             visitedZoneCount: Math.max(0, options.visitedZoneCount || 0),
             awayFromHome: !!options.awayFromHome,
             returnHomeBias: this.clamp01(options.returnHomeBias ?? 0),
@@ -1472,6 +1925,8 @@ class LifeSimSystem {
         const zoneId = this.getZoneId(entity);
         lifeSim.lifecycle.currentZoneId = zoneId;
         const zoneFlowers = this.getFlowersInZone(zoneId, gameState);
+        const liveZoneFlowers = zoneFlowers.filter(flower => (flower?.lifecycleKind || 'flower') === 'flower');
+        const dirtPileCount = zoneFlowers.filter(flower => flower?.lifecycleKind === 'dirt-pile').length;
         const nearbyCount = typeof entity.getNearbyButterflyCount === 'function'
             ? entity.getNearbyButterflyCount(92)
             : Math.max(0, this.getButterfliesInZone(zoneId, gameState).length - 1);
@@ -1480,7 +1935,10 @@ class LifeSimSystem {
         const novelty = this.clamp01(1 - Math.min(1, this.getMemoryDensity(entity, 'place') / 10));
         const zoneInfluence = this.getZoneLifeSimInfluence(zoneId, entity);
         const zoneBlocks = gameCore?.getBlocksInZone?.(zoneId) || [];
-        const nearbyBlockCount = this.getNearbyEntityCount(entity, zoneBlocks, 74, block => !block?.carriedById);
+        const nearbyBlockCount = this.getNearbyEntityCount(entity, zoneBlocks, 74, block => !block?.carriedById, {
+            zoneId,
+            radiusUnits: this.radiusPixelsToUnits(74, zoneId)
+        });
         const spatialContext = typeof structureSystem !== 'undefined'
             ? structureSystem.getSpatialContextForEntity?.(entity, gameState)
             : null;
@@ -1495,9 +1953,11 @@ class LifeSimSystem {
                 ? 'plant'
                 : isCarryingObject
                     ? 'stack'
-                    : spatialContext?.shelterCandidate && !zoneFlowers.length
+                    : dirtPileCount > 0 && (lifeSim.drives?.selfMaintenance || 0) > 0.45
+                        ? 'clean'
+                    : spatialContext?.shelterCandidate && !liveZoneFlowers.length
                         ? 'shelterUse'
-                        : zoneFlowers.length
+                        : liveZoneFlowers.length
                             ? 'feedFrom'
                             : nearbyBlockCount > 0
                                 ? 'carry'
@@ -1508,7 +1968,9 @@ class LifeSimSystem {
                 ? 'pollen'
                 : isCarryingObject || entity.blockInteraction?.targetBlockId
                     ? 'block'
-                    : zoneFlowers.length
+                    : dirtPileCount > 0 && (lifeSim.drives?.selfMaintenance || 0) > 0.45
+                        ? 'soiled-place'
+                    : liveZoneFlowers.length
                         ? 'flower'
                         : spatialContext?.shelterCandidate
                             ? 'block'
@@ -1598,6 +2060,10 @@ class LifeSimSystem {
             mateSeeking: migrationSummary?.mateSeeking || 0
         });
         lifeSim.social.activeContext = this.resolveActiveSocialContext(entity, zoneId, socialEcology);
+        const derivedFeelings = this.updateCognitionExpansion(entity, gameState, {
+            deltaSeconds: Number.isFinite(options.deltaSeconds) ? options.deltaSeconds : 0,
+            currentFrame
+        }) || {};
 
         this.updateDerivedState(lifeSim, {
             crowding,
@@ -1638,6 +2104,7 @@ class LifeSimSystem {
             visitedZoneCount: migrationSummary?.visitedZoneCount || 0,
             awayFromHome: migrationSummary?.awayFromHome || false,
             scoutingDrive: migrationSummary?.scoutingDrive || 0,
+            derivedFeelings,
             zoneMateOpportunities: migrationSummary?.zoneMateOpportunities || {},
             socialEcology,
             currentFrame,
@@ -1725,6 +2192,8 @@ class LifeSimSystem {
             };
         }
         const zoneFlowers = this.getFlowersInZone(zoneId, gameState);
+        const liveZoneFlowers = zoneFlowers.filter(flower => (flower?.lifecycleKind || 'flower') === 'flower');
+        const dirtPileCount = zoneFlowers.filter(flower => flower?.lifecycleKind === 'dirt-pile').length;
         const nearbyCount = typeof entity.getNearbyButterflyCount === 'function' ? entity.getNearbyButterflyCount(92) : Math.max(0, this.getButterfliesInZone(zoneId, gameState).length - 1);
         const crowding = this.clamp01(nearbyCount / 6);
         const attachment = this.getAverageEdgeValue(entity, ['trust', 'comfort', 'attachment']);
@@ -1762,8 +2231,8 @@ class LifeSimSystem {
         const specialAbility = entity.getSpecialAbility?.() || entity.specialAbility || null;
         const reputationBias = specialAbility === 'teacher' ? 0.18 : 0;
         const rarityBias = entity.personality?.rarity === 'legendary' ? 0.28 : entity.personality?.rarity === 'epic' ? 0.12 : 0;
-        const flowerAvailability = zoneFlowers.length
-            ? this.clamp01(zoneFlowers.filter(flower => flower?.canAcceptButterfly?.(entity) ?? true).length / zoneFlowers.length)
+        const flowerAvailability = liveZoneFlowers.length
+            ? this.clamp01(liveZoneFlowers.filter(flower => flower?.canAcceptButterfly?.(entity) ?? true).length / liveZoneFlowers.length)
             : 0;
         const zoneBlocks = gameCore?.getBlocksInZone?.(zoneId) || [];
         const nearbyBlockCount = this.getNearbyEntityCount(entity, zoneBlocks, 74, block => !block?.carriedById);
@@ -1792,9 +2261,11 @@ class LifeSimSystem {
                 ? 'plant'
                 : isCarryingObject
                     ? 'stack'
-                    : spatialContext?.shelterCandidate && !zoneFlowers.length
+                    : dirtPileCount > 0 && (lifeSim.drives?.selfMaintenance || 0) > 0.45
+                        ? 'clean'
+                    : spatialContext?.shelterCandidate && !liveZoneFlowers.length
                         ? 'shelterUse'
-                    : zoneFlowers.length
+                    : liveZoneFlowers.length
                         ? 'feedFrom'
                         : nearbyBlockCount > 0
                             ? 'carry'
@@ -1805,7 +2276,9 @@ class LifeSimSystem {
                 ? 'pollen'
                 : isCarryingObject || entity.blockInteraction?.targetBlockId
                     ? 'block'
-                    : zoneFlowers.length
+                    : dirtPileCount > 0 && (lifeSim.drives?.selfMaintenance || 0) > 0.45
+                        ? 'soiled-place'
+                    : liveZoneFlowers.length
                         ? 'flower'
                         : spatialContext?.shelterCandidate
                             ? 'block'
@@ -1818,6 +2291,7 @@ class LifeSimSystem {
         const bodyFit = spatialContext?.bodyFit || ((entity.blockInteraction?.lastRelativeSize || 0) > 1.05 ? 'tooNarrow' : 'canPass');
         const pathState = spatialContext?.pathState || (obstacleDensity > 0.55 ? 'obstructed' : obstacleDensity > 0.22 ? 'enterable' : 'open');
         const shelterCandidate = !!spatialContext?.shelterCandidate;
+        const shelterTrustRecoveryScale = structureSystem?.getShelterTrustRecoveryScale?.(entity, gameState, spatialContext) || 1;
         const resourceFocusPressure = this.clamp01(
             stateFeedFocus
             + (focusType === 'flower' ? 0.16 : 0)
@@ -1827,6 +2301,7 @@ class LifeSimSystem {
             + (currentAffordance === 'plant' ? 0.34 : 0)
             + (currentAffordance === 'stack' ? 0.18 : 0)
             + (currentAffordance === 'carry' ? 0.12 : 0)
+            + (currentAffordance === 'clean' ? 0.16 : 0)
             + (isCarryingObject ? 0.08 : 0)
         );
         const rarityExposure = this.clamp01((gameState?.encounteredButterflies?.size || 0) / 7);
@@ -1855,19 +2330,19 @@ class LifeSimSystem {
             caregiving: this.clamp01(0.05 + stateCare + admiration * 0.1 + careRoutineStrength * 0.18 + careMemoryDensity * 0.2 + zoneInfluence.drives.caregiving),
             exploration: this.clamp01(0.1 + novelty * 0.34 + happinessRatio * 0.2 - crowding * 0.24 - stateCare * 0.3 - resourceFocusPressure * 0.18 - (isSleeping ? 0.4 : 0) + movementRoutineStrength * 0.12 + placeMemoryDensity * 0.06 + routineMemoryDensity * 0.05 + zoneInfluence.drives.exploration),
             statusExpression: this.clamp01(0.1 + rarityBias + reputationBias + admiration * 0.22 + stateDisplay + communicationActivity.emitted * 0.03 + trainingStrength * 0.08 + lessonDepth * 0.08 + zoneInfluence.drives.statusExpression),
-            rest: this.clamp01(0.08 + (lifeSim.emotions?.exhaustion || 0) * 0.74 + (isSleeping ? 0.18 : 0) + restRoutineStrength * 0.14 + (lifeSim.distortion?.oversleepBias || 0) * 0.08 - (lifeSim.distortion?.insomniaBias || 0) * 0.06 + zoneInfluence.drives.rest)
+            rest: this.clamp01(0.08 + (lifeSim.emotions?.exhaustion || 0) * 0.74 + (isSleeping ? 0.18 : 0) + restRoutineStrength * 0.14 + Math.max(0, shelterTrustRecoveryScale - 1) * 0.12 + (lifeSim.distortion?.oversleepBias || 0) * 0.08 - (lifeSim.distortion?.insomniaBias || 0) * 0.06 + zoneInfluence.drives.rest)
         };
 
         const emotionTargets = {
             threat: this.clamp01(stateThreat + driveTargets.safetyAvoidance * 0.34 + warningPressure + dangerMemoryDensity * 0.16 + (lifeSim.distortion?.traumaBias || 0) * 0.14 - calmPressure * 0.4 + zoneInfluence.emotions.threat),
-            relief: this.clamp01(calmPressure + attachment * 0.24 + careMemoryDensity * 0.06 + (entity.state === 'feeding' ? 0.22 : 0) + (isSleeping ? 0.28 : 0) + recentWarmth * 0.16 + recentEase * 0.12 - recentFriction * 0.12 + zoneInfluence.emotions.relief),
+            relief: this.clamp01(calmPressure + attachment * 0.24 + careMemoryDensity * 0.06 + (entity.state === 'feeding' ? 0.22 : 0) + (isSleeping ? 0.28 : 0) + recentWarmth * 0.16 + recentEase * 0.12 + Math.max(0, shelterTrustRecoveryScale - 1) * 0.18 - recentFriction * 0.12 + zoneInfluence.emotions.relief),
             attachment: this.clamp01(attachment + communicationActivity.received * 0.025 + trainingStrength * 0.08 + careMemoryDensity * 0.08 + socialMemoryDensity * 0.06 + recentWarmth * 0.14 + recentMutualAttention * 0.08),
             rejection: this.clamp01(rejection + (lifeSim.interpretation?.warpedSignals || 0) * 0.04 + (lifeSim.distortion?.withdrawalBias || 0) * 0.08 + Math.max(0, crowding - 0.35) * 0.18 + recentFriction * 0.2),
             significance: this.clamp01(driveTargets.statusExpression * 0.62 + lessons * 0.02 + lessonDepth * 0.12 + socialMemoryDensity * 0.04 + (lifeSim.communication?.activeSignal ? 0.08 : 0) + reputationBias + zoneInfluence.emotions.significance),
             failure: this.clamp01(Math.max(0, hungerPressure - flowerAvailability * 0.4) * 0.35 + rejection * 0.2 + outcomeMemoryDensity * 0.06 + (lifeSim.interpretation?.warpedSignals || 0) * 0.03),
             curiosity: this.clamp01(driveTargets.exploration * 0.72 + novelty * 0.28 + movementRoutineStrength * 0.06 + (lifeSim.distortion?.fixationBias || 0) * 0.04 - stateThreat * 0.18 + zoneInfluence.emotions.curiosity),
             agitation: this.clamp01((entity.traits?.jitteriness || 0.5) * 0.14 + crowding * 0.28 + stateThreat * 0.4 + rejection * 0.12 + dangerMemoryDensity * 0.08 + (lifeSim.distortion?.anxietyBias || 0) * 0.12 + recentFriction * 0.16 - recentEase * 0.1 - calmPressure * 0.18),
-            exhaustion: this.clamp01(lifeSim.emotions?.exhaustion || 0)
+            exhaustion: this.clamp01((lifeSim.emotions?.exhaustion || 0) - Math.max(0, shelterTrustRecoveryScale - 1) * 0.012)
         };
         const targetPriority = this.clamp01((driveTargets.statusExpression * 0.22) + (driveTargets.resourceControl * 0.18) + (lifeSim.derived?.behaviorBiases?.feedUrgency || 0) * 0.28);
         const retreatPressure = this.clamp01(((entity.battleState?.pressure || 0) * 0.04) + (emotionTargets.exhaustion || 0) * 0.45 + (emotionTargets.threat || 0) * 0.32);
@@ -1967,6 +2442,10 @@ class LifeSimSystem {
             mateSeeking: migrationSummary?.mateSeeking || 0
         });
         lifeSim.social.activeContext = this.resolveActiveSocialContext(entity, zoneId, socialEcology);
+        const derivedFeelings = this.updateCognitionExpansion(entity, gameState, {
+            deltaSeconds: Number.isFinite(options.deltaSeconds) ? options.deltaSeconds : 0,
+            currentFrame
+        }) || {};
 
         this.updateDerivedState(lifeSim, {
             crowding,
@@ -2031,6 +2510,7 @@ class LifeSimSystem {
             visitedZoneCount: migrationSummary?.visitedZoneCount || 0,
             awayFromHome: migrationSummary?.awayFromHome || false,
             scoutingDrive: migrationSummary?.scoutingDrive || 0,
+            derivedFeelings,
             zoneMateOpportunities: migrationSummary?.zoneMateOpportunities || {},
             socialEcology,
             currentFrame,
@@ -2201,6 +2681,7 @@ class LifeSimSystem {
                 focus: lifeSim.social?.focus || lifeSim.derived?.dominantDrive || 'rest',
                 context: lifeSim.social?.activeContext || 'wandering'
             },
+            cognition: this.getCognitionSummary(entity),
             freshness: {
                 lastValidFrame,
                 staleFrames: Number.isFinite(lastValidFrame) && Number.isFinite(nowFrame)
@@ -2362,6 +2843,8 @@ class LifeSimSystem {
             zoneHeadline: summary.zone?.headline || null,
             state: entity.state || 'normal',
             socialContext: summary.social?.context || 'wandering',
+            feeling: summary.cognition?.strongestFeeling || 'steady',
+            motiveBias: summary.cognition?.motiveBias || null,
             focusType: summary.objects?.focusType || 'none',
             affordance: summary.objects?.affordance || 'observe',
             carryingType: summary.objects?.carryingType || 'none',

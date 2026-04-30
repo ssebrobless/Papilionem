@@ -178,6 +178,11 @@ class ButterflyStore {
         if (typeof gridManager !== 'undefined' && gridManager?.screenToIso) {
             butterfly.gridPos = gridManager.screenToIso(butterfly.x || 0, groundY);
         }
+        if (options.primaryTruth === 'board' && butterfly.applyScreenFromBoardPos?.(butterfly.boardPos)) {
+            butterfly.syncDebugGridPos?.();
+        } else {
+            butterfly.syncBoardPosFromScreen?.({ zoneId: nextZoneId, force: true });
+        }
         butterfly.updateZIndex?.();
 
         this.invalidateGrid(prevZoneId);
@@ -186,7 +191,8 @@ class ButterflyStore {
         return {
             previousZoneId: prevZoneId,
             currentZoneId: nextZoneId,
-            gridPos: butterfly.gridPos || null
+            gridPos: butterfly.gridPos || null,
+            boardPos: butterfly.boardPos || null
         };
     }
 
@@ -195,8 +201,18 @@ class ButterflyStore {
         if (!result || !butterfly) return result;
 
         if (options.resetMovement !== false && butterfly.movement) {
+            const currentBoard = butterfly.ensureBoardPos?.({ zoneId: result.currentZoneId }) || butterfly.boardPos || null;
             const currentGrid = butterfly.gridPos || null;
-            if (currentGrid) {
+            if (currentBoard && butterfly.makeBoardMovementTarget) {
+                butterfly.movement.target = butterfly.makeBoardMovementTarget(currentBoard);
+                butterfly.movement.smoothFollowTarget = {
+                    x: currentBoard.u,
+                    y: currentBoard.v,
+                    u: currentBoard.u,
+                    v: currentBoard.v,
+                    zoneId: currentBoard.zoneId
+                };
+            } else if (currentGrid) {
                 butterfly.movement.target = { x: currentGrid.x, y: currentGrid.y };
                 butterfly.movement.smoothFollowTarget = { x: currentGrid.x, y: currentGrid.y };
             }

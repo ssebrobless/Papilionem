@@ -29,6 +29,60 @@ class TeachingSystem {
         return gameConfig?.balance?.training || {};
     }
 
+    getBoardPixelsPerUnit(zoneId = null) {
+        const activeRenderManager = typeof renderManager !== 'undefined' ? renderManager : null;
+        const projection = activeRenderManager?.getProjectionForZone?.(zoneId) || {};
+        return Number.isFinite(projection.ppu)
+            ? projection.ppu
+            : (gameConfig?.spatial?.projection?.ppu || 20);
+    }
+
+    radiusUnitsToPixels(radiusUnits, zoneId = null) {
+        return Math.max(0, radiusUnits || 0) * this.getBoardPixelsPerUnit(zoneId);
+    }
+
+    getEntityBoardPos(entity, zoneId = null) {
+        if (!entity) return null;
+        const resolvedZoneId = zoneId || this.getEntityZoneId(entity, null);
+        if (entity.boardPos && Number.isFinite(entity.boardPos.u) && Number.isFinite(entity.boardPos.v)) {
+            return {
+                zoneId: entity.boardPos.zoneId || resolvedZoneId,
+                u: entity.boardPos.u,
+                v: entity.boardPos.v,
+                h: Number.isFinite(entity.boardPos.h) ? entity.boardPos.h : 0
+            };
+        }
+        const activeRenderManager = typeof renderManager !== 'undefined' ? renderManager : null;
+        if (activeRenderManager?.screenToBoard && Number.isFinite(entity.x) && Number.isFinite(entity.y)) {
+            return activeRenderManager.screenToBoard(entity.x, entity.y, resolvedZoneId, 0);
+        }
+        return null;
+    }
+
+    getProjectedBoardDistanceUnits(left, right, zoneId = null) {
+        const leftBoard = this.getEntityBoardPos(left, zoneId);
+        const rightBoard = right?.grid
+            ? { zoneId, u: right.grid.x, v: right.grid.y, h: 0 }
+            : this.getEntityBoardPos(right, zoneId);
+        if (!leftBoard || !rightBoard) return null;
+        const activeRenderManager = typeof renderManager !== 'undefined' ? renderManager : null;
+        const projection = activeRenderManager?.getProjectionForZone?.(zoneId || leftBoard.zoneId || rightBoard.zoneId) || {};
+        const groundT = Number.isFinite(projection.groundT)
+            ? projection.groundT
+            : (gameConfig?.spatial?.projection?.groundT || 0.56);
+        return Math.hypot((rightBoard.u - leftBoard.u), (rightBoard.v - leftBoard.v) * groundT);
+    }
+
+    areEntitiesWithinRadius(left, right, radiusPx = 0, radiusUnits = null, zoneId = null) {
+        if (Number.isFinite(radiusUnits)) {
+            const boardDistance = this.getProjectedBoardDistanceUnits(left, right, zoneId);
+            if (Number.isFinite(boardDistance)) {
+                return boardDistance <= (radiusUnits + 0.025);
+            }
+        }
+        return Math.hypot((left.x || 0) - (right.x || 0), (left.y || 0) - (right.y || 0)) <= radiusPx;
+    }
+
     getLiveButterflies() {
         return gameCore?.gameState?.butterflies || [];
     }
@@ -111,7 +165,9 @@ class TeachingSystem {
 
     isButterflyNearStation(butterfly, station, radius = this.getTrainingBalance().stationRadius ?? 42) {
         if (!butterfly || !station) return false;
-        return Math.hypot((butterfly.x || 0) - station.x, (butterfly.y || 0) - station.y) <= radius;
+        const zoneId = this.getEntityZoneId(butterfly, null);
+        const radiusUnits = this.getTrainingBalance().stationRadiusUnits ?? null;
+        return this.areEntitiesWithinRadius(butterfly, station, radius, radiusUnits, zoneId);
     }
 
     pickNearestTrainingStation(teacher, stations = []) {
@@ -224,15 +280,13 @@ class TeachingSystem {
         if (!teacher) return;
 
         const socialBalance = this.getSocialBalance();
-        const radius = data.radius || socialBalance.teachingPulseRadius || 80;
-        const radiusSq = radius * radius;
+        const zoneId = this.getEntityZoneId(teacher, data.zoneId || null);
+        const radiusUnits = data.radiusUnits ?? socialBalance.teachingPulseRadiusUnits ?? null;
+        const radius = data.radius || this.radiusUnitsToPixels(radiusUnits, zoneId) || socialBalance.teachingPulseRadius || 80;
         const listenerIds = [];
         for (const listener of this.getLiveButterflies()) {
             if (listener === teacher) continue;
-
-            const dx = teacher.x - listener.x;
-            const dy = teacher.y - listener.y;
-            if (dx * dx + dy * dy > radiusSq) continue;
+            if (!this.areEntitiesWithinRadius(teacher, listener, radius, radiusUnits, zoneId)) continue;
 
             this.beginTeach(teacher.id, listener.id, 'teaching_aura', {
                 source: 'wise_aura',
@@ -604,7 +658,9 @@ class TeachingSystem {
     updateTrainingContacts(zoneButterflies = []) {
         if (zoneButterflies.length < 2) return;
         const trainingBalance = this.getTrainingBalance();
-        const impactRadius = trainingBalance.impactRadius ?? 22;
+        const zoneId = trainingBalance.zoneId || null;
+        const impactRadiusUnits = trainingBalance.impactRadiusUnits ?? null;
+        const impactRadius = this.radiusUnitsToPixels(impactRadiusUnits, zoneId) || trainingBalance.impactRadius || 22;
         const impactChance = trainingBalance.impactChance ?? 0.04;
 
         for (let i = 0; i < zoneButterflies.length; i++) {
@@ -615,10 +671,8 @@ class TeachingSystem {
                 const right = zoneButterflies[j];
                 if (!this.canTrainingImpact(right)) continue;
 
-                const dx = (right.x || 0) - (left.x || 0);
-                const dy = (right.y || 0) - (left.y || 0);
-                const distance = Math.hypot(dx, dy);
-                if (distance > impactRadius || random() >= impactChance) continue;
+                const pairZoneId = this.getEntityZoneId(left, this.getEntityZoneId(right, zoneId));
+                if (!this.areEntitiesWithinRadius(left, right, impactRadius, impactRadiusUnits, pairZoneId) || random() >= impactChance) continue;
 
                 this.applyTrainingImpact(left, right, {
                     push: trainingBalance.impactImpulse ?? 3.8,

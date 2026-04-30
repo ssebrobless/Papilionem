@@ -155,6 +155,7 @@ async function run() {
 
         return {
           zoneIds,
+          freshSeedTypes: progressionManager.getFreshSeedTypes?.() || [],
           unlockedTypes: Array.from(gameCore.gameState.unlockedButterflyTypes || []),
           progressionOrderIndex: gameCore.gameState.progressionOrderIndex,
           starterPairsSeeded: gameCore.gameState.starterPairsSeeded || {},
@@ -163,25 +164,29 @@ async function run() {
         };
       });
 
-      const perZoneValues = Object.values(details.perZone || {});
+      const freshSeedTypes = details.freshSeedTypes || [];
+      const seedZoneId = Object.keys(details.starterPairsSeeded || {}).find(zoneId => details.starterPairsSeeded[zoneId] === true);
+      const seedZone = seedZoneId ? details.perZone?.[seedZoneId] : null;
+      const perZoneValues = Object.entries(details.perZone || {});
       return {
         pass:
           Array.isArray(details.zoneIds) &&
           details.zoneIds.length > 0 &&
           Array.isArray(details.unlockedTypes) &&
-          details.unlockedTypes.length === 1 &&
-          details.unlockedTypes[0] === 'friendly' &&
-          perZoneValues.every(zone =>
-            zone.total === 2 &&
-            zone.friendlyFemales === 1 &&
-            zone.friendlyMales === 1 &&
-            zone.warmStarterTrust.every(entry =>
+          freshSeedTypes.length > 0 &&
+          details.unlockedTypes.length === freshSeedTypes.length &&
+          freshSeedTypes.every(type => details.unlockedTypes.includes(type)) &&
+          !!seedZone &&
+          seedZone.total === freshSeedTypes.length * 2 &&
+          seedZone.friendlyFemales === 1 &&
+          seedZone.friendlyMales === 1 &&
+          seedZone.warmStarterTrust.every(entry =>
               entry.birthSource === 'wild' &&
               (entry.trustLevel ?? 0) >= 18 &&
               (entry.clapFear ?? 999) === 0 &&
               (entry.cursorTrust ?? 0) >= 0.2
-            )
-          ),
+          ) &&
+          perZoneValues.every(([zoneId, zone]) => zoneId === seedZoneId || zone.total === 0),
         details
       };
     });
@@ -229,6 +234,7 @@ async function run() {
         return {
           ok: true,
           zoneIds,
+          freshSeedTypes: progressionManager.getFreshSeedTypes?.() || [],
           progressionResult,
           unlockedTypes: Array.from(gameCore.gameState.unlockedButterflyTypes || []),
           friendlyPairAllowedAfter: progressionManager.isPairAllowedForProgression(
@@ -243,23 +249,25 @@ async function run() {
         };
       });
 
-      const cautiousZones = Object.values(details.cautiousPerZone || {});
+      const freshSeedTypes = details.freshSeedTypes || [];
       return {
         pass:
           !!details.ok &&
           Array.isArray(details.progressionResult?.unlocks) &&
-          details.progressionResult.unlocks.length === 1 &&
-          details.progressionResult.unlocks[0] === 'cautious' &&
+          details.progressionResult.unlocks.length === 0 &&
+          details.progressionResult.sameTypePairCompleted === false &&
           Array.isArray(details.unlockedTypes) &&
-          details.unlockedTypes.includes('friendly') &&
-          details.unlockedTypes.includes('cautious') &&
+          details.unlockedTypes.length === freshSeedTypes.length &&
+          freshSeedTypes.every(type => details.unlockedTypes.includes(type)) &&
           details.friendlyPairAllowedAfter === false &&
-          details.perTypeStatus?.friendly?.sameTypeChildCompleted === true &&
-          details.perTypeStatus?.cautious?.unlocked === true &&
-          details.femaleWildProgress?.sameTypeChildCompleted === true &&
-          details.maleWildProgress?.sameTypeChildCompleted === true &&
-          cautiousZones.length === details.zoneIds.length &&
-          cautiousZones.every(zone => zone.cautiousFemales === 1 && zone.cautiousMales === 1),
+          details.femaleWildProgress?.mateCount === 1 &&
+          details.maleWildProgress?.mateCount === 1 &&
+          Array.isArray(details.femaleWildProgress?.partnerHistoryIds) &&
+          details.femaleWildProgress.partnerHistoryIds.includes(details.maleWildProgress?.butterflyId) &&
+          Array.isArray(details.maleWildProgress?.partnerHistoryIds) &&
+          details.maleWildProgress.partnerHistoryIds.includes(details.femaleWildProgress?.butterflyId) &&
+          details.femaleWildProgress?.deathQueued === false &&
+          details.maleWildProgress?.deathQueued === false,
         details
       };
     });
@@ -336,11 +344,10 @@ async function run() {
         pass:
           !!details.ok &&
           details.pairAllowedBefore === true &&
-          details.femaleProgress?.sameTypeChildCompleted === true &&
-          details.femaleProgress?.hybridBreedCount === 3 &&
-          details.femaleProgress?.permanentDepartureQueued === true &&
+          details.femaleProgress?.mateCount === 3 &&
+          details.femaleProgress?.deathQueued === true &&
           details.exitQueued === true &&
-          details.exitReason === 'hybrid-lineage-complete' &&
+          details.exitReason === 'wild-mating-limit' &&
           Array.isArray(thirdResult?.departures) &&
           thirdResult.departures.includes(details.femaleProgress.butterflyId),
         details

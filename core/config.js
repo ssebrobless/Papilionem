@@ -3,8 +3,23 @@ const PAPILIONEM_WORLD_SOURCE = {
     width: 5504,
     height: 3072
 };
+const PAPILIONEM_BOARD_UNIT_PX = 20;
+
+function papilionemBoardUnitsToPx(units, pixelsPerUnit = PAPILIONEM_BOARD_UNIT_PX) {
+    return Number.isFinite(units) ? units * pixelsPerUnit : 0;
+}
+
+function papilionemPxToBoardUnits(px, pixelsPerUnit = PAPILIONEM_BOARD_UNIT_PX) {
+    return Number.isFinite(px) && pixelsPerUnit ? px / pixelsPerUnit : 0;
+}
 
 const PAPILIONEM_PERFORMANCE_FLAG_OVERRIDE_KEY = 'papilionem-performance-flag-overrides-v1';
+const PAPILIONEM_WORLD_RENDERMODE_KEY = 'papilionem-world-rendermode';
+const PAPILIONEM_WORLD_RENDER_MODES = ['section-scenes', 'sim-board'];
+
+function normalizePapilionemWorldRenderMode(mode, fallback = 'sim-board') {
+    return PAPILIONEM_WORLD_RENDER_MODES.includes(mode) ? mode : fallback;
+}
 
 function getPapilionemPerformanceFlagOverrides() {
     if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
@@ -27,6 +42,29 @@ function getPapilionemPerformanceFlagOverrides() {
         return parsed && typeof parsed === 'object' ? { ...parsed } : {};
     } catch (_error) {
         return {};
+    }
+}
+
+function getPapilionemWorldRenderMode(defaultMode = 'sim-board') {
+    const fallback = normalizePapilionemWorldRenderMode(defaultMode, 'sim-board');
+    if (typeof window === 'undefined') {
+        return fallback;
+    }
+
+    try {
+        const directOverride = window.__PAPILIONEM_WORLD_RENDERMODE__;
+        if (typeof directOverride === 'string') {
+            return normalizePapilionemWorldRenderMode(directOverride, fallback);
+        }
+    } catch (_error) {
+        // Ignore override lookup failures.
+    }
+
+    try {
+        if (typeof localStorage === 'undefined') return fallback;
+        return normalizePapilionemWorldRenderMode(localStorage.getItem(PAPILIONEM_WORLD_RENDERMODE_KEY), fallback);
+    } catch (_error) {
+        return fallback;
     }
 }
 
@@ -287,6 +325,9 @@ const PAPILIONEM_BATTLE_ARENA = {
             wingPoseBattleOnly: true,
             flowerWaveBuckets: 12
         },
+        directPresentFlowerMaxVisible: 64,
+        denseDirectPresentFlowerMinVisible: 96,
+        denseDirectPresentFlowerMaxButterflies: 96,
         flags: {
         pauseWhenHidden: false,
         asyncImageDecode: false,
@@ -329,6 +370,10 @@ const PAPILIONEM_BATTLE_ARENA = {
         targetHeight: 450,
         backgroundColor: '#f4e8dc'
     },
+
+    save: {
+        preferV5OnRead: true
+    },
     
     // Grid settings
     grid: {
@@ -354,6 +399,31 @@ const PAPILIONEM_BATTLE_ARENA = {
             maxX: 17,
             minY: 0,
             maxY: 17
+        }
+    },
+
+    spatial: {
+        projection: {
+            ppu: 20,
+            groundT: 0.56,
+            hStep: 8,
+            origin: {
+                screenX: 40,
+                screenY: 96
+            },
+            defaultWidthUnits: 36,
+            defaultDepthUnits: 22
+        },
+        ambientGrid: {
+            enabled: true,
+            stepUnits: 4,
+            alpha: 12,
+            every1Alpha: 0
+        },
+        diagnosticGrid: {
+            stepUnits: 1,
+            alpha: 80,
+            axisLabelAlpha: 130
         }
     },
     
@@ -409,6 +479,11 @@ const PAPILIONEM_BATTLE_ARENA = {
             preferredSpacing: 96,
             placementAvoidDoorwayRadius: 42,
             placementAvoidBlockRadius: 14,
+            decayEnabled: true,
+            reserveFoodEnabled: true,
+            decayFrames: 3600,
+            pileCleanupRadius: 24,
+            pileCleanupSelfMaintenance: 0.56,
             sectorGrid: {
                 cols: 4,
                 rows: 3
@@ -431,6 +506,7 @@ const PAPILIONEM_BATTLE_ARENA = {
         block: {
             renderWidth: 20,
             renderHeight: 20,
+            snapToCellInt: true,
             outlineWeight: 1.25,
             depthX: 7,
             depthY: 4,
@@ -661,6 +737,15 @@ const PAPILIONEM_BATTLE_ARENA = {
         }
     },
 
+    cognition: {
+        derivedFeelings: { enabled: true },
+        bondTier: { enabled: true },
+        grief: { enabled: true },
+        jealousy: { enabled: true },
+        anchors: { enabled: true },
+        loyalty: { enabled: true }
+    },
+
     balance: {
         sleep: {
             assistStrengthDefault: 0.15,
@@ -695,14 +780,16 @@ const PAPILIONEM_BATTLE_ARENA = {
         },
         social: {
             teachingLessonDurationSeconds: 1.6,
-            teachingPulseRadius: 76,
+            teachingPulseRadiusUnits: 3.8,
+            teachingPulseRadius: papilionemBoardUnitsToPx(3.8),
             teachingPulseMemoryValence: 0.22,
             teachingPulseMemoryStrength: 0.26,
             teachingPulseEdgeTrust: 0.02,
             teachingPulseEdgeAdmiration: 0.035,
             teachingPulseEdgeComfort: 0.015,
             teachingPulseRoutineReinforcement: 0.025,
-            trustCascadeRadius: 132,
+            trustCascadeRadiusUnits: 6.6,
+            trustCascadeRadius: papilionemBoardUnitsToPx(6.6),
             trustCascadeMemoryValence: 0.28,
             trustCascadeMemoryStrength: 0.34,
             trustCascadeEdgeTrust: 0.035,
@@ -722,12 +809,14 @@ const PAPILIONEM_BATTLE_ARENA = {
         },
         training: {
             drillCooldownSeconds: 4.25,
-            stationRadius: 42,
+            stationRadiusUnits: 2.1,
+            stationRadius: papilionemBoardUnitsToPx(2.1),
             maxListenersPerDrill: 3,
             movementPriority: 7,
             movementWobble: 0.08,
             impactChance: 0.04,
-            impactRadius: 22,
+            impactRadiusUnits: 1.1,
+            impactRadius: papilionemBoardUnitsToPx(1.1),
             impactImpulse: 3.8,
             impactFrames: 4,
             impactCooldownFrames: 45,
@@ -785,8 +874,14 @@ const PAPILIONEM_BATTLE_ARENA = {
 
     world: {
         layout: 'land-sanctum-world',
-        renderMode: 'section-scenes',
+        renderMode: getPapilionemWorldRenderMode('sim-board'),
+        renderModes: PAPILIONEM_WORLD_RENDER_MODES,
         overviewMode: false,
+        heavyBlockCooperation: true,
+        shelterTrustScaling: true,
+        zoneScarcityPulse: true,
+        distressCascade: true,
+        scoutDiscovery: true,
         viewModes: ['overview', 'focused-garden', 'battle'],
         mapGeometry: {
             sourceSize: { ...PAPILIONEM_WORLD_SOURCE },
@@ -1087,23 +1182,37 @@ const PAPILIONEM_BATTLE_ARENA = {
             minIntervalFrames: 18
         },
         motion: {
-            attackAdvancePx: 32,
+            pixelsPerArenaUnit: PAPILIONEM_BOARD_UNIT_PX,
+            unitsPerArenaCell: 1,
+            attackAdvanceUnits: 1.6,
+            attackAdvancePx: papilionemBoardUnitsToPx(1.6),
             attackDurationMs: 560,
-            hitRecoilPx: 16,
+            hitRecoilUnits: 0.8,
+            hitRecoilPx: papilionemBoardUnitsToPx(0.8),
             hitReactionDurationMs: 340,
-            rallyAdvancePx: 12,
+            rallyAdvanceUnits: 0.6,
+            rallyAdvancePx: papilionemBoardUnitsToPx(0.6),
             rallyDurationMs: 520,
-            rallyLiftPx: 6,
-            guardBobPx: 3,
+            rallyLiftUnits: 0.3,
+            rallyLiftPx: papilionemBoardUnitsToPx(0.3),
+            guardBobUnits: 0.15,
+            guardBobPx: papilionemBoardUnitsToPx(0.15),
             guardDurationMs: 420,
-            retreatAdvancePx: 34,
+            retreatAdvanceUnits: 1.7,
+            retreatAdvancePx: papilionemBoardUnitsToPx(1.7),
             retreatDurationMs: 520,
             projectileDurationMs: 460,
-            idleBobPx: 2.2,
+            idleBobUnits: 0.11,
+            idleBobPx: papilionemBoardUnitsToPx(0.11),
+            projectileArcHeightUnits: 0.9,
+            projectileArcHeightPx: papilionemBoardUnitsToPx(0.9),
             releaseDurationMs: 980,
-            roamRadiusX: 20,
-            roamRadiusY: 12,
-            engagementDriftPx: 14
+            roamRadiusXUnits: 1,
+            roamRadiusX: papilionemBoardUnitsToPx(1),
+            roamRadiusYUnits: 0.6,
+            roamRadiusY: papilionemBoardUnitsToPx(0.6),
+            engagementDriftUnits: 0.7,
+            engagementDriftPx: papilionemBoardUnitsToPx(0.7)
         },
         presentation: {
             fieldEntityScale: 1.18,
@@ -1184,4 +1293,30 @@ function setConfig(path, value) {
     const lastKey = keys.pop();
     const target = keys.reduce((obj, key) => obj[key], gameConfig);
     target[lastKey] = value;
+}
+
+function setWorldRenderMode(mode, options = {}) {
+    const nextMode = normalizePapilionemWorldRenderMode(mode, gameConfig?.world?.renderMode || 'sim-board');
+    const persist = options.persist !== false;
+    if (gameConfig?.world) {
+        gameConfig.world.renderMode = nextMode;
+    }
+    if (persist && typeof localStorage !== 'undefined') {
+        try {
+            localStorage.setItem(PAPILIONEM_WORLD_RENDERMODE_KEY, nextMode);
+        } catch (_error) {
+            // Ignore storage failures; the live config still updates.
+        }
+    }
+    if (typeof renderManager !== 'undefined') {
+        const activeGameCore = typeof gameCore !== 'undefined' ? gameCore : null;
+        const activeZoneSystem = typeof zoneSystem !== 'undefined' ? zoneSystem : null;
+        if (nextMode === 'section-scenes') {
+            renderManager.prepareWorldSectionAssets?.();
+            renderManager.applyWorldSection?.(activeGameCore?.getFocusedZoneId?.() || activeZoneSystem?.focusedZoneId || null);
+        }
+        renderManager.drawBackground?.();
+        renderManager.invalidateScene?.('world-render-mode');
+    }
+    return nextMode;
 }

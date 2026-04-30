@@ -363,7 +363,7 @@ async function run() {
       });
       return {
         pass:
-          details.version === 4 &&
+          details.version === 5 &&
           details.anchorId === seed.anchorId &&
           details.displayName === 'SacredHybrid' &&
           details.birthSource === 'bred' &&

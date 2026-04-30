@@ -34,6 +34,7 @@ class MlInferenceSystem {
                 'genetics',
                 'drives',
                 'emotions',
+                'derivedFeelings',
                 'social',
                 'interpretation',
                 'memoryRoutine',
@@ -149,6 +150,15 @@ class MlInferenceSystem {
             pendingBatchSeq: 0,
             pendingBatchFrame: -1
         };
+    }
+
+    isOutcomeWindowCaptureEnabled() {
+        return gameConfig?.ml?.traceCapture?.outcomeWindow !== false;
+    }
+
+    getOutcomeWindowDelayFrames() {
+        const configured = gameConfig?.ml?.traceCapture?.outcomeWindowFrames;
+        return Math.max(1, Math.round(Number.isFinite(configured) ? configured : 60));
     }
 
     isWorkerOffloadEnabled() {
@@ -449,6 +459,13 @@ class MlInferenceSystem {
         return JSON.parse(JSON.stringify(value));
     }
 
+    roundTraceNumber(value, digits = 3) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return null;
+        const scale = 10 ** Math.max(0, digits);
+        return Math.round(numeric * scale) / scale;
+    }
+
     clamp01(value) {
         const numeric = Number(value);
         if (!Number.isFinite(numeric)) return 0;
@@ -642,6 +659,7 @@ class MlInferenceSystem {
                 trace: null,
                 decisionHistory: [],
                 lastHistoryKey: null,
+                nextOutcomeDueFrame: null,
                 cadenceIntervalFrames: 1,
                 cadenceOffset: 0,
                 lastModelPolicies: null,
@@ -875,6 +893,16 @@ class MlInferenceSystem {
             },
             drives: { ...(lifeSim.drives || {}) },
             emotions: { ...(lifeSim.emotions || {}) },
+            derivedFeelings: {
+                loneliness: lifeSim.derived?.derivedFeelings?.loneliness || 0,
+                comfortSeeking: lifeSim.derived?.derivedFeelings?.comfortSeeking || 0,
+                socialInsecurity: lifeSim.derived?.derivedFeelings?.socialInsecurity || 0,
+                jealousy: lifeSim.derived?.derivedFeelings?.jealousy || 0,
+                grief: lifeSim.derived?.derivedFeelings?.grief || 0,
+                pride: lifeSim.derived?.derivedFeelings?.pride || 0,
+                shame: lifeSim.derived?.derivedFeelings?.shame || 0,
+                loyaltyBias: lifeSim.derived?.derivedFeelings?.loyaltyBias || 0
+            },
             social: {
                 reputation: lifeSim.social?.reputation || 0,
                 belonging: lifeSim.social?.belonging || 0,
@@ -1039,6 +1067,9 @@ class MlInferenceSystem {
 
         for (const key of this.featureOrders.driveKeys) push(`drives.${key}`, groups.drives?.[key] || 0);
         for (const key of this.featureOrders.emotionKeys) push(`emotions.${key}`, groups.emotions?.[key] || 0);
+        for (const key of ['loneliness', 'comfortSeeking', 'socialInsecurity', 'jealousy', 'grief', 'pride', 'shame', 'loyaltyBias']) {
+            push(`derivedFeelings.${key}`, groups.derivedFeelings?.[key] || 0);
+        }
 
         push('social.reputation', groups.social?.reputation || 0);
         push('social.belonging', groups.social?.belonging || 0);
@@ -1165,6 +1196,16 @@ class MlInferenceSystem {
                 curiosity: 0,
                 agitation: 0,
                 exhaustion: 0
+            },
+            derivedFeelings: {
+                loneliness: 0,
+                comfortSeeking: 0,
+                socialInsecurity: 0,
+                jealousy: 0,
+                grief: 0,
+                pride: 0,
+                shame: 0,
+                loyaltyBias: 0
             },
             social: {
                 reputation: 0,
@@ -2254,8 +2295,15 @@ class MlInferenceSystem {
         const battle = this.buildPolicySummary(trace?.traces?.autobattlePosture);
         const sourceLabel = this.getSourceLabel(trace?.source);
         const actionAlt = action.primaryAlternative ? ` > ${action.primaryAlternative.label}` : '';
+        const updatedAtFrame = Number.isFinite(trace?.updatedAtFrame) ? Math.max(0, Math.round(trace.updatedAtFrame)) : null;
+        const outcomeDelayFrames = this.getOutcomeWindowDelayFrames();
         return {
             atSeconds: Number(trace?.updatedAtSeconds || 0),
+            atFrame: updatedAtFrame,
+            outcomeDueFrame: updatedAtFrame == null ? null : updatedAtFrame + outcomeDelayFrames,
+            outcomeWindow: null,
+            zoneId: trace?.zoneId || null,
+            boardPos: this.cloneValue(trace?.boardPos || null, null),
             source: trace?.source || 'heuristic-fallback',
             sourceLabel,
             action: action.label,
@@ -2287,10 +2335,124 @@ class MlInferenceSystem {
         if (runtime.lastHistoryKey === historyKey) return;
         runtime.lastHistoryKey = historyKey;
         runtime.decisionHistory = Array.isArray(runtime.decisionHistory) ? runtime.decisionHistory : [];
-        runtime.decisionHistory.unshift(this.buildHistoryEntry(trace));
+        const entry = this.buildHistoryEntry(trace);
+        runtime.decisionHistory.unshift(entry);
         while (runtime.decisionHistory.length > this.modelConfig.decisionHistoryLimit) {
             runtime.decisionHistory.pop();
         }
+        if (Number.isFinite(entry?.outcomeDueFrame)) {
+            runtime.nextOutcomeDueFrame = Number.isFinite(runtime.nextOutcomeDueFrame)
+                ? Math.min(runtime.nextOutcomeDueFrame, entry.outcomeDueFrame)
+                : entry.outcomeDueFrame;
+        }
+    }
+
+    buildOutcomeBoardPos(entity) {
+        const boardPos = entity?.boardPos || null;
+        if (boardPos) {
+            return {
+                u: this.roundTraceNumber(boardPos.u ?? boardPos.x),
+                v: this.roundTraceNumber(boardPos.v ?? boardPos.y),
+                h: this.roundTraceNumber(boardPos.h || 0)
+            };
+        }
+        if (typeof renderManager?.screenToBoard === 'function') {
+            const projected = renderManager.screenToBoard(entity?.x || 0, entity?.y || 0, entity?.currentZoneId || null);
+            return {
+                u: this.roundTraceNumber(projected?.u ?? projected?.x),
+                v: this.roundTraceNumber(projected?.v ?? projected?.y),
+                h: this.roundTraceNumber(projected?.h || 0)
+            };
+        }
+        return {
+            u: this.roundTraceNumber(entity?.gridPos?.x ?? entity?.x ?? 0),
+            v: this.roundTraceNumber(entity?.gridPos?.y ?? entity?.y ?? 0),
+            h: 0
+        };
+    }
+
+    buildOutcomeWindow(entity, entry, currentFrame) {
+        const safeCurrentFrame = Math.max(0, Math.round(currentFrame || 0));
+        const lifeSim = entity?.lifeSim || {};
+        const behaviorBiases = lifeSim.derived?.behaviorBiases || {};
+        const emotions = lifeSim.emotions || {};
+        const drives = lifeSim.drives || {};
+        const social = lifeSim.social || {};
+        const boardPos = this.buildOutcomeBoardPos(entity);
+        const dominantDrive = Object.entries(drives)
+            .filter(([, value]) => Number.isFinite(Number(value)))
+            .sort((left, right) => Number(right[1]) - Number(left[1]))[0]?.[0] || null;
+        const dominantEmotion = Object.entries(emotions)
+            .filter(([, value]) => Number.isFinite(Number(value)))
+            .sort((left, right) => Number(right[1]) - Number(left[1]))[0]?.[0] || null;
+        const currentFamily = entity?.state || lifeSim.objectAwareness?.currentAffordance || 'normal';
+
+        return {
+            schemaVersion: 'p8-outcome-window-v1',
+            capturedAtFrame: safeCurrentFrame,
+            elapsedFrames: Math.max(0, safeCurrentFrame - Math.max(0, Math.round(entry?.atFrame || 0))),
+            zoneId: entity?.currentZoneId || lifeSim.lifecycle?.currentZoneId || null,
+            boardPos,
+            alive: entity?.isDead !== true && entity?.dead !== true,
+            state: currentFamily,
+            action: {
+                chosenFamily: entry?.action || null,
+                currentFamily,
+                retainedFamily: !entry?.action || currentFamily === entry.action
+            },
+            object: {
+                focusType: lifeSim.objectAwareness?.focusType || null,
+                affordance: lifeSim.objectAwareness?.currentAffordance || null,
+                carryingType: entity?.blockInteraction?.carryingBlockId ? 'block' : null
+            },
+            social: {
+                activeContext: social.activeContext || null,
+                dominantDrive,
+                dominantEmotion,
+                socialConnection: this.roundTraceNumber(behaviorBiases.socialConnection ?? behaviorBiases.socialConfidence ?? 0),
+                attachment: this.roundTraceNumber(emotions.attachment ?? 0),
+                threat: this.roundTraceNumber(emotions.threat ?? 0)
+            },
+            movement: {
+                zoneChanged: !!entry?.zoneId && entry.zoneId !== (entity?.currentZoneId || null),
+                zoneTravelActive: !!entity?.zoneTravel?.targetZoneId,
+                wanderScale: this.roundTraceNumber(behaviorBiases.wanderScale ?? 0)
+            }
+        };
+    }
+
+    populateOutcomeWindows(gameState, currentFrame = this.frameCounter) {
+        if (!this.isOutcomeWindowCaptureEnabled()) return 0;
+        const safeCurrentFrame = Math.max(0, Math.round(currentFrame || 0));
+        const dueRuntimes = [...this.runtimeByEntityId.values()].filter(runtime =>
+            Number.isFinite(runtime?.nextOutcomeDueFrame)
+            && safeCurrentFrame >= runtime.nextOutcomeDueFrame
+        );
+        if (!dueRuntimes.length) return 0;
+
+        const entitiesById = new Map(this.getLiveEntities(gameState).map(entity => [entity.id, entity]));
+        let populatedCount = 0;
+        for (const runtime of dueRuntimes) {
+            const entity = entitiesById.get(runtime?.entityId);
+            if (!entity || !Array.isArray(runtime?.decisionHistory)) {
+                runtime.nextOutcomeDueFrame = null;
+                continue;
+            }
+            let nextDueFrame = Infinity;
+            for (const entry of runtime.decisionHistory) {
+                if (entry?.outcomeWindow || !Number.isFinite(entry?.outcomeDueFrame)) continue;
+                if (safeCurrentFrame < entry.outcomeDueFrame) continue;
+                entry.outcomeWindow = this.buildOutcomeWindow(entity, entry, safeCurrentFrame);
+                populatedCount += 1;
+            }
+            for (const entry of runtime.decisionHistory) {
+                if (!entry?.outcomeWindow && Number.isFinite(entry?.outcomeDueFrame)) {
+                    nextDueFrame = Math.min(nextDueFrame, entry.outcomeDueFrame);
+                }
+            }
+            runtime.nextOutcomeDueFrame = Number.isFinite(nextDueFrame) ? nextDueFrame : null;
+        }
+        return populatedCount;
     }
 
     getBattleParticipantPolicyTrace(participant, snapshot, gameState = gameCore?.gameState) {
@@ -2370,10 +2532,14 @@ class MlInferenceSystem {
         const behaviorRuntime = behaviorSystem?.getRuntime?.(entity.id) || null;
         const runtime = this.registerEntity(entity);
         const contextSignature = this.computeContextSignature(entity, gameState, behaviorRuntime);
+        this.populateOutcomeWindows(gameState, this.frameCounter);
         this.refreshEntityTrace(entity, gameState, runtime, contextSignature, behaviorRuntime);
+        this.populateOutcomeWindows(gameState, this.frameCounter);
 
         const activeTrace = this.cloneValue(runtime?.trace, null);
         const features = this.cloneValue(runtime?.features, null);
+        const decisionHistory = this.cloneValue(runtime?.decisionHistory || [], []);
+        const outcomeWindowCount = decisionHistory.filter(entry => !!entry?.outcomeWindow).length;
         if (!activeTrace || !features) return null;
 
         const heuristicTrace = this.buildHeuristicTrace(entity, gameState, features);
@@ -2404,6 +2570,7 @@ class MlInferenceSystem {
             traceSchemaVersion: activeTrace?.schemaVersion || this.modelConfig.traceSchemaVersion,
             activeTrace,
             heuristicTrace,
+            decisionHistory,
             trainingLabels: this.cloneValue(labelResolution.trainingLabels, {}),
             review: {
                 status: reviewStatus,
@@ -2441,6 +2608,7 @@ class MlInferenceSystem {
             corrections: labelResolution.corrections,
             featureSchemaVersion: record.featureSchemaVersion,
             traceSchemaVersion: record.traceSchemaVersion,
+            outcomeWindowCount,
             tags: record.tags,
             trainingLabels: record.trainingLabels
         });
@@ -2585,6 +2753,9 @@ class MlInferenceSystem {
             schemaVersion: this.modelConfig.traceSchemaVersion,
             entityId: entity.id,
             updatedAtSeconds: this.simulationClockSeconds,
+            updatedAtFrame: Number.isFinite(options?.currentFrame) ? Math.max(0, Math.round(options.currentFrame)) : this.frameCounter,
+            zoneId: entity?.currentZoneId || entity?.lifeSim?.lifecycle?.currentZoneId || null,
+            boardPos: this.buildOutcomeBoardPos(entity),
             source,
             modelVersionId: this.modelConfig.modelVersionId,
             runtime: this.modelConfig.runtime,
@@ -2641,6 +2812,7 @@ class MlInferenceSystem {
         let fallbackPolicyCount = 0;
         let workerBatchEligibleCount = 0;
         let workerBatchQueued = 0;
+        let outcomeWindowCount = 0;
         const battleBypassed = !!(options?.cadenceEnabled && cadence.viewMode === 'battle' && cadence.battleBypass);
 
         if (!battleBypassed) {
@@ -2713,6 +2885,7 @@ class MlInferenceSystem {
                 }
             }
         }
+        outcomeWindowCount = this.populateOutcomeWindows(gameState, this.frameCounter);
 
         const totalMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - updateStart;
         telemetrySystem?.recordMlRuntimeSample?.(gameState, {
@@ -2723,6 +2896,7 @@ class MlInferenceSystem {
             refreshedTraceCount,
             cadenceSkippedCount,
             forcedRefreshCount,
+            outcomeWindowCount,
             battleBypassed,
             mlPolicyCount,
             fallbackPolicyCount,
@@ -2747,6 +2921,7 @@ class MlInferenceSystem {
             refreshedTraceCount,
             cadenceSkippedCount,
             forcedRefreshCount,
+            outcomeWindowCount,
             battleBypassed: battleBypassed ? 1 : 0,
             totalMs
         };

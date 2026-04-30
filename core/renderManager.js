@@ -106,6 +106,7 @@ class RenderManager {
     initialize() {
         const { baseWidth, baseHeight } = gameConfig.canvas;
         const uiLayerPixelDensity = gameConfig?.performance?.canvas?.uiLayerPixelDensity || 2;
+        const smoothCreatureSprites = gameConfig?.performance?.flags?.smoothCreatureSprites !== false;
         
         for (let layerName in this.layers) {
             this.layers[layerName] = createGraphics(baseWidth, baseHeight);
@@ -113,10 +114,10 @@ class RenderManager {
             this.layers[layerName].pixelDensity(layerDensity);
         }
         
-        // Keep pixel art aesthetic for entity and particle layers only
-        this.layers.entitiesBehind.noSmooth();
+        // Creature layers default to high-quality smoothing; blocks/particles stay pixel-crisp.
+        this.applyLayerSmoothing(this.layers.entitiesBehind, smoothCreatureSprites);
         this.layers.blocks.noSmooth();
-        this.layers.entities.noSmooth();
+        this.applyLayerSmoothing(this.layers.entities, smoothCreatureSprites);
         this.layers.particles.noSmooth();
         
         // Enable smooth rendering for UI layer to improve text quality
@@ -124,6 +125,24 @@ class RenderManager {
         
         this.initialized = true;
         this.prepareWorldSectionAssets();
+        if (this.isSimBoardWorld()) {
+            this.drawBackground();
+        }
+    }
+
+    applyLayerSmoothing(layer, enabled = true) {
+        if (!layer) return;
+        if (enabled) {
+            layer.smooth();
+        } else {
+            layer.noSmooth();
+        }
+        if (layer.drawingContext) {
+            layer.drawingContext.imageSmoothingEnabled = !!enabled;
+            if (enabled) {
+                layer.drawingContext.imageSmoothingQuality = 'high';
+            }
+        }
     }
 
     setWorldSectionLibrary(sectionLibrary = {}) {
@@ -133,6 +152,14 @@ class RenderManager {
 
     isSectionSceneWorld() {
         return gameConfig?.world?.renderMode === 'section-scenes';
+    }
+
+    isSimBoardWorld() {
+        return gameConfig?.world?.renderMode === 'sim-board';
+    }
+
+    usesFocusedZoneScene() {
+        return this.isSectionSceneWorld() || this.isSimBoardWorld();
     }
 
     rotateAsset(img, rotationDegrees = 0) {
@@ -228,7 +255,11 @@ class RenderManager {
     setFocusedZone(zoneId) {
         if (this.viewState.focusedZoneId === zoneId) return;
         this.viewState.focusedZoneId = zoneId;
-        this.applyWorldSection(zoneId);
+        if (this.isSimBoardWorld()) {
+            this.drawBackground();
+        } else {
+            this.applyWorldSection(zoneId);
+        }
         this.invalidateScene('focused-zone');
     }
 
@@ -354,7 +385,7 @@ class RenderManager {
     getAtmosphereRenderProfile() {
         const settings = this.getAccessibilitySettings();
         const backgroundAtmosphereMode = this.getBackgroundAtmosphereMode();
-        if (this.viewState.battleActive || settings.reducedMotion || backgroundAtmosphereMode === 'minimal' || this.viewState.mode === 'overview') {
+        if (this.isSimBoardWorld() || this.viewState.battleActive || settings.reducedMotion || backgroundAtmosphereMode === 'minimal' || this.viewState.mode === 'overview') {
             return {
                 renderGround: false,
                 renderFoliage: false,
@@ -445,6 +476,292 @@ class RenderManager {
             centerYOffset: configured.centerYOffset || 0
         };
     }
+
+    getProjectionForZone(zoneId = this.viewState.focusedZoneId) {
+        const defaults = gameConfig?.spatial?.projection || {};
+        const activeZoneSystem = typeof zoneSystem !== 'undefined' ? zoneSystem : null;
+        const resolvedZoneId = zoneId || activeZoneSystem?.focusedZoneId || gameConfig?.world?.zones?.[0]?.id || null;
+        const board = activeZoneSystem?.getBoardConfigForZone?.(resolvedZoneId) || {};
+        const origin = board.origin || {};
+        return {
+            zoneId: resolvedZoneId,
+            widthUnits: Math.max(1, Math.round(board.widthUnits ?? defaults.defaultWidthUnits ?? 36)),
+            depthUnits: Math.max(1, Math.round(board.depthUnits ?? defaults.defaultDepthUnits ?? 22)),
+            origin: {
+                x: Number.isFinite(origin.screenX) ? origin.screenX : (origin.x ?? 0),
+                y: Number.isFinite(origin.screenY) ? origin.screenY : (origin.y ?? 0)
+            },
+            ppu: Number.isFinite(board.ppu) ? board.ppu : (defaults.ppu ?? 20),
+            groundT: Number.isFinite(board.groundT) ? board.groundT : (defaults.groundT ?? 0.56),
+            hStep: Number.isFinite(board.hStep) ? board.hStep : (defaults.hStep ?? 8)
+        };
+    }
+
+    resolveBoardProjectionArgs(uOrBoardPos = {}, v = 0, h = 0, zoneId = null) {
+        if (typeof uOrBoardPos === 'object' && uOrBoardPos !== null) {
+            return {
+                zoneId: uOrBoardPos.zoneId || zoneId || this.viewState.focusedZoneId,
+                u: Number.isFinite(uOrBoardPos.u) ? uOrBoardPos.u : 0,
+                v: Number.isFinite(uOrBoardPos.v) ? uOrBoardPos.v : 0,
+                h: Number.isFinite(uOrBoardPos.h) ? uOrBoardPos.h : 0
+            };
+        }
+        return {
+            zoneId: zoneId || this.viewState.focusedZoneId,
+            u: Number.isFinite(uOrBoardPos) ? uOrBoardPos : 0,
+            v: Number.isFinite(v) ? v : 0,
+            h: Number.isFinite(h) ? h : 0
+        };
+    }
+
+    boardToScreen(uOrBoardPos = {}, v = 0, h = 0, zoneId = null) {
+        const boardPos = this.resolveBoardProjectionArgs(uOrBoardPos, v, h, zoneId);
+        const projection = this.getProjectionForZone(boardPos.zoneId);
+        const x = projection.origin.x + (boardPos.u * projection.ppu);
+        const y = projection.origin.y + (boardPos.v * projection.ppu * projection.groundT) - (boardPos.h * projection.hStep);
+        return {
+            x,
+            y,
+            zIndex: this.computeBoardSortKey(boardPos),
+            zoneId: projection.zoneId,
+            u: boardPos.u,
+            v: boardPos.v,
+            h: boardPos.h
+        };
+    }
+
+    screenToBoard(xOrPoint = {}, y = 0, zoneId = this.viewState.focusedZoneId, hHint = 0) {
+        const point = typeof xOrPoint === 'object' && xOrPoint !== null
+            ? xOrPoint
+            : { x: xOrPoint, y };
+        const resolvedZoneId = typeof y === 'string' ? y : zoneId;
+        const resolvedH = typeof y === 'string' ? zoneId : hHint;
+        const projection = this.getProjectionForZone(resolvedZoneId);
+        const h = Number.isFinite(resolvedH) ? resolvedH : 0;
+        return {
+            zoneId: projection.zoneId,
+            u: ((Number.isFinite(point.x) ? point.x : 0) - projection.origin.x) / projection.ppu,
+            v: ((Number.isFinite(point.y) ? point.y : 0) - projection.origin.y + (h * projection.hStep)) / (projection.ppu * projection.groundT),
+            h
+        };
+    }
+
+    computeBoardSortKey(boardPos = {}, bias = 0) {
+        const v = Number.isFinite(boardPos.v) ? boardPos.v : 0;
+        const u = Number.isFinite(boardPos.u) ? boardPos.u : 0;
+        const h = Number.isFinite(boardPos.h) ? boardPos.h : 0;
+        return (v * 1000) + u + (h * 0.5) + bias;
+    }
+
+    getEntityRenderSortBias(entity = {}) {
+        const family = entity?.objectProfile?.entityType
+            || entity?.physics?.entityType
+            || entity?.lifeSim?.entityType
+            || entity?.type
+            || entity?.constructor?.name
+            || '';
+        if (entity?.carriedById || entity?.isCarried) return 0.1;
+        if (String(family).toLowerCase().includes('butterfly')) return 0.05;
+        if (String(family).toLowerCase().includes('particle')) return 0.2;
+        return 0;
+    }
+
+    computeLegacyRenderSortKey(entity = {}) {
+        if (typeof entity.zIndex === 'number') return entity.zIndex;
+        const y = Number.isFinite(entity.gridPos?.y) ? entity.gridPos.y : (Number.isFinite(entity.y) ? entity.y : 0);
+        const x = Number.isFinite(entity.gridPos?.x) ? entity.gridPos.x : (Number.isFinite(entity.x) ? entity.x : 0);
+        return (y * 1000) + x;
+    }
+
+    computeRenderSortKey(entity = {}) {
+        if (!entity?.boardPos) return this.computeLegacyRenderSortKey(entity);
+        return this.computeBoardSortKey(entity.boardPos, this.getEntityRenderSortBias(entity));
+    }
+
+    getAltitudeProbeForEntity(entity = {}) {
+        const zoneId = entity.boardPos?.zoneId
+            || entity.currentZoneId
+            || this.viewState.focusedZoneId
+            || null;
+        const projection = this.getProjectionForZone(zoneId);
+        const flightH = Number.isFinite(entity.flightH) ? entity.flightH : 0;
+        const boardPos = entity.boardPos && Number.isFinite(entity.boardPos.u) && Number.isFinite(entity.boardPos.v)
+            ? {
+                zoneId: entity.boardPos.zoneId || projection.zoneId,
+                u: entity.boardPos.u,
+                v: entity.boardPos.v,
+                h: 0
+            }
+            : this.screenToBoard(entity.x || 0, (entity.y || 0) + (entity.shadowOffset || 0), projection.zoneId, 0);
+        const shadow = this.boardToScreen({ ...boardPos, h: 0 });
+        const sprite = this.boardToScreen({ ...boardPos, h: flightH });
+        return {
+            entityId: entity.id || null,
+            zoneId: projection.zoneId,
+            boardPos,
+            flightH,
+            hStep: projection.hStep,
+            shadow: { x: shadow.x, y: shadow.y },
+            sprite: { x: sprite.x, y: sprite.y },
+            deltaY: shadow.y - sprite.y,
+            expectedDeltaY: projection.hStep * flightH
+        };
+    }
+
+    getSimBoardZonePalette(zone = null) {
+        const tint = zone?.renderProfile?.overlayTint || [96, 142, 92, 48];
+        const r = tint[0] ?? 96;
+        const g = tint[1] ?? 142;
+        const b = tint[2] ?? 92;
+        return {
+            canvas: [
+                Math.round((r * 0.18) + 26),
+                Math.round((g * 0.18) + 44),
+                Math.round((b * 0.18) + 34)
+            ],
+            ground: [
+                Math.round((r * 0.42) + 64),
+                Math.round((g * 0.42) + 96),
+                Math.round((b * 0.42) + 62)
+            ],
+            border: [
+                Math.min(255, Math.round((r * 0.55) + 84)),
+                Math.min(255, Math.round((g * 0.55) + 104)),
+                Math.min(255, Math.round((b * 0.55) + 82))
+            ],
+            guide: [
+                Math.min(255, Math.round((r * 0.55) + 120)),
+                Math.min(255, Math.round((g * 0.55) + 124)),
+                Math.min(255, Math.round((b * 0.55) + 116))
+            ]
+        };
+    }
+
+    shouldDrawSimBoardGroundGuides() {
+        return !!(
+            (typeof debugUI !== 'undefined' && debugUI.enabled)
+            || (typeof debugMode !== 'undefined' && debugMode.enabled)
+        );
+    }
+
+    getSimBoardAmbientGridConfig() {
+        return {
+            enabled: gameConfig?.spatial?.ambientGrid?.enabled !== false,
+            stepUnits: Math.max(1, gameConfig?.spatial?.ambientGrid?.stepUnits || 4),
+            alpha: Math.max(0, gameConfig?.spatial?.ambientGrid?.alpha ?? 12),
+            every1Alpha: Math.max(0, gameConfig?.spatial?.ambientGrid?.every1Alpha || 0)
+        };
+    }
+
+    getSimBoardDiagnosticGridConfig() {
+        return {
+            stepUnits: Math.max(1, gameConfig?.spatial?.diagnosticGrid?.stepUnits || 1),
+            alpha: Math.max(0, gameConfig?.spatial?.diagnosticGrid?.alpha ?? 80),
+            axisLabelAlpha: Math.max(0, gameConfig?.spatial?.diagnosticGrid?.axisLabelAlpha ?? 130)
+        };
+    }
+
+    drawSimBoardGround(layer, zone = null) {
+        const projection = this.getProjectionForZone(zone?.id || this.viewState.focusedZoneId);
+        const palette = this.getSimBoardZonePalette(zone);
+        const width = projection.widthUnits * projection.ppu;
+        const height = projection.depthUnits * projection.ppu * projection.groundT;
+        const x = projection.origin.x;
+        const y = projection.origin.y;
+
+        layer.noStroke();
+        layer.fill(
+            palette.canvas[0] * 0.85,
+            palette.canvas[1] * 0.85,
+            palette.canvas[2] * 0.85,
+            255
+        );
+        layer.rect(0, 0, gameConfig.canvas.baseWidth, gameConfig.canvas.baseHeight);
+        layer.fill(...palette.ground, 255);
+        layer.rect(x, y, width, height, 6);
+        this.drawSimBoardAmbientGrid(layer, projection, palette);
+        layer.noFill();
+        layer.stroke(...palette.border, 60);
+        layer.strokeWeight(1);
+        layer.rect(x + 0.5, y + 0.5, width - 1, height - 1, 6);
+
+        if (this.shouldDrawSimBoardGroundGuides()) {
+            this.drawSimBoardGroundGuides(layer, projection, palette);
+        }
+    }
+
+    drawSimBoardGridLines(layer, projection, palette, options = {}) {
+        if (!projection) return;
+        const guidePalette = palette || this.getSimBoardZonePalette();
+        const maxU = projection.widthUnits;
+        const maxV = projection.depthUnits;
+        const stepUnits = Math.max(1, options.stepUnits || 4);
+        const alpha = Math.max(0, options.alpha ?? 12);
+        if (alpha <= 0) return;
+
+        layer.push();
+        layer.stroke(...guidePalette.guide, alpha);
+        layer.strokeWeight(1);
+        for (let u = 0; u <= maxU; u += stepUnits) {
+            const top = this.boardToScreen({ zoneId: projection.zoneId, u, v: 0, h: 0 });
+            const bottom = this.boardToScreen({ zoneId: projection.zoneId, u, v: maxV, h: 0 });
+            layer.line(top.x, top.y, bottom.x, bottom.y);
+        }
+        for (let v = 0; v <= maxV; v += stepUnits) {
+            const left = this.boardToScreen({ zoneId: projection.zoneId, u: 0, v, h: 0 });
+            const right = this.boardToScreen({ zoneId: projection.zoneId, u: maxU, v, h: 0 });
+            layer.line(left.x, left.y, right.x, right.y);
+        }
+        layer.pop();
+    }
+
+    drawSimBoardAmbientGrid(layer, projection = this.getProjectionForZone(), palette = null) {
+        const config = this.getSimBoardAmbientGridConfig();
+        if (!config.enabled || !projection) return;
+        if (config.every1Alpha > 0) {
+            this.drawSimBoardGridLines(layer, projection, palette, {
+                stepUnits: 1,
+                alpha: config.every1Alpha
+            });
+        }
+        this.drawSimBoardGridLines(layer, projection, palette, {
+            stepUnits: config.stepUnits,
+            alpha: config.alpha
+        });
+    }
+
+    drawSimBoardGroundGuides(layer, projection = this.getProjectionForZone(), palette = null) {
+        if (!projection) return;
+        const guidePalette = palette || this.getSimBoardZonePalette();
+        const maxU = projection.widthUnits;
+        const maxV = projection.depthUnits;
+        const config = this.getSimBoardDiagnosticGridConfig();
+        this.drawSimBoardGridLines(layer, projection, guidePalette, config);
+
+        layer.push();
+        layer.stroke(...guidePalette.border, Math.max(config.alpha, 80));
+        layer.strokeWeight(1.5);
+        const corners = [
+            this.boardToScreen({ zoneId: projection.zoneId, u: 0, v: 0, h: 0 }),
+            this.boardToScreen({ zoneId: projection.zoneId, u: maxU, v: 0, h: 0 }),
+            this.boardToScreen({ zoneId: projection.zoneId, u: maxU, v: maxV, h: 0 }),
+            this.boardToScreen({ zoneId: projection.zoneId, u: 0, v: maxV, h: 0 })
+        ];
+        layer.beginShape();
+        for (const corner of corners) {
+            layer.vertex(corner.x, corner.y);
+        }
+        layer.endShape(CLOSE);
+        if (config.axisLabelAlpha > 0) {
+            layer.noStroke();
+            layer.fill(...guidePalette.border, config.axisLabelAlpha);
+            layer.textAlign(LEFT, TOP);
+            layer.textSize(8);
+            layer.text('0,0', corners[0].x + 3, corners[0].y + 3);
+            layer.text(`${maxU},${maxV}`, corners[2].x - 44, corners[2].y - 13);
+        }
+        layer.pop();
+    }
     
     // Draw the static background
     drawBackground() {
@@ -455,7 +772,12 @@ class RenderManager {
         bg.push();
         bg.clear();
         
-        if (this.viewState.battleActive && this.battleBackgroundImage) {
+        if (!this.viewState.battleActive && this.isSimBoardWorld()) {
+            const zone = typeof zoneSystem !== 'undefined'
+                ? zoneSystem.getZone?.(this.viewState.focusedZoneId)
+                : null;
+            this.drawSimBoardGround(bg, zone);
+        } else if (this.viewState.battleActive && this.battleBackgroundImage) {
             bg.image(this.battleBackgroundImage, 0, 0, gameConfig.canvas.baseWidth, gameConfig.canvas.baseHeight);
         } else if (this.backgroundImage) {
             bg.image(this.backgroundImage, 0, 0, gameConfig.canvas.baseWidth, gameConfig.canvas.baseHeight);
@@ -1420,7 +1742,7 @@ class RenderManager {
         const allEntities = [];
         if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
             const state = gameCore.getGameState();
-            if (this.isSectionSceneWorld() && state.viewMode === 'overview') {
+            if (this.usesFocusedZoneScene() && state.viewMode === 'overview') {
                 this.lastVisibleEntitySignature = 'overview';
                 this.lastLayerUsage.blocksActive = false;
                 this.lastLayerUsage.blocksBounds = null;
@@ -1440,7 +1762,7 @@ class RenderManager {
                     butterflyComponentDrawMs: this.consumeEntityComponentCostFrame()
                 };
             }
-            const visibleEntities = this.isSectionSceneWorld() && typeof gameCore.getFocusedSceneEntities === 'function'
+            const visibleEntities = this.usesFocusedZoneScene() && typeof gameCore.getFocusedSceneEntities === 'function'
                 ? gameCore.getFocusedSceneEntities()
                 : {
                     flowers: state.flowers || [],
@@ -1451,7 +1773,7 @@ class RenderManager {
             allEntities.push(...(visibleEntities.blocks || []));
             allEntities.push(...(visibleEntities.flowers || []));
             allEntities.push(...(visibleEntities.caterpillars || []));
-            allEntities.push(...(visibleEntities.butterflies || []));
+            allEntities.push(...(visibleEntities.butterflies || []).filter(entity => !entity?.zoneTravel?.invisible));
         } else if (entityManager) {
             allEntities.push(...entityManager.getEntities('flowers'));
             allEntities.push(...entityManager.getEntities('butterflies'));
@@ -1491,13 +1813,7 @@ class RenderManager {
             
             // Sort by resolved depth so nearer entities and butterflies render on top.
             this.entitySortingCache.sort((a, b) => {
-                const aDepth = typeof a.zIndex === 'number'
-                    ? a.zIndex
-                    : ((a.gridPos ? a.gridPos.y : a.y) * 1000) + (a.gridPos ? a.gridPos.x : a.x);
-                const bDepth = typeof b.zIndex === 'number'
-                    ? b.zIndex
-                    : ((b.gridPos ? b.gridPos.y : b.y) * 1000) + (b.gridPos ? b.gridPos.x : b.x);
-                return aDepth - bDepth;
+                return this.computeRenderSortKey(a) - this.computeRenderSortKey(b);
             });
             
             // Swap the sorted cache with sortedEntities
@@ -1793,7 +2109,7 @@ class RenderManager {
         const layer = this.layers.particles;
         layer.push();
 
-        if (this.isSectionSceneWorld() && gameCore?.getGameState?.().viewMode === 'overview') {
+        if (this.usesFocusedZoneScene() && gameCore?.getGameState?.().viewMode === 'overview') {
             layer.pop();
             return;
         }
@@ -1815,7 +2131,7 @@ class RenderManager {
     }
 
     getVisibleSpatialBlocks(gameState = {}) {
-        if (this.isSectionSceneWorld() && typeof gameCore?.getFocusedSceneEntities === 'function') {
+        if (this.usesFocusedZoneScene() && typeof gameCore?.getFocusedSceneEntities === 'function') {
             return gameCore.getFocusedSceneEntities()?.blocks || [];
         }
 
@@ -2041,6 +2357,7 @@ class RenderManager {
             this.drawZoneWorldOverlay(layer);
             this.drawTrainingGroundOverlay(layer);
             this.drawFPSCounter(layer);
+            this.drawFocusedZoneChip(layer, resolvedGameState);
         }
 
         if (!this.viewState.battleActive) {
@@ -2085,6 +2402,43 @@ class RenderManager {
         
         layer.pop();
     }
+
+    drawFocusedZoneChip(layer, gameState = null) {
+        if (!this.isSimBoardWorld() || this.viewState.battleActive) return;
+        const state = gameState || gameCore?.getGameState?.() || {};
+        if (state.viewMode === 'overview' || state.viewMode === 'battle') return;
+
+        const focusedZoneId = state.focusedZoneId || this.viewState.focusedZoneId;
+        const zone = typeof zoneSystem !== 'undefined'
+            ? zoneSystem.getZone?.(focusedZoneId)
+            : null;
+        if (!zone) return;
+
+        const projection = this.getProjectionForZone(focusedZoneId);
+        const palette = this.getSimBoardZonePalette(zone);
+        const x = Math.round(projection.origin.x);
+        const y = Math.max(4, Math.round(projection.origin.y - 18));
+        const label = zone.label || focusedZoneId || 'Focused zone';
+        const swatch = 7;
+
+        layer.push();
+        layer.noStroke();
+        layer.textAlign(LEFT, CENTER);
+        layer.textSize(12);
+        layer.textStyle(BOLD);
+        const textWidth = typeof textMeasureCache !== 'undefined'
+            ? textMeasureCache.measure(layer, label)
+            : layer.textWidth(label);
+        const width = Math.max(92, textWidth + 30);
+        layer.fill(18, 24, 24, 178);
+        layer.rect(x, y, width, 16, 5);
+        layer.fill(...palette.border, 220);
+        layer.rect(x + 7, y + 4.5, swatch, swatch, 2);
+        layer.fill(246, 248, 226, 255);
+        layer.text(label, x + 20, y + 8);
+        layer.textStyle(NORMAL);
+        layer.pop();
+    }
     
     // Draw debug layer
     drawDebugLayer(gameState = null) {
@@ -2114,31 +2468,79 @@ class RenderManager {
                 panelX: 8,
                 panelY: gameConfig.canvas.baseHeight - chipHeight - bottomInset
             });
+            this.drawBakedSpriteCacheDebugLine(layer, {
+                panelX: 8,
+                panelY: gameConfig.canvas.baseHeight - chipHeight - bottomInset - Math.max(16, Math.round(18 * uiScale)),
+                uiScale
+            });
         }
         
         layer.pop();
     }
 
+    drawBakedSpriteCacheDebugLine(layer, options = {}) {
+        const runtimeSpriteManager = typeof spriteManager !== 'undefined' ? spriteManager : null;
+        const telemetry = runtimeSpriteManager?.getBakedSpriteCacheTelemetry?.();
+        if (!telemetry) return;
+        const uiScale = Number.isFinite(options.uiScale) ? options.uiScale : 1;
+        const panelX = Number.isFinite(options.panelX) ? options.panelX : 8;
+        const panelY = Number.isFinite(options.panelY) ? options.panelY : 8;
+        const label = telemetry.debugLine
+            || `baked sprites: ${telemetry.cacheHits || 0}/${telemetry.cacheMisses || 0} | ${telemetry.familyCount || 0} families | ${telemetry.entryCount || 0} entries | ${Number(telemetry.estimatedSurfaceMB || 0).toFixed(2)}MB`;
+        layer.push();
+        layer.noStroke();
+        layer.textAlign(LEFT, CENTER);
+        layer.textSize(Math.max(8, 9 * uiScale));
+        const width = Math.max(
+            Math.round(220 * uiScale),
+            (typeof textMeasureCache !== 'undefined' ? textMeasureCache.measure(layer, label) : layer.textWidth(label)) + Math.round(12 * uiScale)
+        );
+        const height = Math.max(12, Math.round(14 * uiScale));
+        layer.fill(12, 18, 18, 198);
+        layer.rect(panelX, panelY, width, height, 5);
+        layer.fill(226, 240, 210, 255);
+        layer.text(label, panelX + Math.round(6 * uiScale), panelY + Math.round(height / 2));
+        layer.pop();
+    }
+
     getBattleMotionConfig() {
         const configured = gameConfig?.battle?.motion || {};
+        const pixelsPerArenaUnit = configured.pixelsPerArenaUnit || gameConfig?.spatial?.projection?.ppu || 20;
+        const unitsToPx = (units, fallbackPx = 0) => Number.isFinite(units)
+            ? units * pixelsPerArenaUnit
+            : fallbackPx;
         return {
-            attackAdvancePx: configured.attackAdvancePx || 32,
+            pixelsPerArenaUnit,
+            unitsPerArenaCell: configured.unitsPerArenaCell ?? 1,
+            attackAdvanceUnits: configured.attackAdvanceUnits ?? 1.6,
+            attackAdvancePx: unitsToPx(configured.attackAdvanceUnits, configured.attackAdvancePx || 32),
             attackDurationMs: configured.attackDurationMs || 560,
-            hitRecoilPx: configured.hitRecoilPx || 16,
+            hitRecoilUnits: configured.hitRecoilUnits ?? 0.8,
+            hitRecoilPx: unitsToPx(configured.hitRecoilUnits, configured.hitRecoilPx || 16),
             hitReactionDurationMs: configured.hitReactionDurationMs || 340,
-            rallyAdvancePx: configured.rallyAdvancePx || 12,
+            rallyAdvanceUnits: configured.rallyAdvanceUnits ?? 0.6,
+            rallyAdvancePx: unitsToPx(configured.rallyAdvanceUnits, configured.rallyAdvancePx || 12),
             rallyDurationMs: configured.rallyDurationMs || 520,
-            rallyLiftPx: configured.rallyLiftPx || 6,
-            guardBobPx: configured.guardBobPx || 3,
+            rallyLiftUnits: configured.rallyLiftUnits ?? 0.3,
+            rallyLiftPx: unitsToPx(configured.rallyLiftUnits, configured.rallyLiftPx || 6),
+            guardBobUnits: configured.guardBobUnits ?? 0.15,
+            guardBobPx: unitsToPx(configured.guardBobUnits, configured.guardBobPx || 3),
             guardDurationMs: configured.guardDurationMs || 420,
-            retreatAdvancePx: configured.retreatAdvancePx || 34,
+            retreatAdvanceUnits: configured.retreatAdvanceUnits ?? 1.7,
+            retreatAdvancePx: unitsToPx(configured.retreatAdvanceUnits, configured.retreatAdvancePx || 34),
             retreatDurationMs: configured.retreatDurationMs || 520,
             projectileDurationMs: configured.projectileDurationMs || 460,
-            idleBobPx: configured.idleBobPx || 2.2,
+            idleBobUnits: configured.idleBobUnits ?? 0.11,
+            idleBobPx: unitsToPx(configured.idleBobUnits, configured.idleBobPx || 2.2),
+            projectileArcHeightUnits: configured.projectileArcHeightUnits ?? 0.9,
+            projectileArcHeightPx: unitsToPx(configured.projectileArcHeightUnits, configured.projectileArcHeightPx || 18),
             releaseDurationMs: configured.releaseDurationMs || 980,
-            roamRadiusX: configured.roamRadiusX || 20,
-            roamRadiusY: configured.roamRadiusY || 12,
-            engagementDriftPx: configured.engagementDriftPx || 14
+            roamRadiusXUnits: configured.roamRadiusXUnits ?? 1,
+            roamRadiusX: unitsToPx(configured.roamRadiusXUnits, configured.roamRadiusX || 20),
+            roamRadiusYUnits: configured.roamRadiusYUnits ?? 0.6,
+            roamRadiusY: unitsToPx(configured.roamRadiusYUnits, configured.roamRadiusY || 12),
+            engagementDriftUnits: configured.engagementDriftUnits ?? 0.7,
+            engagementDriftPx: unitsToPx(configured.engagementDriftUnits, configured.engagementDriftPx || 14)
         };
     }
 
@@ -2383,6 +2785,9 @@ class RenderManager {
             x: pose.x,
             y: pose.y,
             abilityRadius: Math.max(20, visual.abilityRadius || 28) * specialScale,
+            abilityRadiusUnits: Number.isFinite(visual.abilityRadiusUnits)
+                ? visual.abilityRadiusUnits * specialScale
+                : null,
             symbol: visual.symbol || null,
             fallbackSymbol: visual.fallbackSymbol || '*',
             primaryColor: visual.primaryColor || [255, 255, 255],
@@ -2505,6 +2910,7 @@ class RenderManager {
         const projectiles = snapshot?.metadata?.visuals?.projectiles || [];
         if (!projectiles.length) return;
         const simplifyMotion = !!this.getAccessibilitySettings().battleMotionSimplify;
+        const motion = this.getBattleMotionConfig();
 
         for (const projectile of projectiles) {
             const progress = this.getBattleTimedProgress(projectile, nowMs);
@@ -2514,8 +2920,12 @@ class RenderManager {
             const end = posesById.get(projectile.targetId) || snapshot?.metadata?.arena?.assignments?.[projectile.targetId]?.position;
             if (!start || !end) continue;
 
+            const arcHeight = Number.isFinite(projectile.arcHeightUnits)
+                ? projectile.arcHeightUnits * (motion.pixelsPerArenaUnit || 20)
+                : (projectile.arcHeightPx || motion.projectileArcHeightPx || 0);
+            const arcOffset = simplifyMotion ? 0 : Math.sin(Math.PI * progress) * arcHeight;
             const x = lerp(start.x, end.x, progress);
-            const y = lerp(start.y, end.y, progress);
+            const y = lerp(start.y, end.y, progress) - arcOffset;
             const alpha = 210 * (1 - (progress * 0.3));
             const style = projectile.projectileStyle || (projectile.actionType === 'rally' ? 'support-pulse' : 'strike-bolt');
 
@@ -2523,7 +2933,9 @@ class RenderManager {
             layer.stroke(projectile.primaryColor[0], projectile.primaryColor[1], projectile.primaryColor[2], alpha * 0.4);
             layer.strokeWeight(projectile.actionType === 'rally' ? 1.6 : 1.2);
             if (!simplifyMotion) {
-                layer.line(start.x, start.y, x, y);
+                const trailProgress = Math.max(0, progress - 0.18);
+                const trailArc = Math.sin(Math.PI * trailProgress) * arcHeight;
+                layer.line(start.x, start.y, lerp(start.x, end.x, trailProgress), lerp(start.y, end.y, trailProgress) - trailArc);
             }
 
             if (style === 'petal-burst' || style === 'petal-ribbon') {
@@ -2845,6 +3257,10 @@ class RenderManager {
         const isOverview = state.viewMode === 'overview';
         const focusedZoneId = state.focusedZoneId || zoneSystem.focusedZoneId;
 
+        if (this.isSimBoardWorld() && !isOverview && gameConfig?.world?.simBoardSuppressOverlay !== false) {
+            return;
+        }
+
         if (this.isSectionSceneWorld()) {
             if (isOverview) {
                 this.drawSectionSceneOverview(layer, zones, focusedZoneId);
@@ -2961,6 +3377,7 @@ class RenderManager {
 
     // Draw spawn cover overlay (archways)
     drawSpawnCover() {
+        if (this.isSimBoardWorld()) return;
         if (!this.spawnCoverImage) return;
         const { targetWidth, targetHeight } = gameConfig.canvas;
         image(this.spawnCoverImage, 0, 0, targetWidth, targetHeight);
@@ -3179,7 +3596,7 @@ class RenderManager {
                 );
             }
         }
-        if (!this.viewState.battleActive) {
+        if (!this.viewState.battleActive && !this.isSimBoardWorld()) {
             stageStart = this.getNowMs();
             this.drawSpawnCover();
             metrics.spawnCoverCompositeMs = this.getNowMs() - stageStart;
@@ -3322,7 +3739,7 @@ class RenderManager {
 
         if (typeof gameCore !== 'undefined' && gameCore.isInitialized()) {
             const state = gameCore.getGameState();
-            const sceneEntities = this.isSectionSceneWorld() && typeof gameCore.getFocusedSceneEntities === 'function'
+            const sceneEntities = this.usesFocusedZoneScene() && typeof gameCore.getFocusedSceneEntities === 'function'
                 ? gameCore.getFocusedSceneEntities()
                 : {
                     butterflies: state.butterflies || [],
@@ -3379,8 +3796,10 @@ class RenderManager {
         layer.textAlign(LEFT, TOP);
         layer.textStyle(BOLD);
         layer.textSize(Math.max(8, 9 * uiScale));
-        layer.fill(accessibility.highContrastUI ? 255 : 246, accessibility.highContrastUI ? 255 : 248, accessibility.highContrastUI ? 255 : 226, 255);
-        layer.text(focusedZoneLabel, chipX, chipY + 2);
+        if (!this.isSimBoardWorld()) {
+            layer.fill(accessibility.highContrastUI ? 255 : 246, accessibility.highContrastUI ? 255 : 248, accessibility.highContrastUI ? 255 : 226, 255);
+            layer.text(focusedZoneLabel, chipX, chipY + 2);
+        }
         layer.textStyle(NORMAL);
 
         layer.pop();

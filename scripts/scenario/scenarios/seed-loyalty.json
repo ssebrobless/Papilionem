@@ -1,0 +1,23 @@
+{
+  "id": "seed-loyalty",
+  "seed": 808,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 8, "v": 8, "h": 0 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 9, "v": 8, "h": 0 } },
+    { "id": "c", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 8, "h": 0 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.5, "comfort": 0.46, "attachment": 0.48, "bondTier": "familiar", "coTimeSeconds": 120 } },
+    { "source": "a", "target": "c", "values": { "trust": 0.42, "comfort": 0.38, "attachment": 0.36, "bondTier": "familiar", "coTimeSeconds": 120 } }
+  ],
+  "actions": [
+    { "type": "loyalty_choice", "source": "a", "chosen": "b", "rejected": "c", "strength": 0.66 },
+    { "type": "advance_cognition", "seconds": 5 }
+  ],
+  "assertions": [
+    { "type": "memory_packet", "entity": "a", "family": "social", "kind": "loyaltyChoice", "min": 1 },
+    { "type": "edge_min", "entity": "a", "target": "b", "key": "loyalty", "min": 0.05 },
+    { "type": "feeling_min", "entity": "a", "key": "loyaltyBias", "min": 0.35 }
+  ]
+}

@@ -240,6 +240,20 @@ function createDerivedLifeSimProfile(overrides = {}) {
         emotionPeaks: [],
         crowding: 0,
         novelty: 0,
+        derivedFeelings: {
+            loneliness: 0,
+            comfortSeeking: 0,
+            socialInsecurity: 0,
+            jealousy: 0,
+            grief: 0,
+            pride: 0,
+            shame: 0,
+            loyaltyBias: 0,
+            dominant: 'steady',
+            motiveBias: null,
+            targetPartnerId: null,
+            updatedAtFrame: 0
+        },
         behaviorBiases: {
             wanderScale: 1,
             feedUrgency: 0,
@@ -416,6 +430,10 @@ function ensureLifeSocialEdge(entity, targetId) {
             lastDialogueResidue: null,
             anchoringDialogueCount: 0,
             learnedDialogueCount: 0,
+            bondTier: 'acquaintance',
+            coTimeSeconds: 0,
+            lastTierChangeAtFrame: null,
+            loyalty: 0,
             lastUpdatedSeconds: null,
             historyTags: []
         };
@@ -436,6 +454,10 @@ function ensureLifeSocialEdge(entity, targetId) {
     edge.lastConversationAtSeconds = edge.lastConversationAtSeconds ?? null;
     edge.anchoringDialogueCount = edge.anchoringDialogueCount ?? 0;
     edge.learnedDialogueCount = edge.learnedDialogueCount ?? 0;
+    edge.bondTier = edge.bondTier || 'acquaintance';
+    edge.coTimeSeconds = Math.max(0, edge.coTimeSeconds || 0);
+    edge.lastTierChangeAtFrame = edge.lastTierChangeAtFrame ?? null;
+    edge.loyalty = edge.loyalty ?? 0;
     return edge;
 }
 

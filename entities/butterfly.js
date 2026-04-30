@@ -275,6 +275,7 @@ class Butterfly extends Entity {
         this.nameDisambiguator = options.nameDisambiguator || null;
         this.hybridEntryId = options.hybridEntryId || null;
         this.currentZoneId = options.currentZoneId || null;
+        this.boardPos = options.boardPos || null;
         this.pheromoneCooldownUntil = options.pheromoneCooldownUntil || 0;
         this.fertilityUsesRemaining = options.fertilityUsesRemaining ?? (this.birthSource === 'bred'
             ? (gameConfig?.balance?.hybrid?.bredFertilityUses ?? 1)
@@ -386,6 +387,8 @@ class Butterfly extends Entity {
         this.engagementDecayEnabled = false;
         
         this.shadowOffset = gameConfig.entities.heightOffset.butterfly;
+        this.flightH = 0;
+        this.flightHProbeOverride = null;
         
         // Immortality flag for first butterfly to prevent ecosystem collapse
         this.isImmortal = isImmortal;
@@ -398,6 +401,7 @@ class Butterfly extends Entity {
         console.log(`🦋 SPAWNED: ${this.personalityType} butterfly (${this.personality.rarity}) - ${this.personality.description}`);
         
         // === UNIFIED MOVEMENT SYSTEM ===
+        const movementOwner = this;
         this.movement = {
             target: { x: this.gridPos.x, y: this.gridPos.y },
             targetType: null, // 'immediate', 'goal', 'meander', 'flee', 'follow'
@@ -409,8 +413,25 @@ class Butterfly extends Entity {
             
             setTarget(x, y, type, priority = 1, wobble = 0) {
                 if (priority >= this.targetPriority) {
-                    this.target.x = x;
-                    this.target.y = y;
+                    this.target = movementOwner.normalizeMovementTarget(x, y, { space: 'legacy-grid' });
+                    this.targetType = type;
+                    this.targetPriority = priority;
+                    this.wobbleAmount = wobble;
+                }
+            },
+
+            setBoardTarget(u, v, type, priority = 1, wobble = 0) {
+                if (priority >= this.targetPriority) {
+                    this.target = movementOwner.normalizeMovementTarget(u, v, { space: 'board' });
+                    this.targetType = type;
+                    this.targetPriority = priority;
+                    this.wobbleAmount = wobble;
+                }
+            },
+
+            setScreenTarget(x, y, type, priority = 1, wobble = 0) {
+                if (priority >= this.targetPriority) {
+                    this.target = movementOwner.normalizeMovementTarget(x, y, { space: 'screen' });
                     this.targetType = type;
                     this.targetPriority = priority;
                     this.wobbleAmount = wobble;
@@ -667,6 +688,7 @@ class Butterfly extends Entity {
 
         if (sleepState?.subtype) {
             this.updateSleepingState(gameState, sleepState);
+            this.updateFlightH();
             this.updateSpawnEffects(particleSystem);
             return;
         }
@@ -682,6 +704,7 @@ class Butterfly extends Entity {
         
         // 8. Update movement once
         this.updateMovement(currentSpeed);
+        this.updateFlightH();
         
         // 9. Update visuals
         this.updateWings();
@@ -750,8 +773,22 @@ class Butterfly extends Entity {
         }
 
         this.afterimages.length = 0;
-        this.movement.target.x = this.gridPos.x;
-        this.movement.target.y = this.gridPos.y;
+        if (this.isBoardMovementWorld()) {
+            const boardPos = this.ensureBoardPos();
+            if (boardPos) {
+                this.movement.target = this.makeBoardMovementTarget(boardPos);
+                this.movement.smoothFollowTarget = {
+                    x: boardPos.u,
+                    y: boardPos.v,
+                    u: boardPos.u,
+                    v: boardPos.v,
+                    zoneId: boardPos.zoneId
+                };
+            }
+        } else {
+            this.movement.target.x = this.gridPos.x;
+            this.movement.target.y = this.gridPos.y;
+        }
         this.movement.targetType = 'sleep';
         this.movement.targetPriority = 999;
         this.movement.wobbleAmount = 0;
@@ -765,7 +802,7 @@ class Butterfly extends Entity {
         }
 
         this.updateWings();
-        this.gridPos = gridManager.screenToIso(this.x, this.y);
+        this.syncDebugGridPos();
         this.updateZIndex();
 
         if (sleepState.subtype !== 'settling_sleep' && particleSystem && frameCount % 180 === 0) {
@@ -1062,8 +1099,232 @@ class Butterfly extends Entity {
     }
     
     // === UNIFIED MOVEMENT SYSTEM ===
+    isBoardMovementWorld() {
+        return gameCore?.isSimBoardWorld?.() || gameConfig?.world?.renderMode === 'sim-board';
+    }
+
+    getMovementZoneId() {
+        return this.currentZoneId
+            || this.lifeSim?.lifecycle?.currentZoneId
+            || this.boardPos?.zoneId
+            || gameCore?.getFocusedZoneId?.()
+            || null;
+    }
+
+    getProjectionForMovement(zoneId = this.getMovementZoneId()) {
+        return renderManager?.getProjectionForZone?.(zoneId) || null;
+    }
+
+    getFlightHConfig() {
+        const config = gameConfig?.entities?.butterfly?.flightH || {};
+        return {
+            enabled: config.enabled !== false,
+            idleBobUnits: Number.isFinite(config.idleBobUnits) ? config.idleBobUnits : 0.22,
+            movingMinUnits: Number.isFinite(config.movingMinUnits) ? config.movingMinUnits : 0.75,
+            movingMaxUnits: Number.isFinite(config.movingMaxUnits) ? config.movingMaxUnits : 2.4,
+            distantTargetUnits: Number.isFinite(config.distantTargetUnits) ? config.distantTargetUnits : 3,
+            smoothness: Number.isFinite(config.smoothness) ? config.smoothness : 0.18
+        };
+    }
+
+    getBoardHStep(zoneId = this.getMovementZoneId()) {
+        const projection = this.getProjectionForMovement(zoneId);
+        return Number.isFinite(projection?.hStep)
+            ? projection.hStep
+            : (gameConfig?.spatial?.projection?.hStep || 8);
+    }
+
+    getDesiredFlightH() {
+        const config = this.getFlightHConfig();
+        if (!config.enabled) return 0;
+        if (Number.isFinite(this.flightHProbeOverride)) {
+            return Math.max(0, Math.min(6, this.flightHProbeOverride));
+        }
+        if (this.getSleepState?.()?.subtype || this.state === 'feeding' || this.state === 'mating') {
+            return 0;
+        }
+        if (this.isSpawning) {
+            return Math.min(config.distantTargetUnits, config.movingMaxUnits + 0.35);
+        }
+
+        const distance = this.getDistanceToMovementTarget();
+        if (!Number.isFinite(distance) || distance < 0.35 || !this.movement?.targetType) {
+            return 0;
+        }
+
+        const travelLift = distance >= 8
+            ? config.distantTargetUnits
+            : config.movingMinUnits + ((Math.min(distance, 8) / 8) * (config.movingMaxUnits - config.movingMinUnits));
+        const frame = this.getDecisionFrame();
+        const bob = Math.sin((frame * 0.08) + ((this.id || '').length * 0.7)) * config.idleBobUnits;
+        return Math.max(0, travelLift + bob);
+    }
+
+    updateFlightH() {
+        const config = this.getFlightHConfig();
+        const targetH = this.getDesiredFlightH();
+        const smoothness = Math.max(0.01, Math.min(1, config.smoothness));
+        this.flightH += (targetH - this.flightH) * smoothness;
+        if (Math.abs(this.flightH) < 0.001) {
+            this.flightH = 0;
+        }
+        return this.flightH;
+    }
+
+    getShadowScreenPoint() {
+        const zoneId = this.getMovementZoneId();
+        const boardPos = this.boardPos && Number.isFinite(this.boardPos.u) && Number.isFinite(this.boardPos.v)
+            ? { ...this.boardPos, zoneId: this.boardPos.zoneId || zoneId, h: 0 }
+            : null;
+        if (this.isBoardMovementWorld() && boardPos && renderManager?.boardToScreen) {
+            return renderManager.boardToScreen(boardPos);
+        }
+        return {
+            x: this.x || 0,
+            y: (this.y || 0) + (this.shadowOffset || 0),
+            zoneId
+        };
+    }
+
+    getFlightRenderOffset() {
+        if (!this.getFlightHConfig().enabled || !Number.isFinite(this.flightH) || this.flightH <= 0) {
+            return { x: 0, y: 0 };
+        }
+        const zoneId = this.getMovementZoneId();
+        const boardPos = this.boardPos && Number.isFinite(this.boardPos.u) && Number.isFinite(this.boardPos.v)
+            ? { ...this.boardPos, zoneId: this.boardPos.zoneId || zoneId }
+            : null;
+        if (this.isBoardMovementWorld() && boardPos && renderManager?.boardToScreen) {
+            const shadow = renderManager.boardToScreen({ ...boardPos, h: 0 });
+            const sprite = renderManager.boardToScreen({ ...boardPos, h: this.flightH });
+            return {
+                x: sprite.x - shadow.x,
+                y: sprite.y - shadow.y
+            };
+        }
+        return {
+            x: 0,
+            y: -this.flightH * this.getBoardHStep(zoneId)
+        };
+    }
+
+    clampBoardTarget(boardPos = {}, zoneId = this.getMovementZoneId()) {
+        const projection = this.getProjectionForMovement(zoneId);
+        const maxU = projection?.widthUnits ?? gameConfig?.spatial?.projection?.defaultWidthUnits ?? 36;
+        const maxV = projection?.depthUnits ?? gameConfig?.spatial?.projection?.defaultDepthUnits ?? 22;
+        const u = Number.isFinite(boardPos.u) ? boardPos.u : Number.isFinite(boardPos.x) ? boardPos.x : 0.5;
+        const v = Number.isFinite(boardPos.v) ? boardPos.v : Number.isFinite(boardPos.y) ? boardPos.y : 0.5;
+        return {
+            zoneId: boardPos.zoneId || zoneId,
+            u: Math.max(0.5, Math.min(Math.max(0.5, maxU - 0.5), u)),
+            v: Math.max(0.5, Math.min(Math.max(0.5, maxV - 0.5), v)),
+            h: Number.isFinite(boardPos.h) ? boardPos.h : 0
+        };
+    }
+
+    makeBoardMovementTarget(boardPos = {}) {
+        const clamped = this.clampBoardTarget(boardPos, boardPos.zoneId || this.getMovementZoneId());
+        return {
+            x: clamped.u,
+            y: clamped.v,
+            u: clamped.u,
+            v: clamped.v,
+            h: clamped.h || 0,
+            zoneId: clamped.zoneId,
+            space: 'board'
+        };
+    }
+
+    screenPointToBoardTarget(x, y, zoneId = this.getMovementZoneId()) {
+        const renderer = typeof renderManager !== 'undefined' ? renderManager : null;
+        if (!renderer?.screenToBoard) {
+            return this.clampBoardTarget({ zoneId, u: x, v: y, h: 0 }, zoneId);
+        }
+        return this.clampBoardTarget(renderer.screenToBoard(x, y, zoneId, 0), zoneId);
+    }
+
+    normalizeMovementTarget(x, y, options = {}) {
+        if (!this.isBoardMovementWorld()) {
+            return { x, y };
+        }
+
+        const zoneId = options.zoneId || this.getMovementZoneId();
+        if (options.space === 'board') {
+            return this.makeBoardMovementTarget({ zoneId, u: x, v: y, h: 0 });
+        }
+
+        if (options.space === 'screen') {
+            return this.makeBoardMovementTarget(this.screenPointToBoardTarget(x, y, zoneId));
+        }
+
+        const screenPoint = gridManager?.isoToScreen?.(x, y) || { x, y };
+        return this.makeBoardMovementTarget(this.screenPointToBoardTarget(screenPoint.x, screenPoint.y, zoneId));
+    }
+
+    ensureBoardPos(options = {}) {
+        const zoneId = options.zoneId || this.getMovementZoneId();
+        if (this.boardPos && Number.isFinite(this.boardPos.u) && Number.isFinite(this.boardPos.v)) {
+            this.boardPos = this.clampBoardTarget(this.boardPos, this.boardPos.zoneId || zoneId);
+            return this.boardPos;
+        }
+        return this.syncBoardPosFromScreen({ zoneId, force: true });
+    }
+
+    applyScreenFromBoardPos(boardPos = this.boardPos) {
+        if (!boardPos || !renderManager?.boardToScreen) return false;
+        const clamped = this.clampBoardTarget(boardPos, boardPos.zoneId || this.getMovementZoneId());
+        const screen = renderManager.boardToScreen(clamped);
+        this.boardPos = clamped;
+        this.x = screen.x;
+        this.y = screen.y - (this.shadowOffset || 0);
+        this.syncDebugGridPos();
+        return true;
+    }
+
+    syncDebugGridPos() {
+        if (typeof gridManager !== 'undefined' && gridManager?.screenToIso) {
+            this.gridPos = gridManager.screenToIso(this.x || 0, (this.y || 0) + (this.shadowOffset || 0));
+        }
+        return this.gridPos || null;
+    }
+
+    getMovementTargetBoardPos() {
+        if (!this.movement?.target) return null;
+        if (Number.isFinite(this.movement.target.u) && Number.isFinite(this.movement.target.v)) {
+            return this.clampBoardTarget(this.movement.target, this.movement.target.zoneId || this.getMovementZoneId());
+        }
+        return this.normalizeMovementTarget(this.movement.target.x, this.movement.target.y, { space: 'legacy-grid' });
+    }
+
+    getEntityBoardPos(entity, zoneId = this.getMovementZoneId()) {
+        if (!entity) return null;
+        if (entity.boardPos && Number.isFinite(entity.boardPos.u) && Number.isFinite(entity.boardPos.v)) {
+            return this.clampBoardTarget(entity.boardPos, entity.boardPos.zoneId || zoneId);
+        }
+        if (Number.isFinite(entity.x) && Number.isFinite(entity.y)) {
+            return this.screenPointToBoardTarget(entity.x, entity.y + (entity.shadowOffset || 0), zoneId);
+        }
+        return null;
+    }
+
+    getDistanceToMovementTarget() {
+        const target = this.getMovementTargetBoardPos();
+        if (this.isBoardMovementWorld() && target) {
+            const current = this.ensureBoardPos();
+            if (!current) return Infinity;
+            return Math.hypot(target.u - current.u, target.v - current.v);
+        }
+        if (!this.movement?.target || !this.gridPos) return Infinity;
+        return Math.hypot(this.movement.target.x - this.gridPos.x, this.movement.target.y - this.gridPos.y);
+    }
+
     updateMovement(currentSpeed) {
         if (!this.movement.target || currentSpeed === 0) return;
+
+        if (this.isBoardMovementWorld()) {
+            this.updateBoardMovement(currentSpeed);
+            return;
+        }
         
         // Calculate direction to target
         const dx = this.movement.target.x - this.gridPos.x;
@@ -1151,6 +1412,93 @@ class Butterfly extends Entity {
             }
         }
     }
+
+    updateBoardMovement(currentSpeed) {
+        const zoneId = this.getMovementZoneId();
+        const currentBoard = this.ensureBoardPos({ zoneId });
+        const target = this.getMovementTargetBoardPos();
+        if (!currentBoard || !target) return;
+
+        const dx = target.u - currentBoard.u;
+        const dy = target.v - currentBoard.v;
+        const distToTarget = Math.hypot(dx, dy);
+
+        if (distToTarget < 0.3) {
+            this.boardPos = this.clampBoardTarget(target, zoneId);
+            this.applyScreenFromBoardPos(this.boardPos);
+            this.recordDispersalVisit();
+            this.movement.clearTarget();
+            if (this.state === 'normal') {
+                this.timers.wander.current = 0;
+                this.pickNewWanderTarget();
+            }
+            return;
+        }
+
+        let moveX = dx / (distToTarget || 1);
+        let moveY = dy / (distToTarget || 1);
+        if (this.movement.wobbleAmount > 0 && distToTarget >= 0.5) {
+            const wobble = random(-this.movement.wobbleAmount, this.movement.wobbleAmount);
+            const angle = atan2(moveY, moveX) + wobble;
+            moveX = cos(angle);
+            moveY = sin(angle);
+        }
+
+        const baseAngle = atan2(moveY, moveX);
+        const step = Math.min(Math.max(0.002, currentSpeed), distToTarget);
+        const steerOffsets = distToTarget < 0.5 ? [0] : [0, 0.32, -0.32, 0.64, -0.64];
+        const currentGroundPoint = {
+            x: this.x || 0,
+            y: (this.y || 0) + (this.shadowOffset || 0)
+        };
+        const targetScreen = renderManager?.boardToScreen?.(target) || currentGroundPoint;
+        const candidateGroundPoints = [];
+
+        for (const offset of steerOffsets) {
+            const stepAngle = baseAngle + offset;
+            const candidateBoard = this.clampBoardTarget({
+                zoneId,
+                u: currentBoard.u + (cos(stepAngle) * step),
+                v: currentBoard.v + (sin(stepAngle) * step),
+                h: currentBoard.h || 0
+            }, zoneId);
+            const candidateScreen = renderManager?.boardToScreen?.(candidateBoard);
+            if (!candidateScreen) continue;
+            const allowDoorways = !!gameCore?.shouldAllowDoorwayTraversalForButterfly?.(this, {
+                zoneId,
+                currentPoint: currentGroundPoint,
+                targetPoint: targetScreen,
+                candidatePoint: candidateScreen
+            });
+            candidateGroundPoints.push({
+                x: candidateScreen.x,
+                y: candidateScreen.y,
+                boardPos: candidateBoard,
+                allowDoorways
+            });
+        }
+
+        const resolvedMove = gameCore?.physicsSystem?.resolveButterflyMotionIntent?.(this, {
+            zoneId,
+            fromPoint: currentGroundPoint,
+            candidateGroundPoints,
+            source: this.movement.targetType || 'movement',
+            gameState: gameCore?.gameState
+        });
+        const chosenPoint = resolvedMove?.point || candidateGroundPoints[0] || null;
+        if (chosenPoint) {
+            const nextBoard = chosenPoint.boardPos
+                || this.screenPointToBoardTarget(chosenPoint.x, chosenPoint.y, zoneId);
+            this.applyScreenFromBoardPos(nextBoard);
+        }
+
+        if (this.pendingPollenDropTarget) {
+            const dropDistance = Math.hypot(this.x - this.pendingPollenDropTarget.x, this.y - this.pendingPollenDropTarget.y);
+            if (dropDistance < 18) {
+                gameCore?.completePollenDrop?.(this);
+            }
+        }
+    }
     
     // === STATE BEHAVIOR IMPLEMENTATIONS ===
     executeNormalBehavior(gameState) {
@@ -1182,9 +1530,7 @@ class Butterfly extends Entity {
 
         if (this.movement.targetType === 'goal') {
             const lowFlowerPressure = flowers.filter(flower => this.isFlowerAvailable(flower)).length <= 2;
-            const dx = this.gridPos.x - this.movement.target.x;
-            const dy = this.gridPos.y - this.movement.target.y;
-            if (dx*dx + dy*dy < 0.25) {
+            if (this.getDistanceToMovementTarget() < 0.5) {
                 const targetFlower = this.findFlowerAtTarget(flowers);
                 if (targetFlower && this.isFlowerAvailable(targetFlower)) {
                     if (this.happiness < this.baselineHappiness || lowFlowerPressure) {
@@ -1357,26 +1703,51 @@ class Butterfly extends Entity {
         }
         
         // Update follow position
-        const cursorGrid = gridManager.screenToIso(adjustedMouseX, adjustedMouseY);
         const rotationSpeed = 0.005;
         const newAngle = atan2(this.movement.followOffset.y, this.movement.followOffset.x) + rotationSpeed;
-        const dist = this.cursor.followDistance / gameConfig.grid.cellSize;
+        const projection = this.getProjectionForMovement?.();
+        const boardDistance = this.cursor.followDistance / Math.max(1, projection?.ppu || gameConfig.grid.cellSize || 20);
+        const dist = this.isBoardMovementWorld() ? boardDistance : (this.cursor.followDistance / gameConfig.grid.cellSize);
         this.movement.followOffset.x = cos(newAngle) * dist;
         this.movement.followOffset.y = sin(newAngle) * dist;
-        
-        // Smooth interpolation
-        const desiredX = cursorGrid.x + this.movement.followOffset.x;
-        const desiredY = cursorGrid.y + this.movement.followOffset.y;
-        this.movement.smoothFollowTarget.x = lerp(this.movement.smoothFollowTarget.x, desiredX, this.movement.followSmoothness);
-        this.movement.smoothFollowTarget.y = lerp(this.movement.smoothFollowTarget.y, desiredY, this.movement.followSmoothness);
-        
-        // Set movement target
-        this.movement.setTarget(
-            this.movement.smoothFollowTarget.x,
-            this.movement.smoothFollowTarget.y,
-            'follow',
-            5
-        );
+
+        if (this.isBoardMovementWorld()) {
+            const cursorBoard = this.screenPointToBoardTarget(adjustedMouseX, adjustedMouseY);
+            const desiredU = cursorBoard.u + this.movement.followOffset.x;
+            const desiredV = cursorBoard.v + this.movement.followOffset.y;
+            const currentSmooth = this.movement.smoothFollowTarget || {
+                x: cursorBoard.u,
+                y: cursorBoard.v,
+                u: cursorBoard.u,
+                v: cursorBoard.v
+            };
+            const smoothU = lerp(currentSmooth.u ?? currentSmooth.x, desiredU, this.movement.followSmoothness);
+            const smoothV = lerp(currentSmooth.v ?? currentSmooth.y, desiredV, this.movement.followSmoothness);
+            this.movement.smoothFollowTarget = {
+                x: smoothU,
+                y: smoothV,
+                u: smoothU,
+                v: smoothV,
+                zoneId: cursorBoard.zoneId
+            };
+            this.movement.setBoardTarget(smoothU, smoothV, 'follow', 5);
+        } else {
+            const cursorGrid = gridManager.screenToIso(adjustedMouseX, adjustedMouseY);
+
+            // Smooth interpolation
+            const desiredX = cursorGrid.x + this.movement.followOffset.x;
+            const desiredY = cursorGrid.y + this.movement.followOffset.y;
+            this.movement.smoothFollowTarget.x = lerp(this.movement.smoothFollowTarget.x, desiredX, this.movement.followSmoothness);
+            this.movement.smoothFollowTarget.y = lerp(this.movement.smoothFollowTarget.y, desiredY, this.movement.followSmoothness);
+
+            // Set movement target
+            this.movement.setTarget(
+                this.movement.smoothFollowTarget.x,
+                this.movement.smoothFollowTarget.y,
+                'follow',
+                5
+            );
+        }
         
         // Visual feedback
         if (this.timers.following % 45 === 0) {
@@ -1593,6 +1964,25 @@ class Butterfly extends Entity {
     
     // === MOVEMENT HELPERS ===
     setFleeTarget(cursorX, cursorY) {
+        if (this.isBoardMovementWorld()) {
+            const cursorBoard = this.screenPointToBoardTarget(cursorX, cursorY);
+            const currentBoard = this.ensureBoardPos();
+            if (cursorBoard && currentBoard) {
+                const awayU = currentBoard.u - cursorBoard.u;
+                const awayV = currentBoard.v - cursorBoard.v;
+                const dist = Math.max(Math.hypot(awayU, awayV), 0.1);
+                const fleeDistance = random(3, 6);
+                const clamped = this.clampBoardTarget({
+                    zoneId: currentBoard.zoneId,
+                    u: currentBoard.u + (awayU / dist) * fleeDistance,
+                    v: currentBoard.v + (awayV / dist) * fleeDistance,
+                    h: currentBoard.h || 0
+                }, currentBoard.zoneId);
+                this.movement.setBoardTarget(clamped.u, clamped.v, 'flee', 10);
+                return;
+            }
+        }
+
         const cursorGrid = gridManager.screenToIso(cursorX, cursorY);
         
         // Calculate direction away from cursor
@@ -2014,6 +2404,11 @@ class Butterfly extends Entity {
         const followThrough = socialTargets.followThrough || null;
         const getGroundScreenPoint = entity => {
             if (!entity) return null;
+            if (this.isBoardMovementWorld()) {
+                const boardPos = this.getEntityBoardPos(entity, zoneId);
+                const screenPoint = boardPos && renderManager?.boardToScreen?.(boardPos);
+                if (screenPoint) return screenPoint;
+            }
             if (entity.gridPos && Number.isFinite(entity.gridPos.x) && Number.isFinite(entity.gridPos.y)) {
                 return gridManager?.isoToScreen?.(entity.gridPos.x, entity.gridPos.y) || null;
             }
@@ -2045,7 +2440,10 @@ class Butterfly extends Entity {
                 .sort((left, right) => (right?.score || 0) - (left?.score || 0))[0]
             || null;
         const socialAnchorPoint = socialAnchor?.partner ? getGroundScreenPoint(socialAnchor.partner) : null;
-        const socialAnchorGridPoint = socialAnchor?.partner?.gridPos
+        const socialAnchorBoardPoint = this.isBoardMovementWorld() && socialAnchor?.partner
+            ? this.getEntityBoardPos(socialAnchor.partner, zoneId)
+            : null;
+        const socialAnchorGridPoint = !this.isBoardMovementWorld() && socialAnchor?.partner?.gridPos
             && Number.isFinite(socialAnchor.partner.gridPos.x)
             && Number.isFinite(socialAnchor.partner.gridPos.y)
             ? {
@@ -2075,7 +2473,15 @@ class Butterfly extends Entity {
             : socialAnchor?.mode === 'imitate'
                 ? { x: 0.68, y: 0.52 }
                 : { x: 0.56, y: 0.42 };
-        const directSocialGridTarget = preferSocialAnchor && socialAvoidPoints.length === 0 && socialAnchor?.score >= (socialAnchor?.mode === 'imitate' ? 0.42 : 0.34) && socialAnchorGridPoint
+        const directSocialBoardTarget = this.isBoardMovementWorld() && preferSocialAnchor && socialAvoidPoints.length === 0 && socialAnchor?.score >= (socialAnchor?.mode === 'imitate' ? 0.42 : 0.34) && socialAnchorBoardPoint
+            ? this.clampBoardTarget({
+                zoneId,
+                u: socialAnchorBoardPoint.u + random(-gridFollowSpread.x, gridFollowSpread.x),
+                v: socialAnchorBoardPoint.v + random(-gridFollowSpread.y, gridFollowSpread.y),
+                h: 0
+            }, zoneId)
+            : null;
+        const directSocialGridTarget = !this.isBoardMovementWorld() && preferSocialAnchor && socialAvoidPoints.length === 0 && socialAnchor?.score >= (socialAnchor?.mode === 'imitate' ? 0.42 : 0.34) && socialAnchorGridPoint
             ? {
                 x: constrain(
                     socialAnchorGridPoint.x + random(-gridFollowSpread.x, gridFollowSpread.x),
@@ -2092,7 +2498,7 @@ class Butterfly extends Entity {
 
         // Golden butterflies move much more erratically and frequently
         if (this.personalityType === 'golden') {
-            const targetPoint = directSocialGridTarget ? null : gameCore?.findBestButterflyWanderPoint?.(this, zoneId, {
+            const targetPoint = (directSocialGridTarget || directSocialBoardTarget) ? null : gameCore?.findBestButterflyWanderPoint?.(this, zoneId, {
                 candidateCount: 10,
                 localHop: { min: 18, max: 42 },
                 preferOpenSpace: preferWideOpenSpace,
@@ -2108,14 +2514,24 @@ class Butterfly extends Entity {
                 this.gridPos.x + cos(random(TWO_PI)) * random(2, 4) * wanderScale,
                 this.gridPos.y + sin(random(TWO_PI)) * random(2, 4) * wanderScale
             );
-            const clamped = directSocialGridTarget || gridManager.screenToIso(targetPoint.x, targetPoint.y);
-            this.movement.setTarget(
-                clamped.x,
-                clamped.y,
-                'meander',
-                1,
-                0.24 + ((behaviorBiases.caution || 0) * 0.12) // More wobble for erratic movement
-            );
+            if (directSocialBoardTarget) {
+                this.movement.setBoardTarget(
+                    directSocialBoardTarget.u,
+                    directSocialBoardTarget.v,
+                    'meander',
+                    1,
+                    0.24 + ((behaviorBiases.caution || 0) * 0.12)
+                );
+            } else {
+                const clamped = directSocialGridTarget || gridManager.screenToIso(targetPoint.x, targetPoint.y);
+                this.movement.setTarget(
+                    clamped.x,
+                    clamped.y,
+                    'meander',
+                    1,
+                    0.24 + ((behaviorBiases.caution || 0) * 0.12) // More wobble for erratic movement
+                );
+            }
             this.timers.wander.duration = random(20, 40) / Math.max(0.7, wanderScale); // Change direction every 0.3-0.7 seconds
         } else {
             // Normal butterflies pick a destination inside their current land region.
@@ -2145,15 +2561,25 @@ class Butterfly extends Entity {
                 || shelterPoint
                 || gameCore?.getRandomZonePoint?.(zoneId, targetInset)
                 || gridManager.isoToScreen(random(3, gridManager.bounds.maxX - 3), random(3, gridManager.bounds.maxY - 3));
-            const targetGrid = directSocialGridTarget || gridManager.screenToIso(targetPoint.x, targetPoint.y);
-            
-            this.movement.setTarget(
-                targetGrid.x,
-                targetGrid.y,
-                'meander',
-                1,
-                0.08 + ((behaviorBiases.caution || 0) * 0.08)
-            );
+            if (directSocialBoardTarget) {
+                this.movement.setBoardTarget(
+                    directSocialBoardTarget.u,
+                    directSocialBoardTarget.v,
+                    'meander',
+                    1,
+                    0.08 + ((behaviorBiases.caution || 0) * 0.08)
+                );
+            } else {
+                const targetGrid = directSocialGridTarget || gridManager.screenToIso(targetPoint.x, targetPoint.y);
+
+                this.movement.setTarget(
+                    targetGrid.x,
+                    targetGrid.y,
+                    'meander',
+                    1,
+                    0.08 + ((behaviorBiases.caution || 0) * 0.08)
+                );
+            }
             this.timers.wander.duration = ((random(300, 600) / this.traits.jitteriness) / Math.max(0.75, wanderScale))
                 * (crowdPressure > 0.44 ? 0.6 : 1)
                 * (preferSocialAnchor ? 0.72 : 1)
@@ -2201,9 +2627,7 @@ class Butterfly extends Entity {
         this.timers.postFeedingDash = this.constants.dashDuration;
         
         // If the post-feeding destination is too close (butterfly at edge), pick a wander target instead
-        const dx = clamped.x - this.gridPos.x;
-        const dy = clamped.y - this.gridPos.y;
-        if (dx*dx + dy*dy < 4) { // If destination is less than 2 grid units away
+        if (this.getDistanceToMovementTarget() < 2) { // If destination is less than 2 units away
             this.pickNewWanderTarget(); // Just wander instead
         }
     }
@@ -2639,6 +3063,20 @@ class Butterfly extends Entity {
     
     findFlowerAtTarget(flowers) {
         if (!this.movement.target) return null;
+        if (this.isBoardMovementWorld()) {
+            const targetBoard = this.getMovementTargetBoardPos();
+            if (!targetBoard) return null;
+            for (let flower of flowers) {
+                const flowerBoard = this.getEntityBoardPos(flower, targetBoard.zoneId);
+                if (!flowerBoard) continue;
+                const dx = flowerBoard.u - targetBoard.u;
+                const dy = flowerBoard.v - targetBoard.v;
+                if (dx*dx + dy*dy < 1) {
+                    return flower;
+                }
+            }
+            return null;
+        }
         
         for (let flower of flowers) {
             const flowerGrid = gridManager.screenToIso(flower.x, flower.y);
@@ -3099,6 +3537,7 @@ class Butterfly extends Entity {
 
         // Still update wings so they animate during flight
         this.updateWings();
+        this.updateFlightH();
 
         // Record afterimage snapshot during flight too
         if (frameCount % this.afterimageInterval === 0) {
@@ -3120,9 +3559,43 @@ class Butterfly extends Entity {
     }
 
     updateZIndex() {
+        if (this.isBoardMovementWorld() && this.boardPos && Number.isFinite(this.boardPos.u) && Number.isFinite(this.boardPos.v)) {
+            this.boardPos = this.clampBoardTarget(this.boardPos, this.boardPos.zoneId || this.getMovementZoneId());
+            this.syncDebugGridPos();
+        } else {
+            this.syncBoardPosFromScreen?.();
+        }
+        const renderer = typeof renderManager !== 'undefined' ? renderManager : null;
+        if (this.boardPos && renderer?.computeRenderSortKey) {
+            this.zIndex = renderer.computeRenderSortKey(this);
+            return;
+        }
         const baseGridY = this.gridPos?.y ?? 0;
         const baseGridX = this.gridPos?.x ?? 0;
         this.zIndex = (baseGridY * 1000) + baseGridX + 320;
+    }
+
+    syncBoardPosFromScreen(options = {}) {
+        const renderer = typeof renderManager !== 'undefined' ? renderManager : null;
+        const zoneId = options.zoneId
+            || this.currentZoneId
+            || this.lifeSim?.lifecycle?.currentZoneId
+            || gameCore?.getFocusedZoneId?.()
+            || null;
+        if (!zoneId || !renderer?.screenToBoard) return this.boardPos || null;
+        if (!options.force && this.isBoardMovementWorld() && this.boardPos && Number.isFinite(this.boardPos.u) && Number.isFinite(this.boardPos.v)) {
+            this.boardPos = this.clampBoardTarget(this.boardPos, this.boardPos.zoneId || zoneId);
+            return this.boardPos;
+        }
+        const groundY = (this.y || 0) + (this.shadowOffset || 0);
+        const boardPos = renderer.screenToBoard(this.x || 0, groundY, zoneId, 0);
+        this.boardPos = {
+            zoneId,
+            u: boardPos.u,
+            v: boardPos.v,
+            h: 0
+        };
+        return this.boardPos;
     }
 
     // === VISUAL UPDATES ===
@@ -3414,9 +3887,10 @@ class Butterfly extends Entity {
         const sleepState = this.getSleepState?.();
         if (sleepState?.subtype) return;
         const vs = this.getVisualScale();
+        const shadowPoint = this.getShadowScreenPoint();
         graphics.noStroke();
         graphics.fill(0, 0, 0, min(50, alpha * 0.2));
-        graphics.ellipse(this.x, this.y + this.shadowOffset, this.size * 0.8 * vs, this.size * 0.4 * vs);
+        graphics.ellipse(shadowPoint.x, shadowPoint.y, this.size * 0.8 * vs, this.size * 0.4 * vs);
     }
     
     // Override parent's entity drawing
@@ -3427,9 +3901,6 @@ class Butterfly extends Entity {
         const trailMode = typeof renderManager !== 'undefined'
             ? renderManager.getTrailVisibilityMode?.() || 'full'
             : 'full';
-        const smoothSprites = typeof renderManager !== 'undefined'
-            ? !!renderManager.shouldUseSmoothedButterflySprites?.()
-            : false;
         const startIndex = trailMode === 'reduced'
             ? Math.max(0, this.afterimages.length - Math.ceil(this.afterimages.length / 2))
             : 0;
@@ -3454,7 +3925,6 @@ class Butterfly extends Entity {
             graphics.noStroke();
 
             if (useSprites) {
-                if (smoothSprites) graphics.smooth();
                 graphics.tint(255, ghostAlpha);
 
                 this.drawSpriteBody(graphics, renderSpec);
@@ -3472,7 +3942,6 @@ class Butterfly extends Entity {
 
                 graphics.pop();
                 graphics.noTint();
-                if (smoothSprites) graphics.noSmooth();
             } else {
                 graphics.push();
                 graphics.rotate(wingTilt);
@@ -3519,7 +3988,11 @@ class Butterfly extends Entity {
 
         // Draw butterfly at current position
         graphics.push();
-        graphics.translate(this.x, this.y + (sleepVisual?.yOffset || 0));
+        const flightRenderOffset = this.getFlightRenderOffset();
+        graphics.translate(
+            this.x + flightRenderOffset.x,
+            this.y + flightRenderOffset.y + (sleepVisual?.yOffset || 0)
+        );
         if (sleepVisual?.tilt) {
             graphics.rotate(sleepVisual.tilt);
         }
@@ -3531,13 +4004,7 @@ class Butterfly extends Entity {
         
         graphics.noStroke();
 
-        // Choose sprite or procedural rendering
-        const smoothSprites = typeof renderManager !== 'undefined'
-            ? !!renderManager.shouldUseSmoothedButterflySprites?.()
-            : false;
-
         if (useSprites) {
-            if (smoothSprites) graphics.smooth();
             // Apply alpha for fading butterflies
             if (alpha < 255) {
                 graphics.tint(255, alpha);
@@ -3571,11 +4038,10 @@ class Butterfly extends Entity {
             graphics.pop();
             recordComponentCost('entityFamilyButterflyWingMs', wingStart);
 
-            // Remove tint and restore pixel-art rendering
+            // Remove tint after drawing this sprite batch.
             if (alpha < 255) {
                 graphics.noTint();
             }
-            if (smoothSprites) graphics.noSmooth();
         } else {
             // Fallback: original procedural rendering
             const wingStart = trackButterflyComponentCosts ? nowMs() : null;
@@ -4317,7 +4783,18 @@ class Butterfly extends Entity {
         this.lifeSim.lifecycle.deathState = null;
         
         // Reset movement to prevent weird glitches
-        this.movement.smoothFollowTarget = { x: this.gridPos.x, y: this.gridPos.y };
+        if (this.isBoardMovementWorld()) {
+            const boardPos = this.ensureBoardPos();
+            this.movement.smoothFollowTarget = {
+                x: boardPos?.u ?? this.gridPos.x,
+                y: boardPos?.v ?? this.gridPos.y,
+                u: boardPos?.u ?? this.gridPos.x,
+                v: boardPos?.v ?? this.gridPos.y,
+                zoneId: boardPos?.zoneId || this.getMovementZoneId()
+            };
+        } else {
+            this.movement.smoothFollowTarget = { x: this.gridPos.x, y: this.gridPos.y };
+        }
         
         // Pick a new wander target for active movement
         this.pickNewWanderTarget();

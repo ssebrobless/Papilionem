@@ -35,7 +35,9 @@ function buildRecordDigest(record) {
     tags: Array.isArray(record?.tags) ? [...record.tags].sort() : [],
     featureSchemaVersion: record?.featureSchemaVersion || null,
     traceSchemaVersion: record?.traceSchemaVersion || null,
+    activeTrace: record?.activeTrace || null,
     heuristicTrace: record?.heuristicTrace || null,
+    decisionHistory: record?.decisionHistory || [],
     trainingLabels: record?.trainingLabels || {},
     review: record?.review || {},
     features: record?.features || {}
@@ -49,6 +51,8 @@ function buildCorpusManifest(records = [], meta = {}) {
   let reviewedRecordCount = 0;
   let correctedRecordCount = 0;
   let correctedPolicyCount = 0;
+  let outcomeWindowRecordCount = 0;
+  let outcomeWindowEntryCount = 0;
 
   for (const record of records) {
     if (!record) continue;
@@ -64,6 +68,13 @@ function buildCorpusManifest(records = [], meta = {}) {
       correctedRecordCount += 1;
       correctedPolicyCount += recordCorrectedPolicies.length;
     }
+    const recordOutcomeWindowEntryCount = Array.isArray(record?.decisionHistory)
+      ? record.decisionHistory.filter(entry => !!entry?.outcomeWindow).length
+      : 0;
+    if (recordOutcomeWindowEntryCount > 0) {
+      outcomeWindowRecordCount += 1;
+      outcomeWindowEntryCount += recordOutcomeWindowEntryCount;
+    }
     const key = record.scenarioId || `scenario-${scenarioMap.size + 1}`;
     if (!scenarioMap.has(key)) {
       scenarioMap.set(key, {
@@ -73,6 +84,8 @@ function buildCorpusManifest(records = [], meta = {}) {
         reviewedRecordCount: 0,
         correctedRecordCount: 0,
         correctedPolicyCount: 0,
+        outcomeWindowRecordCount: 0,
+        outcomeWindowEntryCount: 0,
         tags: new Set()
       });
     }
@@ -84,6 +97,10 @@ function buildCorpusManifest(records = [], meta = {}) {
     if (recordCorrectedPolicies.length) {
       summary.correctedRecordCount += 1;
       summary.correctedPolicyCount += recordCorrectedPolicies.length;
+    }
+    if (recordOutcomeWindowEntryCount > 0) {
+      summary.outcomeWindowRecordCount += 1;
+      summary.outcomeWindowEntryCount += recordOutcomeWindowEntryCount;
     }
     for (const tag of record.tags || []) {
       if (tag) summary.tags.add(tag);
@@ -98,6 +115,8 @@ function buildCorpusManifest(records = [], meta = {}) {
       reviewedRecordCount: summary.reviewedRecordCount,
       correctedRecordCount: summary.correctedRecordCount,
       correctedPolicyCount: summary.correctedPolicyCount,
+      outcomeWindowRecordCount: summary.outcomeWindowRecordCount,
+      outcomeWindowEntryCount: summary.outcomeWindowEntryCount,
       tags: [...summary.tags].sort()
     }))
     .sort((left, right) => left.scenarioId.localeCompare(right.scenarioId));
@@ -122,6 +141,8 @@ function buildCorpusManifest(records = [], meta = {}) {
     reviewedRecordCount,
     correctedRecordCount,
     correctedPolicyCount,
+    outcomeWindowRecordCount,
+    outcomeWindowEntryCount,
     contractVersion: meta.contractVersion || null,
     featureSchemaVersion: meta.featureSchemaVersion || null,
     traceSchemaVersion: meta.traceSchemaVersion || null,
@@ -247,6 +268,10 @@ async function captureGardenScenario(page) {
     butterfly.blockInteraction.lastPlacementMode = 'ground';
 
     mlInferenceSystem.update(gameState, 0);
+    const startFrame = gameCore.getCurrentFrame?.() || mlInferenceSystem.frameCounter || 0;
+    for (let frame = 1; frame <= 72; frame += 1) {
+      mlInferenceSystem.update(gameState, 1 / 60, { currentFrame: startFrame + frame });
+    }
     const record = mlInferenceSystem.buildCorpusRecord(butterfly.id, gameState, {
       scenarioId: 'garden-object-focus',
       scenarioFamily: 'garden',
@@ -313,6 +338,10 @@ async function captureCommunicationScenario(page) {
     });
     communicationSystem.update(gameState, 1 / 60);
     mlInferenceSystem.update(gameState, 0);
+    const startFrame = gameCore.getCurrentFrame?.() || mlInferenceSystem.frameCounter || 0;
+    for (let frame = 1; frame <= 72; frame += 1) {
+      mlInferenceSystem.update(gameState, 1 / 60, { currentFrame: startFrame + frame });
+    }
 
     const record = mlInferenceSystem.buildCorpusRecord(teacher.id, gameState, {
       scenarioId: 'communication-teaching-signal',
@@ -399,6 +428,10 @@ async function captureEcologyScenario(page) {
       telemetrySystem.recordEcologySample(gameState, ecologySample);
     }
     mlInferenceSystem.update(gameState, 0);
+    const startFrame = gameCore.getCurrentFrame?.() || mlInferenceSystem.frameCounter || 0;
+    for (let frame = 1; frame <= 72; frame += 1) {
+      mlInferenceSystem.update(gameState, 1 / 60, { currentFrame: startFrame + frame });
+    }
 
     const record = mlInferenceSystem.buildCorpusRecord(butterfly.id, gameState, {
       scenarioId: 'ecology-return-home',

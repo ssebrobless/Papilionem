@@ -128,6 +128,30 @@
           "title": "Goal-Alignment Review Packet"
         },
         {
+          "path": "docs/G0-BAR-STAGE-A-SIGNOFF.md",
+          "title": "G0-Bar Stage A Signoff"
+        },
+        {
+          "path": "docs/G1-SPATIAL-ACCEPTANCE-SWEEP.md",
+          "title": "G1 Spatial Acceptance Sweep"
+        },
+        {
+          "path": "docs/G2-LIVE-BUILDING-BEHAVIOR-PROOF.md",
+          "title": "G2 Live Building Behavior Proof"
+        },
+        {
+          "path": "docs/G3-MOVEMENT-NATURALNESS-ACCEPTANCE.md",
+          "title": "G3 Movement Naturalness Acceptance"
+        },
+        {
+          "path": "docs/COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md",
+          "title": "Composed Benchmark Harness Workflow"
+        },
+        {
+          "path": "docs/COMPOSED-BENCHMARK-BASELINE-2026-04-27.md",
+          "title": "Composed Benchmark Baseline 2026-04-27"
+        },
+        {
           "path": "docs/ACTIVE-PLAYTEST-FOLLOWUP-BOARD.md",
           "title": "Active Playtest Follow-Up Board"
         },

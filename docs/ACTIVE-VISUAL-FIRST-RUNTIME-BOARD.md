@@ -45,6 +45,8 @@ Read this together with:
 - [V5-COMPOSITE-REDUCTION-AUDIT.md](./V5-COMPOSITE-REDUCTION-AUDIT.md)
 - [V6-WORKER-OFFLOAD-AUDIT.md](./V6-WORKER-OFFLOAD-AUDIT.md)
 - [V7-VISUAL-RESTORATION-AUDIT.md](./V7-VISUAL-RESTORATION-AUDIT.md)
+- [COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md](./COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md)
+- [COMPOSED-BENCHMARK-BASELINE-2026-04-27.md](./COMPOSED-BENCHMARK-BASELINE-2026-04-27.md)
 - [CURRENT-SPATIAL-TRUTH.md](./CURRENT-SPATIAL-TRUTH.md)
 
 ## Current Honest Block
@@ -64,6 +66,24 @@ current blocker
 next proof
 |- c8 runtime-only proof -> frozen live on the committed lived-in save
 `- v8b full-stack proof  -> next runtime gate after `c9` outside-session triage closes
+
+post-v8a runtime watch
+|- composed benchmark harness is now live
+|- current branch tip must be judged against `single-zone-122`, not only synthetic `butterflies-N`
+|- retained local recovery stack now brings the old clustered `single-zone-122` from `127.77 / 45.91 / 172.5` to `52.18 / 43.53 / 94.9`
+|- the refreshed scattered `single-zone-122` packet on `56c9a4f` first landed at `52.43 / 50.20 / 102.8`
+|- post-structure-query cut, scattered `single-zone-122` now lands at `43.77 / 44.98 / 89.4`
+|- dense-flower direct-present gate now repairs `flower-feed-storm` to `32.54 / 63.95 / 98.2`
+|- communication-maintenance + decision-trace cache now bring `single-zone-200` to `86.37 / 55.22 / 141.5`
+|- the same retained slice moves scattered `single-zone-122` to `36.62 / 43.15 / 81.1`
+|- structure-system frame-local runtime caches then move `single-zone-200` to `81.39 / 55.82 / 135.3`
+|- the same retained slice keeps `single-zone-122` at `39.27 / 43.54 / 81.3`
+|- pressure-gated crowd/cursor checks + critical communication cadence now move `single-zone-200` to `80.87 / 54.92 / 134.0`
+|- the same retained slice moves `single-zone-122` to `34.71 / 41.86 / 74.7`
+|- flower/feed and block/carry watch lanes both improve under the retained slice
+|- carry/build guardrails still hold -> `a4` pass / `b4` pass
+|- social/movement guardrails still hold -> `r6` pass / `f5-f6` pass / `r1` pass
+`- runtime diagnosis stays active because the blocker has narrowed again: `single-zone-200` is still the remaining composed stress lane, while `single-zone-122`, `flower-feed-storm`, and `block-carry-active` are all local holds
 ```
 
 ## Status Key
@@ -172,7 +192,14 @@ current focus
    |- inherited truth  -> shellUiDom is live, `bakedCreatureSprites` is live, 18/36/30 cadence is live, the retained v5 composite stack is live, and trails ship off by default with reduced/full available
    |- current evidence -> shipped-default `h5` is green, soak40 is green at 0 warnings / 0 errors / 0 freezeSuspects, `r4` is green, `a4` is green, and the full five-lane pack is on disk
    |- carry-forward    -> the short battle lane still logs 4 freeze suspects inside the five-lane pack, so keep that lane watched in `v8b`
-   `- next runtime gate -> `v8b` full-stack proof after `c9` outside-session triage closes
+   |- composed reality lane -> communication/trace-cache follow-up now has scattered `single-zone-122` at `36.62ms` avg update / `43.15ms` avg render / `81.1ms` p50
+   |- composed carry lane   -> repaired locally to `30.47ms` avg update / `55.1ms` p50 / `73.1ms` p95 and still passes `b4`
+   |- composed flower lane  -> repaired locally to `29.66ms` avg update / `61.31ms` avg render / `88.7ms` p50 and remains a watch lane only
+   |- composed blocker      -> `single-zone-200` is now the remaining stress lane at `80.87ms` avg update / `54.92ms` avg render / `134.0ms` p50
+   |- social guardrails     -> `r6` pass / `f5-f6` pass after the communication maintenance cut
+   |- movement guardrail    -> `r1` pass after the cursor-risk lookup cut
+   |- spatial/build guardrails -> `a4` pass / `b4` pass after the structure-runtime-cache cut
+   `- next runtime gate -> `v8b` full-stack proof after `c9` outside-session triage closes, with composed stress-lane remediation still pending locally
 ```
 
 ## Latest V4 Note
@@ -249,6 +276,61 @@ v8a runtime-only closeout
 |- soak gate -> warnings 0 | errors 0 | freezeSuspects 0
 |- no-flag hold -> qa_screenshots/h5_long_running_save_smoothness_audit/2026-04-26T01-37-28-769Z/report.json -> pass
 `- honest read -> `v8a` is now frozen honestly; the runtime-only blocker is cleared locally, and the next runtime gate is `v8b`
+```
+
+## Latest Composed Harness Note
+
+```text
+2026-04-27 composed runtime reality check
+|- workflow owner -> COMPOSED-BENCHMARK-HARNESS-WORKFLOW.md
+|- official packet -> COMPOSED-BENCHMARK-BASELINE-2026-04-27.md
+|- reality baseline -> single-zone-122
+|- stress baseline  -> single-zone-200
+|- targeted lanes   -> block-carry-active / flower-feed-storm
+|- realistic hotspot 1 -> butterfly crowd / flower-targeting update path
+|- realistic hotspot 2 -> flowers-direct composite / butterfly-present render path
+`- honest read -> synthetic `butterflies-N` sweeps remain useful, but they are no longer the primary runtime truth for real-play cost
+```
+
+## Latest Single-Zone-200 Note
+
+```text
+single-zone-200 retained local stack
+|- communication maintenance cadence under pressure
+|- per-frame butterfly decision-trace / policy-choice cache
+|- structureSystem frame-local collision-query cache
+|- structureSystem frame-local spatial-context cache
+|- pressure-gated normal crowd-retarget proximity checks
+|- lazy cursor risk-profile lookup
+`- cached communication maintenance phase per entity / interval
+
+retained proof
+|- single-zone-200 -> `96.94 / 56.00 / 153.1` -> `86.37 / 55.22 / 141.5` -> `81.39 / 55.82 / 135.3` -> `80.87 / 54.92 / 134.0`
+|- single-zone-122 -> now holds at `34.71 / 41.86 / 74.7`
+|- flower lane     -> holds at `29.66 / 61.31 / 88.7`
+|- carry lane      -> holds at `30.47 / 25.78 / 55.1 / 73.1`
+|- social guards   -> `r6` pass / `f5-f6` pass
+|- movement guard  -> `r1` pass
+`- spatial/build guards -> `a4` pass / `b4` pass
+
+honest read
+|- the remaining local blocker is no longer broad structure churn
+|- the active stress lane is now smaller and more specific
+|  |- composite / drawImage tail
+|  |- residual butterfly-update pressure
+|  `- only remaining structure-query misses that escaped the frame-local caches
+`- `single-zone-122` is no longer an active blocker unless we want extra margin beyond the old note
+```
+
+## Latest Harness Accounting Note
+
+```text
+composed benchmark telemetry correction
+|- `render.composite.totalCompositeMs` now includes direct-flower present cost
+|- top-contributor attribution now filters to timing keys ending in `Ms`
+|- proof artifact -> qa_logs/bench/flower_feed_composite_accounting_sanity/flower-feed-storm-2026-04-28T18-02-05-444Z.json
+|- proved shape   -> totalComposite 69.22ms / flowersDirectPresent 64.88ms / timing-only top render contributors
+`- caution        -> local absolute timings from this sanity run were noisy and are not promoted over the retained runtime proof above
 ```
 
 ## Latest V3 Note

@@ -1,0 +1,23 @@
+{
+  "id": "seed-jealousy",
+  "seed": 303,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 7, "v": 12, "h": 0 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 8, "v": 12, "h": 0 } },
+    { "id": "c", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 12, "h": 0 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.68, "comfort": 0.62, "attachment": 0.65, "bondTier": "companion", "coTimeSeconds": 900 } },
+    { "source": "a", "target": "c", "values": { "trust": 0.16, "comfort": 0.12, "attachment": 0.08 } }
+  ],
+  "actions": [
+    { "type": "witness_affection", "source": "b", "targets": ["c"], "witnesses": ["a"], "affectionIntensity": 0.82, "intentTags": ["comfort", "companionship", "warmth"] },
+    { "type": "advance_cognition", "seconds": 5 }
+  ],
+  "assertions": [
+    { "type": "memory_packet", "entity": "a", "family": "social", "kind": "witnessedAffection", "min": 1 },
+    { "type": "feeling_min", "entity": "a", "key": "jealousy", "min": 0.3 },
+    { "type": "edge_min", "entity": "a", "target": "c", "key": "rivalry", "min": 0.04 }
+  ]
+}

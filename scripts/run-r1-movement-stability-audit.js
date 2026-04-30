@@ -194,15 +194,33 @@ async function run() {
 
     await phase(page, report, outputDir, '02-physics-owns-final-motion', async () => {
       const setup = await page.evaluate(() => {
-        const focusedZoneId = gameCore.getFocusedZoneId();
+        const trainingZoneId = teachingSystem.getTrainingZone?.()?.id || null;
+        const focusedZoneId = (gameCore.getZoneIds?.() || []).find(zoneId => zoneId !== trainingZoneId)
+          || gameCore.getFocusedZoneId();
+        if (!focusedZoneId || !gameCore.focusZone(focusedZoneId)) {
+          return { ok: false, reason: 'missing-non-training-zone', trainingZoneId, focusedZoneId };
+        }
+
+        const beforeIds = new Set((gameCore.gameState.butterflies || []).map(entry => entry.id));
+        const zoneCenter = gameCore.getZoneCenter(focusedZoneId);
+        if (zoneCenter) {
+          gameCore.godSpawnButterfly(zoneCenter.x, zoneCenter.y, null);
+        }
+
         const butterfly = (gameCore.gameState.butterflies || []).find(entry =>
           entry?.id &&
           !entry.zoneTravel &&
           !entry.isSpawning &&
-          (entry.birthSource === 'debug' || gameCore.getEntityZoneId(entry, null) === focusedZoneId)
+          beforeIds.has(entry.id) === false &&
+          gameCore.getEntityZoneId(entry, null) === focusedZoneId
+        ) || (gameCore.gameState.butterflies || []).find(entry =>
+          entry?.id &&
+          !entry.zoneTravel &&
+          !entry.isSpawning &&
+          gameCore.getEntityZoneId(entry, null) === focusedZoneId
         ) || null;
         if (!butterfly) {
-          return { ok: false, reason: 'missing-butterfly' };
+          return { ok: false, reason: 'missing-butterfly', trainingZoneId, focusedZoneId };
         }
 
         const originGround = {
@@ -219,8 +237,10 @@ async function run() {
         return {
           ok: true,
           butterflyId: butterfly.id,
+          focusedZoneId,
+          trainingZoneId,
           originGround,
-          setupFrame: typeof frameCount === 'number' ? frameCount : 0
+          setupFrame: gameCore.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0)
         };
       });
 

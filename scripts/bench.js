@@ -31,7 +31,8 @@ function parseArgs(argv) {
         headless: true,
         profile: false,
         profileIntervalMicros: 500,
-        allowErrors: false
+        allowErrors: false,
+        worldRenderMode: null
     };
     for (let i = 0; i < argv.length; i += 1) {
         const arg = argv[i];
@@ -52,6 +53,13 @@ function parseArgs(argv) {
             i += 1;
         } else if (arg === '--allow-errors') {
             args.allowErrors = true;
+        } else if (arg === '--world-render-mode') {
+            const mode = argv[i + 1];
+            if (!['section-scenes', 'sim-board'].includes(mode)) {
+                throw new Error(`Unknown world render mode: ${mode}`);
+            }
+            args.worldRenderMode = mode;
+            i += 1;
         } else if (arg.startsWith('--')) {
             throw new Error(`Unknown flag: ${arg}`);
         } else {
@@ -166,7 +174,12 @@ async function main() {
 
     let session = null;
     try {
-        session = await launchHarness({ baseUrl: ctx.baseUrl, headless: args.headless });
+        const effectiveWorldRenderMode = args.worldRenderMode || scenarioRaw.worldRenderMode || null;
+        session = await launchHarness({
+            baseUrl: ctx.baseUrl,
+            headless: args.headless,
+            worldRenderMode: effectiveWorldRenderMode
+        });
         const digestLabel = `${scenarioRaw.label}-${stamp()}`;
         const profilePath = args.profile
             ? path.join(outputDir, `${digestLabel}.cpuprofile`)
@@ -189,6 +202,7 @@ async function main() {
             focusZoneId: scenarioRaw.focusZoneId,
             viewMode: scenarioRaw.viewMode,
             scatterButterfliesAcrossZone: scenarioRaw.scatterButterfliesAcrossZone,
+            disableAutoHabitatTravel: scenarioRaw.disableAutoHabitatTravel,
             warmupFrames: scenarioRaw.warmupFrames,
             captureFrames: scenarioRaw.captureFrames,
             label: scenarioRaw.label,
@@ -223,7 +237,8 @@ async function main() {
                 viewMode: result.entities?.viewMode ?? null,
                 pageErrorCount: runtimeErrors.pageErrors.length,
                 consoleErrorCount: runtimeErrors.consoleErrors.length,
-                allowErrors: args.allowErrors
+                allowErrors: args.allowErrors,
+                worldRenderMode: effectiveWorldRenderMode
             },
             frameTimes,
             raw: args.raw ? result.capture : null
@@ -246,7 +261,8 @@ async function main() {
             peakHeapMB: summary.peakHeapMB,
             spriteCacheHits: summary.spriteCacheHits,
             spriteCacheMisses: summary.spriteCacheMisses,
-            spriteCacheEvictions: summary.spriteCacheEvictions
+            spriteCacheEvictions: summary.spriteCacheEvictions,
+            worldRenderMode: effectiveWorldRenderMode
         }, null, 2));
 
         const breakdown = summary?.breakdown || {};

@@ -6,7 +6,9 @@
     "blockCount": 108,
     "focusZoneId": "ivy-cloister",
     "viewMode": "focused-garden",
+    "worldRenderMode": "section-scenes",
     "scatterButterfliesAcrossZone": true,
+    "disableAutoHabitatTravel": true,
     "warmupFrames": 120,
     "captureFrames": 600,
     "notes": "Mirrors the 2026-04-27T01-02-01 manual capture (122 butterflies / 48 visible flowers / 108 blocks in ivy-cloister focused-garden). Validated 2026-04-26: bench p50 frame 83ms vs capture 86ms (97%), avg update 63ms vs capture 76ms (84%), butterflyUpdateMs 38.5 vs 36.5 (~dead on). Use this scenario as the realistic gameplay reference, not the synthetic butterflies-N scenarios."

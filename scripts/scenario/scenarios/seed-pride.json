@@ -1,0 +1,20 @@
+{
+  "id": "seed-pride",
+  "seed": 404,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 6, "v": 7, "h": 0 } }
+  ],
+  "objects": [
+    { "id": "block-a", "type": "block", "boardPos": { "zoneId": "ivy-cloister", "u": 7, "v": 7, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "outcome_anchor", "source": "a", "anchor": "pride", "reason": "caregiving-success", "strength": 0.7 }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 1 },
+    { "type": "object_count", "min": 1 },
+    { "type": "memory_packet", "entity": "a", "family": "outcome", "anchor": "pride", "min": 1 },
+    { "type": "feeling_min", "entity": "a", "key": "pride", "min": 0.45 }
+  ]
+}

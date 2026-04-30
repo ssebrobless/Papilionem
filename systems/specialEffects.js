@@ -201,16 +201,51 @@ class SpecialEffectsSystem {
         };
     }
 
+    getBoardPixelsPerUnit(zoneId = null) {
+        const projection = renderManager?.getProjectionForZone?.(zoneId) || {};
+        return Number.isFinite(projection.ppu)
+            ? projection.ppu
+            : (gameConfig?.spatial?.projection?.ppu || 20);
+    }
+
+    getAbilityRadiusPixels(radiusUnits, zoneId = null) {
+        return Math.max(0, radiusUnits || 0) * this.getBoardPixelsPerUnit(zoneId);
+    }
+
+    getAbilityRadiusUnits(radiusPx, zoneId = null) {
+        const ppu = this.getBoardPixelsPerUnit(zoneId);
+        return ppu ? (Math.max(0, radiusPx || 0) / ppu) : 0;
+    }
+
+    withAbilityRadiusUnits(defaults, zoneId = null) {
+        const abilityRadiusUnits = Number.isFinite(defaults.abilityRadiusUnits)
+            ? defaults.abilityRadiusUnits
+            : this.getAbilityRadiusUnits(defaults.abilityRadius || 0, zoneId);
+        return {
+            ...defaults,
+            abilityRadiusUnits,
+            abilityRadius: Number.isFinite(defaults.abilityRadius)
+                ? defaults.abilityRadius
+                : this.getAbilityRadiusPixels(abilityRadiusUnits, zoneId)
+        };
+    }
+
     getAbilityVisualDefaults(ability = 'ability') {
-        switch (ability) {
+        const normalizedAbility = ability === 'warmRally'
+            ? 'welcome'
+            : ability === 'shimmerVeil'
+                ? 'shimmerVeil'
+                : ability;
+        switch (normalizedAbility) {
             case 'welcome':
-                return {
+                return this.withAbilityRadiusUnits({
                     visualStyle: 'ring',
                     abilityRadius: 90,
+                    abilityRadiusUnits: 4.5,
                     durationFrames: 28,
                     primaryColor: [255, 165, 0],
                     secondaryColor: [255, 215, 0]
-                };
+                });
             case 'sparkle':
                 return {
                     visualStyle: 'trail',
@@ -219,13 +254,14 @@ class SpecialEffectsSystem {
                     secondaryColor: [255, 20, 147]
                 };
             case 'speedzone':
-                return {
+                return this.withAbilityRadiusUnits({
                     visualStyle: 'ring',
                     abilityRadius: 100,
+                    abilityRadiusUnits: 5,
                     durationFrames: 32,
                     primaryColor: [138, 43, 226],
                     secondaryColor: [75, 0, 130]
-                };
+                });
             case 'cascade':
                 return {
                     visualStyle: 'symbol',
@@ -245,13 +281,23 @@ class SpecialEffectsSystem {
                     secondaryColor: [106, 90, 205]
                 };
             case 'shimmer':
-                return {
+                return this.withAbilityRadiusUnits({
                     visualStyle: 'ring',
                     abilityRadius: 85,
+                    abilityRadiusUnits: 4.25,
                     durationFrames: 26,
                     primaryColor: [218, 112, 214],
                     secondaryColor: [0, 255, 255]
-                };
+                });
+            case 'shimmerVeil':
+                return this.withAbilityRadiusUnits({
+                    visualStyle: 'ring',
+                    abilityRadius: 100,
+                    abilityRadiusUnits: 5,
+                    durationFrames: 26,
+                    primaryColor: [218, 112, 214],
+                    secondaryColor: [0, 255, 255]
+                });
             case 'golden':
                 return {
                     visualStyle: 'symbol',
@@ -307,6 +353,17 @@ class SpecialEffectsSystem {
         const x = source?.x ?? data.x;
         const y = source?.y ?? data.y;
         if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+        const zoneId = source?.currentZoneId || source?.lifeSim?.lifecycle?.currentZoneId || data.zoneId || null;
+        const abilityRadiusUnits = Number.isFinite(data.abilityRadiusUnits)
+            ? data.abilityRadiusUnits
+            : (Number.isFinite(defaults.abilityRadiusUnits)
+                ? defaults.abilityRadiusUnits
+                : this.getAbilityRadiusUnits(data.abilityRadius || defaults.abilityRadius || 24, zoneId));
+        const abilityRadius = Math.max(12, data.abilityRadius || this.getAbilityRadiusPixels(abilityRadiusUnits, zoneId) || defaults.abilityRadius || 24);
+        const abilityRadiusDebug = {
+            units: Math.round(abilityRadiusUnits * 100) / 100,
+            px: Math.round(abilityRadius)
+        };
 
         const effectType = visualStyle === 'ring' ? 'abilityring' : 'abilitysymbol';
         const durationFrames = Math.max(8, data.durationFrames || defaults.durationFrames || 24);
@@ -324,7 +381,9 @@ class SpecialEffectsSystem {
             existing.maxLifetime = durationFrames;
             existing.primaryColor = data.primaryColor || defaults.primaryColor || existing.primaryColor;
             existing.secondaryColor = data.secondaryColor || defaults.secondaryColor || existing.secondaryColor;
-            existing.abilityRadius = Math.max(12, data.abilityRadius || defaults.abilityRadius || existing.abilityRadius || 24);
+            existing.abilityRadiusUnits = abilityRadiusUnits;
+            existing.abilityRadius = abilityRadius;
+            existing.abilityRadiusDebug = abilityRadiusDebug;
             existing.symbol = data.symbol || defaults.symbol || existing.symbol || null;
             existing.fallbackSymbol = data.fallbackSymbol || defaults.fallbackSymbol || existing.fallbackSymbol || null;
             return;
@@ -336,12 +395,14 @@ class SpecialEffectsSystem {
             type: effectType,
             ability,
             sourceId,
-            zoneId: source?.currentZoneId || source?.lifeSim?.lifecycle?.currentZoneId || data.zoneId || null,
+            zoneId,
             x,
             y,
             lifetime: durationFrames,
             maxLifetime: durationFrames,
-            abilityRadius: Math.max(12, data.abilityRadius || defaults.abilityRadius || 24),
+            abilityRadiusUnits,
+            abilityRadius,
+            abilityRadiusDebug,
             symbol: data.symbol || defaults.symbol || null,
             fallbackSymbol: data.fallbackSymbol || defaults.fallbackSymbol || null,
             phaseOffset: random(0, 200),
@@ -596,7 +657,10 @@ class SpecialEffectsSystem {
         const performanceProfile = renderProfile || this.getRenderPressureProfile();
         const groundPlaneProfile = this.getGroundPlaneProfile();
         const pulse = 1 + (sin((frameCount + effect.phaseOffset) * 0.08) * (performanceProfile.ringPulseScale ?? 0.03));
-        const radius = (effect.abilityRadius || 24) * pulse;
+        const baseRadius = Number.isFinite(effect.abilityRadiusUnits)
+            ? this.getAbilityRadiusPixels(effect.abilityRadiusUnits, effect.zoneId)
+            : (effect.abilityRadius || 24);
+        const radius = baseRadius * pulse;
         if (performanceProfile.tier === 'minimal') {
             graphics.stroke(effect.secondaryColor[0], effect.secondaryColor[1], effect.secondaryColor[2], alpha * 0.58);
             graphics.strokeWeight(1.4);

@@ -62,7 +62,15 @@ function buildCaptureSummary(payload = {}) {
     const telemetry = payload.telemetry || {};
     const attribution = telemetry.attribution || {};
     const memoryAttribution = telemetry.memoryAttribution || {};
-    const spriteCache = memoryAttribution.spriteCache || {};
+    const summarySpriteCache = {
+        entryCount: summary.spriteCacheEntryCount,
+        maxEntries: summary.spriteCacheMaxEntries,
+        estimatedSurfaceMB: summary.spriteCacheEstimatedSurfaceMB,
+        cacheHits: summary.spriteCacheCacheHits,
+        cacheMisses: summary.spriteCacheCacheMisses,
+        topFamilies: summary.spriteCacheTopFamilies
+    };
+    const spriteCache = memoryAttribution.spriteCache || summarySpriteCache;
     const startState = payload.startState || {};
     const endState = payload.endState || {};
     const eventCounts = summary.eventCounts || {};

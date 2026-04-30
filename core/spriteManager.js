@@ -453,6 +453,7 @@ class SpriteManager {
         return {
             enabled: this.isBakedCreatureSpritesEnabled(),
             entryCount: this.bakedSpriteCache.size,
+            familyCount: families.length,
             maxEntries: this.getMaxBakedSpriteCount(),
             estimatedSurfaceMB: Number(estimatedSurfaceMB.toFixed(4)),
             cacheHits: Number(stats.hits || 0),
@@ -461,7 +462,8 @@ class SpriteManager {
             evictions: Number(stats.evictions || 0),
             evictedEstimatedSurfaceMB: Number((stats.evictedEstimatedSurfaceMB || 0).toFixed(4)),
             families,
-            topFamilies: families.slice(0, 4).map(entry => ({ ...entry }))
+            topFamilies: families.slice(0, 4).map(entry => ({ ...entry })),
+            debugLine: `baked sprites: ${Number(stats.hits || 0)}/${Number(stats.misses || 0)} | ${families.length} families | ${this.bakedSpriteCache.size} entries | ${Number(estimatedSurfaceMB.toFixed(4)).toFixed(2)}MB`
         };
     }
 
@@ -473,8 +475,8 @@ class SpriteManager {
         const cached = this.sourceAlphaBounds.get(image);
         if (cached) return cached;
 
-        image.loadPixels();
-        const data = image.pixels || [];
+        const imageData = this.getImageReadbackData(image);
+        const data = imageData?.data || [];
         let minX = image.width;
         let minY = image.height;
         let maxX = -1;
@@ -509,6 +511,26 @@ class SpriteManager {
         return bounds;
     }
 
+    getImageReadbackData(image) {
+        if (!image) return null;
+        if (typeof document === 'undefined' || !image.canvas) {
+            image.loadPixels?.();
+            return {
+                data: image.pixels || [],
+                width: image.width || 0,
+                height: image.height || 0
+            };
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width || image.canvas.width || 1;
+        canvas.height = image.height || image.canvas.height || 1;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) return null;
+        ctx.drawImage(image.canvas, 0, 0, canvas.width, canvas.height);
+        return ctx.getImageData(0, 0, canvas.width, canvas.height);
+    }
+
     expandBounds(bounds, image, padding = 1) {
         if (!bounds || !image) {
             return { x: 0, y: 0, width: 0, height: 0 };
@@ -526,9 +548,10 @@ class SpriteManager {
     }
 
     createBakedSurface(width, height, drawFn, options = {}) {
-        const { smooth = false } = options;
-        const bakedWidth = this.normalizeBakedSpriteDimension(width);
-        const bakedHeight = this.normalizeBakedSpriteDimension(height);
+        const { smooth = true, surfaceScale = 1 } = options;
+        const bakeScale = Math.max(1, Number(surfaceScale) || 1);
+        const bakedWidth = this.normalizeBakedSpriteDimension(width * bakeScale);
+        const bakedHeight = this.normalizeBakedSpriteDimension(height * bakeScale);
         const surface = createGraphics(bakedWidth, bakedHeight);
         surface.pixelDensity(1);
         surface.clear();
@@ -676,7 +699,8 @@ class SpriteManager {
         return this.getCachedBakedSurface(cacheKey, () => this.createBakedSurface(
             bakedWidth,
             bakedHeight,
-            surface => surface.image(this.body, 0, 0, bakedWidth, bakedHeight)
+            surface => surface.image(this.body, 0, 0, bakedWidth, bakedHeight),
+            { smooth: true }
         ));
     }
 
@@ -702,7 +726,8 @@ class SpriteManager {
                     bounds.y,
                     bounds.width,
                     bounds.height
-                )
+                ),
+                { smooth: true }
             ),
             drawWidth,
             drawHeight,
@@ -720,7 +745,8 @@ class SpriteManager {
         return this.getCachedBakedSurface(cacheKey, () => this.createBakedSurface(
             bakedWidth,
             bakedHeight,
-            surface => surface.image(this.antenna, 0, 0, bakedWidth, bakedHeight)
+            surface => surface.image(this.antenna, 0, 0, bakedWidth, bakedHeight),
+            { smooth: true }
         ));
     }
 
@@ -747,7 +773,8 @@ class SpriteManager {
                     bounds.y,
                     bounds.width,
                     bounds.height
-                )
+                ),
+                { smooth: true }
             ),
             drawWidth,
             drawHeight,
@@ -778,7 +805,8 @@ class SpriteManager {
         return this.getCachedBakedSurfaceIfEnabled(this.isBakedCreatureSpritesEnabled(), cacheKey, () => this.createBakedSurface(
             bakedWidth,
             bakedHeight,
-            surface => surface.image(piece, 0, 0, bakedWidth, bakedHeight)
+            surface => surface.image(piece, 0, 0, bakedWidth, bakedHeight),
+            { smooth: true }
         ));
     }
 
@@ -799,19 +827,20 @@ class SpriteManager {
             surface: this.createBakedSurface(
                 drawWidth,
                 drawHeight,
-                renderSurface => atlasEntry
-                    ? renderSurface.image(piece, 0, 0, drawWidth, drawHeight)
+                (renderSurface, bakedWidth, bakedHeight) => atlasEntry
+                    ? renderSurface.image(piece, 0, 0, bakedWidth, bakedHeight)
                     : renderSurface.image(
                         piece,
                         0,
                         0,
-                        drawWidth,
-                        drawHeight,
+                        bakedWidth,
+                        bakedHeight,
                         bounds.x,
                         bounds.y,
                         bounds.width,
                         bounds.height
-                    )
+                    ),
+                { smooth: true, surfaceScale: 2 }
             ),
             drawWidth,
             drawHeight,
@@ -839,19 +868,20 @@ class SpriteManager {
             surface: this.createBakedSurface(
                 drawWidth,
                 drawHeight,
-                renderSurface => atlasEntry
-                    ? renderSurface.image(piece, 0, 0, drawWidth, drawHeight)
+                (renderSurface, bakedWidth, bakedHeight) => atlasEntry
+                    ? renderSurface.image(piece, 0, 0, bakedWidth, bakedHeight)
                     : renderSurface.image(
                         piece,
                         0,
                         0,
-                        drawWidth,
-                        drawHeight,
+                        bakedWidth,
+                        bakedHeight,
                         bounds.x,
                         bounds.y,
                         bounds.width,
                         bounds.height
-                    )
+                    ),
+                { smooth: true, surfaceScale: 2 }
             ),
             drawWidth,
             drawHeight,
@@ -872,7 +902,8 @@ class SpriteManager {
         return this.getCachedBakedSurface(cacheKey, () => this.createBakedSurface(
             bakedWidth,
             bakedHeight,
-            surface => surface.image(frame, 0, 0, bakedWidth, bakedHeight)
+            surface => surface.image(frame, 0, 0, bakedWidth, bakedHeight),
+            { smooth: true }
         ));
     }
 
@@ -898,7 +929,8 @@ class SpriteManager {
                     bounds.y,
                     bounds.width,
                     bounds.height
-                )
+                ),
+                { smooth: true }
             ),
             drawWidth,
             drawHeight,
@@ -917,21 +949,27 @@ class SpriteManager {
         return this.getCachedBakedSurface(cacheKey, () => this.createBakedSurface(
             bakedWidth,
             bakedHeight,
-            surface => surface.image(sprite, 0, 0, bakedWidth, bakedHeight)
+            surface => surface.image(sprite, 0, 0, bakedWidth, bakedHeight),
+            { smooth: true }
         ));
     }
 
     // Convert near-black pixels to transparent
     // Conservative threshold preserves dark wing details (e.g. electric-violet's dark blues)
     _removeBlackBackground(img) {
-        img.loadPixels();
-        const d = img.pixels;
+        const imageData = this.getImageReadbackData(img);
+        const d = imageData?.data || [];
         for (let i = 0; i < d.length; i += 4) {
             if (d[i] + d[i + 1] + d[i + 2] < 30) {
                 d[i + 3] = 0;
             }
         }
-        img.updatePixels();
+        if (img?.drawingContext && imageData) {
+            img.drawingContext.putImageData(imageData, 0, 0);
+            img._modified = true;
+        } else {
+            img.updatePixels?.();
+        }
     }
 
     hasWings(personalityType, sex = 'F') {

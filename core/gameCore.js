@@ -879,6 +879,12 @@ class GameCore {
                 await this.saveSystem?.saveToStorage?.(this.gameState, { source: 'block-backfill' });
             }
 
+            const g0Cleanup = this.applyG0GardenReadabilityCleanup?.();
+            if (g0Cleanup?.changed) {
+                console.log('G0 garden cleanup applied:', g0Cleanup);
+                await this.saveSystem?.saveToStorage?.(this.gameState, { source: 'g0-garden-cleanup' });
+            }
+
             this.completedSteps.add('initialEntities');
             console.log('✓ Saved game restored from storage');
             return true;
@@ -889,7 +895,11 @@ class GameCore {
     }
     
     isSectionSceneWorld() {
-        return gameConfig?.world?.renderMode === 'section-scenes';
+        return ['section-scenes', 'sim-board'].includes(gameConfig?.world?.renderMode);
+    }
+
+    isSimBoardWorld() {
+        return gameConfig?.world?.renderMode === 'sim-board';
     }
 
     getZoneIds() {
@@ -898,6 +908,11 @@ class GameCore {
 
     getZoneConfig(zoneId) {
         return this.zoneSystem?.getZone?.(zoneId) || (gameConfig?.world?.zones || []).find(zone => zone.id === zoneId) || null;
+    }
+
+    canSpawnBlocksInZone(zoneId) {
+        const zone = this.getZoneConfig(zoneId);
+        return zone?.kind !== 'training';
     }
 
     getZoneEcologyProfile(zoneId) {
@@ -909,7 +924,8 @@ class GameCore {
     }
 
     getZonePlacementRegion(zoneId) {
-        return this.gridManager?.getZonePlacementRegion?.(zoneId)
+        return this.zoneSystem?.getZonePlacementRegion?.(zoneId)
+            || this.gridManager?.getZonePlacementRegion?.(zoneId)
             || this.getZoneScreenRegion(zoneId);
     }
 
@@ -1069,6 +1085,27 @@ class GameCore {
     }
 
     getRandomZonePoint(zoneId = this.getFocusedZoneId(), padding = 28, options = {}) {
+        if (this.isSimBoardWorld?.()) {
+            const region = this.getZonePlacementRegion(zoneId);
+            if (region) {
+                const edgeInset = Math.max(0, options?.edgeInset || 0);
+                const inset = Math.max(0, padding || 0, edgeInset);
+                const minX = region.minX + inset;
+                const maxX = region.maxX - inset;
+                const minY = region.minY + inset;
+                const maxY = region.maxY - inset;
+                if (minX < maxX && minY < maxY) {
+                    return {
+                        x: random(minX, maxX),
+                        y: random(minY, maxY)
+                    };
+                }
+                return {
+                    x: (region.minX + region.maxX) / 2,
+                    y: (region.minY + region.maxY) / 2
+                };
+            }
+        }
         return this.gridManager?.getRandomPointInZone?.(zoneId, padding, 40, options) || this.getZoneCenter(zoneId);
     }
 
@@ -1619,6 +1656,18 @@ class GameCore {
         const minDistance = options.minDistance || gameConfig?.entities?.flower?.spawnMinDistance || 40;
         const maxAttempts = options.maxAttempts || 30;
         const exactPoint = !!options.exactPoint;
+        const normalFlowerCount = zoneFlowers.filter(flower =>
+            flower
+            && (flower.lifecycleKind || 'flower') === 'flower'
+            && flower.stage !== 'dissolve'
+            && (flower.occupancyState || 'normal') === 'normal'
+        ).length;
+        const flowerCap = options.maxZoneFlowers || this.getReadableFlowerCapForZone(resolvedZoneId, {
+            flowers: zoneFlowers
+        });
+        if (!options.ignoreZoneFlowerCap && normalFlowerCount >= flowerCap) {
+            return null;
+        }
         const resolvedPoint = exactPoint && preferredPoint
             ? this.clampPlacementPointInZone(resolvedZoneId, preferredPoint.x, preferredPoint.y, interactionSpace.clampPadding)
             : this.findValidFlowerPosition(zoneFlowers, resolvedZoneId, {
@@ -1626,10 +1675,16 @@ class GameCore {
                 minDistance,
                 maxAttempts,
                 interactionSpace
-            }) || (preferredPoint
-                ? this.clampPlacementPointInZone(resolvedZoneId, preferredPoint.x, preferredPoint.y, interactionSpace.clampPadding)
-                : null);
+            });
         if (!resolvedPoint) return null;
+        if (!options.allowFlowerOverlap) {
+            const tooClose = zoneFlowers.some(flower =>
+                flower
+                && flower.stage !== 'dissolve'
+                && Math.hypot((flower.x || 0) - resolvedPoint.x, (flower.y || 0) - resolvedPoint.y) < minDistance
+            );
+            if (tooClose) return null;
+        }
 
         const flower = new Flower(resolvedPoint.x, resolvedPoint.y, !!options.isImmortal, {
             currentZoneId: resolvedZoneId,
@@ -1644,12 +1699,259 @@ class GameCore {
         return flower;
     }
 
+    getReadableFlowerCapForZone(zoneId, options = {}) {
+        const targets = this.getZoneFlowerSpawnTargets(zoneId, options);
+        return Math.max(2, Math.min(9, targets?.maxNormalFlowers || gameConfig?.entities?.maxFlowers || 8));
+    }
+
+    removeFlowerFromGame(flower, reason = 'readability-prune') {
+        if (!flower) return false;
+        this.entityManager?.removeEntity?.('flowers', flower);
+        this.unregisterEntityFromFoundationSystems?.(flower);
+        const index = (this.gameState.flowers || []).indexOf(flower);
+        if (index >= 0) {
+            this.gameState.flowers.splice(index, 1);
+        }
+        objectSystem?.recordInteraction?.(flower.id, reason, null, {
+            zoneId: this.getEntityZoneId(flower, flower.currentZoneId || null)
+        });
+        return index >= 0;
+    }
+
+    transformFlowerToDirtPile(flower, options = {}) {
+        if (!flower || flower.lifecycleKind === 'dirt-pile') return flower || null;
+        const currentFrame = this.getCurrentFrame?.() ?? 0;
+        flower.lifecycleKind = 'dirt-pile';
+        flower.visualStyle = 'dirt-pile';
+        flower.stage = 'decayed';
+        flower.stageTimer = 0;
+        flower.decayedAtFrame = currentFrame;
+        flower.currentFeeder = null;
+        flower.allowedButterflyId = null;
+        flower.eggData = null;
+        flower.chrysalisData = null;
+        flower.postHatchFadeTimer = 0;
+        flower.consumed = false;
+        flower.persistentUntilConsumed = true;
+        flower.refreshLifecycleObjectProfile?.();
+        flower.updateZIndex?.();
+        objectSystem?.recordInteraction?.(flower.id, options.source || 'flower decayed', null, {
+            zoneId: this.getEntityZoneId(flower, flower.currentZoneId || null),
+            lifecycleKind: 'dirt-pile'
+        });
+        objectSystem?.syncEntityProfile?.(flower);
+        this.particleSystem?.emitBurst?.(flower.x, flower.y - 2, [82, 62, 42], 5);
+        return flower;
+    }
+
+    convertFlowerToReserveFood(flower, butterfly = null, options = {}) {
+        if (!flower || flower.lifecycleKind === 'reserve-food-ball') return flower || null;
+        if (gameConfig?.entities?.flower?.reserveFoodEnabled === false) return null;
+        if (flower.lifecycleKind !== 'flower') return null;
+        const currentFrame = this.getCurrentFrame?.() ?? 0;
+        flower.lifecycleKind = 'reserve-food-ball';
+        flower.visualStyle = 'reserve-food-ball';
+        flower.stage = 'stable';
+        flower.stageTimer = 0;
+        flower.reserveFoodSource = {
+            flowerType: flower.flowerType || null,
+            convertedAtFrame: currentFrame,
+            actorId: butterfly?.id || null,
+            source: options.source || 'butterfly-pickup'
+        };
+        flower.currentFeeder = null;
+        flower.allowedButterflyId = null;
+        flower.eggData = null;
+        flower.chrysalisData = null;
+        flower.postHatchFadeTimer = 0;
+        flower.consumed = false;
+        flower.persistentUntilConsumed = true;
+        flower.refreshLifecycleObjectProfile?.();
+        flower.updateZIndex?.();
+        objectSystem?.recordInteraction?.(flower.id, 'converted to reserve food', butterfly?.id || null, {
+            zoneId: this.getEntityZoneId(flower, flower.currentZoneId || null),
+            lifecycleKind: 'reserve-food-ball',
+            flowerType: flower.flowerType || null
+        });
+        objectSystem?.syncEntityProfile?.(flower);
+        this.particleSystem?.emitBurst?.(flower.x, flower.y - 2, flower.petalColor || [255, 220, 150], 5);
+        return flower;
+    }
+
+    scoreFlowerForReadabilityRetention(flower) {
+        if (!flower) return -Infinity;
+        let score = 0;
+        if ((flower.occupancyState || 'normal') !== 'normal') score += 1000;
+        if (flower.eggData || flower.chrysalisData) score += 1000;
+        if (flower.currentFeeder) score += 120;
+        if (flower.isImmortal) score += 80;
+        if (flower.stage === 'mature') score += 20;
+        if (flower.stage === 'bloom') score += 12;
+        if (flower.persistentUntilConsumed) score += 8;
+        score -= Math.max(0, flower.stageTimer || 0) / 10000;
+        return score;
+    }
+
+    pruneAndReflowFlowersForReadability(options = {}) {
+        const minDistance = options.minDistance || gameConfig?.entities?.flower?.spawnMinDistance || 52;
+        const maxAttempts = options.maxAttempts || 36;
+        const result = {
+            before: (this.gameState.flowers || []).length,
+            after: 0,
+            removed: 0,
+            moved: 0,
+            byZone: {}
+        };
+
+        for (const zoneId of this.getZoneIds()) {
+            const zoneFlowers = this.getFlowersInZone(zoneId)
+                .filter(flower => flower && flower.stage !== 'dissolve');
+            const cap = options.maxPerZone || this.getReadableFlowerCapForZone(zoneId, {
+                flowers: zoneFlowers
+            });
+            const protectedFlowers = zoneFlowers.filter(flower =>
+                (flower.lifecycleKind || 'flower') !== 'flower'
+                || (flower.occupancyState || 'normal') !== 'normal'
+                || flower.eggData
+                || flower.chrysalisData
+                || flower.currentFeeder
+            );
+            const normalFlowers = zoneFlowers
+                .filter(flower => !protectedFlowers.includes(flower))
+                .sort((left, right) => this.scoreFlowerForReadabilityRetention(right) - this.scoreFlowerForReadabilityRetention(left));
+            const keepSet = new Set([
+                ...protectedFlowers,
+                ...normalFlowers.slice(0, Math.max(0, cap - protectedFlowers.length))
+            ]);
+            const removed = [];
+
+            for (const flower of zoneFlowers) {
+                if (keepSet.has(flower)) continue;
+                if (this.removeFlowerFromGame(flower, 'g0-flower-density-prune')) {
+                    removed.push(flower.id);
+                }
+            }
+
+            const placed = [];
+            let moved = 0;
+            const retained = this.getFlowersInZone(zoneId)
+                .filter(flower => flower && flower.stage !== 'dissolve')
+                .sort((left, right) => this.scoreFlowerForReadabilityRetention(right) - this.scoreFlowerForReadabilityRetention(left));
+            for (const flower of retained) {
+                const isProtected = (flower.occupancyState || 'normal') !== 'normal'
+                    || (flower.lifecycleKind || 'flower') !== 'flower'
+                    || flower.eggData
+                    || flower.chrysalisData
+                    || flower.currentFeeder;
+                const overlapsPlaced = placed.some(other =>
+                    Math.hypot((other.x || 0) - (flower.x || 0), (other.y || 0) - (flower.y || 0)) < minDistance
+                );
+                if (!isProtected && overlapsPlaced) {
+                    const target = this.findValidFlowerPosition(placed, zoneId, {
+                        minDistance,
+                        maxAttempts,
+                        interactionSpace: this.getFlowerInteractionSpace(zoneId, {
+                            entity: flower,
+                            occupancyState: flower.occupancyState || 'normal'
+                        })
+                    });
+                    if (target) {
+                        flower.x = target.x;
+                        flower.y = target.y;
+                        flower.gridPos = this.gridManager?.screenToIso?.(flower.x, flower.y) || flower.gridPos;
+                        flower.boardPos = flower.syncBoardPosFromScreen?.({ zoneId }) || flower.boardPos || null;
+                        flower.currentZoneId = zoneId;
+                        flower.updateZIndex?.();
+                        objectSystem?.syncEntityProfile?.(flower);
+                        moved += 1;
+                    }
+                }
+                placed.push(flower);
+            }
+
+            result.byZone[zoneId] = {
+                cap,
+                before: zoneFlowers.length,
+                after: this.getFlowersInZone(zoneId).length,
+                removed: removed.length,
+                moved
+            };
+            result.removed += removed.length;
+            result.moved += moved;
+        }
+
+        result.after = (this.gameState.flowers || []).length;
+        return result;
+    }
+
+    removeBlocksFromNoSpawnZones(reason = 'no-block-zone-cleanup') {
+        const removedBlockIds = new Set();
+        for (const block of [...(this.gameState.blocks || [])]) {
+            const zoneId = this.getEntityZoneId(block, block?.currentZoneId || null);
+            if (this.canSpawnBlocksInZone(zoneId)) continue;
+            if (block?.carriedById) continue;
+            removedBlockIds.add(block.id);
+            this.entityManager?.removeEntity?.('blocks', block);
+            this.unregisterEntityFromFoundationSystems?.(block);
+            const index = this.gameState.blocks.indexOf(block);
+            if (index >= 0) {
+                this.gameState.blocks.splice(index, 1);
+            }
+            objectSystem?.recordInteraction?.(block.id, reason, null, { zoneId });
+        }
+
+        if (removedBlockIds.size > 0) {
+            for (const butterfly of this.gameState.butterflies || []) {
+                if (!butterfly?.blockInteraction) continue;
+                if (removedBlockIds.has(butterfly.blockInteraction.targetBlockId)) {
+                    butterfly.blockInteraction.targetBlockId = null;
+                }
+                if (removedBlockIds.has(butterfly.blockInteraction.carryingBlockId)) {
+                    butterfly.blockInteraction.carryingBlockId = null;
+                    butterfly.blockInteraction.carryFrames = 0;
+                }
+            }
+        }
+
+        return {
+            removed: removedBlockIds.size,
+            removedBlockIds: [...removedBlockIds]
+        };
+    }
+
+    applyG0GardenReadabilityCleanup(options = {}) {
+        const before = {
+            flowers: (this.gameState.flowers || []).length,
+            blocks: (this.gameState.blocks || []).length
+        };
+        const blockCleanup = this.removeBlocksFromNoSpawnZones('g0-no-training-block-cleanup');
+        const flowerCleanup = this.pruneAndReflowFlowersForReadability({
+            maxPerZone: options.maxFlowersPerZone || 9,
+            minDistance: options.minFlowerDistance || gameConfig?.entities?.flower?.spawnMinDistance || 52,
+            maxAttempts: options.maxAttempts || 48
+        });
+        const after = {
+            flowers: (this.gameState.flowers || []).length,
+            blocks: (this.gameState.blocks || []).length
+        };
+        return {
+            before,
+            after,
+            blockCleanup,
+            flowerCleanup,
+            changed: before.flowers !== after.flowers
+                || before.blocks !== after.blocks
+                || (flowerCleanup?.moved || 0) > 0
+        };
+    }
+
     spawnInitialBlocks(zoneIds = this.getZoneIds()) {
         const blockConfig = gameConfig?.entities?.block || {};
         const blocksPerZone = gameConfig?.entities?.blocksPerZone || 20;
         const blockUnit = this.structureSystem?.getCanonicalBlockUnit?.() || null;
 
         for (const zoneId of zoneIds || []) {
+            if (!this.canSpawnBlocksInZone(zoneId)) continue;
             const zoneBlocks = [];
 
             for (let index = 0; index < blocksPerZone; index++) {
@@ -1672,6 +1974,7 @@ class GameCore {
     }
 
     findValidBlockSpawnPoint(zoneId = this.getFocusedZoneId(), existingBlocks = this.getBlocksInZone(zoneId), options = {}) {
+        if (!options.allowTrainingZoneBlocks && !this.canSpawnBlocksInZone(zoneId)) return null;
         const region = this.getZonePlacementRegion(zoneId);
         if (!region) return null;
 
@@ -1756,6 +2059,21 @@ class GameCore {
     }
 
     clampScreenPointToRoamArea(x, y, padding = 0, options = {}) {
+        if (this.isSimBoardWorld?.() && options?.zoneId) {
+            const region = this.getZonePlacementRegion(options.zoneId);
+            if (region) {
+                const edgeInset = Math.max(0, options?.edgeInset || 0);
+                const inset = Math.max(0, padding || 0, edgeInset);
+                const minX = Math.min(region.maxX, region.minX + inset);
+                const maxX = Math.max(region.minX, region.maxX - inset);
+                const minY = Math.min(region.maxY, region.minY + inset);
+                const maxY = Math.max(region.minY, region.maxY - inset);
+                return {
+                    x: Math.max(minX, Math.min(maxX, Number.isFinite(x) ? x : ((region.minX + region.maxX) / 2))),
+                    y: Math.max(minY, Math.min(maxY, Number.isFinite(y) ? y : ((region.minY + region.maxY) / 2)))
+                };
+            }
+        }
         return this.gridManager?.clampScreenPointToRoamArea?.(x, y, padding, options) || { x, y };
     }
 
@@ -1874,7 +2192,93 @@ class GameCore {
         return direction === 'left' ? 'right' : 'left';
     }
 
+    getBoardSegmentMidpoint(segment = {}) {
+        return {
+            u: ((segment.uStart ?? 0) + (segment.uEnd ?? 0)) / 2,
+            v: ((segment.vStart ?? 0) + (segment.vEnd ?? 0)) / 2,
+            h: 0
+        };
+    }
+
+    offsetBoardPoint(boardPoint = {}, vector = {}, distanceUnits = 1) {
+        return {
+            u: (boardPoint.u || 0) + ((vector.du || 0) * distanceUnits),
+            v: (boardPoint.v || 0) + ((vector.dv || 0) * distanceUnits),
+            h: boardPoint.h || 0
+        };
+    }
+
+    boardPointToScreen(zoneId, boardPoint = {}) {
+        return renderManager?.boardToScreen?.({
+            zoneId,
+            u: boardPoint.u || 0,
+            v: boardPoint.v || 0,
+            h: boardPoint.h || 0
+        }) || null;
+    }
+
+    buildSimBoardZoneTravelRoute(sourceZoneId, targetZoneId = null) {
+        if (!sourceZoneId || !targetZoneId || !this.isSimBoardWorld()) return null;
+        const exit = this.zoneSystem?.getExitForTarget?.(sourceZoneId, targetZoneId);
+        const reciprocalExit = this.zoneSystem?.getExitForTarget?.(targetZoneId, sourceZoneId);
+        if (!exit || !reciprocalExit) return null;
+
+        const exitMidpoint = this.getBoardSegmentMidpoint(exit.exitSegment);
+        const arrivalMidpoint = this.getBoardSegmentMidpoint(exit.arrivalSegment);
+        const reciprocalVector = reciprocalExit.flightVector || {
+            du: -(exit.flightVector?.du || 0),
+            dv: -(exit.flightVector?.dv || 0)
+        };
+        const departureOffscreenBoard = this.offsetBoardPoint(exitMidpoint, exit.flightVector, 1.15);
+        const arrivalOffscreenBoard = this.offsetBoardPoint(arrivalMidpoint, reciprocalVector, 1.15);
+        const arrivalInteriorBoard = this.offsetBoardPoint(arrivalMidpoint, reciprocalVector, -3.2);
+
+        const departureEdge = this.boardPointToScreen(sourceZoneId, exitMidpoint);
+        const departureOffscreen = this.boardPointToScreen(sourceZoneId, departureOffscreenBoard);
+        const arrivalEdge = this.boardPointToScreen(targetZoneId, arrivalMidpoint);
+        const arrivalOffscreen = this.boardPointToScreen(targetZoneId, arrivalOffscreenBoard);
+        const arrivalTargetScreen = this.boardPointToScreen(targetZoneId, arrivalInteriorBoard);
+        if (!departureEdge || !departureOffscreen || !arrivalEdge || !arrivalOffscreen || !arrivalTargetScreen) {
+            return null;
+        }
+
+        const arrivalTarget = this.clampPlacementPointInZone(
+            targetZoneId,
+            arrivalTargetScreen.x,
+            arrivalTargetScreen.y,
+            12,
+            { allowDoorways: true }
+        ) || arrivalTargetScreen;
+
+        return {
+            edgeMode: true,
+            exit,
+            reciprocalExit,
+            exitId: exit.id,
+            direction: exit.direction,
+            flightVector: exit.flightVector,
+            departureEdge,
+            departureOffscreen,
+            arrivalEdge,
+            arrivalOffscreen,
+            arrivalTarget,
+            departureVisibleAnchor: departureEdge,
+            departureWarpAnchor: departureOffscreen,
+            arrivalVisibleAnchor: arrivalEdge,
+            arrivalWarpAnchor: arrivalOffscreen,
+            departureBoardPos: { zoneId: sourceZoneId, ...exitMidpoint },
+            departureOffscreenBoardPos: { zoneId: sourceZoneId, ...departureOffscreenBoard },
+            arrivalBoardPos: { zoneId: targetZoneId, ...arrivalMidpoint },
+            arrivalOffscreenBoardPos: { zoneId: targetZoneId, ...arrivalOffscreenBoard },
+            arrivalTargetBoardPos: { zoneId: targetZoneId, ...arrivalInteriorBoard }
+        };
+    }
+
     buildZoneTravelRoute(sourceZoneId, targetZoneId = null, fallbackDirection = 'right') {
+        if (this.isSimBoardWorld() && targetZoneId) {
+            const simBoardRoute = this.buildSimBoardZoneTravelRoute(sourceZoneId, targetZoneId);
+            if (simBoardRoute) return simBoardRoute;
+        }
         if (!sourceZoneId) return null;
 
         const departureProfile = this.getZoneDoorwayTravelProfile(sourceZoneId, targetZoneId, fallbackDirection)
@@ -2161,7 +2565,12 @@ class GameCore {
             ));
             const stats = context.snapshot?.[zoneId] || {};
             const zoneFlowers = context.zoneFlowersByZone?.[zoneId] || this.getFlowersInZone(zoneId);
-            const normalFlowers = zoneFlowers.filter(flower => flower && flower.stage !== 'dissolve' && flower.occupancyState === 'normal');
+            const normalFlowers = zoneFlowers.filter(flower =>
+                flower
+                && (flower.lifecycleKind || 'flower') === 'flower'
+                && flower.stage !== 'dissolve'
+                && flower.occupancyState === 'normal'
+            );
             const occupiedFlowers = zoneFlowers.filter(flower => flower && flower.stage !== 'dissolve' && flower.occupancyState !== 'normal');
             const butterflyDemand = this.clampUnit((stats.butterflies || 0) / 5);
             const visibleSupply = this.clampUnit(normalFlowers.length / 6);
@@ -2253,7 +2662,12 @@ class GameCore {
                 ? new Array(options.snapshot[zoneId].butterflies).fill(null)
                 : this.getButterfliesInZone(zoneId));
         const flowers = options.flowers || this.getFlowersInZone(zoneId);
-        const normalFlowers = flowers.filter(flower => flower && flower.stage !== 'dissolve' && flower.occupancyState === 'normal');
+        const normalFlowers = flowers.filter(flower =>
+            flower
+            && (flower.lifecycleKind || 'flower') === 'flower'
+            && flower.stage !== 'dissolve'
+            && flower.occupancyState === 'normal'
+        );
         const butterflyCount = Array.isArray(butterflies) ? butterflies.length : (butterflies || 0);
         const floorTarget = Math.max(1, Math.min(3,
             1
@@ -3894,6 +4308,18 @@ class GameCore {
         if (!sourceZoneId || sourceZoneId === targetZoneId) return false;
 
         const travelRoute = this.buildZoneTravelRoute(sourceZoneId, targetZoneId);
+        if (travelRoute?.edgeMode) {
+            return this.startSimBoardZoneTravel(butterfly, targetZoneId, reason, options, travelRoute);
+        }
+        if (this.isSimBoardWorld()) {
+            this.telemetrySystem?.recordRuntimeIssue?.('sim-board-zone-travel-edge-missing', {
+                butterflyId: butterfly.id,
+                sourceZoneId,
+                targetZoneId,
+                reason
+            });
+            return false;
+        }
         if (!travelRoute?.departureVisibleAnchor || !travelRoute?.departureWarpAnchor) return false;
 
         const departureApproachAnchor = this.buildZoneTravelApproachAnchor(
@@ -3944,6 +4370,173 @@ class GameCore {
         return true;
     }
 
+    startSimBoardZoneTravel(butterfly, targetZoneId, reason = 'migration', options = {}, travelRoute = null) {
+        const sourceZoneId = this.getEntityZoneId(butterfly, null);
+        const route = travelRoute || this.buildSimBoardZoneTravelRoute(sourceZoneId, targetZoneId);
+        if (!butterfly?.id || !sourceZoneId || !route?.edgeMode) return false;
+
+        butterfly.zoneTravel = {
+            edgeMode: true,
+            sourceZoneId,
+            targetZoneId,
+            exitId: route.exitId,
+            sourceAnchor: route.departureEdge,
+            targetAnchor: route.arrivalEdge,
+            departureVisibleAnchor: route.departureEdge,
+            departureWarpAnchor: route.departureOffscreen,
+            arrivalVisibleAnchor: route.arrivalEdge,
+            arrivalWarpAnchor: route.arrivalOffscreen,
+            arrivalTarget: route.arrivalTarget,
+            departureBoardPos: route.departureBoardPos,
+            departureOffscreenBoardPos: route.departureOffscreenBoardPos,
+            arrivalBoardPos: route.arrivalBoardPos,
+            arrivalOffscreenBoardPos: route.arrivalOffscreenBoardPos,
+            arrivalTargetBoardPos: route.arrivalTargetBoardPos,
+            phase: 'departing',
+            progressFrames: 0,
+            reason,
+            arrivalTargetEntityId: options.arrivalTargetEntityId || null,
+            renderBehindCover: false,
+            invisible: false,
+            hasCrossedExit: false,
+            hasSwappedZone: false,
+            migrationIntent: {
+                targetZoneId,
+                exitId: route.exitId,
+                state: 'departing'
+            }
+        };
+        butterfly.stateData = butterfly.stateData || {};
+        butterfly.stateData.zoneTravel = butterfly.zoneTravel;
+        this.markButterflyZoneTravelStart(butterfly, sourceZoneId, targetZoneId, reason);
+        if (typeof eventBus !== 'undefined' && GameEvents?.ZONE_TRAVEL_STARTED) {
+            eventBus.emit(GameEvents.ZONE_TRAVEL_STARTED, {
+                butterflyId: butterfly.id,
+                butterflyLabel: butterfly.getDisplayName?.() || butterfly.personalityType || 'butterfly',
+                fromZoneId: sourceZoneId,
+                toZoneId: targetZoneId,
+                reason
+            });
+        }
+        return true;
+    }
+
+    recordZoneTravelAfterimage(butterfly) {
+        if (!butterfly?.afterimages || !renderManager?.shouldRenderAfterimageTrails?.()) return;
+        const frame = this.getCurrentFrame();
+        const interval = Math.max(2, Math.floor((butterfly.afterimageInterval || 4) / 2));
+        const maxTrail = Math.max(butterfly.afterimageMax || 20, 28);
+        if (frame % interval !== 0) return;
+        butterfly.afterimages.push({
+            x: butterfly.x,
+            y: butterfly.y,
+            wingAngle: butterfly.visual?.wingAngle || 0
+        });
+        while (butterfly.afterimages.length > maxTrail) {
+            butterfly.afterimages.shift();
+        }
+    }
+
+    moveButterflyTowardScreenPoint(butterfly, target, step) {
+        if (!butterfly || !target) return 0;
+        const dx = target.x - butterfly.x;
+        const dy = target.y - butterfly.y;
+        const distance = Math.hypot(dx, dy) || 0;
+        if (distance <= 0.0001) return 0;
+        const amount = Math.min(step, distance);
+        butterfly.x += (dx / distance) * amount;
+        butterfly.y += (dy / distance) * amount;
+        return distance - amount;
+    }
+
+    updateSimBoardZoneTraveler(butterfly, zoneTravel, travelStep, arrivalSettleFrames) {
+        const edgeStep = Math.max(2.8, travelStep * 1.15);
+        const arrivalStep = Math.max(2.1, travelStep * 0.9);
+        zoneTravel.progressFrames = (zoneTravel.progressFrames || 0) + 1;
+        zoneTravel.renderBehindCover = false;
+        this.recordZoneTravelAfterimage(butterfly);
+
+        if (zoneTravel.phase === 'departing') {
+            const remaining = this.moveButterflyTowardScreenPoint(butterfly, zoneTravel.departureWarpAnchor, edgeStep);
+            zoneTravel.invisible = false;
+            if (remaining < 8 || zoneTravel.progressFrames >= 120) {
+                const previousZoneId = this.getEntityZoneId(butterfly, null) || zoneTravel.sourceZoneId || null;
+                zoneTravel.hasCrossedExit = true;
+                zoneTravel.phase = 'in-transit';
+                zoneTravel.progressFrames = 0;
+                zoneTravel.invisible = true;
+                zoneTravel.migrationIntent = {
+                    ...(zoneTravel.migrationIntent || {}),
+                    targetZoneId: zoneTravel.targetZoneId,
+                    exitId: zoneTravel.exitId || null,
+                    state: 'in-transit'
+                };
+                this.assignEntityToZone(butterfly, zoneTravel.targetZoneId);
+                butterfly.x = zoneTravel.arrivalWarpAnchor?.x ?? butterfly.x;
+                butterfly.y = zoneTravel.arrivalWarpAnchor?.y ?? butterfly.y;
+                this.butterflyStore?.afterTeleport?.(butterfly, previousZoneId, {
+                    zoneId: zoneTravel.targetZoneId,
+                    source: 'sim-board-edge-travel',
+                    resetMovement: false
+                });
+                zoneTravel.hasSwappedZone = true;
+                if (zoneTravel.cameraFollow === true
+                    && this.getFocusedZoneId() === previousZoneId) {
+                    this.focusZone(zoneTravel.targetZoneId);
+                }
+            }
+            return true;
+        }
+
+        if (zoneTravel.phase === 'in-transit') {
+            zoneTravel.invisible = true;
+            if (zoneTravel.progressFrames >= 2) {
+                zoneTravel.phase = 'arriving';
+                zoneTravel.progressFrames = 0;
+                zoneTravel.invisible = false;
+                zoneTravel.migrationIntent = {
+                    ...(zoneTravel.migrationIntent || {}),
+                    state: 'arriving'
+                };
+            }
+            return true;
+        }
+
+        if (zoneTravel.phase === 'arriving') {
+            zoneTravel.invisible = false;
+            const target = zoneTravel.arrivalTarget || zoneTravel.arrivalVisibleAnchor || zoneTravel.targetAnchor;
+            const remaining = this.moveButterflyTowardScreenPoint(butterfly, target, arrivalStep);
+            if (remaining < 10 || zoneTravel.progressFrames >= Math.max(24, arrivalSettleFrames)) {
+                if (typeof eventBus !== 'undefined' && GameEvents?.ZONE_TRAVEL_COMPLETED) {
+                    eventBus.emit(GameEvents.ZONE_TRAVEL_COMPLETED, {
+                        butterflyId: butterfly.id,
+                        butterflyLabel: butterfly.getDisplayName?.() || butterfly.personalityType || 'butterfly',
+                        fromZoneId: zoneTravel.sourceZoneId,
+                        toZoneId: zoneTravel.targetZoneId,
+                        reason: zoneTravel.reason
+                    });
+                }
+                this.completeButterflyZoneTravel(
+                    butterfly,
+                    zoneTravel.sourceZoneId,
+                    zoneTravel.targetZoneId,
+                    zoneTravel.reason
+                );
+                butterfly.zoneTravel = null;
+                if (butterfly.stateData?.zoneTravel) {
+                    delete butterfly.stateData.zoneTravel;
+                }
+                butterfly.pickNewWanderTarget?.();
+            }
+            return true;
+        }
+
+        zoneTravel.phase = 'departing';
+        zoneTravel.progressFrames = 0;
+        zoneTravel.invisible = false;
+        return true;
+    }
+
     updateZoneTravelers(deltaSeconds = gameConfig.simulation.fixedDeltaSeconds) {
         const migrationBalance = this.getMigrationBalance();
         const routeDurationFrames = migrationBalance.routeDurationFrames || 72;
@@ -3958,6 +4551,42 @@ class GameCore {
             const butterfly = this.gameState.butterflies[i];
             const zoneTravel = butterfly?.zoneTravel;
             if (!zoneTravel) continue;
+
+            if (zoneTravel.edgeMode) {
+                this.updateSimBoardZoneTraveler(butterfly, zoneTravel, travelStep, arrivalSettleFrames);
+                if (!this.butterflyStore?.afterPositionMutation?.(butterfly, null, { source: 'sim-board-edge-travel', primaryTruth: 'board' })) {
+                    butterfly.gridPos = this.gridManager.screenToIso(butterfly.x, butterfly.y + (butterfly.shadowOffset || 0));
+                    butterfly.updateZIndex?.();
+                }
+                continue;
+            }
+
+            if (this.isSimBoardWorld()) {
+                if (zoneTravel.targetZoneId) {
+                    const sourceZoneId = this.getEntityZoneId(butterfly, null) || zoneTravel.sourceZoneId || null;
+                    const route = this.buildSimBoardZoneTravelRoute(sourceZoneId, zoneTravel.targetZoneId);
+                    if (route?.edgeMode && this.startSimBoardZoneTravel(butterfly, zoneTravel.targetZoneId, zoneTravel.reason || 'migration', {
+                        arrivalTargetEntityId: zoneTravel.arrivalTargetEntityId || null,
+                        cameraFollow: zoneTravel.cameraFollow === true
+                    }, route)) {
+                        continue;
+                    }
+                }
+
+                this.telemetrySystem?.recordRuntimeIssue?.('sim-board-legacy-zone-travel-suppressed', {
+                    butterflyId: butterfly.id,
+                    sourceZoneId: zoneTravel.sourceZoneId,
+                    targetZoneId: zoneTravel.targetZoneId || null,
+                    phase: zoneTravel.phase || null,
+                    reason: zoneTravel.reason || null
+                });
+                butterfly.zoneTravel = null;
+                if (butterfly.stateData?.zoneTravel) {
+                    delete butterfly.stateData.zoneTravel;
+                }
+                butterfly.pickNewWanderTarget?.();
+                continue;
+            }
 
             if (zoneTravel.phase === 'approaching') {
                 const approachAnchor = zoneTravel.departureApproachAnchor || zoneTravel.sourceAnchor;
@@ -5122,6 +5751,10 @@ class GameCore {
 
     godSpawnBlock(zoneId = this.getFocusedZoneId(), x = null, y = null) {
         const resolvedZoneId = zoneId || this.getFocusedZoneId();
+        if (!this.canSpawnBlocksInZone(resolvedZoneId)) {
+            console.log('Block God Mode: Cannot spawn blocks in training grounds');
+            return null;
+        }
         const zoneBlocks = this.getBlocksInZone(resolvedZoneId);
         const point = (Number.isFinite(x) && Number.isFinite(y))
             ? this.clampPlacementPointInZone(resolvedZoneId, x, y, 8)
@@ -5489,7 +6122,12 @@ class GameCore {
                 || {};
             const zoneFlowers = context.zoneFlowersByZone?.[zoneId] || this.getFlowersInZone(zoneId);
             const zoneButterflies = butterflies.filter(entry => this.getEntityZoneId(entry, null) === zoneId);
-            const normalFlowers = zoneFlowers.filter(entry => entry && entry.stage !== 'dissolve' && entry.occupancyState === 'normal').length;
+            const normalFlowers = zoneFlowers.filter(entry =>
+                entry
+                && (entry.lifecycleKind || 'flower') === 'flower'
+                && entry.stage !== 'dissolve'
+                && entry.occupancyState === 'normal'
+            ).length;
             const targets = this.getZoneFlowerSpawnTargets(zoneId, {
                 flowers: zoneFlowers,
                 butterflies: zoneButterflies

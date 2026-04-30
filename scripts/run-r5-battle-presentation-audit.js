@@ -177,6 +177,39 @@ async function startBattle(page) {
   });
 }
 
+async function seedPresentationRound(page) {
+  await page.evaluate(() => {
+    const battleId = gameCore.getGameState().activeBattleId;
+    const snapshot = battleSystem.getSnapshot(battleId);
+    if (!snapshot || snapshot.result) return null;
+    const participants = snapshot.participantOrder
+      .map(id => snapshot.participantsById?.[id])
+      .filter(Boolean);
+    const actor = participants.find(participant =>
+      participant.teamId === 'left' &&
+      participant.abilities?.specialAbility === 'sparkle' &&
+      !participant.defeated &&
+      !participant.retreated
+    ) || participants.find(participant => participant.teamId === 'left');
+    const target = participants.find(participant =>
+      participant.teamId !== actor?.teamId &&
+      !participant.defeated &&
+      !participant.retreated
+    );
+    if (!actor || !target) return null;
+    const result = battleSystem.resolveRound(battleId, {
+      [actor.id]: {
+        type: 'attack',
+        targetId: target.id
+      }
+    });
+    battleSystem.modifyParticipantHp?.(battleId, target.id, -22);
+    battleSystem.applyPressure?.(battleId, target.id, 3);
+    return result;
+  });
+  await page.waitForTimeout(120);
+}
+
 async function run() {
   ensureDir(OUTPUT_ROOT);
   const auditId = stamp();
@@ -275,6 +308,7 @@ async function run() {
     });
 
     await phase(page, report, outputDir, '02-battle-visible-combat', async () => {
+      await seedPresentationRound(page);
       await page.waitForFunction(() => {
         const battleId = gameCore.getGameState().activeBattleId;
         if (!battleId) return false;
@@ -361,8 +395,14 @@ async function run() {
           if (event?.payload?.projectileStyle) {
             aggregate.projectileStyles.add(event.payload.projectileStyle);
           }
+          if (event?.payload?.type) {
+            aggregate.actionTypes.add(event.payload.type);
+          }
           if (event?.payload?.specialLabel) {
             aggregate.specialLabels.add(event.payload.specialLabel);
+          }
+          if (event?.payload?.flowerRelated) {
+            aggregate.flowerRelatedActions = Math.max(aggregate.flowerRelatedActions, 1);
           }
         });
         aggregate.samples.push({

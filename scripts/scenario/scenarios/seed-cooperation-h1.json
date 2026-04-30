@@ -1,0 +1,21 @@
+{
+  "id": "seed-cooperation-h1",
+  "seed": 606,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 10, "h": 0 }, "drives": { "socialConnection": 0.8 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 10, "h": 0 }, "drives": { "caregiving": 0.8 } }
+  ],
+  "objects": [
+    { "id": "block-a", "type": "block", "boardPos": { "zoneId": "ivy-cloister", "u": 11, "v": 10, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "emit_signal", "source": "a", "targets": ["b"], "signalType": "guidance_signal", "intentFamily": "work", "intentTags": ["coordination"], "phrase": "Help me move this." },
+    { "type": "step", "frames": 30 }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 2 },
+    { "type": "object_count", "min": 1 },
+    { "type": "dialogue_count", "min": 1 }
+  ]
+}

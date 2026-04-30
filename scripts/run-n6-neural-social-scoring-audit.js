@@ -141,8 +141,8 @@ async function run() {
     await phase(page, report, outputDir, '00-feature-contract-expanded', async () => {
       await resetBaseline(page);
       const details = await page.evaluate(() => mlInferenceSystem.getFeatureContractSnapshot());
-      const pass = details.groupCount === 14
-        && details.flatFeatureCount === 98
+      const pass = details.groupCount === 15
+        && details.flatFeatureCount === 106
         && details.vectorLength === 124;
       return { pass, details };
     });
@@ -163,6 +163,10 @@ async function run() {
           entity.x = clamped.x;
           entity.y = clamped.y - (entity.shadowOffset || 0);
           entity.gridPos = { x: grid.x, y: grid.y };
+          entity.currentZoneId = zoneId;
+          entity.lifeSim.lifecycle.currentZoneId = zoneId;
+          entity.boardPos = renderManager?.screenToBoard?.(clamped.x, clamped.y, zoneId, 0) || entity.boardPos || null;
+          gameCore.assignEntityToZone?.(entity, zoneId);
           entity.updateZIndex?.();
           entity.zoneTravel = null;
           entity.isSpawning = false;

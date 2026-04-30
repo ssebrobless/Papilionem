@@ -13,6 +13,19 @@ const STORAGE_KEYS = [
   'papilionem-audit-reports-v1'
 ];
 
+function getWorldRenderModeOverride() {
+  const mode = process.env.PAPILIONEM_WORLD_RENDER_MODE;
+  return ['section-scenes', 'sim-board'].includes(mode) ? mode : null;
+}
+
+async function applyRuntimeOverrides(context, worldRenderMode) {
+  if (!worldRenderMode) return;
+  await context.addInitScript((renderMode) => {
+    window.__PAPILIONEM_WORLD_RENDERMODE__ = renderMode;
+    window.localStorage.setItem('papilionem-world-rendermode', renderMode);
+  }, worldRenderMode);
+}
+
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -64,10 +77,14 @@ async function saveShot(page, outputDir, name) {
   return file;
 }
 
-async function resetBaseline(page) {
-  await page.evaluate((keys) => {
+async function resetBaseline(page, worldRenderMode = null) {
+  await page.evaluate(({ keys, renderMode }) => {
     keys.forEach(key => window.localStorage.removeItem(key));
-  }, STORAGE_KEYS);
+    if (renderMode) {
+      window.__PAPILIONEM_WORLD_RENDERMODE__ = renderMode;
+      window.localStorage.setItem('papilionem-world-rendermode', renderMode);
+    }
+  }, { keys: STORAGE_KEYS, renderMode: worldRenderMode });
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitForGame(page);
   await dismissTitle(page);
@@ -192,6 +209,7 @@ async function run() {
     pageErrors: [],
     consoleErrors: [],
     server: null,
+    worldRenderModeOverride: getWorldRenderModeOverride(),
     overall: 'pending'
   };
 
@@ -205,6 +223,7 @@ async function run() {
     context = await browser.newContext({
       viewport: { width: 1600, height: 900 }
     });
+    await applyRuntimeOverrides(context, report.worldRenderModeOverride);
     page = await context.newPage();
 
     page.on('pageerror', error => report.pageErrors.push(String(error)));
@@ -219,7 +238,7 @@ async function run() {
     await dismissTitle(page);
 
     await phase(page, report, outputDir, '01-offscreen-ground-cube', async () => {
-      await resetBaseline(page);
+      await resetBaseline(page, report.worldRenderModeOverride);
       const details = await page.evaluate(() => {
         const zoneId = gameCore.getGameState().focusedZoneId;
         const gfx = createGraphics(96, 96);
@@ -282,7 +301,7 @@ async function run() {
     });
 
     await phase(page, report, outputDir, '02-offscreen-stacked-lift', async () => {
-      await resetBaseline(page);
+      await resetBaseline(page, report.worldRenderModeOverride);
       const details = await page.evaluate(() => {
         const zoneId = gameCore.getGameState().focusedZoneId;
         const measureBounds = (block) => {
@@ -331,7 +350,7 @@ async function run() {
     });
 
     await phase(page, report, outputDir, '03-live-procedural-blocks', async () => {
-      await resetBaseline(page);
+      await resetBaseline(page, report.worldRenderModeOverride);
       const details = await page.evaluate(() => {
         if (!window.__r7BlockAuditWrapped) {
           const original = Block.prototype.drawProceduralCube;
@@ -393,7 +412,7 @@ async function run() {
     });
 
     await phase(page, report, outputDir, '04-live-carry-and-supported-stack', async () => {
-      await resetBaseline(page);
+      await resetBaseline(page, report.worldRenderModeOverride);
       const setup = await setupLiveCarryAndSupportedStack(page);
       const details = await page.evaluate((setupState) => {
         const state = gameCore.getGameState();
@@ -456,7 +475,7 @@ async function run() {
     });
 
     await phase(page, report, outputDir, '05-spatial-shell-badges', async () => {
-      await resetBaseline(page);
+      await resetBaseline(page, report.worldRenderModeOverride);
       const setup = await setupLiveCarryAndSupportedStack(page, { enableDebug: true });
       const details = await page.evaluate((setupState) => {
         const state = gameCore.getGameState();
