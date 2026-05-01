@@ -142,6 +142,7 @@ function resolveSavePath(candidate = null) {
   if (!fs.existsSync(SAVE_EXPORT_ROOT)) return null;
   const candidates = fs.readdirSync(SAVE_EXPORT_ROOT, { withFileTypes: true })
     .filter(entry => entry.isDirectory())
+    .filter(entry => !/^g0h-scripted-fixture-/.test(entry.name))
     .map(entry => path.join(SAVE_EXPORT_ROOT, entry.name))
     .map(dir => ({
       dir,
