@@ -1028,6 +1028,42 @@ class SaveSystem {
             || null;
     }
 
+    isRestoredBlockEntity(entity = null) {
+        return entity?.objectProfile?.entityType === 'block'
+            || entity?.constructor?.name === 'Block';
+    }
+
+    normalizeRestoredBlockBoardPos(boardPos = null, block = null) {
+        if (!this.isValidBoardPos(boardPos)) return null;
+        const zoneId = boardPos.zoneId || block?.currentZoneId || null;
+        if (!zoneId) return null;
+        const normalized = typeof structureSystem !== 'undefined' && structureSystem?.normalizeBlockCell
+            ? structureSystem.normalizeBlockCell(
+                zoneId,
+                boardPos.u,
+                boardPos.v,
+                block?.stackIndex ?? boardPos.h ?? 0
+            )
+            : {
+                zoneId,
+                u: Math.round(Number.isFinite(boardPos.u) ? boardPos.u : 0),
+                v: Math.round(Number.isFinite(boardPos.v) ? boardPos.v : 0),
+                h: Math.max(0, Math.round(Number.isFinite(boardPos.h) ? boardPos.h : 0))
+            };
+        const dimensions = typeof structureSystem !== 'undefined' && structureSystem?.getBoardDimensions
+            ? structureSystem.getBoardDimensions(zoneId)
+            : null;
+        const board = dimensions || this.getBoardConfigForZone(zoneId);
+        const maxU = Math.max(0, Math.round((board?.widthUnits || 1) - 1));
+        const maxV = Math.max(0, Math.round((board?.depthUnits || 1) - 1));
+        return {
+            zoneId,
+            u: Math.max(0, Math.min(maxU, normalized.u)),
+            v: Math.max(0, Math.min(maxV, normalized.v)),
+            h: Math.max(0, normalized.h)
+        };
+    }
+
     applyBoardPosToScreen(entity = null, boardPos = null, options = {}) {
         if (!entity || !this.isValidBoardPos(boardPos) || typeof renderManager === 'undefined' || !renderManager?.boardToScreen) {
             return false;
@@ -1244,10 +1280,10 @@ class SaveSystem {
         block.movedAtFrame = savedBlock.movedAtFrame ?? block.movedAtFrame;
         block.lastMovedById = savedBlock.lastMovedById || null;
         block.objectProfile = this.cloneValue(savedBlock.objectProfile, block.objectProfile);
-        block.boardPos = this.getRestoredEntityBoardPos(savedBlock, {
+        block.boardPos = this.normalizeRestoredBlockBoardPos(this.getRestoredEntityBoardPos(savedBlock, {
             zoneId: block.currentZoneId || null,
             hHint: block.stackIndex ?? 0
-        });
+        }), block);
         return block;
     }
 
@@ -1383,7 +1419,11 @@ class SaveSystem {
         const avoidDoorwayRadius = options.avoidDoorwayRadius ?? 0;
 
         gameCoreInstance?.assignEntityToZone?.(entity, zoneId);
-        const shouldRestoreBoardPos = this.shouldPreferV5OnRead() && this.isValidBoardPos(entity.boardPos);
+        if (this.isRestoredBlockEntity(entity) && this.isValidBoardPos(entity.boardPos)) {
+            entity.boardPos = this.normalizeRestoredBlockBoardPos(entity.boardPos, entity);
+        }
+        const shouldRestoreBoardPos = (this.shouldPreferV5OnRead() || this.isRestoredBlockEntity(entity))
+            && this.isValidBoardPos(entity.boardPos);
         if (shouldRestoreBoardPos && this.applyBoardPosToScreen(entity, entity.boardPos, {
             zoneId,
             hHint: entity.stackIndex ?? 0,
@@ -1557,8 +1597,16 @@ class SaveSystem {
             return null;
         }
 
-        const route = gameCoreInstance?.buildZoneTravelRoute?.(sourceZoneId, targetZoneId)
-            || null;
+        const simBoardWorld = gameCoreInstance?.isSimBoardWorld?.() === true;
+        const route = simBoardWorld && targetZoneId
+            ? (gameCoreInstance?.buildSimBoardZoneTravelRoute?.(sourceZoneId, targetZoneId) || null)
+            : (gameCoreInstance?.buildZoneTravelRoute?.(sourceZoneId, targetZoneId) || null);
+        if (simBoardWorld && targetZoneId && !route?.edgeMode) {
+            gameCoreInstance?.assignEntityToZone?.(butterfly, sourceZoneId);
+            this.clearRestoredZoneTravel(butterfly);
+            butterfly.pickNewWanderTarget?.();
+            return null;
+        }
         if (!route?.departureVisibleAnchor || !route?.departureWarpAnchor) {
             this.clearRestoredZoneTravel(butterfly);
             return null;
@@ -1803,7 +1851,10 @@ class SaveSystem {
             for (const entity of liveEntities || []) {
                 const saved = savedById.get(entity?.id);
                 if (!saved?.boardPos) continue;
-                this.applyBoardPosToScreen(entity, saved.boardPos, {
+                const boardPos = options.blockCell
+                    ? this.normalizeRestoredBlockBoardPos(saved.boardPos, entity)
+                    : saved.boardPos;
+                this.applyBoardPosToScreen(entity, boardPos, {
                     zoneId: saved.boardPos.zoneId || saved.currentZoneId || entity.currentZoneId || null,
                     hHint: options.hHintFromEntity ? (entity.stackIndex ?? 0) : (saved.boardPos.h ?? 0),
                     includeShadowOffset: !!options.includeShadowOffset,
@@ -1815,7 +1866,7 @@ class SaveSystem {
         applyById(gameState.butterflies, normalized.butterflies, { includeShadowOffset: true });
         applyById(gameState.flowers, normalized.flowers);
         applyById(gameState.caterpillars, normalized.caterpillars, { includeShadowOffset: true });
-        applyById(gameState.blocks, normalized.blocks, { hHintFromEntity: true, projectHeight: false });
+        applyById(gameState.blocks, normalized.blocks, { hHintFromEntity: true, projectHeight: false, blockCell: true });
 
         const savedFlowersById = new Map((normalized.flowers || []).map(flower => [flower?.id, flower]).filter(([id]) => !!id));
         for (const flower of gameState.flowers || []) {
