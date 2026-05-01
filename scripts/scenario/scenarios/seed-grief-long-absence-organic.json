@@ -1,0 +1,44 @@
+{
+  "id": "seed-grief-long-absence-organic",
+  "seed": 1111,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 10, "h": 0 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 10, "h": 0 } }
+  ],
+  "edges": [
+    {
+      "source": "a",
+      "target": "b",
+      "values": {
+        "trust": 0.82,
+        "comfort": 0.8,
+        "attachment": 0.84,
+        "bondTier": "bonded",
+        "coTimeSeconds": 1900,
+        "lastSeenAtFrame": 0,
+        "lastSharedZoneId": "moss-hollow"
+      }
+    }
+  ],
+  "actions": [
+    { "type": "step_simulation", "frames": 30 },
+    { "type": "set_board_pos", "source": "b", "boardPos": { "zoneId": "pool-heart", "u": 12, "v": 9, "h": 0 } },
+    { "type": "advance_cognition", "seconds": 321 }
+  ],
+  "assertions": [
+    {
+      "type": "memory_packet",
+      "name": "long_absence_packet",
+      "entity": "a",
+      "family": "social",
+      "kind": "bereavement",
+      "subtype": "long-absence",
+      "partner": "b",
+      "min": 1,
+      "min_intensity": 0.3,
+      "max_intensity": 0.48
+    },
+    { "type": "feeling_min", "entity": "a", "key": "grief", "min": 0.25 }
+  ]
+}

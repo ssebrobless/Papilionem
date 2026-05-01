@@ -1539,6 +1539,64 @@ class LifeSimSystem {
         return lifeSim.socialEdges;
     }
 
+    checkLongAbsence(entity, gameState = gameCore?.gameState, options = {}) {
+        const griefFlags = this.getCognitionFlags()?.grief;
+        if (griefFlags?.enabled === false || griefFlags?.longAbsence?.enabled === false) return [];
+        const lifeSim = this.ensureLifeSimState(entity);
+        if (!lifeSim) return [];
+        const currentFrame = Number.isFinite(options.currentFrame)
+            ? options.currentFrame
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
+        const zoneId = this.getZoneId(entity);
+        const created = [];
+        for (const [targetId, edge] of Object.entries(lifeSim.socialEdges || {})) {
+            ensureLifeSocialEdge?.(entity, targetId);
+            if (this.getBondRank(edge.bondTier) < this.getBondRank('companion')) continue;
+            const partner = this.getEntityById(targetId, gameState);
+            const partnerZoneId = this.getZoneId(partner);
+            const existingBereavement = this.getCognitionMemory(entity, 'social', packet =>
+                packet?.kind === 'bereavement' && packet.partnerId === targetId
+            );
+            if (partner && zoneId && partnerZoneId === zoneId) {
+                edge.lastSeenAtFrame = currentFrame;
+                edge.lastSharedZoneId = zoneId;
+                for (const packet of existingBereavement) {
+                    if (packet?.subtype !== 'long-absence') continue;
+                    if (!Number.isFinite(packet.reunionAtFrame)) {
+                        packet.reunionAtFrame = currentFrame;
+                        packet.reunionStartIntensity = this.clamp01(packet.intensity || 0);
+                    }
+                    const reunionAge = Math.max(0, currentFrame - packet.reunionAtFrame);
+                    const startIntensity = this.clamp01(packet.reunionStartIntensity ?? packet.intensity ?? 0);
+                    packet.intensity = this.clamp01(startIntensity * (1 - Math.min(1, reunionAge / 60)));
+                    packet.decayFrames = Math.min(packet.decayFrames || 5400, 60);
+                }
+                continue;
+            }
+            if (!Number.isFinite(edge.lastSeenAtFrame)) {
+                edge.lastSeenAtFrame = currentFrame;
+                continue;
+            }
+            if (currentFrame - edge.lastSeenAtFrame <= 18000) continue;
+            if (existingBereavement.length) continue;
+            const packet = this.createCognitionPacket('bereavement', {
+                subtype: 'long-absence',
+                partnerId: targetId,
+                createdAtFrame: currentFrame,
+                lostAtFrame: currentFrame,
+                lastSeenAtFrame: edge.lastSeenAtFrame,
+                lastSharedZoneId: edge.lastSharedZoneId || zoneId || null,
+                lastSharedBoardPos: entity.boardPos ? { ...entity.boardPos } : null,
+                intensity: this.clamp01((0.35 + this.getEdgeComposite(edge) * 0.55) * 0.5),
+                decayFrames: 5400,
+                tags: ['observation', 'soft-repair', 'long-absence']
+            });
+            this.pushCognitionPacket(entity, 'social', packet);
+            created.push(packet);
+        }
+        return created;
+    }
+
     pruneCognitionPackets(entity, currentFrame = gameCore?.getCurrentFrame?.() ?? 0) {
         const lifeSim = this.ensureLifeSimState(entity);
         if (!lifeSim) return;
@@ -1675,6 +1733,7 @@ class LifeSimSystem {
             ? options.currentFrame
             : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
         this.updateBondTiers(entity, gameState, options);
+        this.checkLongAbsence(entity, gameState, { ...options, currentFrame });
         this.pruneCognitionPackets(entity, currentFrame);
         return this.deriveDerivedFeelings(entity, gameState, options);
     }

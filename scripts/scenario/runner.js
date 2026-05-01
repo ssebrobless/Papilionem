@@ -467,6 +467,9 @@ function runScenarioInBrowser(scenario) {
         source.movement.targetType = action.targetType || 'goal';
       }
     }
+    if (action.type === 'set_board_pos' && source && action.boardPos) {
+      setEntityBoardPos(source, action.boardPos);
+    }
     if (action.type === 'emit_dialogue' && source) {
       communicationSystem?.emitCooperationSignal?.(source, {
         signalType: action.signalType || 'acknowledgement_signal',
@@ -609,11 +612,31 @@ function runScenarioInBrowser(scenario) {
     } else if (assertion.type === 'memory_packet') {
       const entity = getEntity(assertion.entity);
       const memories = entity?.lifeSim?.memories?.[assertion.family || 'social'] || [];
-      const actual = memories.filter(packet =>
+      const partnerId = aliases.get(assertion.partner) || assertion.partner || null;
+      const matches = memories.filter(packet =>
         (!assertion.kind || packet.kind === assertion.kind)
         && (!assertion.anchor || packet.anchor === assertion.anchor)
-      ).length;
-      addAssertion(assertion.name || 'memory_packet', actual >= (assertion.min || 1), { actual, min: assertion.min || 1, kind: assertion.kind || null, anchor: assertion.anchor || null });
+        && (!assertion.subtype || packet.subtype === assertion.subtype)
+        && (!partnerId || packet.partnerId === partnerId)
+      );
+      const boundedMatches = matches.filter(packet => {
+        const intensity = Number(packet.intensity ?? packet.strength ?? packet.activeStrength ?? 0);
+        if (Number.isFinite(assertion.minIntensity ?? assertion.min_intensity) && intensity < (assertion.minIntensity ?? assertion.min_intensity)) return false;
+        if (Number.isFinite(assertion.maxIntensity ?? assertion.max_intensity) && intensity > (assertion.maxIntensity ?? assertion.max_intensity)) return false;
+        return true;
+      });
+      const actual = boundedMatches.length;
+      addAssertion(assertion.name || 'memory_packet', actual >= (assertion.min || 1), {
+        actual,
+        matchedBeforeBounds: matches.length,
+        min: assertion.min || 1,
+        kind: assertion.kind || null,
+        anchor: assertion.anchor || null,
+        subtype: assertion.subtype || null,
+        partnerId,
+        minIntensity: assertion.minIntensity ?? assertion.min_intensity ?? null,
+        maxIntensity: assertion.maxIntensity ?? assertion.max_intensity ?? null
+      });
     } else if (assertion.type === 'edge_min') {
       const entity = getEntity(assertion.entity);
       const target = getEntity(assertion.target);

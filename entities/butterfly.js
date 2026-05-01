@@ -986,13 +986,10 @@ class Butterfly extends Entity {
                     }
                     data.flower.currentFeeder = this;
                     // Position close to flower
-                    const flowerGrid = gridManager.screenToIso(data.flower.x, data.flower.y);
-                    this.movement.setTarget(
-                        flowerGrid.x + random(-0.3, 0.3),
-                        flowerGrid.y + random(-0.3, 0.3),
-                        'immediate',
-                        10
-                    );
+                    this.setMovementTargetFromScreen(data.flower.x, data.flower.y, 'immediate', 10, 0, {
+                        zoneId: data.flower.currentZoneId || this.getMovementZoneId(),
+                        offset: { x: random(-0.3, 0.3), y: random(-0.3, 0.3) }
+                    });
                 }
                 this.movement.clearTarget('goal');
                 this.movement.clearTarget('meander');
@@ -1028,8 +1025,9 @@ class Butterfly extends Entity {
 
             case 'pregnant-travel':
                 if (data.flower) {
-                    const flowerGrid = gridManager.screenToIso(data.flower.x, data.flower.y);
-                    this.movement.setTarget(flowerGrid.x, flowerGrid.y, 'pregnant', 11, 0);
+                    this.setMovementTargetFromScreen(data.flower.x, data.flower.y, 'pregnant', 11, 0, {
+                        zoneId: data.flower.currentZoneId || this.getMovementZoneId()
+                    });
                 }
                 break;
         }
@@ -1243,6 +1241,30 @@ class Butterfly extends Entity {
         return this.clampBoardTarget(renderer.screenToBoard(x, y, zoneId, 0), zoneId);
     }
 
+    screenPointToLegacyGridTarget(x, y) {
+        if (typeof gridManager !== 'undefined' && gridManager?.screenToIso) {
+            return gridManager.screenToIso(x, y);
+        }
+        return { x, y };
+    }
+
+    setMovementTargetFromScreen(x, y, type, priority = 1, wobble = 0, options = {}) {
+        const offset = options.offset || {};
+        const zoneId = options.zoneId || this.getMovementZoneId();
+        if (this.isBoardMovementWorld()) {
+            const target = this.screenPointToBoardTarget(x, y, zoneId);
+            const u = target.u + (offset.u ?? offset.x ?? 0);
+            const v = target.v + (offset.v ?? offset.y ?? 0);
+            this.movement.setBoardTarget(u, v, type, priority, wobble);
+            return this.makeBoardMovementTarget({ zoneId: target.zoneId, u, v, h: target.h || 0 });
+        }
+        const target = this.screenPointToLegacyGridTarget(x, y);
+        const gridX = target.x + (offset.x ?? offset.u ?? 0);
+        const gridY = target.y + (offset.y ?? offset.v ?? 0);
+        this.movement.setTarget(gridX, gridY, type, priority, wobble);
+        return { x: gridX, y: gridY };
+    }
+
     normalizeMovementTarget(x, y, options = {}) {
         if (!this.isBoardMovementWorld()) {
             return { x, y };
@@ -1402,7 +1424,7 @@ class Butterfly extends Entity {
         if (!resolvedMove?.point && candidateGroundPoints[0]) {
             this.x = candidateGroundPoints[0].x;
             this.y = candidateGroundPoints[0].y - this.shadowOffset;
-            this.gridPos = gridManager.screenToIso(this.x, this.y + this.shadowOffset);
+            this.syncDebugGridPos();
         }
 
         if (this.pendingPollenDropTarget) {
@@ -1732,7 +1754,7 @@ class Butterfly extends Entity {
             };
             this.movement.setBoardTarget(smoothU, smoothV, 'follow', 5);
         } else {
-            const cursorGrid = gridManager.screenToIso(adjustedMouseX, adjustedMouseY);
+            const cursorGrid = this.screenPointToLegacyGridTarget(adjustedMouseX, adjustedMouseY);
 
             // Smooth interpolation
             const desiredX = cursorGrid.x + this.movement.followOffset.x;
@@ -1768,8 +1790,7 @@ class Butterfly extends Entity {
         const midpointX = (this.x + partner.x) / 2;
         const midpointY = (this.y + partner.y) / 2;
         const offsetX = this.sex === 'M' ? -4 : 4;
-        const targetGrid = gridManager.screenToIso(midpointX + offsetX, midpointY);
-        this.movement.setTarget(targetGrid.x, targetGrid.y, 'mating', 12, 0);
+        this.setMovementTargetFromScreen(midpointX + offsetX, midpointY, 'mating', 12, 0);
     }
 
     executePregnantTravelBehavior(gameState) {
@@ -1779,8 +1800,9 @@ class Butterfly extends Entity {
             return;
         }
 
-        const flowerGrid = gridManager.screenToIso(flower.x, flower.y);
-        this.movement.setTarget(flowerGrid.x, flowerGrid.y, 'pregnant', 11, 0);
+        this.setMovementTargetFromScreen(flower.x, flower.y, 'pregnant', 11, 0, {
+            zoneId: flower.currentZoneId || this.getMovementZoneId()
+        });
 
         if (gameState.particleSystem && frameCount % 10 === 0) {
             const pixel = gameState.particleSystem.emit(
@@ -1983,7 +2005,7 @@ class Butterfly extends Entity {
             }
         }
 
-        const cursorGrid = gridManager.screenToIso(cursorX, cursorY);
+        const cursorGrid = this.screenPointToLegacyGridTarget(cursorX, cursorY);
         
         // Calculate direction away from cursor
         const awayX = this.gridPos.x - cursorGrid.x;
@@ -2522,15 +2544,16 @@ class Butterfly extends Entity {
                     1,
                     0.24 + ((behaviorBiases.caution || 0) * 0.12)
                 );
-            } else {
-                const clamped = directSocialGridTarget || gridManager.screenToIso(targetPoint.x, targetPoint.y);
+            } else if (directSocialGridTarget) {
                 this.movement.setTarget(
-                    clamped.x,
-                    clamped.y,
+                    directSocialGridTarget.x,
+                    directSocialGridTarget.y,
                     'meander',
                     1,
-                    0.24 + ((behaviorBiases.caution || 0) * 0.12) // More wobble for erratic movement
+                    0.24 + ((behaviorBiases.caution || 0) * 0.12)
                 );
+            } else {
+                this.setMovementTargetFromScreen(targetPoint.x, targetPoint.y, 'meander', 1, 0.24 + ((behaviorBiases.caution || 0) * 0.12), { zoneId });
             }
             this.timers.wander.duration = random(20, 40) / Math.max(0.7, wanderScale); // Change direction every 0.3-0.7 seconds
         } else {
@@ -2569,16 +2592,16 @@ class Butterfly extends Entity {
                     1,
                     0.08 + ((behaviorBiases.caution || 0) * 0.08)
                 );
-            } else {
-                const targetGrid = directSocialGridTarget || gridManager.screenToIso(targetPoint.x, targetPoint.y);
-
+            } else if (directSocialGridTarget) {
                 this.movement.setTarget(
-                    targetGrid.x,
-                    targetGrid.y,
+                    directSocialGridTarget.x,
+                    directSocialGridTarget.y,
                     'meander',
                     1,
                     0.08 + ((behaviorBiases.caution || 0) * 0.08)
                 );
+            } else {
+                this.setMovementTargetFromScreen(targetPoint.x, targetPoint.y, 'meander', 1, 0.08 + ((behaviorBiases.caution || 0) * 0.08), { zoneId });
             }
             this.timers.wander.duration = ((random(300, 600) / this.traits.jitteriness) / Math.max(0.75, wanderScale))
                 * (crowdPressure > 0.44 ? 0.6 : 1)
@@ -2590,14 +2613,9 @@ class Butterfly extends Entity {
     setPostFeedingDestination() {
         const dropTarget = this.pendingPollenDropTarget || gameCore?.planPollenDropTarget?.(this);
         if (dropTarget?.x && dropTarget?.y) {
-            const targetGrid = gridManager.screenToIso(dropTarget.x, dropTarget.y);
-            this.movement.setTarget(
-                targetGrid.x,
-                targetGrid.y,
-                'immediate',
-                8,
-                0.06
-            );
+            this.setMovementTargetFromScreen(dropTarget.x, dropTarget.y, 'immediate', 8, 0.06, {
+                zoneId: dropTarget.currentZoneId || this.getMovementZoneId()
+            });
             this.timers.postFeedingDash = this.constants.dashDuration;
             return;
         }
@@ -2608,21 +2626,22 @@ class Butterfly extends Entity {
             localCrowdRadius: 90,
             maxDistanceForBonus: 200
         }) || gameCore?.getRandomZonePoint?.(zoneId, 34);
-        const clamped = targetPoint
-            ? gridManager.screenToIso(targetPoint.x, targetPoint.y)
-            : gridManager.clampGridPosToRoamArea(
+        if (targetPoint) {
+            this.setMovementTargetFromScreen(targetPoint.x, targetPoint.y, 'immediate', 8, 0.1, { zoneId });
+        } else {
+            const clamped = gridManager.clampGridPosToRoamArea(
                 this.gridPos.x + cos(random(TWO_PI)) * random(4, 8),
                 this.gridPos.y + sin(random(TWO_PI)) * random(4, 8),
                 8
             );
-
-        this.movement.setTarget(
-            clamped.x,
-            clamped.y,
-            'immediate',
-            8,
-            0.1 // Very low wobble for direct movement
-        );
+            this.movement.setTarget(
+                clamped.x,
+                clamped.y,
+                'immediate',
+                8,
+                0.1 // Very low wobble for direct movement
+            );
+        }
         
         this.timers.postFeedingDash = this.constants.dashDuration;
         
@@ -2692,7 +2711,13 @@ class Butterfly extends Entity {
         block.currentZoneId = this.currentZoneId || block.currentZoneId;
         block.x = anchor?.x ?? (this.x + (block.attachedOffset?.x ?? (this.sex === 'F' ? -7 : 7)));
         block.y = anchor?.y ?? (this.y + (block.attachedOffset?.y ?? -10));
-        block.gridPos = gridManager.screenToIso(block.x, block.y);
+        if (this.isBoardMovementWorld()) {
+            const boardPos = this.screenPointToBoardTarget(block.x, block.y, block.currentZoneId || this.getMovementZoneId());
+            block.boardPos = { ...boardPos };
+            block.gridPos = { x: boardPos.u, y: boardPos.v };
+        } else {
+            block.gridPos = this.screenPointToLegacyGridTarget(block.x, block.y);
+        }
         block.zIndex = (this.zIndex || 0) + (anchor?.zLift ?? 18);
     }
 
@@ -2710,8 +2735,9 @@ class Butterfly extends Entity {
             }
         }
         if (placement) {
-            const targetGrid = gridManager.screenToIso(placement.x, placement.y);
-            this.movement.setTarget(targetGrid.x, targetGrid.y, 'immediate', 4, 0);
+            this.setMovementTargetFromScreen(placement.x, placement.y, 'immediate', 4, 0, {
+                zoneId: placement.zoneId || this.getMovementZoneId()
+            });
         }
         return placement;
     }
@@ -2878,8 +2904,9 @@ class Butterfly extends Entity {
             }
             const distanceToPlacement = Math.hypot(placement.x - this.x, placement.y - this.y);
             if (distanceToPlacement > 16) {
-                const targetGrid = gridManager.screenToIso(placement.x, placement.y);
-                this.movement.setTarget(targetGrid.x, targetGrid.y, 'immediate', 5, 0);
+                this.setMovementTargetFromScreen(placement.x, placement.y, 'immediate', 5, 0, {
+                    zoneId: placement.zoneId || this.getMovementZoneId()
+                });
                 if (this.blockInteraction.carryFrames < 42) return;
             }
             this.placeCarriedBlock(carriedBlock, zoneId);
@@ -2935,8 +2962,9 @@ class Butterfly extends Entity {
                 targetBlock = nearbyBlock;
                 this.blockInteraction.targetBlockId = targetBlock.id;
                 this.rememberDispersalAnchor(`block:${targetBlock.id}`);
-                const targetGrid = gridManager.screenToIso(targetBlock.x, targetBlock.y);
-                this.movement.setTarget(targetGrid.x, targetGrid.y, 'immediate', 5, 0);
+                this.setMovementTargetFromScreen(targetBlock.x, targetBlock.y, 'immediate', 5, 0, {
+                    zoneId: targetBlock.currentZoneId || this.getMovementZoneId()
+                });
             }
         }
 
@@ -2944,8 +2972,9 @@ class Butterfly extends Entity {
 
         const distance = Math.hypot(targetBlock.x - this.x, targetBlock.y - this.y);
         if (distance > 18) {
-            const targetGrid = gridManager.screenToIso(targetBlock.x, targetBlock.y);
-            this.movement.setTarget(targetGrid.x, targetGrid.y, 'immediate', 5, 0);
+            this.setMovementTargetFromScreen(targetBlock.x, targetBlock.y, 'immediate', 5, 0, {
+                zoneId: targetBlock.currentZoneId || this.getMovementZoneId()
+            });
             return;
         }
         if (!targetBlock.canBeMovedBy?.(this)) {
@@ -3053,11 +3082,12 @@ class Butterfly extends Entity {
                     const rightDistance = Math.hypot((right.x || 0) - this.x, (right.y || 0) - this.y);
                     const leftBias = (feedUrgency * 32) + (prefersFlowerTarget ? 18 : 0);
                     return (leftDistance - leftBias) - rightDistance;
-                })[0] || random(availableFlowers);
+            })[0] || random(availableFlowers);
             this.rememberDispersalAnchor(`flower:${targetFlower.id}`);
             this.targetFlower = targetFlower;
-            const flowerGrid = gridManager.screenToIso(targetFlower.x, targetFlower.y);
-            this.movement.setTarget(flowerGrid.x, flowerGrid.y, 'goal', 3);
+            this.setMovementTargetFromScreen(targetFlower.x, targetFlower.y, 'goal', 3, 0, {
+                zoneId: targetFlower.currentZoneId || this.getMovementZoneId()
+            });
         }
     }
     
@@ -3079,7 +3109,7 @@ class Butterfly extends Entity {
         }
         
         for (let flower of flowers) {
-            const flowerGrid = gridManager.screenToIso(flower.x, flower.y);
+            const flowerGrid = this.screenPointToLegacyGridTarget(flower.x, flower.y);
             const dx = flowerGrid.x - this.movement.target.x;
             const dy = flowerGrid.y - this.movement.target.y;
             if (dx*dx + dy*dy < 1) {
@@ -3523,7 +3553,7 @@ class Butterfly extends Entity {
             this.isSpawning = false;
 
             // Sync grid position from screen position
-            this.gridPos = gridManager.screenToIso(this.x, this.y + this.shadowOffset);
+            this.syncDebugGridPos();
 
             // Start normal behavior with a fresh wander target
             this.pickNewWanderTarget();

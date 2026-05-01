@@ -744,7 +744,10 @@ const PAPILIONEM_BATTLE_ARENA = {
     cognition: {
         derivedFeelings: { enabled: true },
         bondTier: { enabled: true },
-        grief: { enabled: true },
+        grief: {
+            enabled: true,
+            longAbsence: { enabled: true }
+        },
         jealousy: { enabled: true },
         anchors: { enabled: true },
         loyalty: { enabled: true },
