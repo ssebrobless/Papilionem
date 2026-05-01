@@ -63,8 +63,8 @@ class BehaviorSystem {
     }
 
     resolveZoneId(entity) {
-        if (!entity?.gridPos || typeof zoneSystem === 'undefined') return null;
-        return zoneSystem.getZoneAtGrid(entity.gridPos.x, entity.gridPos.y)?.id || null;
+        if (!entity || typeof zoneSystem === 'undefined') return null;
+        return zoneSystem.getEntityZone?.(entity)?.id || null;
     }
 
     getSocialEcologyIntent(entity) {

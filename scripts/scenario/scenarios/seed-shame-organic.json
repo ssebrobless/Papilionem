@@ -1,14 +1,11 @@
 {
-  "id": "seed-shame",
-  "seed": 505,
+  "id": "seed-shame-organic",
+  "seed": 1106,
   "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
   "entities": [
     { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 9, "v": 9, "h": 0 }, "drives": { "caregiving": 0.5 } },
     { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 9, "h": 0 } },
     { "id": "c", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 15, "v": 9, "h": 0 } }
-  ],
-  "edges": [
-    { "source": "a", "target": "b", "values": { "trust": 0.74, "comfort": 0.7, "attachment": 0.72, "bondTier": "companion", "coTimeSeconds": 900 } }
   ],
   "actions": [
     { "type": "emit_signal", "source": "a", "targets": ["b"], "signalType": "warning_signal", "intentFamily": "care", "intentTags": ["warning", "comfort"], "phrase": "Please move back; this is unsafe." },

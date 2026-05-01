@@ -1,0 +1,23 @@
+{
+  "id": "seed-cleanup-floor-organic",
+  "seed": 1108,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 5, "v": 5, "h": 0 }, "drives": { "selfMaintenance": 0.8, "caregiving": 0.7 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 15, "v": 5, "h": 0 }, "drives": { "selfMaintenance": 0.75, "caregiving": 0.65 } },
+    { "id": "c", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 5, "v": 15, "h": 0 }, "drives": { "selfMaintenance": 0.7, "caregiving": 0.6 } },
+    { "id": "d", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 15, "v": 15, "h": 0 }, "drives": { "selfMaintenance": 0.7, "caregiving": 0.6 } }
+  ],
+  "objects": [
+    { "id": "pile-a", "type": "dirt-pile", "boardPos": { "zoneId": "moss-hollow", "u": 9, "v": 9, "h": 0 } },
+    { "id": "pile-b", "type": "dirt-pile", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 9, "h": 0 } },
+    { "id": "pile-c", "type": "dirt-pile", "boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 9, "h": 0 } },
+    { "id": "pile-d", "type": "dirt-pile", "boardPos": { "zoneId": "moss-hollow", "u": 12, "v": 9, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "step_simulation", "frames": 3600 }
+  ],
+  "assertions": [
+    { "type": "object_count", "kind": "dirt-pile", "max": 4 }
+  ]
+}

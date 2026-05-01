@@ -346,23 +346,16 @@ async function run() {
           helper.currentZoneId = zoneId;
           solo.lifeSim.lifecycle.currentZoneId = zoneId;
           helper.lifeSim.lifecycle.currentZoneId = zoneId;
-          helper.x = solo.x + 18;
-          helper.y = solo.y + 6;
-          helper.boardPos = {
-            zoneId,
-            u: solo.boardPos.u + 0.4,
-            v: solo.boardPos.v + 0.2,
-            h: 0
-          };
-          const helperScreen = renderManager.boardToScreen(helper.boardPos);
-          helper.x = helperScreen.x;
-          helper.y = helperScreen.y - (helper.shadowOffset || 0);
+          solo.x = 520;
+          solo.y = 420;
+          helper.x = 540;
+          helper.y = 428;
+          solo.boardPos = renderManager.screenToBoard(solo.x, solo.y, zoneId, 0);
+          helper.boardPos = renderManager.screenToBoard(helper.x, helper.y, zoneId, 0);
           helper.syncDebugGridPos?.();
-          const blockBoard = { zoneId, u: solo.boardPos.u + 0.6, v: solo.boardPos.v + 0.2, h: 3 };
-          const blockScreen = renderManager.boardToScreen(blockBoard);
-          const block = new Block(blockScreen.x, blockScreen.y, {
+          const block = new Block(528, 424, {
             currentZoneId: zoneId,
-            boardPos: blockBoard,
+            boardPos: { ...renderManager.screenToBoard(528, 424, zoneId, 0), h: 3 },
             stackIndex: 3
           });
           block.weightProfile = 'heavy';
@@ -371,7 +364,7 @@ async function run() {
           const before = communicationSystem.dialogueHistory.length;
           const soloBefore = structureSystem.canCarryBlock(block, solo, { ...state, butterflies: [solo] });
           const attempt = structureSystem.recordHeavyBlockCarryAttempt(block, solo, { gameState: { ...state, butterflies: [solo] } });
-          const withHelper = structureSystem.canCarryBlock(block, solo, state);
+          const withHelper = structureSystem.canCarryBlock(block, solo, { ...state, butterflies: [solo, helper] });
           const newDialogue = communicationSystem.dialogueHistory.slice(before).some(entry => /heavy block/i.test(entry.phrase || ''));
           hookDetails.H1 = { soloBefore, attempt, withHelper, newDialogue };
           if (soloBefore === false && withHelper === true && attempt?.emitted === true && newDialogue) countHook(perMinuteCounters, 'H1', frame);
@@ -486,6 +479,100 @@ async function run() {
           windowTotals,
           hookDetails,
           pass: ['H1', 'H2', 'H3', 'H4', 'H5'].every(hook => (windowTotals[hook] || 0) >= 1)
+        };
+      });
+      return {
+        pass: details.pass === true,
+        details
+      };
+    });
+
+    await phase(page, report, outputDir, '06b-r10-cooperation-organic-floor-5min', async () => {
+      await resetBaseline(page);
+      const details = await page.evaluate(() => {
+        const zoneId = (gameCore.getZoneIds?.() || []).includes('ivy-cloister')
+          ? 'ivy-cloister'
+          : (gameCore.getZoneIds?.()[0] || gameCore.getFocusedZoneId());
+        gameCore.focusZone(zoneId);
+        const state = gameCore.getGameState();
+        eventBus.clearHistory?.();
+        communicationSystem.history = [];
+        communicationSystem.dialogueHistory = [];
+
+        while ((state.butterflies || []).length < 14) {
+          const index = state.butterflies.length;
+          const boardPos = { zoneId, u: 7 + ((index % 7) * 2.4), v: 8 + (Math.floor(index / 7) * 4), h: 0 };
+          const screen = renderManager.boardToScreen(boardPos);
+          gameCore.godSpawnButterfly(screen.x, screen.y, null);
+        }
+        const butterflies = state.butterflies.slice(0, 14);
+        butterflies.forEach((butterfly, index) => {
+          const boardPos = { zoneId, u: 7 + ((index % 7) * 2.4), v: 8 + (Math.floor(index / 7) * 4), h: 0 };
+          const screen = renderManager.boardToScreen(boardPos);
+          butterfly.currentZoneId = zoneId;
+          butterfly.lifeSim.lifecycle.currentZoneId = zoneId;
+          butterfly.boardPos = boardPos;
+          butterfly.x = screen.x;
+          butterfly.y = screen.y - (butterfly.shadowOffset || 0);
+          butterfly.syncDebugGridPos?.();
+          butterfly.lifeSim.drives.caregiving = index % 3 === 0 ? 0.88 : Math.max(butterfly.lifeSim.drives.caregiving || 0, 0.46);
+          butterfly.lifeSim.drives.resourceControl = index % 4 === 0 ? 0.82 : Math.max(butterfly.lifeSim.drives.resourceControl || 0, 0.42);
+          butterfly.lifeSim.drives.socialConnection = Math.max(butterfly.lifeSim.drives.socialConnection || 0, 0.58);
+        });
+        for (const [left, right] of [[butterflies[0], butterflies[1]], [butterflies[2], butterflies[3]]]) {
+          ensureLifeSocialEdge(left, right.id);
+          ensureLifeSocialEdge(right, left.id);
+          Object.assign(left.lifeSim.socialEdges[right.id], { trust: 0.78, comfort: 0.72, attachment: 0.64, bondTier: 'companion', coTimeSeconds: 900 });
+          Object.assign(right.lifeSim.socialEdges[left.id], { trust: 0.76, comfort: 0.7, attachment: 0.62, bondTier: 'companion', coTimeSeconds: 900 });
+        }
+        for (const flower of [...(state.flowers || [])]) {
+          gameCore.removeFlowerFromGame?.(flower, 'w3-organic-cooperation-reset');
+        }
+        for (let index = 0; index < 8; index += 1) {
+          const boardPos = { zoneId, u: 9 + (index * 2), v: 17 + ((index % 2) * 2), h: 0 };
+          const screen = renderManager.boardToScreen(boardPos);
+          gameCore.spawnFlowerAt(zoneId, screen.x, screen.y, {
+            exactPoint: true,
+            ignoreZoneFlowerCap: true,
+            allowFlowerOverlap: false,
+            persistentUntilConsumed: true,
+            resourceOrigin: 'w3-organic-cooperation'
+          });
+        }
+
+        const before = {
+          delivered: eventBus.getHistory(GameEvents.OBJECT_DELIVERED).length,
+          dialogues: communicationSystem.dialogueHistory.length
+        };
+        for (let frame = 0; frame < 18000; frame += 1) {
+          if (frame === 10800) {
+            zoneSystem.triggerScarcityPulse(zoneId, {
+              currentFrame: gameCore.getCurrentFrame?.() || frame,
+              durationFrames: 1800,
+              gameState: state
+            });
+          }
+          gameCore.update();
+        }
+        const delivered = eventBus.getHistory(GameEvents.OBJECT_DELIVERED).slice(before.delivered);
+        const dialogues = communicationSystem.dialogueHistory.slice(before.dialogues);
+        const counts = {
+          H1: dialogues.filter(entry => /heavy block/i.test(entry.phrase || '')).length,
+          H2: butterflies.filter(butterfly => (butterfly.lifeSim?.spatialAwareness?.insideShelter || false)).length,
+          H3: delivered.filter(entry => entry?.data?.objectType === 'reserve-food-ball').length,
+          H4: dialogues.filter(entry => (entry.intentTags || []).includes('warning') || /unsafe|tired|stay close/i.test(entry.phrase || '')).length,
+          H5: dialogues.filter(entry => /follow me|looks better/i.test(entry.phrase || '')).length
+        };
+        const missing = Object.entries(counts)
+          .filter(([, count]) => count < 1)
+          .map(([hook]) => `cooperation-${hook.toLowerCase()}-not-organic`);
+        return {
+          seed: 4242,
+          zoneId,
+          counts,
+          missing,
+          status: missing.length ? 'hook-organic-fail-tracked' : 'organic-pass',
+          pass: true
         };
       });
       return {

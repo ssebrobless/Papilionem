@@ -1,0 +1,23 @@
+{
+  "id": "seed-pride-organic",
+  "seed": 1105,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 6, "v": 7, "h": 0 }, "drives": { "caregiving": 0.95 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 6.8, "v": 7.1, "h": 0 } },
+    { "id": "c", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 7, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "step_simulation", "frames": 60 },
+    { "type": "set_emotions", "source": "b", "threat": 0.86, "exhaustion": 0.7 },
+    { "type": "step_simulation", "frames": 180 },
+    { "type": "set_emotions", "source": "b", "threat": 0.08, "exhaustion": 0.08 },
+    { "type": "step_simulation", "frames": 180 },
+    { "type": "emit_dialogue", "source": "a", "intentFamily": "social", "intentTags": ["admiration", "statusPerformance"], "phrase": "I helped, and I can keep helping." }
+  ],
+  "assertions": [
+    { "type": "memory_packet", "entity": "a", "family": "outcome", "anchor": "pride", "min": 1 },
+    { "type": "feeling_min", "entity": "a", "key": "pride", "min": 0.4 },
+    { "type": "assert_dialogue_intent", "entity": "a", "expected_intent_tags": ["admiration", "statusPerformance"], "within_seconds": 10 }
+  ]
+}

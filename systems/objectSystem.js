@@ -17,8 +17,8 @@ class ObjectSystem {
     registerObject(entity, metadata = {}) {
         if (!entity?.id) return null;
         const existing = this.objectState.get(entity.id) || {};
-        const zoneId = typeof zoneSystem !== 'undefined' && entity.gridPos
-            ? zoneSystem.getZoneAtGrid(entity.gridPos.x, entity.gridPos.y)?.id || null
+        const zoneId = typeof zoneSystem !== 'undefined'
+            ? zoneSystem.getEntityZone?.(entity)?.id || null
             : null;
         const state = {
             id: entity.id,
@@ -139,8 +139,8 @@ class ObjectSystem {
         state.resourceTags = [...(entity.objectProfile?.resourceTags || state.resourceTags || [])];
         state.x = entity.x ?? state.x;
         state.y = entity.y ?? state.y;
-        state.zoneId = typeof zoneSystem !== 'undefined' && entity.gridPos
-            ? zoneSystem.getZoneAtGrid(entity.gridPos.x, entity.gridPos.y)?.id || null
+        state.zoneId = typeof zoneSystem !== 'undefined'
+            ? zoneSystem.getEntityZone?.(entity)?.id || null
             : state.zoneId;
         if (state.type === 'block') {
             state.metadata = {

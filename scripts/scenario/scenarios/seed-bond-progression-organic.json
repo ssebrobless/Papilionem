@@ -1,0 +1,21 @@
+{
+  "id": "seed-bond-progression-organic",
+  "seed": 1102,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 8, "v": 8, "h": 0 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 8, "h": 0 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.8, "comfort": 0.78, "attachment": 0.82, "coTimeSeconds": 1900 } }
+  ],
+  "objects": [
+    { "id": "flower-a", "type": "flower", "boardPos": { "zoneId": "ivy-cloister", "u": 8.5, "v": 8, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "step_simulation", "frames": 600 }
+  ],
+  "assertions": [
+    { "type": "bond_tier", "entity": "a", "target": "b", "minTier": "bonded" }
+  ]
+}

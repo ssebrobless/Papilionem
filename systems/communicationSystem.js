@@ -14,19 +14,43 @@ class CommunicationSystem {
         this.dialogueReplyDelayMs = 2000;
         this.maintenancePhaseCache = new Map();
         this.legacyRadiusWarningSites = new Set();
+        this.productionTriggerFrames = new Map();
+        this.distressRecords = new Map();
+        this.warningRecords = [];
+        this.scoutOfferRecords = [];
+        this.eventUnsubscribers = [];
     }
 
     initialize() {
-        if (!this.listenersAttached) {
+        if (!this.listenersAttached || this.areEventListenersMissing()) {
             this.attachEventListeners();
             this.listenersAttached = true;
         }
         this.initialized = true;
     }
 
+    areEventListenersMissing() {
+        if (typeof eventBus === 'undefined' || typeof eventBus.getListenerCount !== 'function') return false;
+        const hasCommunication = eventBus.getListenerCount(GameEvents.COMMUNICATION_SIGNAL) > 0;
+        const hasBattleAction = !GameEvents?.BATTLE_ACTION_OCCURRED
+            || eventBus.getListenerCount(GameEvents.BATTLE_ACTION_OCCURRED) > 0;
+        return !hasCommunication || !hasBattleAction;
+    }
+
     attachEventListeners() {
         if (typeof eventBus === 'undefined') return;
-        eventBus.on(GameEvents.COMMUNICATION_SIGNAL, data => this.handleSignal(data));
+        for (const unsubscribe of this.eventUnsubscribers || []) {
+            try {
+                unsubscribe?.();
+            } catch (_error) {
+                // Listener cleanup is best-effort; reattach below keeps the live hook intact.
+            }
+        }
+        this.eventUnsubscribers = [];
+        this.eventUnsubscribers.push(eventBus.on(GameEvents.COMMUNICATION_SIGNAL, data => this.handleSignal(data)));
+        if (GameEvents?.BATTLE_ACTION_OCCURRED) {
+            this.eventUnsubscribers.push(eventBus.on(GameEvents.BATTLE_ACTION_OCCURRED, data => this.handleBattleActionForWarnings(data)));
+        }
     }
 
     reset() {
@@ -36,6 +60,10 @@ class CommunicationSystem {
         this.activeSignals.clear();
         this.maintenancePhaseCache.clear();
         this.legacyRadiusWarningSites.clear();
+        this.productionTriggerFrames.clear();
+        this.distressRecords.clear();
+        this.warningRecords = [];
+        this.scoutOfferRecords = [];
         this.simulationClockSeconds = 0;
     }
 
@@ -195,6 +223,7 @@ class CommunicationSystem {
             intentFamily: options.intentFamily || 'social',
             intentTags: options.intentTags || ['guidance', 'companionship'],
             metadata: {
+                ...(options.metadata || {}),
                 blockId: options.blockId || null,
                 targetZoneId: options.targetZoneId || null,
                 reason: options.reason || null
@@ -237,36 +266,226 @@ class CommunicationSystem {
         });
     }
 
+    getCurrentFrame() {
+        return gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+    }
+
+    getZoneId(entity) {
+        return entity?.currentZoneId || entity?.boardPos?.zoneId || entity?.lifeSim?.lifecycle?.currentZoneId || null;
+    }
+
+    isCognitionTriggerEnabled(kind, name) {
+        const group = gameConfig?.cognition?.triggers?.[kind] || {};
+        if (group.enabled === false) return false;
+        return group?.[name]?.enabled !== false;
+    }
+
+    hasRecentProductionTrigger(key, currentFrame = this.getCurrentFrame(), cooldownFrames = 18000) {
+        const last = this.productionTriggerFrames.get(key);
+        return Number.isFinite(last) && (currentFrame - last) < cooldownFrames;
+    }
+
+    markProductionTrigger(key, currentFrame = this.getCurrentFrame()) {
+        this.productionTriggerFrames.set(key, currentFrame);
+    }
+
+    emitProductionCognitionTrigger(kind, payload = {}) {
+        if (typeof eventBus === 'undefined') return;
+        eventBus.emit('cognition:triggered', {
+            kind,
+            source: 'production',
+            system: 'communicationSystem',
+            currentFrame: this.getCurrentFrame(),
+            ...JSON.parse(JSON.stringify(payload || {}))
+        });
+    }
+
+    createProductionOutcomeAnchor(entity, anchor, reason, strength, triggerName, extra = {}) {
+        if (!entity?.id || typeof lifeSimSystem === 'undefined') return null;
+        if (anchor === 'pride' && !this.isCognitionTriggerEnabled('pride', triggerName)) return null;
+        if (anchor === 'shame' && !this.isCognitionTriggerEnabled('shame', triggerName)) return null;
+        const currentFrame = this.getCurrentFrame();
+        const key = `${anchor}:${triggerName}:${entity.id}`;
+        if (this.hasRecentProductionTrigger(key, currentFrame, 18000)) return null;
+        const packet = lifeSimSystem.createOutcomeAnchor?.(entity, anchor, reason, { strength });
+        if (!packet) return null;
+        this.markProductionTrigger(key, currentFrame);
+        this.emitProductionCognitionTrigger(anchor, {
+            trigger: triggerName,
+            entityId: entity.id,
+            reason,
+            strength,
+            ...extra
+        });
+        return packet;
+    }
+
+    recordProductionLoyaltyChoice(entity, chosenPartnerId, rejectedPartnerId, triggerName, extra = {}) {
+        if (!entity?.id || !chosenPartnerId || !rejectedPartnerId || typeof lifeSimSystem === 'undefined') return null;
+        if (!this.isCognitionTriggerEnabled('loyalty', triggerName)) return null;
+        const currentFrame = this.getCurrentFrame();
+        const key = `loyalty:${triggerName}:${entity.id}:${chosenPartnerId}:${rejectedPartnerId}`;
+        if (this.hasRecentProductionTrigger(key, currentFrame, 60)) return null;
+        const packet = lifeSimSystem.recordLoyaltyChoice?.(entity, chosenPartnerId, rejectedPartnerId, {
+            strength: extra.strength ?? 0.55
+        });
+        if (!packet) return null;
+        this.markProductionTrigger(key, currentFrame);
+        this.emitProductionCognitionTrigger('loyalty', {
+            trigger: triggerName,
+            entityId: entity.id,
+            chosenPartnerId,
+            rejectedPartnerId,
+            ...extra
+        });
+        return packet;
+    }
+
+    getDistressLevel(entity) {
+        const lifeSim = entity?.lifeSim;
+        return Math.max(
+            this.clamp01(lifeSim?.emotions?.threat || 0),
+            this.clamp01(lifeSim?.emotions?.exhaustion || 0)
+        );
+    }
+
+    edgePriorityScore(entity, partnerId) {
+        const edge = entity?.lifeSim?.socialEdges?.[partnerId] || {};
+        return this.clamp01(
+            ((edge.trust || 0) * 0.22)
+            + ((edge.comfort || 0) * 0.22)
+            + ((edge.attachment || 0) * 0.22)
+            + ((edge.protectiveness || 0) * 0.18)
+            + ((edge.admiration || 0) * 0.1)
+            + ((edge.loyalty || 0) * 0.06)
+        );
+    }
+
+    getTopPrioritySourceIds(entity, candidates = [], count = 3) {
+        return candidates
+            .filter(candidate => candidate?.id && candidate.id !== entity?.id)
+            .map(candidate => ({
+                id: candidate.id,
+                score: this.edgePriorityScore(entity, candidate.id)
+            }))
+            .sort((left, right) => right.score - left.score)
+            .slice(0, Math.max(1, count))
+            .map(entry => entry.id);
+    }
+
+    isCompanionOrBetter(entity, partnerId) {
+        const edge = entity?.lifeSim?.socialEdges?.[partnerId] || null;
+        if (!edge) return false;
+        const rank = lifeSimSystem?.getBondRank?.(edge.bondTier) ?? ({ acquaintance: 0, familiar: 1, companion: 2, bonded: 3 }[edge.bondTier] ?? 0);
+        return rank >= 2;
+    }
+
+    getBoardDistanceBetween(left, right, zoneId = null) {
+        const distance = this.getProjectedBoardDistanceUnits(left, right, zoneId || this.getZoneId(left) || this.getZoneId(right));
+        if (Number.isFinite(distance)) return distance;
+        const dx = (left?.x || 0) - (right?.x || 0);
+        const dy = (left?.y || 0) - (right?.y || 0);
+        return this.radiusPixelsToUnits(Math.hypot(dx, dy), zoneId || this.getZoneId(left) || this.getZoneId(right));
+    }
+
+    getCaregiverCandidates(entity, liveEntities, zoneId) {
+        return liveEntities
+            .filter(candidate => candidate?.id && candidate.id !== entity.id)
+            .filter(candidate => this.getZoneId(candidate) === zoneId)
+            .filter(candidate => this.clamp01(candidate.lifeSim?.drives?.caregiving || 0) >= 0.42)
+            .filter(candidate => this.getBoardDistanceBetween(candidate, entity, zoneId) <= 7)
+            .slice(0, 3);
+    }
+
     updateDistressCascade(gameState = gameCore?.gameState, currentFrame = 0) {
         if ((Math.max(0, Math.round(currentFrame || 0)) % 90) !== 0) return 0;
         let emitted = 0;
-        for (const entity of this.getLiveEntities(gameState)) {
+        const liveEntities = this.getLiveEntities(gameState);
+        const distressed = liveEntities
+            .map(entity => ({
+                entity,
+                zoneId: this.getZoneId(entity),
+                level: this.getDistressLevel(entity)
+            }))
+            .filter(entry => entry.entity?.lifeSim?.communication && entry.level >= 0.64);
+
+        for (const entry of distressed) {
+            const record = this.distressRecords.get(entry.entity.id) || {
+                distressedId: entry.entity.id,
+                firstFrame: currentFrame,
+                respondedCaregiverIds: new Set(),
+                abandonedIds: new Set()
+            };
+            record.lastHighFrame = currentFrame;
+            record.zoneId = entry.zoneId;
+            record.level = entry.level;
+            this.distressRecords.set(entry.entity.id, record);
+        }
+
+        for (const [distressedId, record] of Array.from(this.distressRecords.entries())) {
+            const entity = this.getEntityById(distressedId, gameState);
+            if (!entity?.id) {
+                this.distressRecords.delete(distressedId);
+                continue;
+            }
+            const level = this.getDistressLevel(entity);
+            const zoneId = this.getZoneId(entity);
+            if (level < 0.5 && record.respondedCaregiverIds?.size) {
+                for (const caregiverId of record.respondedCaregiverIds) {
+                    const caregiver = this.getEntityById(caregiverId, gameState);
+                    if (!caregiver?.id) continue;
+                    if (this.getZoneId(caregiver) !== zoneId) continue;
+                    if (this.getBoardDistanceBetween(caregiver, entity, zoneId) > 2) continue;
+                    this.createProductionOutcomeAnchor(caregiver, 'pride', 'caregiving-success', 0.55, 'caregivingSuccess', {
+                        distressedId: entity.id,
+                        distanceUnits: this.getBoardDistanceBetween(caregiver, entity, zoneId)
+                    });
+                }
+                this.distressRecords.delete(distressedId);
+                continue;
+            }
+            const firstFrame = record.firstFrame ?? currentFrame;
+            if ((currentFrame - firstFrame) >= 600 && level >= 0.64) {
+                for (const candidate of liveEntities) {
+                    if (!candidate?.id || candidate.id === distressedId) continue;
+                    if (this.getZoneId(candidate) !== zoneId) continue;
+                    if (!this.isCompanionOrBetter(candidate, distressedId)) continue;
+                    if (record.respondedCaregiverIds?.has(candidate.id)) continue;
+                    if (record.abandonedIds?.has(candidate.id)) continue;
+                    const packet = this.createProductionOutcomeAnchor(candidate, 'shame', 'abandoned-ally', 0.45, 'abandonedAlly', {
+                        distressedId,
+                        waitedFrames: currentFrame - firstFrame
+                    });
+                    if (packet) record.abandonedIds.add(candidate.id);
+                }
+            }
+            if ((currentFrame - (record.lastHighFrame ?? currentFrame)) > 1800) {
+                this.distressRecords.delete(distressedId);
+            }
+        }
+
+        for (const { entity, zoneId, level } of distressed) {
             const lifeSim = entity?.lifeSim;
-            if (!lifeSim?.communication) continue;
-            const threat = this.clamp01(lifeSim.emotions?.threat || 0);
-            const exhaustion = this.clamp01(lifeSim.emotions?.exhaustion || 0);
-            if (Math.max(threat, exhaustion) < 0.64) continue;
             const last = Number.isFinite(lifeSim.communication.lastDistressAtSeconds)
                 ? lifeSim.communication.lastDistressAtSeconds
                 : -Infinity;
             if ((this.simulationClockSeconds - last) < 20) continue;
             lifeSim.communication.lastDistressAtSeconds = this.simulationClockSeconds;
-            const nearbyCaregivers = this.getLiveEntities(gameState)
-                .filter(candidate => candidate?.id && candidate.id !== entity.id)
-                .filter(candidate => (candidate.currentZoneId || candidate.lifeSim?.lifecycle?.currentZoneId || null) === (entity.currentZoneId || lifeSim.lifecycle?.currentZoneId || null))
-                .filter(candidate => this.clamp01(candidate.lifeSim?.drives?.caregiving || 0) >= 0.42)
-                .filter(candidate => Math.hypot((candidate.x || 0) - (entity.x || 0), (candidate.y || 0) - (entity.y || 0)) <= 140)
-                .slice(0, 3);
+            const nearbyCaregivers = this.getCaregiverCandidates(entity, liveEntities, zoneId);
             this.emitCooperationSignal(entity, {
                 signalType: 'warning_signal',
                 intentFamily: 'care',
                 intentTags: ['warning', 'comfort'],
-                phrase: exhaustion > threat ? 'I am too tired; stay close.' : 'I feel unsafe; stay close.',
+                phrase: this.clamp01(lifeSim.emotions?.exhaustion || 0) > this.clamp01(lifeSim.emotions?.threat || 0)
+                    ? 'I am too tired; stay close.'
+                    : 'I feel unsafe; stay close.',
                 targetIds: nearbyCaregivers.map(candidate => candidate.id),
-                zoneId: entity.currentZoneId || lifeSim.lifecycle?.currentZoneId || null,
+                zoneId,
                 reason: 'distress'
             });
+            const record = this.distressRecords.get(entity.id);
             for (const caregiver of nearbyCaregivers) {
+                record?.respondedCaregiverIds?.add(caregiver.id);
                 if (typeof adjustLifeSocialEdge === 'function') {
                     adjustLifeSocialEdge(caregiver, entity.id, {
                         protectiveness: 0.018,
@@ -276,6 +495,21 @@ class CommunicationSystem {
                         updatedAtSeconds: this.simulationClockSeconds,
                         tag: 'distress-cascade'
                     });
+                }
+                const competing = distressed.find(entry =>
+                    entry.entity.id !== entity.id
+                    && entry.zoneId === zoneId
+                    && Math.abs((this.distressRecords.get(entry.entity.id)?.lastHighFrame ?? currentFrame) - currentFrame) <= 120
+                );
+                if (competing?.entity?.id) {
+                    const topPriority = this.getTopPrioritySourceIds(caregiver, [entity, competing.entity], 3);
+                    if (topPriority.includes(competing.entity.id)) {
+                        this.recordProductionLoyaltyChoice(caregiver, entity.id, competing.entity.id, 'competingDistress', {
+                            strength: 0.55,
+                            distressLevelChosen: level,
+                            distressLevelRejected: competing.level
+                        });
+                    }
                 }
             }
             emitted += 1;
@@ -312,11 +546,45 @@ class CommunicationSystem {
                 targetZoneId,
                 reason: 'scout-discovery'
             });
+            const offerRecord = {
+                scoutId: entity.id,
+                targetZoneId,
+                zoneId: entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null,
+                recipientIds: recipients.map(candidate => candidate.id),
+                emittedAtFrame: currentFrame
+            };
+            this.scoutOfferRecords.push(offerRecord);
+            if (this.scoutOfferRecords.length > 40) {
+                this.scoutOfferRecords = this.scoutOfferRecords.slice(-40);
+            }
             for (const recipient of recipients) {
                 recipient.lifeSim = recipient.lifeSim || {};
                 recipient.lifeSim.migration = recipient.lifeSim.migration || {};
                 recipient.lifeSim.migration.cohortPreferredZoneId = targetZoneId;
                 recipient.lifeSim.migration.cohortPreferredZoneBoost = this.clamp01((recipient.lifeSim.migration.cohortPreferredZoneBoost || 0) + 0.18);
+                const competing = this.scoutOfferRecords.find(record =>
+                    record.scoutId !== entity.id
+                    && record.targetZoneId !== targetZoneId
+                    && record.recipientIds?.includes?.(recipient.id)
+                    && Math.abs(currentFrame - (record.emittedAtFrame || currentFrame)) <= 120
+                );
+                if (competing) {
+                    const competingScout = this.getEntityById(competing.scoutId, gameState);
+                    const topPriority = this.getTopPrioritySourceIds(recipient, [entity, competingScout], 3);
+                    if (topPriority.includes(entity.id) && topPriority.includes(competing.scoutId)) {
+                        this.recordProductionLoyaltyChoice(recipient, entity.id, competing.scoutId, 'competingScout', {
+                            strength: 0.52,
+                            chosenTargetZoneId: targetZoneId,
+                            rejectedTargetZoneId: competing.targetZoneId
+                        });
+                    }
+                }
+            }
+            if (recipients.length >= 2) {
+                this.createProductionOutcomeAnchor(entity, 'pride', 'scout-cluster', 0.5, 'scoutCluster', {
+                    adoptedCount: recipients.length,
+                    targetZoneId
+                });
             }
             emitted += 1;
             if (emitted >= 3) break;
@@ -3629,6 +3897,7 @@ class CommunicationSystem {
             intentTags: Array.isArray(data.intentTags) ? [...new Set(data.intentTags.filter(Boolean))] : [],
             metadata: data.metadata || null,
             createdAtSeconds,
+            emittedAtFrame: data.emittedAtFrame ?? this.getCurrentFrame(),
             expiresAtSeconds: createdAtSeconds + (data.durationSeconds ?? config.durationSeconds),
             clarityDelta: data.clarityDelta ?? config.clarityDelta
         };
@@ -3704,7 +3973,8 @@ class CommunicationSystem {
             atSeconds: signal.createdAtSeconds,
             zoneId: signal.sourceZoneId,
             indicator: signal.indicator,
-            indicatorGlyph: signal.indicatorGlyph
+            indicatorGlyph: signal.indicatorGlyph,
+            metadata: signal.metadata || null
         };
     }
 
@@ -4217,6 +4487,57 @@ class CommunicationSystem {
         return stored;
     }
 
+    recordWarningSignal(signal, recipients = []) {
+        if (!signal || signal.signalType !== 'warning_signal') return null;
+        const witnessIds = recipients.map(recipient => recipient?.id).filter(Boolean);
+        if (!witnessIds.length) return null;
+        signal.metadata = {
+            ...(signal.metadata || {}),
+            witnessIds,
+            emittedAtFrame: signal.emittedAtFrame ?? this.getCurrentFrame()
+        };
+        const record = {
+            warningId: signal.id,
+            warnerId: signal.sourceId,
+            witnessIds,
+            emittedAtFrame: signal.emittedAtFrame ?? this.getCurrentFrame(),
+            zoneId: signal.sourceZoneId || null,
+            handledWitnessIds: new Set()
+        };
+        this.warningRecords.push(record);
+        if (this.warningRecords.length > 80) {
+            this.warningRecords = this.warningRecords.slice(-80);
+        }
+        return record;
+    }
+
+    handleBattleActionForWarnings(data = {}) {
+        const targetId = data.targetId || data.targetEntityId || null;
+        const damage = Number(data.damage ?? data.amount ?? 0) || 0;
+        if (!targetId || damage <= 0) return null;
+        const currentFrame = this.getCurrentFrame();
+        let created = 0;
+        for (const record of this.warningRecords) {
+            if (!record?.witnessIds?.includes?.(targetId)) continue;
+            if ((currentFrame - (record.emittedAtFrame || currentFrame)) > 600) continue;
+            if (record.handledWitnessIds?.has?.(targetId)) continue;
+            const warner = this.getEntityById(record.warnerId);
+            const warnerDead = !!warner?.dead
+                || (typeof warner?.isDead === 'function' ? warner.isDead() : !!warner?.isDead);
+            if (!warner?.id || warnerDead) continue;
+            const packet = this.createProductionOutcomeAnchor(warner, 'shame', 'warning-ignored-harm', 0.5, 'warningIgnoredHarm', {
+                warningId: record.warningId,
+                harmedWitnessId: targetId,
+                damage
+            });
+            if (packet) {
+                record.handledWitnessIds.add(targetId);
+                created += 1;
+            }
+        }
+        return created;
+    }
+
     handleSignal(data = {}) {
         const signal = this.normalizeSignal(data);
         if (!signal) return null;
@@ -4231,6 +4552,7 @@ class CommunicationSystem {
             this.registerEntity(recipient);
             this.applySignalToRecipient(recipient, signal);
         }
+        this.recordWarningSignal(signal, recipients);
 
         this.activeSignals.set(signal.sourceId, signal);
         const internalEntry = this.storeHistory(signal, recipients);

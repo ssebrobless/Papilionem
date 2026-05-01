@@ -617,12 +617,26 @@ class GameUI {
         const relationshipSummary = communicationSummary?.relationship || null;
         const cognition = lifeSimSummary?.cognition || {};
         const feelings = cognition?.feelings || {};
+        const feelingCounters = {
+            loneliness: Math.round((feelings.loneliness || 0) * 100),
+            comfortSeeking: Math.round((feelings.comfortSeeking || 0) * 100),
+            socialInsecurity: Math.round((feelings.socialInsecurity || 0) * 100),
+            jealousy: Math.round((feelings.jealousy || 0) * 100),
+            grief: Math.round((feelings.grief || 0) * 100),
+            pride: Math.round((feelings.pride || 0) * 100),
+            shame: Math.round((feelings.shame || 0) * 100),
+            loyaltyBias: Math.round((feelings.loyaltyBias || 0) * 100)
+        };
         const feelingLine = cognition?.strongestFeeling && cognition.strongestFeeling !== 'steady'
-            ? `Feeling ${cognition.strongestFeeling} | lonely ${Math.round((feelings.loneliness || 0) * 100)} | comfort ${Math.round((feelings.comfortSeeking || 0) * 100)} | insecure ${Math.round((feelings.socialInsecurity || 0) * 100)}`
-            : `Feeling steady | lonely ${Math.round((feelings.loneliness || 0) * 100)} | comfort ${Math.round((feelings.comfortSeeking || 0) * 100)} | insecure ${Math.round((feelings.socialInsecurity || 0) * 100)}`;
+            ? `Feeling ${cognition.strongestFeeling} | lonely ${feelingCounters.loneliness} | grief ${feelingCounters.grief} | jealous ${feelingCounters.jealousy} | pride ${feelingCounters.pride} | shame ${feelingCounters.shame}`
+            : `Feeling steady | lonely ${feelingCounters.loneliness} | grief ${feelingCounters.grief} | jealous ${feelingCounters.jealousy} | pride ${feelingCounters.pride} | shame ${feelingCounters.shame}`;
         return {
             targetId: target.id,
             targetLabel: this.getInspectButterflyTitle(target),
+            cognition: {
+                feelings: feelingCounters,
+                strongestFeeling: cognition?.strongestFeeling || 'steady'
+            },
             heroLines: [
                 this.normalizePresentationText([target.birthSource || 'wild', target.isHybrid ? 'Hybrid' : (target.personalityType || 'wild'), sleepState?.subtype || 'awake'].filter(Boolean).join(' • ')),
                 this.normalizePresentationText([this.getZoneDisplayName(zoneId), rosterSummary?.label || 'Not rostered'].filter(Boolean).join(' • ')),
@@ -2176,8 +2190,12 @@ class GameUI {
             return false;
         }
 
-        const gridPos = gridManager.screenToIso(point.x, point.y);
-        const zone = zoneSystem.getZoneAtGrid?.(gridPos.x, gridPos.y);
+        const boardPos = typeof renderManager !== 'undefined' && renderManager.screenToBoard
+            ? renderManager.screenToBoard(point.x, point.y, gameCore.getFocusedZoneId?.() || null, 0)
+            : null;
+        const zone = boardPos
+            ? zoneSystem.getZoneAtBoard?.(boardPos)
+            : null;
         if (!zone?.id) return false;
         return !!gameCore.focusZone?.(zone.id);
     }
@@ -3013,7 +3031,7 @@ class GameUI {
             : null;
         const zoneId = target.currentZoneId || target.lifeSim?.lifecycle?.currentZoneId || (
             typeof zoneSystem !== 'undefined'
-                ? zoneSystem.getZoneAtGrid?.(target.gridPos?.x ?? 0, target.gridPos?.y ?? 0)?.id || null
+                ? zoneSystem.getEntityZone?.(target)?.id || null
                 : null
         );
         const communicationSummary = typeof communicationSystem !== 'undefined'

@@ -126,6 +126,19 @@ class FeedDomPanel {
                 card.appendChild(detail);
             }
 
+            if (gameConfig?.ui?.feedThreads?.interpretationItalicDom !== false
+                && gameConfig?.ui?.feedThreads?.interpretationItalic !== false
+                && Array.isArray(entry.threadLines)) {
+                for (const line of entry.threadLines) {
+                    const heardMeaning = this.formatHeardMeaning(line?.heardMeaning);
+                    if (!heardMeaning) continue;
+                    const heard = document.createElement('em');
+                    heard.className = 'shell-feed-heard-meaning';
+                    heard.textContent = `(heard: ${heardMeaning})`;
+                    card.appendChild(heard);
+                }
+            }
+
             if (entry.footer) {
                 const footer = document.createElement('div');
                 footer.className = 'shell-feed-footer';
@@ -135,6 +148,12 @@ class FeedDomPanel {
 
             this.list.appendChild(card);
         }
+    }
+
+    formatHeardMeaning(value = '') {
+        const text = String(value || '').trim().replace(/\s+/g, ' ');
+        if (!text) return '';
+        return text.length > 60 ? `${text.slice(0, 57)}...` : text;
     }
 
     renderFooter(state) {

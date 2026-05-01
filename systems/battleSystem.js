@@ -1428,6 +1428,88 @@ class BattleSystem {
         }
     }
 
+    isCognitionTriggerEnabled(kind, name) {
+        const group = gameConfig?.cognition?.triggers?.[kind] || {};
+        if (group.enabled === false) return false;
+        return group?.[name]?.enabled !== false;
+    }
+
+    getCurrentFrame() {
+        return gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+    }
+
+    emitProductionCognitionTrigger(kind, payload = {}) {
+        if (typeof eventBus === 'undefined') return;
+        eventBus.emit('cognition:triggered', {
+            kind,
+            source: 'production',
+            system: 'battleSystem',
+            currentFrame: this.getCurrentFrame(),
+            ...this.cloneValue(payload, {})
+        });
+    }
+
+    getBattleContributionScores(snapshot) {
+        const scores = {};
+        for (const event of snapshot?.events || []) {
+            if (event?.eventType !== 'round-action') continue;
+            const payload = event.payload || {};
+            const actorId = payload.actorId;
+            if (!actorId) continue;
+            const damage = Math.max(0, Number(payload.damage) || 0);
+            const restoredHp = Math.max(0, Number(payload.restoredHp) || 0);
+            const pressure = Math.max(0, Number(payload.pressure) || 0);
+            scores[actorId] = (scores[actorId] || 0) + damage + (restoredHp * 0.65) + (pressure * 1.5);
+        }
+        return scores;
+    }
+
+    recordBattleWinPrideAnchors(snapshot, payload) {
+        if (!this.isCognitionTriggerEnabled('pride', 'battleWin')) return [];
+        if (typeof lifeSimSystem === 'undefined' || typeof lifeSimSystem.createOutcomeAnchor !== 'function') return [];
+        const winnerTeamId = payload?.result?.winnerTeamId || null;
+        if (!winnerTeamId) return [];
+        const winners = (payload.participants || [])
+            .filter(participant => participant?.teamId === winnerTeamId);
+        if (!winners.length) return [];
+
+        const rawScores = this.getBattleContributionScores(snapshot);
+        const contributingWinners = winners.filter(participant => (rawScores[participant.id] || 0) > 0);
+        if (!contributingWinners.length) return [];
+        const maxScore = Math.max(1, ...contributingWinners.map(participant => rawScores[participant.id] || 0));
+        const ranked = winners
+            .filter(participant => (rawScores[participant.id] || 0) > 0)
+            .map(participant => ({
+                participant,
+                rawScore: rawScores[participant.id] || 0,
+                contributionScore: Math.max(0, Math.min(1, (rawScores[participant.id] || 0) / maxScore))
+            }))
+            .sort((left, right) => right.rawScore - left.rawScore);
+        const cutoff = Math.max(1, Math.ceil(ranked.length / 2));
+        const currentFrame = this.getCurrentFrame();
+        const created = [];
+
+        for (const entry of ranked.slice(0, cutoff)) {
+            const entity = this.getParticipantSource(entry.participant.id);
+            if (!entity?.id) continue;
+            const packet = lifeSimSystem.createOutcomeAnchor(entity, 'pride', 'battle-win', {
+                strength: 0.55 + (entry.contributionScore * 0.25)
+            });
+            if (!packet) continue;
+            created.push({ entityId: entity.id, packet });
+            this.emitProductionCognitionTrigger('pride', {
+                trigger: 'battleWin',
+                entityId: entity.id,
+                battleId: payload.battleId,
+                winnerTeamId,
+                contributionScore: entry.contributionScore,
+                rawScore: entry.rawScore,
+                createdAtFrame: currentFrame
+            });
+        }
+        return created;
+    }
+
     commitResults(battleId) {
         const snapshot = this.snapshots.get(battleId);
         if (!snapshot) return null;
@@ -1437,6 +1519,7 @@ class BattleSystem {
             participantCount: payload.participants?.length || 0
         });
         this.applyCommitPayload(payload);
+        this.recordBattleWinPrideAnchors(snapshot, payload);
         if (typeof eventBus !== 'undefined') {
             eventBus.emit(GameEvents.BATTLE_COMMITTED, { battleId, snapshot: this.cloneValue(snapshot), payload });
         }

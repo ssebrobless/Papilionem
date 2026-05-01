@@ -286,6 +286,82 @@ async function run() {
         pass: cleanupPileIds.length === 8 && (cleanupPileIds.length - remainingCleanupPiles.length) >= 6
       };
 
+      for (const flower of [...(gameCore.gameState.flowers || [])]) {
+        if (flower.lifecycleKind === 'dirt-pile' || flower.resourceOrigin === 'w3-cleanup-organic') {
+          gameCore.removeFlowerFromGame(flower, 'w3-cleanup-organic-reset');
+        }
+      }
+      const organicPileIds = [];
+      const organicPoints = [
+        { u: 9, v: 9 },
+        { u: 12, v: 9 },
+        { u: 15, v: 9 },
+        { u: 18, v: 9 },
+        { u: 9, v: 13 },
+        { u: 12, v: 13 },
+        { u: 15, v: 13 },
+        { u: 18, v: 13 }
+      ];
+      organicPoints.forEach(point => {
+        const screen = renderManager.boardToScreen({ zoneId: cleanupZoneId, u: point.u, v: point.v, h: 0 });
+        const flower = gameCore.spawnFlowerAt(cleanupZoneId, screen.x, screen.y, {
+          exactPoint: true,
+          ignoreZoneFlowerCap: true,
+          allowFlowerOverlap: true,
+          persistentUntilConsumed: true,
+          resourceOrigin: 'w3-cleanup-organic'
+        });
+        const dirt = gameCore.transformFlowerToDirtPile(flower, { source: 'w3-cleanup-organic-seed' });
+        if (dirt) organicPileIds.push(dirt.id);
+      });
+      while ((gameCore.gameState.butterflies || []).length < 12) {
+        const index = gameCore.gameState.butterflies.length;
+        const board = { zoneId: cleanupZoneId, u: 4 + ((index % 6) * 4), v: 5 + (Math.floor(index / 6) * 12), h: 0 };
+        const screen = renderManager.boardToScreen(board);
+        gameCore.godSpawnButterfly(screen.x, screen.y, null);
+      }
+      const organicButterflies = gameCore.gameState.butterflies.slice(0, 12);
+      const butterflyRing = [
+        { u: 6, v: 9 },
+        { u: 9, v: 6 },
+        { u: 12, v: 6 },
+        { u: 15, v: 6 },
+        { u: 18, v: 6 },
+        { u: 21, v: 9 },
+        { u: 6, v: 13 },
+        { u: 9, v: 16 },
+        { u: 12, v: 16 },
+        { u: 15, v: 16 },
+        { u: 18, v: 16 },
+        { u: 21, v: 13 }
+      ];
+      organicButterflies.forEach((butterfly, index) => {
+        const boardPos = { zoneId: cleanupZoneId, ...(butterflyRing[index % butterflyRing.length]), h: 0 };
+        const screen = renderManager.boardToScreen(boardPos);
+        butterfly.currentZoneId = cleanupZoneId;
+        butterfly.lifeSim.lifecycle.currentZoneId = cleanupZoneId;
+        butterfly.lifeSim.drives.selfMaintenance = index % 2 === 0 ? 1 : 0.86;
+        butterfly.lifeSim.drives.caregiving = index % 2 === 1 ? 0.96 : 0.72;
+        butterfly.boardPos = boardPos;
+        butterfly.x = screen.x;
+        butterfly.y = screen.y - (butterfly.shadowOffset || 0);
+        butterfly.syncDebugGridPos?.();
+      });
+      for (let frame = 0; frame < 3600; frame += 1) {
+        gameCore.update();
+      }
+      const remainingOrganicPiles = gameCore.gameState.flowers.filter(flower => organicPileIds.includes(flower.id));
+      const cleanupOrganic = {
+        seed: 9090,
+        zoneId: cleanupZoneId,
+        seeded: organicPileIds.length,
+        cleaned: organicPileIds.length - remainingOrganicPiles.length,
+        remaining: remainingOrganicPiles.length,
+        minInitialDistanceUnits: 3,
+        teleported: false,
+        pass: organicPileIds.length === 8 && (organicPileIds.length - remainingOrganicPiles.length) >= 4
+      };
+
       objectSystem?.syncEntityProfile?.(reserveFood);
       for (const flower of gameCore.gameState.flowers) {
         objectSystem?.syncEntityProfile?.(flower);
@@ -311,6 +387,7 @@ async function run() {
           carrierAffordance: carrier?.lifeSim?.objectAwareness?.currentAffordance || null
         },
         cleanupFloor,
+        cleanupOrganic,
         totals: {
           flowers: gameCore.gameState.flowers.length,
           dirtPiles: gameCore.gameState.flowers.filter(flower => flower.lifecycleKind === 'dirt-pile').length,
@@ -331,6 +408,7 @@ async function run() {
       && assertions.reserve?.subtype === 'reserve-food-ball'
       && assertions.cleanup?.pileCleaned === true
       && assertions.cleanupFloor?.pass === true
+      && assertions.cleanupOrganic?.pass === true
       && report.pageErrors.length === 0
       && report.consoleErrors.length === 0
     ) ? 'pass' : 'fail';

@@ -1,6 +1,6 @@
 {
-  "id": "seed-loyalty",
-  "seed": 808,
+  "id": "seed-loyalty-organic",
+  "seed": 1107,
   "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
   "entities": [
     { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 8, "v": 8, "h": 0 }, "drives": { "caregiving": 0.95 } },
@@ -12,6 +12,7 @@
     { "source": "a", "target": "c", "values": { "trust": 0.7, "comfort": 0.68, "attachment": 0.66, "protectiveness": 0.6, "loyalty": 0.02, "bondTier": "companion", "coTimeSeconds": 900 } }
   ],
   "actions": [
+    { "type": "step_simulation", "frames": 60 },
     { "type": "set_emotions", "source": "b", "threat": 0.88, "exhaustion": 0.66 },
     { "type": "set_emotions", "source": "c", "threat": 0.82, "exhaustion": 0.64 },
     { "type": "step_simulation", "frames": 180 }

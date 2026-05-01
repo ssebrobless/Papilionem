@@ -1,0 +1,25 @@
+{
+  "id": "seed-grief-organic",
+  "seed": 1103,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 10, "h": 0 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 10, "h": 0 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.82, "comfort": 0.8, "attachment": 0.84, "bondTier": "bonded", "coTimeSeconds": 1900 } }
+  ],
+  "actions": [
+    { "type": "step_simulation", "frames": 600 },
+    { "type": "kill", "source": "b" },
+    { "type": "step_simulation", "frames": 1800 },
+    { "type": "set_movement_target", "source": "a", "boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 10, "h": 0 }, "targetType": "goal", "priority": 2 },
+    { "type": "emit_dialogue", "source": "a", "intentFamily": "care", "intentTags": ["observation", "repair"], "phrase": "I keep returning to where we were." }
+  ],
+  "assertions": [
+    { "type": "memory_packet", "entity": "a", "family": "social", "kind": "bereavement", "min": 1 },
+    { "type": "feeling_min", "entity": "a", "key": "grief", "min": 0.4 },
+    { "type": "assert_movement_target_near", "entity": "a", "near_boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 10, "h": 0 }, "max_units": 2.0 },
+    { "type": "assert_dialogue_intent", "entity": "a", "expected_intent_tags": ["observation", "repair"], "within_seconds": 10 }
+  ]
+}

@@ -583,6 +583,17 @@ class ZoneSystem {
         return preferredZone || null;
     }
 
+    getEntityZone(entity) {
+        if (!entity) return null;
+        if (entity.boardPos && this.getZoneAtBoard) {
+            const zone = this.getZoneAtBoard(entity.boardPos);
+            if (zone) return zone;
+        }
+        if (entity.currentZoneId) return this.getZone(entity.currentZoneId);
+        if (entity.gridPos) return this.getZoneAtGrid(entity.gridPos.x, entity.gridPos.y);
+        return null;
+    }
+
     getAdjacentZones(zoneId = this.focusedZoneId) {
         const zone = this.getZone(zoneId);
         if (!zone) return [];

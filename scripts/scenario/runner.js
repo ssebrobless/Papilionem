@@ -293,6 +293,51 @@ function runScenarioInBrowser(scenario) {
     mlInferenceSystem?.update?.(state, seconds, { currentFrame: state.currentFrame });
   }
 
+  function stepSimulation(frames = 60) {
+    const totalFrames = Math.max(1, Math.round(frames || 60));
+    for (let frame = 0; frame < totalFrames; frame += 1) {
+      gameCore.update?.();
+    }
+  }
+
+  function boardDistance(left, right) {
+    if (!left || !right) return Infinity;
+    const du = (right.u || 0) - (left.u || 0);
+    const dv = (right.v || 0) - (left.v || 0);
+    return Math.hypot(du, dv);
+  }
+
+  function getMovementTargetBoardPos(entity) {
+    if (!entity) return null;
+    if (typeof entity.getMovementTargetBoardPos === 'function') {
+      return entity.getMovementTargetBoardPos();
+    }
+    const target = entity.movement?.target || null;
+    if (!target) return null;
+    if (Number.isFinite(target.u) && Number.isFinite(target.v)) {
+      return {
+        zoneId: target.zoneId || entity.currentZoneId || entity.boardPos?.zoneId || null,
+        u: target.u,
+        v: target.v,
+        h: Number.isFinite(target.h) ? target.h : 0
+      };
+    }
+    if (Number.isFinite(target.x) && Number.isFinite(target.y)) {
+      return {
+        zoneId: entity.currentZoneId || entity.boardPos?.zoneId || null,
+        u: target.x,
+        v: target.y,
+        h: 0
+      };
+    }
+    return null;
+  }
+
+  function getRecoveryDrive(entity) {
+    const routine = entity?.lifeSim?.derived?.routine || entity?.lifeSim?.derived?.routines || {};
+    return Number(routine.recoveryDrive ?? routine.recovery ?? entity?.lifeSim?.drives?.rest ?? 0) || 0;
+  }
+
   function ensureButterflies(count, zoneId) {
     const limit = Math.max(gameConfig?.entities?.maxButterflies || 0, count);
     if (gameConfig?.entities) gameConfig.entities.maxButterflies = limit;
@@ -322,6 +367,12 @@ function runScenarioInBrowser(scenario) {
     }
     if (spec.emotions && entity.lifeSim) {
       entity.lifeSim.emotions = { ...(entity.lifeSim.emotions || {}), ...spec.emotions };
+    }
+    if (spec.social && entity.lifeSim) {
+      entity.lifeSim.social = { ...(entity.lifeSim.social || {}), ...spec.social };
+    }
+    if (spec.derived && entity.lifeSim) {
+      entity.lifeSim.derived = { ...(entity.lifeSim.derived || {}), ...spec.derived };
     }
   }
 
@@ -396,10 +447,37 @@ function runScenarioInBrowser(scenario) {
         reason: 'scenario'
       });
     }
-    if (action.type === 'distress' && source?.lifeSim?.emotions) {
+    if ((action.type === 'set_emotions' || action.type === 'distress') && source?.lifeSim?.emotions) {
       source.lifeSim.emotions.threat = Math.max(source.lifeSim.emotions.threat || 0, action.threat ?? 0.75);
       source.lifeSim.emotions.exhaustion = Math.max(source.lifeSim.emotions.exhaustion || 0, action.exhaustion ?? 0.4);
-      communicationSystem?.updateDistressCascade?.(state);
+      if (action.resetDistressCooldown !== false && source.lifeSim.communication) {
+        source.lifeSim.communication.lastDistressAtSeconds = -Infinity;
+      }
+    }
+    if (action.type === 'set_drives' && source?.lifeSim?.drives) {
+      Object.assign(source.lifeSim.drives, action.values || {});
+    }
+    if (action.type === 'set_movement_target' && source?.movement) {
+      const target = action.boardPos || null;
+      if (target && typeof source.movement.setBoardTarget === 'function') {
+        source.movement.setBoardTarget(target.u, target.v, action.targetType || 'goal', action.priority || 1, action.wobble || 0);
+      }
+      if (target) {
+        source.movement.target = { ...target };
+        source.movement.targetType = action.targetType || 'goal';
+      }
+    }
+    if (action.type === 'emit_dialogue' && source) {
+      communicationSystem?.emitCooperationSignal?.(source, {
+        signalType: action.signalType || 'acknowledgement_signal',
+        intentFamily: action.intentFamily || 'social',
+        intentTags: action.intentTags || ['companionship'],
+        phrase: action.phrase || 'Stay close.',
+        targetIds,
+        zoneId: source.currentZoneId || scenario.world?.focusedZoneId || null,
+        reason: action.reason || 'scenario-dialogue',
+        metadata: action.metadata || {}
+      });
     }
     if (action.type === 'set_edge') {
       const target = getEntity(action.target);
@@ -410,35 +488,49 @@ function runScenarioInBrowser(scenario) {
     }
     if (action.type === 'kill' && source) {
       source.dead = true;
-      lifeSimSystem?.recordBereavementForDeath?.(source, state);
+      eventBus?.emit?.(GameEvents?.BUTTERFLY_DIED || 'butterfly:died', { butterfly: source, entity: source, id: source.id });
     }
     if (action.type === 'outcome_anchor' && source) {
-      lifeSimSystem?.createOutcomeAnchor?.(source, action.anchor || 'pride', action.reason || 'scenario', {
-        strength: action.strength ?? 0.62
+      addAssertion(`forbidden_action_${action.type}`, false, {
+        message: 'Use production trigger actions instead of direct outcome anchors.'
       });
-      lifeSimSystem?.updateCognitionExpansion?.(source, state, { deltaSeconds: 0, currentFrame: state.currentFrame || gameCore.getCurrentFrame?.() || 0 });
     }
     if (action.type === 'witness_affection' && source) {
-      const recipients = targetIds.map(id => (state.butterflies || []).find(entity => entity.id === id)).filter(Boolean);
-      lifeSimSystem?.recordWitnessedAffection?.(source, recipients, {
+      communicationSystem?.emitCooperationSignal?.(source, {
+        signalType: action.signalType || 'acknowledgement_signal',
+        intentFamily: action.intentFamily || 'care',
         intentTags: action.intentTags || ['comfort', 'companionship', 'warmth'],
+        phrase: action.phrase || 'I am glad you are here.',
+        targetIds,
+        zoneId: source.currentZoneId || scenario.world?.focusedZoneId || null,
+        reason: 'witness-affection',
         metadata: { affectionIntensity: action.affectionIntensity ?? 0.75 }
-      }, state);
-      for (const witnessRef of action.witnesses || []) {
-        const witness = getEntity(witnessRef);
-        if (witness) lifeSimSystem?.updateCognitionExpansion?.(witness, state, { deltaSeconds: 0, currentFrame: state.currentFrame || gameCore.getCurrentFrame?.() || 0 });
-      }
+      });
     }
     if (action.type === 'loyalty_choice' && source) {
-      const chosen = aliases.get(action.chosen) || action.chosen;
-      const rejected = aliases.get(action.rejected) || action.rejected;
-      lifeSimSystem?.recordLoyaltyChoice?.(source, chosen, rejected, { strength: action.strength ?? 0.62 });
-      lifeSimSystem?.updateCognitionExpansion?.(source, state, { deltaSeconds: 0, currentFrame: state.currentFrame || gameCore.getCurrentFrame?.() || 0 });
+      addAssertion(`forbidden_action_${action.type}`, false, {
+        message: 'Use competing production signals instead of direct loyalty choices.'
+      });
     }
-    if (action.type === 'step') {
-      for (let frame = 0; frame < (action.frames || 1); frame += 1) {
-        gameCore.update?.();
-      }
+    if (action.type === 'trigger_scarcity_pulse') {
+      zoneSystem?.triggerScarcityPulse?.(action.zoneId || scenario.world?.focusedZoneId || source?.currentZoneId, {
+        currentFrame: gameCore.getCurrentFrame?.() || state.currentFrame || 0,
+        durationFrames: action.durationFrames || 1800,
+        gameState: state
+      });
+    }
+    if (action.type === 'emit_battle_action') {
+      eventBus?.emit?.(GameEvents?.BATTLE_ACTION_OCCURRED || 'battle:actionOccurred', {
+        battleId: action.battleId || 'scenario-battle-action',
+        roundNumber: action.roundNumber || 1,
+        actorId: aliases.get(action.actor) || action.actor || null,
+        type: action.actionType || 'attack',
+        targetId: aliases.get(action.target) || action.target || null,
+        damage: action.damage ?? 8
+      });
+    }
+    if (action.type === 'step' || action.type === 'step_simulation') {
+      stepSimulation(action.frames || 60);
     }
   }
 
@@ -453,7 +545,9 @@ function runScenarioInBrowser(scenario) {
       const actual = assertion.kind
         ? collections.filter(entry => entry?.lifecycleKind === assertion.kind || entry?.objectProfile?.subtype === assertion.kind || entry?.objectProfile?.entityType === assertion.kind).length
         : collections.length;
-      addAssertion(assertion.name || 'object_count', actual >= assertion.min, { actual, min: assertion.min, kind: assertion.kind || null });
+      const minPass = Number.isFinite(assertion.min) ? actual >= assertion.min : true;
+      const maxPass = Number.isFinite(assertion.max) ? actual <= assertion.max : true;
+      addAssertion(assertion.name || 'object_count', minPass && maxPass, { actual, min: assertion.min ?? null, max: assertion.max ?? null, kind: assertion.kind || null });
     } else if (assertion.type === 'dialogue_count') {
       const actual = communicationSystem?.dialogueHistory?.length || 0;
       addAssertion(assertion.name || 'dialogue_count', actual >= assertion.min, { actual, min: assertion.min });
@@ -503,6 +597,7 @@ function runScenarioInBrowser(scenario) {
       addAssertion(assertion.name || 'ml_runtime', !!summary || typeof mlInferenceSystem !== 'undefined', { summary });
     } else if (assertion.type === 'feeling_min') {
       const entity = getEntity(assertion.entity);
+      lifeSimSystem?.updateCognitionExpansion?.(entity, state, { deltaSeconds: 0, currentFrame: state.currentFrame || gameCore.getCurrentFrame?.() || 0 });
       const actual = entity?.lifeSim?.derived?.derivedFeelings?.[assertion.key] || 0;
       addAssertion(assertion.name || `feeling_${assertion.key}`, actual >= assertion.min, { actual, min: assertion.min, key: assertion.key });
     } else if (assertion.type === 'bond_tier') {
@@ -524,6 +619,51 @@ function runScenarioInBrowser(scenario) {
       const target = getEntity(assertion.target);
       const actual = entity?.lifeSim?.socialEdges?.[target?.id]?.[assertion.key] || 0;
       addAssertion(assertion.name || `edge_${assertion.key}`, actual >= assertion.min, { actual, min: assertion.min, key: assertion.key });
+    } else if (assertion.type === 'assert_movement_target_near') {
+      const entity = getEntity(assertion.entity);
+      const target = getMovementTargetBoardPos(entity);
+      const nearEntity = assertion.near_id ? getEntity(assertion.near_id) : null;
+      const nearBoardPos = assertion.near_boardPos || assertion.nearBoardPos || nearEntity?.boardPos || null;
+      const distance = target && nearBoardPos ? boardDistance(target, nearBoardPos) : Infinity;
+      const pass = assertion.not === true
+        ? distance > assertion.max_units
+        : distance <= assertion.max_units;
+      addAssertion(assertion.name || 'assert_movement_target_near', pass, {
+        entity: assertion.entity,
+        target,
+        nearBoardPos,
+        distance,
+        maxUnits: assertion.max_units,
+        not: !!assertion.not
+      });
+    } else if (assertion.type === 'assert_dialogue_intent') {
+      const entity = getEntity(assertion.entity);
+      const now = communicationSystem?.simulationClockSeconds || 0;
+      const expected = assertion.expected_intent_tags || assertion.expectedIntentTags || [];
+      const within = Number.isFinite(assertion.within_seconds) ? assertion.within_seconds : Infinity;
+      const matches = (communicationSystem?.dialogueHistory || []).filter(dialogue =>
+        dialogue?.sourceId === entity?.id
+        && (now - (dialogue.createdAtSeconds || 0)) <= within
+        && expected.some(tag => (dialogue.intentTags || []).includes(tag))
+      );
+      addAssertion(assertion.name || 'assert_dialogue_intent', matches.length > 0, {
+        entity: assertion.entity,
+        expected,
+        withinSeconds: within,
+        matchCount: matches.length
+      });
+    } else if (assertion.type === 'assert_recovery_rate_below') {
+      const entity = getEntity(assertion.entity);
+      const baseline = getRecoveryDrive(entity);
+      stepSimulation(Math.max(1, Math.round((assertion.observation_window_seconds || 1) * 60)));
+      const after = getRecoveryDrive(entity);
+      const ratio = baseline > 0 ? after / baseline : 0;
+      addAssertion(assertion.name || 'assert_recovery_rate_below', ratio < assertion.max_ratio_of_baseline, {
+        baseline,
+        after,
+        ratio,
+        maxRatio: assertion.max_ratio_of_baseline
+      });
     } else if (assertion.type === 'ml_feature') {
       const entity = getEntity(assertion.entity);
       const features = entity ? mlInferenceSystem?.buildFeatureGroups?.(entity, state) : null;

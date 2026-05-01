@@ -1,0 +1,22 @@
+{
+  "id": "seed-loneliness-organic",
+  "seed": 1101,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 6, "v": 6, "h": 0 }, "drives": { "socialConnection": 0.02 }, "social": { "belonging": 0.02 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "pool-heart", "u": 8, "v": 8, "h": 0 } },
+    { "id": "c", "type": "butterfly", "boardPos": { "zoneId": "pool-heart", "u": 9, "v": 8, "h": 0 } },
+    { "id": "d", "type": "butterfly", "boardPos": { "zoneId": "pool-heart", "u": 10, "v": 8, "h": 0 } },
+    { "id": "e", "type": "butterfly", "boardPos": { "zoneId": "pool-heart", "u": 11, "v": 8, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "step_simulation", "frames": 3600 },
+    { "type": "set_movement_target", "source": "a", "boardPos": { "zoneId": "moss-hollow", "u": 24, "v": 10, "h": 0 }, "targetType": "goal", "priority": 2 },
+    { "type": "emit_dialogue", "source": "a", "signalType": "acknowledgement_signal", "intentFamily": "social", "intentTags": ["companionship", "observation"], "phrase": "I keep looking for company." }
+  ],
+  "assertions": [
+    { "type": "feeling_min", "entity": "a", "key": "loneliness", "min": 0.55 },
+    { "type": "assert_movement_target_near", "entity": "a", "near_boardPos": { "zoneId": "moss-hollow", "u": 24, "v": 10, "h": 0 }, "max_units": 1.0 },
+    { "type": "assert_dialogue_intent", "entity": "a", "expected_intent_tags": ["companionship", "observation"], "within_seconds": 10 }
+  ]
+}

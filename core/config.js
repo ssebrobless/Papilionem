@@ -685,7 +685,11 @@ const PAPILIONEM_BATTLE_ARENA = {
         trailVisibility: 'off',
         backgroundAtmosphere: 'full',
         statusIndicatorDensity: 'simplified',
-        uiScale: 1
+        uiScale: 1,
+        feedThreads: {
+            interpretationItalic: true,
+            interpretationItalicDom: true
+        }
     },
 
     simulation: {
@@ -743,7 +747,25 @@ const PAPILIONEM_BATTLE_ARENA = {
         grief: { enabled: true },
         jealousy: { enabled: true },
         anchors: { enabled: true },
-        loyalty: { enabled: true }
+        loyalty: { enabled: true },
+        triggers: {
+            pride: {
+                enabled: true,
+                battleWin: { enabled: true },
+                caregivingSuccess: { enabled: true },
+                scoutCluster: { enabled: true }
+            },
+            shame: {
+                enabled: true,
+                warningIgnoredHarm: { enabled: true },
+                abandonedAlly: { enabled: true }
+            },
+            loyalty: {
+                enabled: true,
+                competingDistress: { enabled: true },
+                competingScout: { enabled: true }
+            }
+        }
     },
 
     balance: {

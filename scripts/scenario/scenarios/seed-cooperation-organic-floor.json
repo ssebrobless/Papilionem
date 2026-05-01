@@ -1,0 +1,19 @@
+{
+  "id": "seed-cooperation-organic-floor",
+  "seed": 1109,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 8, "v": 8, "h": 0 }, "drives": { "caregiving": 0.9 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 9, "v": 8, "h": 0 }, "drives": { "caregiving": 0.85 } },
+    { "id": "c", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 8, "h": 0 }, "derived": { "migration": { "scoutTargetZoneId": "ivy-cloister", "travelTargetZoneId": "ivy-cloister", "scoutingDrive": 0.9, "travelIntent": "scouting" } } },
+    { "id": "d", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 8, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "set_emotions", "source": "d", "threat": 0.82, "exhaustion": 0.66 },
+    { "type": "trigger_scarcity_pulse", "zoneId": "moss-hollow", "durationFrames": 1800 },
+    { "type": "step_simulation", "frames": 1800 }
+  ],
+  "assertions": [
+    { "type": "dialogue_count", "min": 1 }
+  ]
+}
