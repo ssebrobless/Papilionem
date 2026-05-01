@@ -5,7 +5,18 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
 const DEFAULT_OUTPUT_ROOT = path.join(ROOT, 'qa_screenshots', 'c2_trace_corpus');
+const SCENARIO_DIR = path.join(ROOT, 'scripts', 'scenario', 'scenarios');
 const URL = 'http://127.0.0.1:3000/';
+const LIVED_LOOP_SCENARIO_NAMES = [
+  'seed-bond-progression-organic',
+  'seed-cleanup-floor-organic',
+  'seed-cooperation-organic-floor',
+  'seed-grief-long-absence-organic',
+  'seed-grief-organic',
+  'seed-loneliness-organic',
+  'seed-loyalty-organic',
+  'seed-shame-organic'
+];
 const STORAGE_KEYS = [
   'papilionem-save-v2',
   'papilionem-progression-v1',
@@ -42,6 +53,11 @@ function buildRecordDigest(record) {
     review: record?.review || {},
     features: record?.features || {}
   });
+}
+
+function readScenarioFile(name) {
+  const file = path.join(SCENARIO_DIR, `${name}.json`);
+  return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
 function buildCorpusManifest(records = [], meta = {}) {
@@ -518,6 +534,188 @@ async function captureAutobattleScenario(page) {
   });
 }
 
+async function captureLivedLoopTraceScenario(page, scenario) {
+  await resetBaseline(page);
+  return page.evaluate((scenarioSpec) => {
+    const gameState = gameCore.getGameState();
+    const aliases = new Map();
+    const focusedZoneId = scenarioSpec?.world?.focusedZoneId || 'ivy-cloister';
+
+    function boardToScreen(boardPos) {
+      return renderManager?.boardToScreen?.({
+        zoneId: boardPos.zoneId || focusedZoneId,
+        u: Number(boardPos.u) || 0,
+        v: Number(boardPos.v) || 0,
+        h: Number(boardPos.h) || 0
+      }) || null;
+    }
+
+    function setEntityBoardPos(entity, boardPos) {
+      const screen = boardToScreen(boardPos);
+      if (!entity || !screen) return false;
+      const zoneId = boardPos.zoneId || focusedZoneId;
+      entity.currentZoneId = zoneId;
+      entity.lifeSim = entity.lifeSim || {};
+      entity.lifeSim.lifecycle = entity.lifeSim.lifecycle || {};
+      entity.lifeSim.lifecycle.currentZoneId = zoneId;
+      entity.boardPos = {
+        zoneId,
+        u: Number(boardPos.u) || 0,
+        v: Number(boardPos.v) || 0,
+        h: Number(boardPos.h) || 0
+      };
+      entity.x = screen.x;
+      entity.y = screen.y;
+      entity.syncDebugGridPos?.();
+      gameCore.assignEntityToZone?.(entity, zoneId);
+      return true;
+    }
+
+    function getEntity(ref) {
+      const id = aliases.get(ref) || ref;
+      return (gameState.butterflies || []).find(entry => entry.id === id) || null;
+    }
+
+    function ensureEdge(source, target, values = {}) {
+      if (!source?.id || !target?.id) return null;
+      const edge = typeof ensureLifeSocialEdge === 'function'
+        ? ensureLifeSocialEdge(source, target.id)
+        : ((source.lifeSim.socialEdges = source.lifeSim.socialEdges || {})[target.id] = source.lifeSim.socialEdges[target.id] || {});
+      Object.assign(edge, values);
+      return edge;
+    }
+
+    function ensureButterflies(count) {
+      const limit = Math.max(gameConfig?.entities?.maxButterflies || 0, count);
+      if (gameConfig?.entities) gameConfig.entities.maxButterflies = limit;
+      while ((gameState.butterflies || []).length < count) {
+        const index = gameState.butterflies.length;
+        const point = boardToScreen({ zoneId: focusedZoneId, u: 8 + index, v: 8, h: 0 }) || { x: 320, y: 240 };
+        gameCore.godSpawnButterfly?.(point.x, point.y);
+      }
+    }
+
+    function stepSimulation(frames = 60) {
+      const total = Math.max(1, Math.min(360, Math.round(frames || 60)));
+      for (let frame = 0; frame < total; frame += 1) {
+        gameCore.update?.();
+      }
+    }
+
+    function advanceCognition(seconds = 1) {
+      const duration = Math.max(1, Math.min(120, Number(seconds) || 1));
+      const currentFrame = (gameCore.getCurrentFrame?.() || 0) + Math.round(duration * 60);
+      for (const butterfly of gameState.butterflies || []) {
+        lifeSimSystem?.updateButterfly?.(butterfly, gameState, {
+          deltaSeconds: duration,
+          currentFrame,
+          cadenceIntervalFrames: 1,
+          deepUpdate: true
+        });
+      }
+      mlInferenceSystem?.update?.(gameState, duration, { currentFrame });
+    }
+
+    const entitySpecs = (scenarioSpec.entities || []).filter(spec => (spec.type || 'butterfly') === 'butterfly');
+    ensureButterflies(entitySpecs.length);
+    gameCore.focusZone?.(focusedZoneId);
+
+    entitySpecs.forEach((spec, index) => {
+      const entity = (gameState.butterflies || [])[index] || null;
+      if (!entity) return;
+      aliases.set(spec.id, entity.id);
+      setEntityBoardPos(entity, spec.boardPos || { zoneId: focusedZoneId, u: 8 + index, v: 8, h: 0 });
+      entity.lifeSim = entity.lifeSim || {};
+      if (spec.traits) entity.lifeSim.traits = { ...(entity.lifeSim.traits || {}), ...spec.traits };
+      if (spec.drives) entity.lifeSim.drives = { ...(entity.lifeSim.drives || {}), ...spec.drives };
+      if (spec.emotions) entity.lifeSim.emotions = { ...(entity.lifeSim.emotions || {}), ...spec.emotions };
+      if (spec.social) entity.lifeSim.social = { ...(entity.lifeSim.social || {}), ...spec.social };
+      if (spec.derived) entity.lifeSim.derived = { ...(entity.lifeSim.derived || {}), ...spec.derived };
+    });
+
+    for (const edgeSpec of scenarioSpec.edges || []) {
+      ensureEdge(getEntity(edgeSpec.source), getEntity(edgeSpec.target), edgeSpec.values || {});
+    }
+
+    for (const action of scenarioSpec.actions || []) {
+      const source = getEntity(action.source);
+      const targetIds = (action.targets || []).map(target => aliases.get(target) || target).filter(Boolean);
+      if ((action.type === 'set_emotions' || action.type === 'distress') && source?.lifeSim) {
+        source.lifeSim.emotions = source.lifeSim.emotions || {};
+        source.lifeSim.emotions.threat = Math.max(source.lifeSim.emotions.threat || 0, Number(action.threat ?? 0.75));
+        source.lifeSim.emotions.exhaustion = Math.max(source.lifeSim.emotions.exhaustion || 0, Number(action.exhaustion ?? 0.4));
+        if (source.lifeSim.communication) {
+          source.lifeSim.communication.lastDistressAtSeconds = -Infinity;
+        }
+      } else if (action.type === 'set_drives' && source?.lifeSim) {
+        source.lifeSim.drives = { ...(source.lifeSim.drives || {}), ...(action.values || {}) };
+      } else if (action.type === 'set_board_pos' && source && action.boardPos) {
+        setEntityBoardPos(source, action.boardPos);
+      } else if ((action.type === 'emit_signal' || action.type === 'emit_dialogue') && source) {
+        communicationSystem?.emitCooperationSignal?.(source, {
+          signalType: action.signalType || 'acknowledgement_signal',
+          intentFamily: action.intentFamily || 'social',
+          intentTags: action.intentTags || ['companionship'],
+          phrase: action.phrase || 'Stay close.',
+          targetIds,
+          zoneId: source.currentZoneId || focusedZoneId,
+          reason: 'c2-lived-loop-corpus'
+        });
+      } else if (action.type === 'trigger_scarcity_pulse') {
+        zoneSystem?.setZoneEcologyState?.(action.zoneId || focusedZoneId, {
+          resourceReserve: 0.08,
+          habitatQuality: 0.28,
+          depletionPressure: 0.9,
+          migrationPull: 0.82,
+          crowdingPressure: 0.72
+        });
+      } else if (action.type === 'advance_cognition') {
+        advanceCognition(action.seconds || 1);
+      } else if (action.type === 'step_simulation') {
+        stepSimulation(action.frames || 60);
+      }
+    }
+
+    const focusSpec = entitySpecs[0] || null;
+    const focus = focusSpec ? getEntity(focusSpec.id) : gameState.butterflies?.[0];
+    if (!focus?.id) {
+      return { ok: false, reason: `${scenarioSpec.id || 'lived-loop'}-missing-focus` };
+    }
+
+    mlInferenceSystem.update(gameState, 0);
+    const startFrame = gameCore.getCurrentFrame?.() || mlInferenceSystem.frameCounter || 0;
+    for (let frame = 1; frame <= 72; frame += 1) {
+      mlInferenceSystem.update(gameState, 1 / 60, { currentFrame: startFrame + frame });
+    }
+
+    const record = mlInferenceSystem.buildCorpusRecord(focus.id, gameState, {
+      scenarioId: scenarioSpec.id || `lived-loop-${focus.id}`,
+      scenarioFamily: 'lived-loop',
+      auditPhase: 'w6-corpus-growth',
+      tags: [
+        'w2-lived-loop',
+        'scenario-derived',
+        ...(scenarioSpec.assertions || []).map(assertion => assertion.type).filter(Boolean)
+      ],
+      review: {
+        rationale: 'Scenario-derived lived-loop trace source captured through production update paths for W6 corpus growth.'
+      }
+    });
+
+    return {
+      ok: !!record,
+      record,
+      mlCorpusProfile: telemetrySystem.getMlCorpusProfile?.() || null,
+      summary: {
+        scenarioId: scenarioSpec.id || null,
+        butterflyCount: (gameState.butterflies || []).length,
+        dialogueCount: communicationSystem?.dialogueHistory?.length || 0,
+        currentFrame: gameCore.getCurrentFrame?.() || 0
+      }
+    };
+  }, scenario);
+}
+
 async function buildC2TraceCorpus(options = {}) {
   const outputRoot = options.outputRoot || DEFAULT_OUTPUT_ROOT;
   const sourceAudit = options.sourceAudit || 'build-c2-trace-corpus';
@@ -556,6 +754,9 @@ async function buildC2TraceCorpus(options = {}) {
       await captureEcologyScenario(page),
       await captureAutobattleScenario(page)
     ];
+    for (const livedLoopScenario of LIVED_LOOP_SCENARIO_NAMES.map(readScenarioFile)) {
+      scenarios.push(await captureLivedLoopTraceScenario(page, livedLoopScenario));
+    }
 
     const failedScenario = scenarios.find(entry => !entry?.ok || !entry?.record);
     if (failedScenario) {
@@ -570,7 +771,7 @@ async function buildC2TraceCorpus(options = {}) {
 
     const manifest = buildCorpusManifest(records, {
       sourceAudit,
-      scenarioPresetVersion: 'c2-audit-scenarios-v1',
+      scenarioPresetVersion: 'c2-audit-scenarios-v2-lived-loop',
       contractVersion: runtimeContract,
       featureSchemaVersion: runtimeFeatureSchema,
       traceSchemaVersion: runtimeTraceSchema,

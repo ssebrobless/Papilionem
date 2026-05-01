@@ -14,6 +14,7 @@ const STORAGE_KEYS = [
 ];
 const VALUE_FRAME_COUNT = 7200;
 const VALUE_SAMPLE_INTERVAL = 15;
+const CADENCE_FACTOR = Math.max(1, Math.round(Number(process.env.PAPILIONEM_ML_CADENCE_FACTOR || 1)));
 const VALUE_THRESHOLDS = {
   chiSquareMotiveDistinctness: 3.84,
   edgeChurnRatio: 1.15,
@@ -251,15 +252,16 @@ function compareValueMetrics(mlOn, mlOff) {
   };
 }
 
-async function runScenario(page, mlOn, storageSnapshot) {
+async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_FACTOR) {
   await restoreStorageSnapshot(page, storageSnapshot);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitForGame(page);
   await dismissTitle(page);
 
-  await page.evaluate(async ({ useMl }) => {
+  await page.evaluate(async ({ useMl, cadenceFactor }) => {
     gameConfig.ml = gameConfig.ml || {};
     gameConfig.ml.useModelInference = !!useMl;
+    gameConfig.ml.cadenceFactor = Math.max(1, Math.round(Number(cadenceFactor || 1)));
     gameConfig.ml.traceCapture = {
       ...(gameConfig.ml.traceCapture || {}),
       outcomeWindow: true,
@@ -270,15 +272,16 @@ async function runScenario(page, mlOn, storageSnapshot) {
     mlInferenceSystem.reset();
     mlInferenceSystem.modelConfig.decisionHistoryLimit = Math.max(128, Number(mlInferenceSystem.modelConfig.decisionHistoryLimit || 0));
     mlInferenceSystem.modelConfig.useModelInference = !!useMl;
+    mlInferenceSystem.modelConfig.cadenceFactor = gameConfig.ml.cadenceFactor;
     await mlInferenceSystem.loadModelArtifact(true);
-  }, { useMl: mlOn });
+  }, { useMl: mlOn, cadenceFactor });
 
   await page.waitForFunction(() => {
     const state = gameCore?.getGameState?.();
     return state && state.butterflies?.length >= 6;
   }, null, { timeout: 20000 });
 
-  return page.evaluate(({ useMl, frameCount, sampleInterval }) => {
+  return page.evaluate(({ useMl, frameCount, sampleInterval, cadenceFactor }) => {
     const startFrame = gameCore.getCurrentFrame?.() || 0;
     const startDialogueCount = communicationSystem?.dialogueHistory?.length || 0;
     const updateSamples = [];
@@ -444,6 +447,7 @@ async function runScenario(page, mlOn, storageSnapshot) {
 
     return {
       label: useMl ? 'ml-on' : 'ml-off',
+      cadenceFactor,
       useModelInference: !!mlInferenceSystem.modelConfig.useModelInference,
       runtimeSummary: mlInferenceSystem.getRuntimeSummary?.() || null,
       startFrame,
@@ -457,7 +461,7 @@ async function runScenario(page, mlOn, storageSnapshot) {
       sampleEntries: entries.slice(0, 8),
       updateSamples
     };
-  }, { useMl: mlOn, frameCount: VALUE_FRAME_COUNT, sampleInterval: VALUE_SAMPLE_INTERVAL });
+  }, { useMl: mlOn, frameCount: VALUE_FRAME_COUNT, sampleInterval: VALUE_SAMPLE_INTERVAL, cadenceFactor });
 }
 
 async function run() {
@@ -470,6 +474,7 @@ async function run() {
     auditId,
     startedAt: new Date().toISOString(),
     url: URL,
+    cadenceFactor: CADENCE_FACTOR,
     outputDir,
     pageErrors: [],
     consoleErrors: [],
@@ -498,8 +503,8 @@ async function run() {
     await waitForGame(page);
 
     const storageSnapshot = await captureStorageSnapshot(page);
-    const mlOn = await runScenario(page, true, storageSnapshot);
-    const mlOff = await runScenario(page, false, storageSnapshot);
+    const mlOn = await runScenario(page, true, storageSnapshot, CADENCE_FACTOR);
+    const mlOff = await runScenario(page, false, storageSnapshot, CADENCE_FACTOR);
     await restoreStorageSnapshot(page, storageSnapshot);
     const valueMetrics = compareValueMetrics(mlOn, mlOff);
     report.scenarios.push(mlOn, mlOff);

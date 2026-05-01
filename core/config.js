@@ -719,6 +719,7 @@ const PAPILIONEM_BATTLE_ARENA = {
         policyArtifactPath: 'assets/ml/m4-garden-policy.json',
         policyArtifactFormat: 'linear-policy-json',
         useModelInference: true,
+        cadenceFactor: 2,
         gardenCadenceFrames: 20,
         battleCadenceFrames: 1,
         alternativeCount: 2,

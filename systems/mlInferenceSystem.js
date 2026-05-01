@@ -116,6 +116,7 @@ class MlInferenceSystem {
             policyArtifactPath: config.policyArtifactPath || 'assets/ml/m4-garden-policy.json',
             policyArtifactFormat: config.policyArtifactFormat || contract.currentArtifactFormat,
             useModelInference: !!config.useModelInference,
+            cadenceFactor: Math.max(1, Math.round(config.cadenceFactor || 1)),
             gardenCadenceFrames: Math.max(4, config.gardenCadenceFrames || 20),
             battleCadenceFrames: Math.max(1, config.battleCadenceFrames || 1),
             alternativeCount: Math.max(1, config.alternativeCount || 2),
@@ -500,6 +501,11 @@ class MlInferenceSystem {
 
     getCadenceConfig(gameState, options = {}) {
         const simulationCadence = gameConfig?.simulation?.cadence || {};
+        const cadenceFactor = Math.max(1, Math.round(
+            Number.isFinite(this.modelConfig?.cadenceFactor)
+                ? this.modelConfig.cadenceFactor
+                : (gameConfig?.ml?.cadenceFactor || 1)
+        ));
         const currentFrame = Number.isFinite(options?.currentFrame)
             ? Math.max(0, Math.round(options.currentFrame))
             : (this.frameCounter + 1);
@@ -508,13 +514,14 @@ class MlInferenceSystem {
             currentFrame,
             viewMode,
             enabled: !!options?.cadenceEnabled && viewMode !== 'battle',
-            gardenIntervalFrames: Math.max(1, Math.round(simulationCadence.mlScoringIntervalFrames || 12)),
+            cadenceFactor,
+            gardenIntervalFrames: Math.max(1, Math.round((simulationCadence.mlScoringIntervalFrames || 12) * cadenceFactor)),
             gardenBudgetMs: Number(
                 simulationCadence.mlScoringBudgetMs
                 || this.getBudgetTargets()?.focusedGardenInferenceMs
                 || 0
             ),
-            legacyGardenIntervalFrames: Math.max(1, Math.round(this.modelConfig.gardenCadenceFrames || 1)),
+            legacyGardenIntervalFrames: Math.max(1, Math.round((this.modelConfig.gardenCadenceFrames || 1) * cadenceFactor)),
             legacyBattleIntervalFrames: Math.max(1, Math.round(this.modelConfig.battleCadenceFrames || 1)),
             battleBypass: !!simulationCadence.mlBattleBypass,
             zoneTravelBypass: !!simulationCadence.mlZoneTravelBypass
@@ -2893,6 +2900,7 @@ class MlInferenceSystem {
             totalMs,
             cadenceEnabled: cadence.enabled,
             cadenceIntervalFrames: cadence.enabled ? cadence.gardenIntervalFrames : cadence.legacyGardenIntervalFrames,
+            cadenceFactor: cadence.cadenceFactor,
             refreshedTraceCount,
             cadenceSkippedCount,
             forcedRefreshCount,
@@ -2911,6 +2919,7 @@ class MlInferenceSystem {
             workerOffloadError: this.workerOffload.lastError || null,
             lastDecisionSource: this.modelRuntime.lastDecisionSource,
             gardenCadenceFrames: this.modelConfig.gardenCadenceFrames,
+            cadenceFactor: this.modelConfig.cadenceFactor,
             battleCadenceFrames: this.modelConfig.battleCadenceFrames,
             budgetTargets: this.getBudgetTargets()
         });
@@ -2955,6 +2964,7 @@ class MlInferenceSystem {
                 || this.modelConfig.contract?.currentArtifactFormat
                 || null,
             gardenCadenceFrames: this.modelConfig.gardenCadenceFrames,
+            cadenceFactor: this.modelConfig.cadenceFactor,
             battleCadenceFrames: this.modelConfig.battleCadenceFrames,
             alternativeCount: this.modelConfig.alternativeCount,
             decisionHistoryLimit: this.modelConfig.decisionHistoryLimit,
@@ -2967,7 +2977,7 @@ class MlInferenceSystem {
             featureContract: this.getFeatureContractSnapshot(),
             performanceBudget: this.getBudgetTargets(),
             performanceProfile: telemetrySystem?.getMlRuntimeProfile?.() || null,
-            schedulerCadenceIntervalFrames: Math.max(1, Math.round(gameConfig?.simulation?.cadence?.mlScoringIntervalFrames || 12)),
+            schedulerCadenceIntervalFrames: Math.max(1, Math.round((gameConfig?.simulation?.cadence?.mlScoringIntervalFrames || 12) * (this.modelConfig.cadenceFactor || 1))),
             fallbackCount: Number(this.modelRuntime.fallbackCount || 0),
             lastDecisionSource: this.modelRuntime.lastDecisionSource || 'heuristic-fallback',
             lastLoadError: this.modelRuntime.lastLoadError || null,
