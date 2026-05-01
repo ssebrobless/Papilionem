@@ -324,7 +324,11 @@ class CommunicationSystem {
         if (!entity?.id || !chosenPartnerId || !rejectedPartnerId || typeof lifeSimSystem === 'undefined') return null;
         if (!this.isCognitionTriggerEnabled('loyalty', triggerName)) return null;
         const currentFrame = this.getCurrentFrame();
-        const key = `loyalty:${triggerName}:${entity.id}:${chosenPartnerId}:${rejectedPartnerId}`;
+        const canonicalDedupe = gameConfig?.cognition?.triggers?.loyalty?.[triggerName]?.canonicalDedupe !== false;
+        const pairKey = canonicalDedupe
+            ? [chosenPartnerId, rejectedPartnerId].map(id => String(id)).sort().join('|')
+            : `${chosenPartnerId}:${rejectedPartnerId}`;
+        const key = `loyalty:${triggerName}:${entity.id}:${pairKey}`;
         if (this.hasRecentProductionTrigger(key, currentFrame, 60)) return null;
         const packet = lifeSimSystem.recordLoyaltyChoice?.(entity, chosenPartnerId, rejectedPartnerId, {
             strength: extra.strength ?? 0.55
@@ -339,6 +343,57 @@ class CommunicationSystem {
             ...extra
         });
         return packet;
+    }
+
+    rememberCompetingDistressResponse(record, caregiverId, competingDistressedId, currentFrame, levels = {}) {
+        if (!record || !caregiverId || !competingDistressedId) return;
+        record.competingCaregiverResponses = record.competingCaregiverResponses || {};
+        const byCaregiver = record.competingCaregiverResponses[caregiverId] || {};
+        byCaregiver[competingDistressedId] = {
+            competingDistressedId,
+            respondedAtFrame: currentFrame,
+            chosenStartLevel: levels.chosenLevel ?? null,
+            rejectedStartLevel: levels.rejectedLevel ?? null,
+            resolved: false
+        };
+        record.competingCaregiverResponses[caregiverId] = byCaregiver;
+    }
+
+    resolveCompetingDistressLoyalty(record, helpedEntity, gameState, currentFrame) {
+        if (!record?.competingCaregiverResponses || !helpedEntity?.id) return false;
+        record.helpedFramesByCaregiver = record.helpedFramesByCaregiver || {};
+        let stillPending = false;
+        for (const [caregiverId, competitions] of Object.entries(record.competingCaregiverResponses)) {
+            const caregiver = this.getEntityById(caregiverId, gameState);
+            if (!caregiver?.id) continue;
+            if (!Number.isFinite(record.helpedFramesByCaregiver[caregiverId])) {
+                record.helpedFramesByCaregiver[caregiverId] = currentFrame;
+            }
+            const helpedAtFrame = record.helpedFramesByCaregiver[caregiverId];
+            for (const [otherDistressedId, competition] of Object.entries(competitions || {})) {
+                if (!competition || competition.resolved) continue;
+                const other = this.getEntityById(otherDistressedId, gameState);
+                const otherLevel = this.getDistressLevel(other);
+                if ((currentFrame - helpedAtFrame) < 60) {
+                    stillPending = true;
+                    continue;
+                }
+                competition.resolved = true;
+                const otherRecord = other?.id ? this.distressRecords.get(other.id) : null;
+                const otherWasStillHighAtChoice = Number.isFinite(otherRecord?.lastHighFrame)
+                    && otherRecord.lastHighFrame >= helpedAtFrame;
+                if (other?.id && (otherLevel >= 0.5 || otherWasStillHighAtChoice)) {
+                    this.recordProductionLoyaltyChoice(caregiver, helpedEntity.id, other.id, 'competingDistress', {
+                        strength: 0.55,
+                        distressLevelChosen: this.getDistressLevel(helpedEntity),
+                        distressLevelRejected: otherLevel,
+                        helpedAtFrame,
+                        resolvedAtFrame: currentFrame
+                    });
+                }
+            }
+        }
+        return stillPending;
     }
 
     getDistressLevel(entity) {
@@ -441,8 +496,11 @@ class CommunicationSystem {
                         distanceUnits: this.getBoardDistanceBetween(caregiver, entity, zoneId)
                     });
                 }
-                this.distressRecords.delete(distressedId);
-                continue;
+                const pendingCompetition = this.resolveCompetingDistressLoyalty(record, entity, gameState, currentFrame);
+                if (!pendingCompetition) {
+                    this.distressRecords.delete(distressedId);
+                    continue;
+                }
             }
             const firstFrame = record.firstFrame ?? currentFrame;
             if ((currentFrame - firstFrame) >= 600 && level >= 0.64) {
@@ -504,10 +562,9 @@ class CommunicationSystem {
                 if (competing?.entity?.id) {
                     const topPriority = this.getTopPrioritySourceIds(caregiver, [entity, competing.entity], 3);
                     if (topPriority.includes(competing.entity.id)) {
-                        this.recordProductionLoyaltyChoice(caregiver, entity.id, competing.entity.id, 'competingDistress', {
-                            strength: 0.55,
-                            distressLevelChosen: level,
-                            distressLevelRejected: competing.level
+                        this.rememberCompetingDistressResponse(record, caregiver.id, competing.entity.id, currentFrame, {
+                            chosenLevel: level,
+                            rejectedLevel: competing.level
                         });
                     }
                 }

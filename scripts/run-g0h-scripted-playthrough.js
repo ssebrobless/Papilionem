@@ -21,6 +21,10 @@ function copyFileIfExists(source, target) {
 }
 
 function writeHumanReview(outputDir, report, spec) {
+  const fidelityLane = (report.evidenceLanes || []).find(lane => lane.id === 'evidence-fidelity') || null;
+  const fidelityGaps = fidelityLane && !fidelityLane.pass
+    ? (fidelityLane.details?.gaps || ['Evidence fidelity lane failed without a named gap.'])
+    : [];
   const lines = [
     '# G0H Scripted Playthrough Human Review',
     '',
@@ -40,6 +44,12 @@ function writeHumanReview(outputDir, report, spec) {
     '',
     ...spec.humanReviewQuestions.map(question => `- [ ] ${question}`),
     '',
+    ...(fidelityGaps.length ? [
+      '## Evidence Fidelity',
+      '',
+      ...fidelityGaps.map(gap => `- ${gap}`),
+      ''
+    ] : []),
     '## Residuals / Follow-Up',
     ''
   ];
@@ -186,6 +196,11 @@ async function run() {
     await driver.focusZone(spec.zones.moss);
     report.screenshots['05-block-stack.png'] = await driver.screenshot('05-block-stack.png');
 
+    await driver.waitUntil(210000);
+    await driver.killBondedPartner('Pollen');
+    await driver.refreshProductionEventCounts();
+    await driver.snapshot('05b-bonded-partner-death');
+
     await driver.waitUntil(240000);
     await driver.focusZone(spec.zones.pool);
     await page.evaluate(() => {
@@ -197,6 +212,13 @@ async function run() {
     await driver.inspect('Vale');
     report.screenshots['06-pool-grief-lonely.png'] = await driver.screenshot('06-pool-grief-lonely.png');
     await driver.snapshot('06-pool-grief-lonely');
+
+    await driver.waitUntil(270000);
+    await driver.focusZone(spec.zones.ivy);
+    await driver.nudgeWitnessedAffection();
+    await driver.refreshProductionEventCounts();
+    await driver.inspect('Iris');
+    await driver.snapshot('06b-witnessed-affection');
 
     await driver.waitUntil(285000);
     await driver.saveReloadAndReinspect('Orchid');
@@ -229,7 +251,11 @@ async function run() {
     report.scriptedEvidence = driver.evidence;
     report.evidenceLanes = buildEvidenceLanes(report);
     report.laneSummary = summarizeLanes(report.evidenceLanes);
-    report.overall = report.laneSummary.pass ? 'pass' : 'fail';
+    report.overall = report.laneSummary.failed.length
+      ? 'fail'
+      : report.laneSummary.residual.length
+        ? 'pass-with-residual'
+        : 'pass';
     report.humanReviewPath = writeHumanReview(outputDir, report, spec);
   } catch (error) {
     report.overall = 'fail';

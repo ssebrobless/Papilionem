@@ -24,6 +24,7 @@ class ShellDomOverlay {
             debug: new DebugDomPanel(this.actionDispatcher),
             guide: new GuideDomPanel(this.actionDispatcher)
         };
+        this.root.addEventListener('wheel', event => this.handleWheel(event), { passive: false });
         this.initialized = true;
     }
 
@@ -86,6 +87,69 @@ class ShellDomOverlay {
         } catch (_error) {
             return `${serializable.visible ? 'visible' : 'hidden'}:${Date.now()}`;
         }
+    }
+
+    handleWheel(event) {
+        if (!event || !this.root || this.root.classList.contains('is-hidden')) return;
+        const panel = this.getPanelForWheelTarget(event.target);
+        if (!panel) return;
+
+        const scroller = this.getScrollerForPanel(event.target, panel);
+        const deltaY = this.getWheelDeltaY(event);
+        if (scroller && Number.isFinite(deltaY) && deltaY !== 0) {
+            scroller.scrollTop += deltaY;
+        }
+        event.preventDefault?.();
+        event.stopPropagation?.();
+    }
+
+    getPanelForWheelTarget(target) {
+        if (!target?.closest) return null;
+        const panel = target.closest('.shell-panel');
+        return panel && this.root?.contains(panel) ? panel : null;
+    }
+
+    getScrollerForPanel(target, panel) {
+        const visited = new Set();
+        let node = target;
+        while (node && node !== panel.parentElement) {
+            if (this.isScrollableElement(node)) {
+                return node;
+            }
+            visited.add(node);
+            if (node === panel) break;
+            node = node.parentElement;
+        }
+
+        const selectors = [
+            '.shell-feed-list',
+            '.shell-body-scroll',
+            '.shell-access-list',
+            '.shell-debug-status'
+        ];
+        for (const selector of selectors) {
+            const candidate = panel.querySelector?.(selector);
+            if (candidate && !visited.has(candidate) && this.isScrollableElement(candidate)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    isScrollableElement(element) {
+        if (!element || element.nodeType !== 1) return false;
+        const style = typeof getComputedStyle === 'function' ? getComputedStyle(element) : null;
+        const overflowY = style?.overflowY || '';
+        if (!/(auto|scroll|overlay)/.test(overflowY)) return false;
+        return (element.scrollHeight || 0) > (element.clientHeight || 0) + 1;
+    }
+
+    getWheelDeltaY(event) {
+        const raw = Number(event.deltaY ?? 0);
+        if (!Number.isFinite(raw) || raw === 0) return 0;
+        if (event.deltaMode === 1) return raw * 16;
+        if (event.deltaMode === 2) return raw * 240;
+        return raw;
     }
 }
 

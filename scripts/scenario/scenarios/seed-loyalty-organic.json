@@ -15,10 +15,14 @@
     { "type": "step_simulation", "frames": 60 },
     { "type": "set_emotions", "source": "b", "threat": 0.88, "exhaustion": 0.66 },
     { "type": "set_emotions", "source": "c", "threat": 0.82, "exhaustion": 0.64 },
+    { "type": "step_simulation", "frames": 90 },
+    { "type": "set_emotions", "source": "b", "threat": 0.08, "exhaustion": 0.08, "resetDistressCooldown": false },
+    { "type": "set_emotions", "source": "c", "threat": 0.88, "exhaustion": 0.68, "resetDistressCooldown": false },
     { "type": "step_simulation", "frames": 180 }
   ],
   "assertions": [
-    { "type": "memory_packet", "entity": "a", "family": "social", "kind": "loyaltyChoice", "min": 1 },
+    { "type": "memory_packet", "entity": "a", "family": "social", "kind": "loyaltyChoice", "chosenPartner": "b", "rejectedPartner": "c", "min": 1, "max": 1 },
+    { "type": "memory_packet", "entity": "a", "family": "social", "kind": "loyaltyChoice", "chosenPartner": "c", "rejectedPartner": "b", "min": 0, "max": 0, "name": "no_symmetric_loyalty_choice" },
     { "type": "edge_min", "entity": "a", "target": "b", "key": "loyalty", "min": 0.04 },
     { "type": "feeling_min", "entity": "a", "key": "loyaltyBias", "min": 0.3 }
   ]

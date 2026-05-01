@@ -3827,6 +3827,19 @@ class Butterfly extends Entity {
             && spriteManager.isBakedCreatureSpritesEnabled?.();
     }
 
+    getCreatureBakeOptions(battleActive = null) {
+        const renderContext = typeof renderManager !== 'undefined'
+            ? renderManager.getRenderContext?.() || {}
+            : {};
+        const inBattle = battleActive === null ? !!renderContext.battleActive : !!battleActive;
+        const closeup = inBattle || !!gameUI?.isInspectLockedToEntity?.(this.id);
+        return {
+            lod: closeup ? 'closeup' : 'garden',
+            closeup,
+            entityId: this.id
+        };
+    }
+
     hasRenderableWings() {
         return gameConfig.rendering.useSprites
             && spriteManager.loaded
@@ -4289,8 +4302,9 @@ class Butterfly extends Entity {
         let anchorY = relAnchor.y * ws;
         let bakedPoseUsed = false;
         if (this.shouldUseBakedCreatureSprites()) {
+            const bakeOptions = this.getCreatureBakeOptions(battleActive);
             const bakedPose = spriteManager.shouldUseBakedWingPose?.(wingKey, spread, battleActive)
-                ? spriteManager.getBakedWingPoseData(spec, wingKey, ws, spread)
+                ? spriteManager.getBakedWingPoseData(spec, wingKey, ws, spread, bakeOptions)
                 : null;
             if (bakedPose?.surface) {
                 piece = bakedPose.surface;
@@ -4300,7 +4314,7 @@ class Butterfly extends Entity {
                 anchorY = bakedPose.anchorY;
                 bakedPoseUsed = true;
             } else {
-                const bakedPiece = spriteManager.getBakedWingPieceData(spec, wingKey, ws);
+                const bakedPiece = spriteManager.getBakedWingPieceData(spec, wingKey, ws, bakeOptions);
                 if (bakedPiece?.surface) {
                     piece = bakedPiece.surface;
                     pieceW = bakedPiece.drawWidth;
@@ -4333,9 +4347,27 @@ class Butterfly extends Entity {
         }
 
         const s = ((this.size * spriteManager.SPRITE_SCALE) / 1080) * this.getBodySpriteScale();
+        if (this.shouldUseBakedCreatureSprites()) {
+            const bakedBody = spriteManager.getBakedBodySpriteData?.(
+                renderSpec || this.getRenderSpec(),
+                s,
+                this.getCreatureBakeOptions()
+            );
+            if (bakedBody?.surface) {
+                graphics.image(
+                    bakedBody.surface,
+                    bakedBody.offsetX,
+                    bakedBody.offsetY,
+                    bakedBody.drawWidth,
+                    bakedBody.drawHeight
+                );
+                return;
+            }
+        }
+
         const bodySprite = spriteManager.body;
-        const bodyW = spriteManager.body.width * s;
-        const bodyH = spriteManager.body.height * s;
+        const bodyW = bodySprite.width * s;
+        const bodyH = bodySprite.height * s;
         graphics.image(bodySprite, -bodyW / 2, -bodyH / 2, bodyW, bodyH);
     }
 
@@ -4345,9 +4377,16 @@ class Butterfly extends Entity {
 
         const s = ((this.size * spriteManager.SPRITE_SCALE) / 1080) * this.getBodySpriteScale();
         const bodyCenter = spriteManager.anchors.body;
-        const antennaImg = spriteManager.antenna;
-        const antennaW = antennaImg.width * s;
-        const antennaH = antennaImg.height * s;
+        const bakedAntenna = this.shouldUseBakedCreatureSprites()
+            ? spriteManager.getBakedAntennaSpriteData?.(
+                renderSpec || this.getRenderSpec(),
+                s,
+                this.getCreatureBakeOptions()
+            )
+            : null;
+        const antennaImg = bakedAntenna?.surface || spriteManager.antenna;
+        const antennaW = bakedAntenna?.drawWidth || antennaImg.width * s;
+        const antennaH = bakedAntenna?.drawHeight || antennaImg.height * s;
 
         // Subtle sway animation
         const baseSway = sin(frameCount * 0.08) * 0.05;
@@ -4364,8 +4403,12 @@ class Butterfly extends Entity {
             const bodyConnY = (anchor.onBody.y - bodyCenter.centerY) * s;
 
             // Position antenna so its anchor aligns with body connection
-            const drawX = bodyConnX - (anchor.onAntenna.x * s);
-            const drawY = bodyConnY - (anchor.onAntenna.y * s);
+            const antennaAnchor = bakedAntenna?.anchors?.[side] || {
+                x: anchor.onAntenna.x * s,
+                y: anchor.onAntenna.y * s
+            };
+            const drawX = bodyConnX - antennaAnchor.x;
+            const drawY = bodyConnY - antennaAnchor.y;
 
             graphics.push();
             // Rotate around the body connection point for natural sway

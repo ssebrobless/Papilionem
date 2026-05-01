@@ -19,6 +19,29 @@ function readRawSave(savePath) {
   return raw;
 }
 
+function normalizeCognitionEvent(event = {}) {
+  const data = event?.data || event || {};
+  return {
+    ...data,
+    currentFrame: Number(data.currentFrame ?? data.frame ?? 0) || 0,
+    entityId: data.entityId || data.sourceId || data.actorId || null,
+    partnerId: data.partnerId || data.chosenPartnerId || data.bondPartnerId || null,
+    thirdPartyId: data.thirdPartyId || data.rejectedPartnerId || null,
+    kind: data.kind || null
+  };
+}
+
+function cognitionEventKey(event = {}) {
+  const normalized = normalizeCognitionEvent(event);
+  return [
+    normalized.currentFrame,
+    normalized.entityId || '',
+    normalized.kind || '',
+    normalized.partnerId || '',
+    normalized.thirdPartyId || ''
+  ].join('|');
+}
+
 class G0HPlaythroughDriver {
   constructor({ page, outputDir, fixtureSpec, fixtureReport, fast = false }) {
     this.page = page;
@@ -27,11 +50,14 @@ class G0HPlaythroughDriver {
     this.fixtureReport = fixtureReport;
     this.fast = !!fast;
     this.startWallMs = 0;
+    this.cognitionAccumulator = [];
+    this.cognitionAccumulatorKeys = new Set();
     this.evidence = {
       zoneVisits: [],
       inspections: [],
       snapshots: [],
       productionEvents: {},
+      cognitionAccumulator: [],
       feedShape: null,
       flowerLifecycle: null,
       battle: null,
@@ -40,6 +66,26 @@ class G0HPlaythroughDriver {
       afterReload: null,
       residuals: []
     };
+  }
+
+  absorbCognitionEvents(events = []) {
+    for (const event of events || []) {
+      const normalized = normalizeCognitionEvent(event);
+      if (!normalized.kind) continue;
+      const key = cognitionEventKey(normalized);
+      if (this.cognitionAccumulatorKeys.has(key)) continue;
+      this.cognitionAccumulatorKeys.add(key);
+      this.cognitionAccumulator.push(normalized);
+    }
+    const accumulated = this.cognitionAccumulator.slice();
+    this.evidence.cognitionAccumulator = accumulated;
+    if (this.evidence.productionEvents && Object.keys(this.evidence.productionEvents).length) {
+      this.evidence.productionEvents.accumulatedCognition = accumulated;
+      this.evidence.productionEvents.accumulatedCognitionCount = accumulated.length;
+      this.evidence.productionEvents.accumulatedLoyaltyChoices = accumulated.filter(entry => entry.kind === 'loyalty').length;
+      this.evidence.productionEvents.accumulatedOutcomeAnchors = accumulated.filter(entry => ['pride', 'shame'].includes(entry.kind)).length;
+    }
+    return this.evidence.cognitionAccumulator;
   }
 
   async importFixtureSave(savePath) {
@@ -138,9 +184,35 @@ class G0HPlaythroughDriver {
 
   async inspect(alias, options = {}) {
     const details = await this.page.evaluate(({ alias, afterReload }) => {
+      function summarizeLifeSimMemories(entity) {
+        const families = entity?.lifeSim?.memories || {};
+        const socialPackets = Array.isArray(families.social) ? families.social : [];
+        const outcomePackets = Array.isArray(families.outcome) ? families.outcome : [];
+        const placePackets = Array.isArray(families.place) ? families.place : [];
+        const memoryFamilyCounts = {
+          social: socialPackets.length,
+          outcome: outcomePackets.length,
+          place: placePackets.length
+        };
+        const memoryKindCounts = {
+          bereavement: socialPackets.filter(packet => packet?.kind === 'bereavement').length,
+          bereavementDeath: socialPackets.filter(packet => packet?.kind === 'bereavement' && packet?.subtype !== 'long-absence').length,
+          bereavementLongAbsence: socialPackets.filter(packet => packet?.kind === 'bereavement' && packet?.subtype === 'long-absence').length,
+          witnessedAffection: socialPackets.filter(packet => packet?.kind === 'witnessedAffection').length,
+          loyaltyChoice: socialPackets.filter(packet => packet?.kind === 'loyaltyChoice').length,
+          prideAnchor: outcomePackets.filter(packet => packet?.anchor === 'pride').length,
+          shameAnchor: outcomePackets.filter(packet => packet?.anchor === 'shame').length
+        };
+        return {
+          memoryPacketCount: memoryFamilyCounts.social + memoryFamilyCounts.outcome + memoryFamilyCounts.place,
+          memoryFamilyCounts,
+          memoryKindCounts
+        };
+      }
       const state = gameCore.getGameState();
       const target = (state.butterflies || []).find(entity => entity.displayName === alias || entity.lifeSim?.identity?.fixtureAlias === alias) || null;
       if (!target) return { alias, found: false, afterReload: !!afterReload };
+      const memorySummary = summarizeLifeSimMemories(target);
       gameUI.inspectPanel.visible = true;
       gameUI.inspectPanel.lockedTargetId = target.id;
       gameUI.inspectPanel.scrollOffset = 0;
@@ -152,7 +224,9 @@ class G0HPlaythroughDriver {
         found: true,
         afterReload: !!afterReload,
         zoneId: target.currentZoneId || target.lifeSim?.lifecycle?.currentZoneId || null,
-        memoryPacketCount: (target.lifeSim?.memoryPackets || target.lifeSim?.memories || []).length,
+        memoryPacketCount: memorySummary.memoryPacketCount,
+        memoryFamilyCounts: memorySummary.memoryFamilyCounts,
+        memoryKindCounts: memorySummary.memoryKindCounts,
         edgeCount: Object.keys(target.lifeSim?.socialEdges || {}).length,
         boardPos: target.boardPos || null
       };
@@ -170,6 +244,31 @@ class G0HPlaythroughDriver {
           return fallback;
         }
       }
+      function summarizeLifeSimMemories(entity) {
+        const families = entity?.lifeSim?.memories || {};
+        const socialPackets = Array.isArray(families.social) ? families.social : [];
+        const outcomePackets = Array.isArray(families.outcome) ? families.outcome : [];
+        const placePackets = Array.isArray(families.place) ? families.place : [];
+        const memoryFamilyCounts = {
+          social: socialPackets.length,
+          outcome: outcomePackets.length,
+          place: placePackets.length
+        };
+        const memoryKindCounts = {
+          bereavement: socialPackets.filter(packet => packet?.kind === 'bereavement').length,
+          bereavementDeath: socialPackets.filter(packet => packet?.kind === 'bereavement' && packet?.subtype !== 'long-absence').length,
+          bereavementLongAbsence: socialPackets.filter(packet => packet?.kind === 'bereavement' && packet?.subtype === 'long-absence').length,
+          witnessedAffection: socialPackets.filter(packet => packet?.kind === 'witnessedAffection').length,
+          loyaltyChoice: socialPackets.filter(packet => packet?.kind === 'loyaltyChoice').length,
+          prideAnchor: outcomePackets.filter(packet => packet?.anchor === 'pride').length,
+          shameAnchor: outcomePackets.filter(packet => packet?.anchor === 'shame').length
+        };
+        return {
+          memoryPacketCount: memoryFamilyCounts.social + memoryFamilyCounts.outcome + memoryFamilyCounts.place,
+          memoryFamilyCounts,
+          memoryKindCounts
+        };
+      }
       const state = gameCore.getGameState();
       const aliases = {};
       for (const alias of expectedAliases) {
@@ -178,12 +277,15 @@ class G0HPlaythroughDriver {
           aliases[alias] = null;
           continue;
         }
+        const memorySummary = summarizeLifeSimMemories(entity);
         aliases[alias] = {
           id: entity.id,
           zoneId: entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null,
           boardPos: clone(entity.boardPos, null),
           edgeCount: Object.keys(entity.lifeSim?.socialEdges || {}).length,
-          memoryPacketCount: (entity.lifeSim?.memoryPackets || entity.lifeSim?.memories || []).length,
+          memoryPacketCount: memorySummary.memoryPacketCount,
+          memoryFamilyCounts: memorySummary.memoryFamilyCounts,
+          memoryKindCounts: memorySummary.memoryKindCounts,
           derivedFeelings: clone(entity.lifeSim?.derived?.feelings || entity.lifeSim?.derived?.emotionalState || {}, {}),
           drives: clone(entity.lifeSim?.drives || {}, {}),
           emotions: clone(entity.lifeSim?.emotions || {}, {})
@@ -242,7 +344,118 @@ class G0HPlaythroughDriver {
       label,
       expectedAliases: this.fixtureSpec.cast.map(entry => entry.alias)
     });
+    this.absorbCognitionEvents(details.cognitionEvents);
+    details.accumulatedCognition = this.cognitionAccumulator.slice();
     this.evidence.snapshots.push(details);
+    return details;
+  }
+
+  async killBondedPartner(alias = 'Pollen') {
+    const details = await this.page.evaluate(targetAlias => {
+      const state = gameCore.getGameState();
+      const target = (state.butterflies || []).find(entity =>
+        entity.displayName === targetAlias || entity.lifeSim?.identity?.fixtureAlias === targetAlias
+      ) || null;
+      if (!target) return { ok: false, reason: 'missing-target', targetAlias };
+
+      target.hp = 0;
+      target.health = 0;
+      target.dead = true;
+      target.lifeSim = target.lifeSim || {};
+      target.lifeSim.lifecycle = target.lifeSim.lifecycle || {};
+      target.lifeSim.lifecycle.deceased = true;
+      target.lifeSim.lifecycle.deceasedAtFrame = gameCore.getCurrentFrame?.() || state.currentFrame || 0;
+      if (typeof eventBus !== 'undefined' && GameEvents?.BUTTERFLY_DIED) {
+        eventBus.emit(GameEvents.BUTTERFLY_DIED, {
+          entity: target,
+          butterfly: target,
+          id: target.id,
+          source: 'g0h-scripted-bonded-loss'
+        });
+      }
+      return {
+        ok: true,
+        deceasedId: target.id,
+        deceasedAlias: targetAlias,
+        cognition: eventBus.getHistory?.('cognition:triggered')?.slice(-12).map(entry => entry.data || entry) || []
+      };
+    }, alias);
+    this.absorbCognitionEvents(details.cognition);
+    details.accumulatedCognition = this.cognitionAccumulator.slice();
+    this.evidence.bondedPartnerDeath = details;
+    return details;
+  }
+
+  async nudgeWitnessedAffection() {
+    const details = await this.page.evaluate(() => {
+      const state = gameCore.getGameState();
+      const byAlias = alias => (state.butterflies || []).find(entity =>
+        entity.displayName === alias || entity.lifeSim?.identity?.fixtureAlias === alias
+      ) || null;
+      const iris = byAlias('Iris');
+      const juniper = byAlias('Juniper');
+      const kite = byAlias('Kite');
+      if (!iris || !juniper || !kite) return { ok: false, reason: 'missing-cast' };
+      const beforePackets = Array.isArray(iris.lifeSim?.memories?.social)
+        ? iris.lifeSim.memories.social.length
+        : 0;
+
+      const zoneId = 'ivy-cloister';
+      const positions = [
+        [iris, { zoneId, u: 16, v: 8, h: 0 }],
+        [juniper, { zoneId, u: 17, v: 8, h: 0 }],
+        [kite, { zoneId, u: 18, v: 8, h: 0 }]
+      ];
+      for (const [entity, boardPos] of positions) {
+        const screen = renderManager?.boardToScreen?.(boardPos) || null;
+        entity.currentZoneId = boardPos.zoneId;
+        entity.boardPos = { ...boardPos };
+        entity.lifeSim = entity.lifeSim || {};
+        entity.lifeSim.lifecycle = entity.lifeSim.lifecycle || {};
+        entity.lifeSim.lifecycle.currentZoneId = boardPos.zoneId;
+        if (screen) {
+          entity.x = screen.x;
+          entity.y = screen.y;
+        }
+        gameCore.assignEntityToZone?.(entity, boardPos.zoneId);
+        entity.syncDebugGridPos?.();
+      }
+      iris.lifeSim.memories = iris.lifeSim.memories || {};
+      iris.lifeSim.memories.social = Array.isArray(iris.lifeSim.memories.social)
+        ? iris.lifeSim.memories.social.filter(packet =>
+          !(packet?.kind === 'witnessedAffection' && packet?.bondPartnerId === juniper.id)
+        )
+        : [];
+
+      const distance = structureSystem?.getBoardDistanceBetweenEntities?.(iris, juniper, zoneId) ?? Infinity;
+      const result = communicationSystem.emitCooperationSignal?.(juniper, {
+        signalType: 'acknowledgement_signal',
+        intentFamily: 'social',
+        intentTags: ['comfort', 'companionship', 'warmth'],
+        phrase: 'Kite, stay close to me; you are easy company.',
+        targetIds: [kite.id],
+        zoneId,
+        reason: 'g0h-scripted-witnessed-affection',
+        metadata: { affectionIntensity: 0.82 }
+      });
+      for (let index = 0; index < 60; index += 1) {
+        gameCore.update?.();
+      }
+      return {
+        ok: !!result,
+        sourceId: juniper.id,
+        witnessId: iris.id,
+        thirdPartyId: kite.id,
+        distance,
+        beforePackets,
+        afterPackets: iris.lifeSim.memories.social.length,
+        dialogueCount: eventBus.getHistory?.(GameEvents.DIALOGUE_SPOKEN)?.length || 0,
+        cognition: eventBus.getHistory?.('cognition:triggered')?.slice(-12).map(entry => entry.data || entry) || []
+      };
+    });
+    this.absorbCognitionEvents(details.cognition);
+    details.accumulatedCognition = this.cognitionAccumulator.slice();
+    this.evidence.witnessedAffection = details;
     return details;
   }
 
@@ -274,6 +487,8 @@ class G0HPlaythroughDriver {
         cognition: eventBus.getHistory?.('cognition:triggered')?.slice(-6).map(entry => entry.data || entry) || []
       };
     });
+    this.absorbCognitionEvents(details.cognition);
+    details.accumulatedCognition = this.cognitionAccumulator.slice();
     return details;
   }
 
@@ -300,14 +515,19 @@ class G0HPlaythroughDriver {
       briar.lifeSim.emotions.threat = 0.22;
       briar.lifeSim.emotions.exhaustion = 0.2;
       const emittedC = communicationSystem.updateDistressCascade?.(state, 450) || 0;
+      clover.lifeSim.emotions.threat = 0.82;
+      clover.lifeSim.emotions.exhaustion = 0.66;
+      const emittedD = communicationSystem.updateDistressCascade?.(state, 540) || 0;
       return {
-        ok: (emittedA + emittedB + emittedC) > 0,
-        emitted: emittedA + emittedB + emittedC,
+        ok: (emittedA + emittedB + emittedC + emittedD) > 0,
+        emitted: emittedA + emittedB + emittedC + emittedD,
         dialogueCount: eventBus.getHistory?.(GameEvents.DIALOGUE_SPOKEN)?.length || 0,
         signalCount: eventBus.getHistory?.(GameEvents.COMMUNICATION_SIGNAL)?.length || 0,
         cognition: eventBus.getHistory?.('cognition:triggered')?.slice(-10).map(entry => entry.data || entry) || []
       };
     });
+    this.absorbCognitionEvents(details.cognition);
+    details.accumulatedCognition = this.cognitionAccumulator.slice();
     return details;
   }
 
@@ -352,7 +572,50 @@ class G0HPlaythroughDriver {
     return details;
   }
 
+  async settleFixtureBlocksForReload() {
+    const details = await this.page.evaluate(fixtureBlocks => {
+      const state = gameCore.getGameState();
+      const settled = [];
+      for (let index = 0; index < fixtureBlocks.length; index += 1) {
+        const block = (state.blocks || [])[index] || null;
+        const spec = fixtureBlocks[index] || null;
+        if (!block || !spec) continue;
+        const boardPos = {
+          zoneId: spec.zoneId,
+          u: spec.u,
+          v: spec.v,
+          h: spec.h || 0
+        };
+        if (typeof block.snapToBoardCell === 'function') {
+          block.snapToBoardCell({ boardPos, allowInvalidCell: false, reason: 'g0h-scripted-fixture-settle' });
+        } else if (typeof block.applyBoardCell === 'function') {
+          block.applyBoardCell(boardPos, { reason: 'g0h-scripted-fixture-settle' });
+        } else {
+          block.boardPos = { ...boardPos };
+        }
+        const screen = renderManager?.boardToScreen?.(boardPos) || null;
+        if (screen) {
+          block.x = screen.x;
+          block.y = screen.y;
+        }
+        block.currentZoneId = boardPos.zoneId;
+        block.boardPos = { ...boardPos };
+        block.stackIndex = boardPos.h;
+        block.lastPlacedMode = boardPos.h > 0 ? 'stacked' : 'ground';
+        block.syncDebugGridPos?.();
+        settled.push({ id: block.id, boardPos: { ...boardPos } });
+      }
+      return {
+        ok: settled.length === fixtureBlocks.length,
+        settled
+      };
+    }, this.fixtureSpec.blocks || []);
+    this.evidence.blockSettle = details;
+    return details;
+  }
+
   async saveReloadAndReinspect(alias = 'Orchid') {
+    await this.settleFixtureBlocksForReload();
     const before = await this.snapshot('before-reload');
     this.evidence.beforeReload = before;
     const saved = await this.page.evaluate(async () => {
@@ -407,6 +670,8 @@ class G0HPlaythroughDriver {
         cognition: eventBus.getHistory?.('cognition:triggered')?.slice(-10).map(entry => entry.data || entry) || []
       };
     });
+    this.absorbCognitionEvents(details.cognition);
+    details.accumulatedCognition = this.cognitionAccumulator.slice();
     this.evidence.battle = details;
     return details;
   }
@@ -439,6 +704,8 @@ class G0HPlaythroughDriver {
         cognition: eventBus.getHistory?.('cognition:triggered')?.slice(-10).map(entry => entry.data || entry) || []
       };
     });
+    this.absorbCognitionEvents(details.cognition);
+    details.accumulatedCognition = this.cognitionAccumulator.slice();
     this.evidence.battle = {
       ...(this.evidence.battle || {}),
       ...details,
@@ -507,6 +774,12 @@ class G0HPlaythroughDriver {
         recentCognition: cognition.slice(-12).map(entry => entry.data || entry)
       };
     });
+    this.absorbCognitionEvents(details.recentCognition);
+    const accumulated = this.cognitionAccumulator.slice();
+    details.accumulatedCognition = accumulated;
+    details.accumulatedCognitionCount = accumulated.length;
+    details.accumulatedLoyaltyChoices = accumulated.filter(entry => entry.kind === 'loyalty').length;
+    details.accumulatedOutcomeAnchors = accumulated.filter(entry => ['pride', 'shame'].includes(entry.kind)).length;
     this.evidence.productionEvents = details;
     return details;
   }

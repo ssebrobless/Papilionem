@@ -317,6 +317,7 @@ const PAPILIONEM_BATTLE_ARENA = {
         },
         cache: {
             maxBakedSprites: 224,
+            maxBakedSpriteSurfaceMB: 32,
             wingDimensionStep: 1,
             wingSpreadBuckets: 24,
             wingPoseSpreadBuckets: 16,
@@ -359,7 +360,25 @@ const PAPILIONEM_BATTLE_ARENA = {
     // Rendering settings
     rendering: {
         useSprites: true,           // Set to false to revert to procedural butterfly rendering
-        butterflyVisualScale: 1.6   // 60% larger visual rendering (interaction radii unchanged)
+        butterflyVisualScale: 1.6,  // 60% larger visual rendering (interaction radii unchanged)
+        creatureBakeMode: 'fixed-high-res',
+        creatureBakeSize: {
+            enabled: true,
+            body: 96,
+            wing: {
+                width: 128,
+                height: 96
+            },
+            antenna: 48
+        },
+        creatureLodCloseupSize: {
+            body: 256,
+            wing: {
+                width: 384,
+                height: 256
+            },
+            antenna: 128
+        }
     },
 
     // Canvas settings
@@ -766,7 +785,10 @@ const PAPILIONEM_BATTLE_ARENA = {
             },
             loyalty: {
                 enabled: true,
-                competingDistress: { enabled: true },
+                competingDistress: {
+                    enabled: true,
+                    canonicalDedupe: true
+                },
                 competingScout: { enabled: true }
             }
         }

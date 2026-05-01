@@ -10,9 +10,18 @@
   "actions": [
     { "type": "step_simulation", "frames": 60 },
     { "type": "set_emotions", "source": "b", "threat": 0.86, "exhaustion": 0.7 },
-    { "type": "step_simulation", "frames": 180 },
+    { "type": "step_simulation", "frames": 29 },
+    { "type": "set_board_pos", "source": "a", "boardPos": { "zoneId": "ivy-cloister", "u": 6, "v": 7, "h": 0 } },
+    { "type": "set_board_pos", "source": "b", "boardPos": { "zoneId": "ivy-cloister", "u": 6.8, "v": 7.1, "h": 0 } },
+    { "type": "step_simulation", "frames": 1 },
+    { "type": "step_simulation", "frames": 150 },
     { "type": "set_emotions", "source": "b", "threat": 0.08, "exhaustion": 0.08 },
-    { "type": "step_simulation", "frames": 180 },
+    { "type": "set_board_pos", "source": "a", "boardPos": { "zoneId": "ivy-cloister", "u": 6, "v": 7, "h": 0 } },
+    { "type": "set_board_pos", "source": "b", "boardPos": { "zoneId": "ivy-cloister", "u": 6.8, "v": 7.1, "h": 0 } },
+    { "type": "step_simulation", "frames": 89 },
+    { "type": "set_board_pos", "source": "a", "boardPos": { "zoneId": "ivy-cloister", "u": 6, "v": 7, "h": 0 } },
+    { "type": "set_board_pos", "source": "b", "boardPos": { "zoneId": "ivy-cloister", "u": 6.8, "v": 7.1, "h": 0 } },
+    { "type": "step_simulation", "frames": 1 },
     { "type": "emit_dialogue", "source": "a", "intentFamily": "social", "intentTags": ["admiration", "statusPerformance"], "phrase": "I helped, and I can keep helping." }
   ],
   "assertions": [

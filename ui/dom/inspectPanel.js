@@ -115,6 +115,10 @@ class InspectDomPanel {
                 hero.appendChild(row);
             }
             this.body.appendChild(hero);
+            const feelings = state.detailState.cognition?.feelings || null;
+            if (feelings) {
+                this.body.appendChild(this.renderFeelingRow(feelings, state.detailState.cognition?.strongestFeeling || 'steady'));
+            }
 
             const sectionList = document.createElement('div');
             sectionList.className = 'shell-section-list';
@@ -141,6 +145,36 @@ class InspectDomPanel {
         empty.className = 'shell-empty';
         empty.textContent = 'No inspect data available.';
         this.body.appendChild(empty);
+    }
+
+    renderFeelingRow(feelings, strongestFeeling = 'steady') {
+        const wrap = document.createElement('div');
+        wrap.className = 'shell-chip-row shell-inspect-feeling-row';
+        wrap.dataset.cognitionFeelings = 'true';
+        const labels = [
+            ['loneliness', 'lonely'],
+            ['comfortSeeking', 'comfort'],
+            ['socialInsecurity', 'insecure'],
+            ['jealousy', 'jealous'],
+            ['grief', 'grief'],
+            ['pride', 'pride'],
+            ['shame', 'shame'],
+            ['loyaltyBias', 'loyal']
+        ];
+        const strongest = document.createElement('div');
+        strongest.className = 'shell-chip';
+        strongest.dataset.feelingKey = 'strongestFeeling';
+        strongest.textContent = `feeling ${strongestFeeling || 'steady'}`;
+        wrap.appendChild(strongest);
+        for (const [key, label] of labels) {
+            const value = Math.max(0, Math.min(100, Math.round(Number(feelings[key]) || 0)));
+            const chip = document.createElement('div');
+            chip.className = 'shell-chip';
+            chip.dataset.feelingKey = key;
+            chip.textContent = `${label} ${value}%`;
+            wrap.appendChild(chip);
+        }
+        return wrap;
     }
 
     renderEntryList(state) {

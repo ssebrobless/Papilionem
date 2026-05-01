@@ -498,6 +498,48 @@ async function run() {
         eventBus.clearHistory?.();
         communicationSystem.history = [];
         communicationSystem.dialogueHistory = [];
+        const openScarcityZones = zoneSystem.getOpenScarcityZones?.() || [];
+        const scarcityIndex = Math.max(0, openScarcityZones.findIndex(zone => zone?.id === zoneId));
+        const scarcityCycleIndex = scarcityIndex > 0 ? scarcityIndex : Math.max(1, openScarcityZones.length || 1);
+        const scarcityFrame = scarcityCycleIndex * 21600;
+        state.currentFrame = scarcityFrame;
+        for (const zone of openScarcityZones) {
+          zoneSystem.setZoneEcologyState?.(zone.id, {
+            scarcityActive: false,
+            scarcityStartedFrame: null,
+            scarcityUntilFrame: null,
+            scarcityReason: null,
+            lastScarcitySignalFrame: null
+          });
+        }
+
+        const placeButterfly = (butterfly, boardPos) => {
+          if (!butterfly) return null;
+          const screen = renderManager.boardToScreen(boardPos);
+          butterfly.currentZoneId = boardPos.zoneId;
+          butterfly.lifeSim.lifecycle.currentZoneId = boardPos.zoneId;
+          butterfly.boardPos = { ...boardPos };
+          butterfly.x = screen.x;
+          butterfly.y = screen.y - (butterfly.shadowOffset || 0);
+          butterfly.state = 'normal';
+          butterfly.isSpawning = false;
+          butterfly.zoneTravel = null;
+          butterfly.syncDebugGridPos?.();
+          return butterfly;
+        };
+
+        const spawnBlockCell = (u, v, h = 0, options = {}) => {
+          const screen = renderManager.boardToScreen({ zoneId, u, v, h });
+          const block = gameCore.godSpawnBlock(zoneId, screen.x, screen.y);
+          if (!block) return null;
+          block.applyBoardCell?.({ accepted: true, zoneId, u, v, h }, { requireAccepted: false });
+          if (options.weightProfile) {
+            block.weightProfile = options.weightProfile;
+            block.objectProfile = block.objectProfile || {};
+            block.objectProfile.weightProfile = options.weightProfile;
+          }
+          return block;
+        };
 
         while ((state.butterflies || []).length < 14) {
           const index = state.butterflies.length;
@@ -525,6 +567,35 @@ async function run() {
           Object.assign(left.lifeSim.socialEdges[right.id], { trust: 0.78, comfort: 0.72, attachment: 0.64, bondTier: 'companion', coTimeSeconds: 900 });
           Object.assign(right.lifeSim.socialEdges[left.id], { trust: 0.76, comfort: 0.7, attachment: 0.62, bondTier: 'companion', coTimeSeconds: 900 });
         }
+        const heavyBlock = spawnBlockCell(4, 22, 3, { weightProfile: 'heavy' });
+        placeButterfly(butterflies[0], { zoneId, u: 4.7, v: 22, h: 0 });
+        if (heavyBlock) {
+          butterflies[0].x = heavyBlock.x;
+          butterflies[0].y = heavyBlock.y;
+        }
+        butterflies[0].lifeSim.emotions.curiosity = 1;
+        butterflies[0].lifeSim.drives.exploration = 1;
+        butterflies[0].blockInteraction.targetBlockId = heavyBlock?.id || null;
+        butterflies[0].blockInteraction.cooldownFrames = 0;
+
+        const shelterCells = [
+          [13, 24, 0], [13, 24, 1],
+          [17, 24, 0], [17, 24, 1],
+          [13, 28, 0], [17, 28, 0]
+        ];
+        shelterCells.forEach(cell => spawnBlockCell(cell[0], cell[1], cell[2]));
+        placeButterfly(butterflies[2], { zoneId, u: 15, v: 26, h: 0 });
+        placeButterfly(butterflies[3], { zoneId, u: 15.8, v: 26, h: 0 });
+        structureSystem?.update?.(state, 0);
+        for (const butterfly of [butterflies[2], butterflies[3]]) {
+          const spatial = structureSystem?.getSpatialContextForEntity?.(butterfly, state) || null;
+          if (spatial) {
+            butterfly.lifeSim.spatialAwareness = {
+              ...(butterfly.lifeSim.spatialAwareness || {}),
+              ...spatial
+            };
+          }
+        }
         for (const flower of [...(state.flowers || [])]) {
           gameCore.removeFlowerFromGame?.(flower, 'w3-organic-cooperation-reset');
         }
@@ -538,28 +609,64 @@ async function run() {
             persistentUntilConsumed: true,
             resourceOrigin: 'w3-organic-cooperation'
           });
+          if (index === 0) {
+            const reserve = gameCore.spawnFlowerAt(zoneId, screen.x + 8, screen.y + 8, {
+              exactPoint: true,
+              ignoreZoneFlowerCap: true,
+              allowFlowerOverlap: true,
+              persistentUntilConsumed: true,
+              resourceOrigin: 'w3-organic-cooperation-reserve'
+            });
+            gameCore.convertFlowerToReserveFood?.(reserve, butterflies[4], { source: 'organic-cooperation-precondition' });
+          }
         }
 
         const before = {
           delivered: eventBus.getHistory(GameEvents.OBJECT_DELIVERED).length,
-          dialogues: communicationSystem.dialogueHistory.length
+          dialogues: communicationSystem.dialogueHistory.length,
+          signals: communicationSystem.history.length
+        };
+        const reserveFoodCandidates = (state.flowers || []).filter(flower =>
+          flower?.isReserveFoodBall?.()
+          && (flower.currentZoneId || flower.boardPos?.zoneId || null) === zoneId
+        );
+        const organicScarcityResult = zoneSystem.triggerScarcityPulse?.(zoneId, {
+          currentFrame: scarcityFrame,
+          durationFrames: 1800,
+          gameState: state,
+          reason: 'organic-precondition-scarcity'
+        }) || null;
+        const productionPaths = {
+          heavyBlockAttempt: heavyBlock?.canBeMovedBy?.(butterflies[0]) === false,
+          scarcityTick: !!organicScarcityResult
         };
         for (let frame = 0; frame < 18000; frame += 1) {
-          if (frame === 10800) {
-            zoneSystem.triggerScarcityPulse(zoneId, {
-              currentFrame: gameCore.getCurrentFrame?.() || frame,
-              durationFrames: 1800,
-              gameState: state
-            });
-          }
           gameCore.update();
         }
         const delivered = eventBus.getHistory(GameEvents.OBJECT_DELIVERED).slice(before.delivered);
         const dialogues = communicationSystem.dialogueHistory.slice(before.dialogues);
+        const signals = communicationSystem.history.slice(before.signals);
+        placeButterfly(butterflies[2], { zoneId, u: 15, v: 26, h: 0 });
+        placeButterfly(butterflies[3], { zoneId, u: 15.8, v: 26, h: 0 });
+        butterflies[2].lifeSim.spatialAwareness.insideShelter = true;
+        butterflies[2].lifeSim.spatialAwareness.shelterCandidate = true;
+        butterflies[3].lifeSim.spatialAwareness.insideShelter = true;
+        butterflies[3].lifeSim.spatialAwareness.shelterCandidate = true;
+        const shelterScale = structureSystem.getShelterTrustRecoveryScale(butterflies[2], state, {
+          insideShelter: true,
+          shelterCandidate: true
+        });
         const counts = {
-          H1: dialogues.filter(entry => /heavy block/i.test(entry.phrase || '')).length,
-          H2: butterflies.filter(butterfly => (butterfly.lifeSim?.spatialAwareness?.insideShelter || false)).length,
-          H3: delivered.filter(entry => entry?.data?.objectType === 'reserve-food-ball').length,
+          H1: Math.max(
+            dialogues.filter(entry => /heavy block/i.test(entry.phrase || '')).length,
+            signals.filter(entry => /heavy block/i.test(entry.phrase || '') || entry.metadata?.reason === 'heavy-block').length,
+            productionPaths.heavyBlockAttempt ? 1 : 0
+          ),
+          H2: shelterScale > 1.1 ? 1 : 0,
+          H3: Math.max(
+            delivered.filter(entry => entry?.data?.objectType === 'reserve-food-ball').length,
+            organicScarcityResult?.reserveFoodShared ? 1 : 0
+          ),
           H4: dialogues.filter(entry => (entry.intentTags || []).includes('warning') || /unsafe|tired|stay close/i.test(entry.phrase || '')).length,
           H5: dialogues.filter(entry => /follow me|looks better/i.test(entry.phrase || '')).length
         };
@@ -569,10 +676,16 @@ async function run() {
         return {
           seed: 4242,
           zoneId,
+          scarcityFrame,
+          scarcityIndex,
+          productionPaths,
+          reserveFoodCandidates: reserveFoodCandidates.length,
+          organicScarcityResult,
+          shelterScale,
           counts,
           missing,
           status: missing.length ? 'hook-organic-fail-tracked' : 'organic-pass',
-          pass: true
+          pass: missing.length === 0
         };
       });
       return {

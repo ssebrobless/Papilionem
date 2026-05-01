@@ -1491,6 +1491,23 @@ class LifeSimSystem {
         return packet;
     }
 
+    emitProductionCognitionTrigger(kind, payload = {}) {
+        if (typeof eventBus === 'undefined') return;
+        let safePayload = {};
+        try {
+            safePayload = JSON.parse(JSON.stringify(payload || {}));
+        } catch (_error) {
+            safePayload = {};
+        }
+        eventBus.emit('cognition:triggered', {
+            kind,
+            source: 'production',
+            system: 'lifeSimSystem',
+            currentFrame: safePayload.currentFrame ?? (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0)),
+            ...safePayload
+        });
+    }
+
     getEdgeComposite(edge = {}) {
         return this.clamp01(((edge.trust || 0) + (edge.comfort || 0) + (edge.attachment || 0)) / 3);
     }
@@ -1591,8 +1608,18 @@ class LifeSimSystem {
                 decayFrames: 5400,
                 tags: ['observation', 'soft-repair', 'long-absence']
             });
-            this.pushCognitionPacket(entity, 'social', packet);
-            created.push(packet);
+            const stored = this.pushCognitionPacket(entity, 'social', packet);
+            if (!stored) continue;
+            this.emitProductionCognitionTrigger('bereavement', {
+                subtype: packet.subtype || null,
+                trigger: 'longAbsence',
+                currentFrame: packet.createdAtFrame || currentFrame,
+                entityId: entity.id,
+                partnerId: packet.partnerId || targetId,
+                thirdPartyId: null,
+                intensity: packet.intensity ?? null
+            });
+            created.push(stored);
         }
         return created;
     }
@@ -1755,8 +1782,18 @@ class LifeSimSystem {
                 decayFrames: 10800,
                 tags: ['observation', 'soft-repair']
             });
-            this.pushCognitionPacket(survivor, 'social', packet);
-            created.push(packet);
+            const stored = this.pushCognitionPacket(survivor, 'social', packet);
+            if (!stored) continue;
+            this.emitProductionCognitionTrigger('bereavement', {
+                subtype: packet.subtype || null,
+                trigger: 'butterflyDied',
+                currentFrame: packet.createdAtFrame || packet.lostAtFrame || (gameCore?.getCurrentFrame?.() ?? 0),
+                entityId: survivor.id,
+                partnerId: packet.partnerId || deceased.id,
+                thirdPartyId: null,
+                intensity: packet.intensity ?? null
+            });
+            created.push(stored);
         }
         return created;
     }
@@ -1791,12 +1828,22 @@ class LifeSimSystem {
                 intensity,
                 decayFrames: 1800
             });
-            this.pushCognitionPacket(witness, 'social', packet);
+            const stored = this.pushCognitionPacket(witness, 'social', packet);
+            if (!stored) continue;
             adjustLifeSocialEdge?.(witness, target.id, { rivalry: 0.06 }, {
                 updatedAtSeconds: this.simulationClockSeconds,
                 tag: 'witnessed-affection'
             });
-            created.push(packet);
+            this.emitProductionCognitionTrigger('witnessedAffection', {
+                subtype: packet.subtype || null,
+                trigger: 'dialogueWitnessed',
+                currentFrame: packet.createdAtFrame || packet.watchedAtFrame || (gameCore?.getCurrentFrame?.() ?? 0),
+                entityId: witness.id,
+                partnerId: packet.bondPartnerId || source.id,
+                thirdPartyId: packet.thirdPartyId || target.id,
+                intensity: packet.intensity ?? null
+            });
+            created.push(stored);
         }
         return created;
     }

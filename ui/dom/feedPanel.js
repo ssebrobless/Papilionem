@@ -14,6 +14,7 @@ class FeedDomPanel {
         const root = document.createElement('section');
         root.className = 'shell-panel shell-feed-panel';
         root.dataset.panel = 'feed';
+        root.addEventListener('wheel', event => this.handlePanelWheel(event), { passive: false });
 
         const header = document.createElement('div');
         header.className = 'shell-header';
@@ -40,6 +41,20 @@ class FeedDomPanel {
         container.appendChild(root);
         this.root = root;
         return root;
+    }
+
+    handlePanelWheel(event) {
+        if (!this.list) return;
+        const rawDelta = Number(event?.deltaY ?? 0);
+        if (!Number.isFinite(rawDelta) || rawDelta === 0) return;
+        const deltaY = event.deltaMode === 1
+            ? rawDelta * 16
+            : event.deltaMode === 2
+                ? rawDelta * 240
+                : rawDelta;
+        this.list.scrollTop += deltaY;
+        event.preventDefault?.();
+        event.stopPropagation?.();
     }
 
     unmount() {

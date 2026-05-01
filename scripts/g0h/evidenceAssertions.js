@@ -7,6 +7,43 @@ function countBy(items = [], keyFn) {
   return counts;
 }
 
+function normalizeCognitionEvent(event = {}) {
+  const data = event?.data || event || {};
+  return {
+    ...data,
+    currentFrame: Number(data.currentFrame ?? data.frame ?? 0) || 0,
+    entityId: data.entityId || data.sourceId || data.actorId || null,
+    partnerId: data.partnerId || data.chosenPartnerId || data.bondPartnerId || null,
+    thirdPartyId: data.thirdPartyId || data.rejectedPartnerId || null,
+    kind: data.kind || null
+  };
+}
+
+function cognitionEventKey(event = {}) {
+  const normalized = normalizeCognitionEvent(event);
+  return [
+    normalized.currentFrame,
+    normalized.entityId || '',
+    normalized.kind || '',
+    normalized.partnerId || '',
+    normalized.thirdPartyId || ''
+  ].join('|');
+}
+
+function uniqueCognitionEvents(events = []) {
+  const seen = new Set();
+  const unique = [];
+  for (const event of events || []) {
+    const normalized = normalizeCognitionEvent(event);
+    if (!normalized.kind) continue;
+    const key = cognitionEventKey(normalized);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(normalized);
+  }
+  return unique;
+}
+
 function summarizeBlockCells(blocks = []) {
   const seen = new Map();
   const duplicateCells = [];
@@ -63,6 +100,125 @@ function summarizeBlockCells(blocks = []) {
       outOfRangeCells.length === 0 &&
       unsupportedStacks.length === 0 &&
       sunCourtBlocks.length === 0
+  };
+}
+
+function summarizeEvidenceFidelity(scripted = {}) {
+  const inspected = scripted.inspections || [];
+  const snapshots = scripted.snapshots || [];
+  const productionEvents = scripted.productionEvents || {};
+  const accumulated = uniqueCognitionEvents([
+    ...(productionEvents.accumulatedCognition || []),
+    ...(scripted.cognitionAccumulator || [])
+  ]);
+  const snapshotEvents = uniqueCognitionEvents(
+    snapshots.flatMap(snapshot => snapshot?.cognitionEvents || [])
+  );
+  const accumulatedKeys = new Set(accumulated.map(cognitionEventKey));
+  const missingSnapshotEvents = snapshotEvents.filter(event => !accumulatedKeys.has(cognitionEventKey(event)));
+  const inspectedWithMemory = inspected.filter(entry => Number(entry?.memoryPacketCount || 0) > 0);
+  const snapshotAliasesWithMemory = [];
+  for (const snapshot of snapshots) {
+    for (const [alias, details] of Object.entries(snapshot?.aliases || {})) {
+      if (details && Number(details.memoryPacketCount || 0) > 0) {
+        snapshotAliasesWithMemory.push({
+          label: snapshot.label || null,
+          alias,
+          memoryPacketCount: details.memoryPacketCount,
+          memoryKindCounts: details.memoryKindCounts || {}
+        });
+      }
+    }
+  }
+  const gaps = [];
+  if (!inspectedWithMemory.length && !snapshotAliasesWithMemory.length) {
+    gaps.push('memoryPacketCount=0 across inspections and snapshots; evidence reader may not be seeing family-bucket memories');
+  }
+  if (!accumulated.length) {
+    gaps.push('accumulatedCognition is empty; driver may still be relying on the eventBus ring buffer');
+  }
+  if (missingSnapshotEvents.length) {
+    gaps.push('accumulatedCognition is missing cognition events observed in per-snapshot samples');
+  }
+  const pass = gaps.length === 0;
+  return {
+    pass,
+    gaps,
+    inspectedWithMemory: inspectedWithMemory.map(entry => ({
+      alias: entry.alias,
+      memoryPacketCount: entry.memoryPacketCount,
+      memoryFamilyCounts: entry.memoryFamilyCounts || {},
+      memoryKindCounts: entry.memoryKindCounts || {}
+    })),
+    snapshotAliasesWithMemory,
+    accumulatedCognitionCount: accumulated.length,
+    snapshotCognitionCount: snapshotEvents.length,
+    missingSnapshotEvents: missingSnapshotEvents.map(event => ({
+      key: cognitionEventKey(event),
+      kind: event.kind,
+      entityId: event.entityId || null,
+      partnerId: event.partnerId || null,
+      thirdPartyId: event.thirdPartyId || null,
+      currentFrame: event.currentFrame || 0
+    }))
+  };
+}
+
+function summarizeCognitionCoverage(scripted = {}) {
+  const snapshots = scripted.snapshots || [];
+  const productionEvents = scripted.productionEvents || {};
+  const accumulated = uniqueCognitionEvents([
+    ...(productionEvents.accumulatedCognition || []),
+    ...(scripted.cognitionAccumulator || []),
+    ...snapshots.flatMap(snapshot => snapshot?.cognitionEvents || [])
+  ]);
+  const eventCounts = {
+    bereavementDeath: accumulated.filter(event => event.kind === 'bereavement' && event.trigger === 'butterflyDied').length,
+    bereavementLongAbsence: accumulated.filter(event =>
+      event.kind === 'bereavement' && (event.trigger === 'longAbsence' || event.subtype === 'long-absence')
+    ).length,
+    witnessedAffection: accumulated.filter(event => event.kind === 'witnessedAffection').length,
+    loyaltyChoice: accumulated.filter(event => event.kind === 'loyalty').length,
+    prideBattleWin: accumulated.filter(event => event.kind === 'pride' && event.trigger === 'battleWin').length,
+    prideCaregivingSuccess: accumulated.filter(event => event.kind === 'pride' && event.trigger === 'caregivingSuccess').length
+  };
+  const memoryCounts = {
+    bereavementDeath: 0,
+    bereavementLongAbsence: 0,
+    witnessedAffection: 0,
+    loyaltyChoice: 0,
+    prideAnchor: 0,
+    shameAnchor: 0
+  };
+  for (const snapshot of snapshots) {
+    for (const details of Object.values(snapshot?.aliases || {})) {
+      const counts = details?.memoryKindCounts || {};
+      memoryCounts.bereavementDeath = Math.max(memoryCounts.bereavementDeath, Number(counts.bereavementDeath || 0));
+      memoryCounts.bereavementLongAbsence = Math.max(memoryCounts.bereavementLongAbsence, Number(counts.bereavementLongAbsence || 0));
+      memoryCounts.witnessedAffection = Math.max(memoryCounts.witnessedAffection, Number(counts.witnessedAffection || 0));
+      memoryCounts.loyaltyChoice = Math.max(memoryCounts.loyaltyChoice, Number(counts.loyaltyChoice || 0));
+      memoryCounts.prideAnchor = Math.max(memoryCounts.prideAnchor, Number(counts.prideAnchor || 0));
+      memoryCounts.shameAnchor = Math.max(memoryCounts.shameAnchor, Number(counts.shameAnchor || 0));
+    }
+  }
+  const checks = {
+    bereavementDeath: eventCounts.bereavementDeath > 0 && memoryCounts.bereavementDeath > 0,
+    bereavementLongAbsence: memoryCounts.bereavementLongAbsence > 0,
+    witnessedAffection: eventCounts.witnessedAffection > 0 && memoryCounts.witnessedAffection > 0,
+    loyaltyChoice: eventCounts.loyaltyChoice > 0 && memoryCounts.loyaltyChoice > 0,
+    prideBattleWin: eventCounts.prideBattleWin > 0 && memoryCounts.prideAnchor > 0,
+    prideCaregivingSuccess: eventCounts.prideCaregivingSuccess > 0 && memoryCounts.prideAnchor > 0
+  };
+  const missingKinds = Object.entries(checks)
+    .filter(([, pass]) => !pass)
+    .map(([key]) => key);
+  return {
+    pass: missingKinds.length === 0,
+    checks,
+    missingKinds,
+    eventCounts,
+    memoryCounts,
+    accumulatedCognitionCount: accumulated.length
   };
 }
 
@@ -176,6 +332,19 @@ function buildEvidenceLanes(report = {}) {
       ability: scripted.ability || null
     }
   });
+  const evidenceFidelity = summarizeEvidenceFidelity(scripted);
+  lanes.push({
+    id: 'evidence-fidelity',
+    pass: evidenceFidelity.pass,
+    residual: !evidenceFidelity.pass,
+    details: evidenceFidelity
+  });
+  const cognitionCoverage = summarizeCognitionCoverage(scripted);
+  lanes.push({
+    id: 'cognition-coverage',
+    pass: cognitionCoverage.pass,
+    details: cognitionCoverage
+  });
 
   return lanes;
 }
@@ -195,6 +364,7 @@ function summarizeLanes(lanes = []) {
 module.exports = {
   buildEvidenceLanes,
   countBy,
+  summarizeCognitionCoverage,
   summarizeBlockCells,
   summarizeContinuity,
   summarizeLanes

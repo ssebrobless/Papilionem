@@ -216,14 +216,22 @@ class ScenarioRunner {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await waitForGame(page);
     await dismissTitle(page);
-    await page.evaluate(async (world) => {
+    await page.evaluate(async ({ world, seed }) => {
+      if (Number.isFinite(seed)) {
+        if (typeof randomSeed === 'function') randomSeed(seed);
+        if (typeof noiseSeed === 'function') noiseSeed(seed);
+      }
       await gameCore.resetGame(true);
+      if (Number.isFinite(seed)) {
+        if (typeof randomSeed === 'function') randomSeed(seed);
+        if (typeof noiseSeed === 'function') noiseSeed(seed);
+      }
       if (typeof gameUI !== 'undefined' && gameUI?.firstSessionGuide) {
         gameUI.firstSessionGuide.visible = false;
       }
       const focusedZoneId = world?.focusedZoneId || 'ivy-cloister';
       gameCore.focusZone?.(focusedZoneId);
-    }, scenario.world || {});
+    }, { world: scenario.world || {}, seed: Number(scenario.seed) });
   }
 }
 
@@ -431,6 +439,11 @@ function runScenarioInBrowser(scenario) {
 
   structureSystem?.update?.(state, 0);
   objectSystem?.update?.(state);
+  state.currentFrame = 0;
+  if (gameCore?.gameState) gameCore.gameState.currentFrame = 0;
+  eventBus?.clearHistory?.();
+  communicationSystem?.reset?.();
+  lifeSimSystem?.reset?.();
 
   for (const action of scenario.actions || []) {
     const sourceId = aliases.get(action.source) || action.source;
@@ -447,7 +460,21 @@ function runScenarioInBrowser(scenario) {
         reason: 'scenario'
       });
     }
-    if ((action.type === 'set_emotions' || action.type === 'distress') && source?.lifeSim?.emotions) {
+    if (action.type === 'set_emotions' && source?.lifeSim?.emotions) {
+      if (Number.isFinite(action.threat)) source.lifeSim.emotions.threat = action.threat;
+      if (Number.isFinite(action.exhaustion)) source.lifeSim.emotions.exhaustion = action.exhaustion;
+      if (Number.isFinite(action.attachment)) source.lifeSim.emotions.attachment = action.attachment;
+      if (Number.isFinite(action.rejection)) source.lifeSim.emotions.rejection = action.rejection;
+      if (Number.isFinite(action.significance)) source.lifeSim.emotions.significance = action.significance;
+      if (Number.isFinite(action.failure)) source.lifeSim.emotions.failure = action.failure;
+      if (Number.isFinite(action.curiosity)) source.lifeSim.emotions.curiosity = action.curiosity;
+      if (Number.isFinite(action.agitation)) source.lifeSim.emotions.agitation = action.agitation;
+      if (Number.isFinite(action.relief)) source.lifeSim.emotions.relief = action.relief;
+      if (action.resetDistressCooldown !== false && source.lifeSim.communication) {
+        source.lifeSim.communication.lastDistressAtSeconds = -Infinity;
+      }
+    }
+    if (action.type === 'distress' && source?.lifeSim?.emotions) {
       source.lifeSim.emotions.threat = Math.max(source.lifeSim.emotions.threat || 0, action.threat ?? 0.75);
       source.lifeSim.emotions.exhaustion = Math.max(source.lifeSim.emotions.exhaustion || 0, action.exhaustion ?? 0.4);
       if (action.resetDistressCooldown !== false && source.lifeSim.communication) {
@@ -499,6 +526,17 @@ function runScenarioInBrowser(scenario) {
       });
     }
     if (action.type === 'witness_affection' && source) {
+      if (action.clearExistingWitnessedAffection !== false) {
+        const targetIdSet = new Set(targetIds);
+        for (const witness of state.butterflies || []) {
+          if (!witness?.id || witness.id === source.id || targetIdSet.has(witness.id)) continue;
+          const social = witness.lifeSim?.memories?.social;
+          if (!Array.isArray(social)) continue;
+          witness.lifeSim.memories.social = social.filter(packet =>
+            !(packet?.kind === 'witnessedAffection' && packet?.bondPartnerId === source.id)
+          );
+        }
+      }
       communicationSystem?.emitCooperationSignal?.(source, {
         signalType: action.signalType || 'acknowledgement_signal',
         intentFamily: action.intentFamily || 'care',
@@ -613,11 +651,25 @@ function runScenarioInBrowser(scenario) {
       const entity = getEntity(assertion.entity);
       const memories = entity?.lifeSim?.memories?.[assertion.family || 'social'] || [];
       const partnerId = aliases.get(assertion.partner) || assertion.partner || null;
+      const chosenPartnerId = aliases.get(assertion.chosenPartner || assertion.chosen_partner || assertion.chosenPartnerId || assertion.chosen_partner_id)
+        || assertion.chosenPartner
+        || assertion.chosen_partner
+        || assertion.chosenPartnerId
+        || assertion.chosen_partner_id
+        || null;
+      const rejectedPartnerId = aliases.get(assertion.rejectedPartner || assertion.rejected_partner || assertion.rejectedPartnerId || assertion.rejected_partner_id)
+        || assertion.rejectedPartner
+        || assertion.rejected_partner
+        || assertion.rejectedPartnerId
+        || assertion.rejected_partner_id
+        || null;
       const matches = memories.filter(packet =>
         (!assertion.kind || packet.kind === assertion.kind)
         && (!assertion.anchor || packet.anchor === assertion.anchor)
         && (!assertion.subtype || packet.subtype === assertion.subtype)
         && (!partnerId || packet.partnerId === partnerId)
+        && (!chosenPartnerId || packet.chosenPartnerId === chosenPartnerId)
+        && (!rejectedPartnerId || packet.rejectedPartnerId === rejectedPartnerId)
       );
       const boundedMatches = matches.filter(packet => {
         const intensity = Number(packet.intensity ?? packet.strength ?? packet.activeStrength ?? 0);
@@ -626,14 +678,19 @@ function runScenarioInBrowser(scenario) {
         return true;
       });
       const actual = boundedMatches.length;
-      addAssertion(assertion.name || 'memory_packet', actual >= (assertion.min || 1), {
+      const min = Number.isFinite(assertion.min) ? assertion.min : 1;
+      const max = Number.isFinite(assertion.max) ? assertion.max : null;
+      addAssertion(assertion.name || 'memory_packet', actual >= min && (max === null || actual <= max), {
         actual,
         matchedBeforeBounds: matches.length,
-        min: assertion.min || 1,
+        min,
+        max,
         kind: assertion.kind || null,
         anchor: assertion.anchor || null,
         subtype: assertion.subtype || null,
         partnerId,
+        chosenPartnerId,
+        rejectedPartnerId,
         minIntensity: assertion.minIntensity ?? assertion.min_intensity ?? null,
         maxIntensity: assertion.maxIntensity ?? assertion.max_intensity ?? null
       });

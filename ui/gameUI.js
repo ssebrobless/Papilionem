@@ -2356,9 +2356,15 @@ class GameUI {
         }
 
         const point = this.resolveScreenToCanvas(mouseX, mouseY);
+        if (this.isFirstSessionGuideRenderable(gameState)
+            && this.isInsideRect(point, this.getGuidePanelRect())) {
+            return true;
+        }
+
         if (this.butterflyCollection?.handleMouseWheel?.(point.x, point.y, delta)) {
             return true;
         }
+
         if (this.activityLogPanel.visible) {
             const panelRect = {
                 x: this.activityLogPanel.x,
@@ -2401,6 +2407,23 @@ class GameUI {
                 }
                 return true;
             }
+            return true;
+        }
+
+        if (this.accessibilityPanel.visible) {
+            const slider = this.getAccessibilitySliderRect();
+            const panelRect = this.getDomPanelRect(
+                this.accessibilityPanel,
+                (slider.y + slider.height + 14) - this.accessibilityPanel.y
+            );
+            if (this.isInsideRect(point, panelRect)) {
+                return true;
+            }
+        }
+
+        if (this.battleSetupPanel.visible
+            && this.isInsideRect(point, this.getDomPanelRect(this.battleSetupPanel))) {
+            return true;
         }
 
         return false;

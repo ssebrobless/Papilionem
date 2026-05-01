@@ -117,7 +117,7 @@ async function run() {
     await dismissTitle(page);
     await resetBaseline(page);
 
-    const details = await page.evaluate(() => {
+    const details = await page.evaluate(async () => {
       structureSystem.update(gameCore.gameState, 0);
       const maxStackHeight = structureSystem.getMaxStackHeight?.() || 12;
       const blocks = gameCore.gameState.blocks || [];
@@ -196,6 +196,116 @@ async function run() {
         })
         : null;
       const trainingProbe = gameCore.godSpawnBlock?.('sun-court') || null;
+      const blockStackRoundtrip = await (async () => {
+        const lane = {
+          id: 'block-stack-roundtrip',
+          pass: false,
+          zoneId: 'moss-hollow',
+          u: 20,
+          v: 15,
+          injectedLegacyDivergence: false,
+          duplicateCellsAfterReload: [],
+          restored: []
+        };
+        try {
+          const zoneId = lane.zoneId;
+          const u = lane.u;
+          const v = lane.v;
+          await gameCore.resetGame(true);
+          gameCore.focusZone?.(zoneId);
+          structureSystem.update(gameCore.gameState, 0);
+
+          const blocksAtTarget = (gameCore.gameState.blocks || []).filter(block => {
+            const cell = structureSystem.getBlockCell?.(block, { zoneId }) || null;
+            return cell?.zoneId === zoneId && cell.u === u && cell.v === v;
+          });
+          if (blocksAtTarget.length > 0) {
+            const removeIds = new Set(blocksAtTarget.map(block => block.id));
+            for (const block of blocksAtTarget) {
+              gameCore.entityManager?.removeEntity?.('blocks', block);
+              gameCore.unregisterEntityFromFoundationSystems?.(block);
+            }
+            gameCore.gameState.blocks = (gameCore.gameState.blocks || []).filter(block => !removeIds.has(block?.id));
+          }
+
+          const spawnBlockAt = (h) => {
+            const screen = renderManager?.boardToScreen?.({ zoneId, u, v, h: 0 }) || null;
+            if (!screen) throw new Error(`Unable to project audit block cell h=${h}`);
+            const block = gameCore.godSpawnBlock?.(zoneId, screen.x, screen.y) || null;
+            if (!block) throw new Error(`Unable to spawn audit block h=${h}`);
+            const applied = block.applyBoardCell?.({ accepted: true, zoneId, u, v, h }, { requireAccepted: false });
+            if (!applied) throw new Error(`Unable to apply audit block cell h=${h}`);
+            return block;
+          };
+
+          const groundBlock = spawnBlockAt(0);
+          const stackBlock = spawnBlockAt(1);
+          structureSystem.update(gameCore.gameState, 0);
+          const serialized = saveSystem.serializeState(gameCore.gameState);
+          const stackSaved = (serialized.blocks || []).find(block => block?.id === stackBlock.id);
+          if (stackSaved) {
+            stackSaved.stackIndex = 0;
+            lane.injectedLegacyDivergence = true;
+          }
+
+          await gameCore.resetGame(true);
+          const applied = gameCore.applySerializedState?.(serialized)
+            || saveSystem.applyDeserializedState?.(gameCore, serialized);
+          structureSystem.update(gameCore.gameState, 0);
+
+          const restoredBlocks = [groundBlock.id, stackBlock.id]
+            .map(id => (gameCore.gameState.blocks || []).find(block => block?.id === id) || null);
+          lane.restored = restoredBlocks.map(block => {
+            const cell = structureSystem.getBlockCell?.(block, { zoneId }) || null;
+            return {
+              id: block?.id || null,
+              boardPos: block?.boardPos || null,
+              stackIndex: block?.stackIndex ?? null,
+              cell
+            };
+          });
+
+          const seenAfter = new Map();
+          for (const block of gameCore.gameState.blocks || []) {
+            if (!block || block.carriedById) continue;
+            const cell = structureSystem.getBlockCell?.(block, {
+              zoneId: block.currentZoneId || block.boardPos?.zoneId || null
+            }) || null;
+            if (!cell) continue;
+            const key = structureSystem.buildBlockCellKey(cell.zoneId, cell.u, cell.v, cell.h);
+            if (seenAfter.has(key)) {
+              lane.duplicateCellsAfterReload.push({
+                key,
+                blockIds: [seenAfter.get(key), block.id]
+              });
+            } else {
+              seenAfter.set(key, block.id);
+            }
+          }
+
+          const expected = new Map([[groundBlock.id, 0], [stackBlock.id, 1]]);
+          const heightsRestored = lane.restored.every(entry => (
+            entry.id
+            && entry.cell
+            && entry.cell.zoneId === zoneId
+            && entry.cell.u === u
+            && entry.cell.v === v
+            && entry.cell.h === expected.get(entry.id)
+            && entry.boardPos?.h === expected.get(entry.id)
+            && entry.stackIndex === expected.get(entry.id)
+          ));
+          lane.pass = !!applied
+            && lane.injectedLegacyDivergence
+            && lane.duplicateCellsAfterReload.length === 0
+            && heightsRestored;
+        } catch (error) {
+          lane.error = {
+            message: error?.message || String(error),
+            stack: error?.stack || null
+          };
+        }
+        return lane;
+      })();
 
       return {
         blockCount: blocks.length,
@@ -206,6 +316,7 @@ async function run() {
         trainingBlocks,
         duplicateProbe,
         trainingProbeCreated: !!trainingProbe,
+        blockStackRoundtrip,
         snapFlag: gameConfig.entities.block.snapToCellInt
       };
     });
@@ -227,6 +338,7 @@ async function run() {
         details.duplicateProbe?.accepted === false &&
         details.duplicateProbe?.reason === 'duplicate-cell' &&
         details.trainingProbeCreated === false &&
+        details.blockStackRoundtrip?.pass === true &&
         report.pageErrors.length === 0 &&
         report.consoleErrors.length === 0
     };

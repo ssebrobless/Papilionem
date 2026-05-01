@@ -15,6 +15,8 @@ const STORAGE_KEYS = [
 const VALUE_FRAME_COUNT = 7200;
 const VALUE_SAMPLE_INTERVAL = 15;
 const CADENCE_FACTOR = Math.max(1, Math.round(Number(process.env.PAPILIONEM_ML_CADENCE_FACTOR || 1)));
+const POLICY_ARG_INDEX = process.argv.indexOf('--policy');
+const POLICY_ARG = POLICY_ARG_INDEX >= 0 ? process.argv[POLICY_ARG_INDEX + 1] : null;
 const VALUE_THRESHOLDS = {
   chiSquareMotiveDistinctness: 3.84,
   edgeChurnRatio: 1.15,
@@ -30,6 +32,15 @@ function ensureDir(dir) {
 
 function stamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
+}
+
+function resolvePolicyArtifactPath(policyArg = POLICY_ARG) {
+  if (!policyArg) return path.join(ROOT, 'assets', 'ml', 'm4-garden-policy.json');
+  return path.isAbsolute(policyArg) ? policyArg : path.join(ROOT, policyArg);
+}
+
+function toBrowserPolicyPath(artifactPath = resolvePolicyArtifactPath()) {
+  return path.relative(ROOT, artifactPath).replace(/\\/g, '/');
 }
 
 async function ensureServer(report) {
@@ -252,14 +263,15 @@ function compareValueMetrics(mlOn, mlOff) {
   };
 }
 
-async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_FACTOR) {
+async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_FACTOR, policyBrowserPath = toBrowserPolicyPath()) {
   await restoreStorageSnapshot(page, storageSnapshot);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitForGame(page);
   await dismissTitle(page);
 
-  await page.evaluate(async ({ useMl, cadenceFactor }) => {
+  await page.evaluate(async ({ useMl, cadenceFactor, policyPath }) => {
     gameConfig.ml = gameConfig.ml || {};
+    gameConfig.ml.policyArtifactPath = policyPath;
     gameConfig.ml.useModelInference = !!useMl;
     gameConfig.ml.cadenceFactor = Math.max(1, Math.round(Number(cadenceFactor || 1)));
     gameConfig.ml.traceCapture = {
@@ -273,8 +285,9 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
     mlInferenceSystem.modelConfig.decisionHistoryLimit = Math.max(128, Number(mlInferenceSystem.modelConfig.decisionHistoryLimit || 0));
     mlInferenceSystem.modelConfig.useModelInference = !!useMl;
     mlInferenceSystem.modelConfig.cadenceFactor = gameConfig.ml.cadenceFactor;
+    mlInferenceSystem.modelConfig.policyArtifactPath = policyPath;
     await mlInferenceSystem.loadModelArtifact(true);
-  }, { useMl: mlOn, cadenceFactor });
+  }, { useMl: mlOn, cadenceFactor, policyPath: policyBrowserPath });
 
   await page.waitForFunction(() => {
     const state = gameCore?.getGameState?.();
@@ -479,6 +492,7 @@ async function run() {
     pageErrors: [],
     consoleErrors: [],
     server: null,
+    policyArtifactPath: resolvePolicyArtifactPath(),
     scenarios: [],
     checks: [],
     overall: 'pending'
@@ -503,8 +517,9 @@ async function run() {
     await waitForGame(page);
 
     const storageSnapshot = await captureStorageSnapshot(page);
-    const mlOn = await runScenario(page, true, storageSnapshot, CADENCE_FACTOR);
-    const mlOff = await runScenario(page, false, storageSnapshot, CADENCE_FACTOR);
+    const policyBrowserPath = toBrowserPolicyPath(resolvePolicyArtifactPath());
+    const mlOn = await runScenario(page, true, storageSnapshot, CADENCE_FACTOR, policyBrowserPath);
+    const mlOff = await runScenario(page, false, storageSnapshot, CADENCE_FACTOR, policyBrowserPath);
     await restoreStorageSnapshot(page, storageSnapshot);
     const valueMetrics = compareValueMetrics(mlOn, mlOff);
     report.scenarios.push(mlOn, mlOff);

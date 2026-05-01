@@ -251,6 +251,30 @@ class SpriteManager {
         return Math.max(1, gameConfig?.performance?.cache?.maxBakedSprites || 256);
     }
 
+    getMaxBakedSpriteSurfaceMB() {
+        return Math.max(1, Number(gameConfig?.performance?.cache?.maxBakedSpriteSurfaceMB || 32));
+    }
+
+    getCurrentBakedSpriteSurfaceMB() {
+        let total = 0;
+        for (const entry of this.bakedSpriteCache.values()) {
+            total += Number(entry?.estimatedSurfaceMB || this.estimateBakedSurfaceMB(entry?.surface) || 0);
+        }
+        return total;
+    }
+
+    evictOldestBakedSpriteEntry() {
+        const oldestKey = this.bakedSpriteCache.keys().next().value;
+        if (oldestKey == null) return false;
+        const oldest = this.bakedSpriteCache.get(oldestKey);
+        this.bakedSpriteCacheStats.evictions = Number(this.bakedSpriteCacheStats.evictions || 0) + 1;
+        this.bakedSpriteCacheStats.evictedEstimatedSurfaceMB = Number(this.bakedSpriteCacheStats.evictedEstimatedSurfaceMB || 0)
+            + Number(oldest?.estimatedSurfaceMB || this.estimateBakedSurfaceMB(oldest?.surface) || 0);
+        oldest?.surface?.remove?.();
+        this.bakedSpriteCache.delete(oldestKey);
+        return true;
+    }
+
     normalizeBakedSpriteDimension(value) {
         return Math.max(1, Math.round(value || 0));
     }
@@ -382,12 +406,12 @@ class SpriteManager {
     }
 
     getBakedCacheDimensions(key, entry = null) {
-        const drawWidth = Number(entry?.drawWidth || entry?.surface?.width || 0);
-        const drawHeight = Number(entry?.drawHeight || entry?.surface?.height || 0);
-        if (drawWidth > 0 && drawHeight > 0) {
+        const surfaceWidth = Number(entry?.surface?.width || entry?.surfaceWidth || entry?.drawWidth || 0);
+        const surfaceHeight = Number(entry?.surface?.height || entry?.surfaceHeight || entry?.drawHeight || 0);
+        if (surfaceWidth > 0 && surfaceHeight > 0) {
             return {
-                width: drawWidth,
-                height: drawHeight
+                width: surfaceWidth,
+                height: surfaceHeight
             };
         }
         const match = String(key || '').match(/(\d+)x(\d+)$/);
@@ -570,6 +594,96 @@ class SpriteManager {
         return surface;
     }
 
+    getCreatureBakeMode() {
+        return gameConfig?.rendering?.creatureBakeMode || 'fixed-high-res';
+    }
+
+    getCreatureBakeProfile(options = {}) {
+        return options?.closeup || options?.lod === 'closeup' ? 'closeup' : 'garden';
+    }
+
+    isFixedHighResCreatureBakeEnabled(options = {}) {
+        if (gameConfig?.rendering?.creatureBakeSize?.enabled === false) return false;
+        return this.getCreatureBakeMode(options) !== 'display-size';
+    }
+
+    getCreatureBakeConfigForKind(kind, options = {}) {
+        const rendering = gameConfig?.rendering || {};
+        const profile = this.getCreatureBakeProfile(options);
+        const source = profile === 'closeup'
+            ? rendering.creatureLodCloseupSize || rendering.creatureBakeSize || {}
+            : rendering.creatureBakeSize || {};
+        const fallback = {
+            body: 96,
+            wing: { width: 128, height: 96 },
+            antenna: 48
+        };
+        const value = source?.[kind] ?? fallback[kind];
+        if (kind === 'wing') {
+            return {
+                width: this.normalizeBakedSpriteDimension(value?.width || fallback.wing.width),
+                height: this.normalizeBakedSpriteDimension(value?.height || fallback.wing.height)
+            };
+        }
+        return this.normalizeBakedSpriteDimension(value || fallback[kind] || 96);
+    }
+
+    resolveCreatureBakeDimensions(kind, displayWidth, displayHeight, options = {}) {
+        const mode = this.getCreatureBakeMode(options);
+        const profile = this.getCreatureBakeProfile(options);
+        if (!this.isFixedHighResCreatureBakeEnabled(options)) {
+            const surfaceScale = kind === 'wing' ? 2 : 1;
+            return {
+                mode: 'display-size',
+                profile,
+                width: this.normalizeBakedSpriteDimension(displayWidth),
+                height: this.normalizeBakedSpriteDimension(displayHeight),
+                surfaceScale
+            };
+        }
+        const configured = this.getCreatureBakeConfigForKind(kind, options);
+        if (kind === 'wing') {
+            return {
+                mode,
+                profile,
+                width: Math.max(96, configured.width),
+                height: Math.max(96, configured.height),
+                surfaceScale: 1
+            };
+        }
+        const min = kind === 'body' ? 96 : 48;
+        const size = Math.max(min, configured);
+        return {
+            mode,
+            profile,
+            width: size,
+            height: size,
+            surfaceScale: 1
+        };
+    }
+
+    buildTrimmedCreatureEntry(cacheFamily, drawWidth, drawHeight, bounds, drawSource, options = {}) {
+        const bake = this.resolveCreatureBakeDimensions(cacheFamily, drawWidth, drawHeight, options);
+        return {
+            cacheFamily: `${cacheFamily}-trimmed`,
+            surface: this.createBakedSurface(
+                bake.width,
+                bake.height,
+                (renderSurface, bakedWidth, bakedHeight) => drawSource(renderSurface, bakedWidth, bakedHeight),
+                { smooth: true, surfaceScale: bake.surfaceScale }
+            ),
+            surfaceWidth: this.normalizeBakedSpriteDimension(bake.width * bake.surfaceScale),
+            surfaceHeight: this.normalizeBakedSpriteDimension(bake.height * bake.surfaceScale),
+            drawWidth,
+            drawHeight,
+            bounds,
+            bakeMode: bake.mode,
+            bakeProfile: bake.profile,
+            bakeWidth: bake.width,
+            bakeHeight: bake.height
+        };
+    }
+
     getCachedBakedEntry(key, buildFn) {
         return this.getCachedBakedEntryIfEnabled(this.isBakedCreatureSpritesEnabled(), key, buildFn);
     }
@@ -596,15 +710,11 @@ class SpriteManager {
 
         this.bakedSpriteCache.set(key, entry);
         this.bakedSpriteCacheStats.insertions = Number(this.bakedSpriteCacheStats.insertions || 0) + 1;
-        while (this.bakedSpriteCache.size > this.getMaxBakedSpriteCount()) {
-            const oldestKey = this.bakedSpriteCache.keys().next().value;
-            if (oldestKey == null) break;
-            const oldest = this.bakedSpriteCache.get(oldestKey);
-            this.bakedSpriteCacheStats.evictions = Number(this.bakedSpriteCacheStats.evictions || 0) + 1;
-            this.bakedSpriteCacheStats.evictedEstimatedSurfaceMB = Number(this.bakedSpriteCacheStats.evictedEstimatedSurfaceMB || 0)
-                + Number(oldest?.estimatedSurfaceMB || this.estimateBakedSurfaceMB(oldest?.surface) || 0);
-            oldest?.surface?.remove?.();
-            this.bakedSpriteCache.delete(oldestKey);
+        while (
+            this.bakedSpriteCache.size > this.getMaxBakedSpriteCount()
+            || this.getCurrentBakedSpriteSurfaceMB() > this.getMaxBakedSpriteSurfaceMB()
+        ) {
+            if (!this.evictOldestBakedSpriteEntry()) break;
         }
         return entry;
     }
@@ -704,37 +814,41 @@ class SpriteManager {
         ));
     }
 
-    getBakedBodySpriteData(spec, targetScale) {
+    getBakedBodySpriteData(spec, targetScale, options = {}) {
         if (!this.body) return null;
         const bounds = this.expandBounds(this.getSourceAlphaBounds(this.body), this.body, 2);
         const drawWidth = this.normalizeBakedSpriteDimension(bounds.width * targetScale);
         const drawHeight = this.normalizeBakedSpriteDimension(bounds.height * targetScale);
         const xScale = drawWidth / Math.max(1, bounds.width);
         const yScale = drawHeight / Math.max(1, bounds.height);
-        const cacheKey = `body-trimmed|${drawWidth}x${drawHeight}`;
-        return this.getCachedBakedEntry(cacheKey, () => ({
-            surface: this.createBakedSurface(
-                drawWidth,
-                drawHeight,
-                renderSurface => renderSurface.image(
-                    this.body,
-                    0,
-                    0,
-                    drawWidth,
-                    drawHeight,
-                    bounds.x,
-                    bounds.y,
-                    bounds.width,
-                    bounds.height
-                ),
-                { smooth: true }
-            ),
+        const bake = this.resolveCreatureBakeDimensions('body', drawWidth, drawHeight, options);
+        const cacheKey = `body-trimmed|mode=${bake.mode}|profile=${bake.profile}|${bake.width}x${bake.height}`;
+        const entry = this.getCachedBakedEntry(cacheKey, () => this.buildTrimmedCreatureEntry(
+            'body',
             drawWidth,
             drawHeight,
             bounds,
+            (renderSurface, bakedWidth, bakedHeight) => renderSurface.image(
+                this.body,
+                0,
+                0,
+                bakedWidth,
+                bakedHeight,
+                bounds.x,
+                bounds.y,
+                bounds.width,
+                bounds.height
+            ),
+            options
+        ));
+        if (!entry) return null;
+        return {
+            ...entry,
+            drawWidth,
+            drawHeight,
             offsetX: (-this.body.width * xScale / 2) + (bounds.x * xScale),
             offsetY: (-this.body.height * yScale / 2) + (bounds.y * yScale)
-        }));
+        };
     }
 
     getBakedAntennaSprite(spec, targetWidth, targetHeight) {
@@ -750,7 +864,7 @@ class SpriteManager {
         ));
     }
 
-    getBakedAntennaSpriteData(spec, targetScale) {
+    getBakedAntennaSpriteData(spec, targetScale, options = {}) {
         if (!this.antenna) return null;
         const bounds = this.expandBounds(this.getSourceAlphaBounds(this.antenna), this.antenna, 2);
         const drawWidth = this.normalizeBakedSpriteDimension(bounds.width * targetScale);
@@ -758,27 +872,31 @@ class SpriteManager {
         const xScale = drawWidth / Math.max(1, bounds.width);
         const yScale = drawHeight / Math.max(1, bounds.height);
         const antennaAnchors = this.anchors?.antenna || {};
-        const cacheKey = `antenna-trimmed|${drawWidth}x${drawHeight}`;
-        return this.getCachedBakedEntry(cacheKey, () => ({
-            surface: this.createBakedSurface(
-                drawWidth,
-                drawHeight,
-                renderSurface => renderSurface.image(
-                    this.antenna,
-                    0,
-                    0,
-                    drawWidth,
-                    drawHeight,
-                    bounds.x,
-                    bounds.y,
-                    bounds.width,
-                    bounds.height
-                ),
-                { smooth: true }
-            ),
+        const bake = this.resolveCreatureBakeDimensions('antenna', drawWidth, drawHeight, options);
+        const cacheKey = `antenna-trimmed|mode=${bake.mode}|profile=${bake.profile}|${bake.width}x${bake.height}`;
+        const entry = this.getCachedBakedEntry(cacheKey, () => this.buildTrimmedCreatureEntry(
+            'antenna',
             drawWidth,
             drawHeight,
             bounds,
+            (renderSurface, bakedWidth, bakedHeight) => renderSurface.image(
+                this.antenna,
+                0,
+                0,
+                bakedWidth,
+                bakedHeight,
+                bounds.x,
+                bounds.y,
+                bounds.width,
+                bounds.height
+            ),
+            options
+        ));
+        if (!entry) return null;
+        return {
+            ...entry,
+            drawWidth,
+            drawHeight,
             anchors: {
                 left: antennaAnchors.left
                     ? {
@@ -793,7 +911,7 @@ class SpriteManager {
                     }
                     : { x: 0, y: 0 }
             }
-        }));
+        };
     }
 
     getBakedWingPiece(spec, wingKey, targetWidth, targetHeight) {
@@ -810,7 +928,7 @@ class SpriteManager {
         ));
     }
 
-    getBakedWingPieceData(spec, wingKey, targetScale) {
+    getBakedWingPieceData(spec, wingKey, targetScale, options = {}) {
         const atlasEntry = this.isSpriteAtlasEnabled() ? this.getWingAtlasPieceForSpec(spec, wingKey) : null;
         const piece = atlasEntry?.image || this.getWingPieceForSpec(spec, wingKey);
         if (!piece) return null;
@@ -822,35 +940,39 @@ class SpriteManager {
         const drawHeight = this.quantizeBakedSpriteDimension(bounds.height * targetScale, dimensionStep);
         const xScale = drawWidth / Math.max(1, bounds.width);
         const yScale = drawHeight / Math.max(1, bounds.height);
-        const cacheKey = `wing-trimmed|${atlasEntry ? 'atlas' : 'raw'}|${this.getAppearanceKey(spec)}|${this.getWingSourceSignature(spec, wingKey)}|${drawWidth}x${drawHeight}`;
-        return this.getCachedBakedEntryIfEnabled(this.isBakedCreatureSpritesEnabled(), cacheKey, () => ({
-            surface: this.createBakedSurface(
-                drawWidth,
-                drawHeight,
-                (renderSurface, bakedWidth, bakedHeight) => atlasEntry
-                    ? renderSurface.image(piece, 0, 0, bakedWidth, bakedHeight)
-                    : renderSurface.image(
-                        piece,
-                        0,
-                        0,
-                        bakedWidth,
-                        bakedHeight,
-                        bounds.x,
-                        bounds.y,
-                        bounds.width,
-                        bounds.height
-                    ),
-                { smooth: true, surfaceScale: 2 }
-            ),
+        const bake = this.resolveCreatureBakeDimensions('wing', drawWidth, drawHeight, options);
+        const cacheKey = `wing-trimmed|${atlasEntry ? 'atlas' : 'raw'}|mode=${bake.mode}|profile=${bake.profile}|${this.getAppearanceKey(spec)}|${this.getWingSourceSignature(spec, wingKey)}|${bake.width}x${bake.height}`;
+        const entry = this.getCachedBakedEntryIfEnabled(this.isBakedCreatureSpritesEnabled(), cacheKey, () => this.buildTrimmedCreatureEntry(
+            'wing',
             drawWidth,
             drawHeight,
             bounds,
+            (renderSurface, bakedWidth, bakedHeight) => atlasEntry
+                ? renderSurface.image(piece, 0, 0, bakedWidth, bakedHeight)
+                : renderSurface.image(
+                    piece,
+                    0,
+                    0,
+                    bakedWidth,
+                    bakedHeight,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height
+                ),
+            options
+        ));
+        if (!entry) return null;
+        return {
+            ...entry,
+            drawWidth,
+            drawHeight,
             anchorX: relAnchor ? (relAnchor.x - bounds.x) * xScale : 0,
             anchorY: relAnchor ? (relAnchor.y - bounds.y) * yScale : 0
-        }));
+        };
     }
 
-    getBakedWingPoseData(spec, wingKey, targetScale, spread = 1) {
+    getBakedWingPoseData(spec, wingKey, targetScale, spread = 1, options = {}) {
         const atlasEntry = this.isSpriteAtlasEnabled() ? this.getWingAtlasPieceForSpec(spec, wingKey) : null;
         const piece = atlasEntry?.image || this.getWingPieceForSpec(spec, wingKey);
         if (!piece) return null;
@@ -863,33 +985,37 @@ class SpriteManager {
         const drawHeight = this.quantizeBakedSpriteDimension(bounds.height * targetScale, dimensionStep);
         const xScale = drawWidth / Math.max(1, bounds.width);
         const yScale = drawHeight / Math.max(1, bounds.height);
-        const cacheKey = `wing-pose|${atlasEntry ? 'atlas' : 'raw'}|${this.getAppearanceKey(spec)}|${this.getWingSourceSignature(spec, wingKey)}|spread=${spreadBucket}|${drawWidth}x${drawHeight}`;
-        return this.getCachedBakedEntryIfEnabled(this.isBakedCreatureSpritesEnabled(), cacheKey, () => ({
-            surface: this.createBakedSurface(
-                drawWidth,
-                drawHeight,
-                (renderSurface, bakedWidth, bakedHeight) => atlasEntry
-                    ? renderSurface.image(piece, 0, 0, bakedWidth, bakedHeight)
-                    : renderSurface.image(
-                        piece,
-                        0,
-                        0,
-                        bakedWidth,
-                        bakedHeight,
-                        bounds.x,
-                        bounds.y,
-                        bounds.width,
-                        bounds.height
-                    ),
-                { smooth: true, surfaceScale: 2 }
-            ),
+        const bake = this.resolveCreatureBakeDimensions('wing', drawWidth, drawHeight, options);
+        const cacheKey = `wing-pose|${atlasEntry ? 'atlas' : 'raw'}|mode=${bake.mode}|profile=${bake.profile}|${this.getAppearanceKey(spec)}|${this.getWingSourceSignature(spec, wingKey)}|spread=${spreadBucket}|${bake.width}x${bake.height}`;
+        const entry = this.getCachedBakedEntryIfEnabled(this.isBakedCreatureSpritesEnabled(), cacheKey, () => this.buildTrimmedCreatureEntry(
+            'wing',
             drawWidth,
             drawHeight,
             bounds,
+            (renderSurface, bakedWidth, bakedHeight) => atlasEntry
+                ? renderSurface.image(piece, 0, 0, bakedWidth, bakedHeight)
+                : renderSurface.image(
+                    piece,
+                    0,
+                    0,
+                    bakedWidth,
+                    bakedHeight,
+                    bounds.x,
+                    bounds.y,
+                    bounds.width,
+                    bounds.height
+                ),
+            options
+        ));
+        if (!entry) return null;
+        return {
+            ...entry,
+            drawWidth,
+            drawHeight,
             spreadBucket,
             anchorX: relAnchor ? (relAnchor.x - bounds.x) * xScale : 0,
             anchorY: relAnchor ? (relAnchor.y - bounds.y) * yScale : 0
-        }));
+        };
     }
 
 

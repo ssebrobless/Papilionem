@@ -23,6 +23,7 @@ class SaveSystem {
         this.pendingAutoSave = false;
         this.pendingAutoSaveTimeoutId = null;
         this.pendingAutoSaveIdleId = null;
+        this.reportedBlockStackHeightDivergences = new Set();
     }
 
     initialize() {
@@ -1033,22 +1034,49 @@ class SaveSystem {
             || entity?.constructor?.name === 'Block';
     }
 
+    normalizeBlockHeightHint(value = null) {
+        return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null;
+    }
+
+    recordBlockStackHeightDivergence(savedBlock = {}, block = null) {
+        const savedStackIndex = this.normalizeBlockHeightHint(savedBlock?.stackIndex);
+        const savedBoardPosH = this.normalizeBlockHeightHint(savedBlock?.boardPos?.h);
+        if (savedStackIndex === null || savedBoardPosH === null || savedStackIndex === savedBoardPosH) {
+            return;
+        }
+
+        const blockId = savedBlock?.id || block?.id || null;
+        const key = blockId || `${savedBlock?.currentZoneId || savedBlock?.boardPos?.zoneId || 'unknown'}:${savedStackIndex}:${savedBoardPosH}`;
+        this.reportedBlockStackHeightDivergences = this.reportedBlockStackHeightDivergences || new Set();
+        if (this.reportedBlockStackHeightDivergences.has(key)) return;
+        this.reportedBlockStackHeightDivergences.add(key);
+
+        gameCore?.telemetrySystem?.recordRuntimeIssue?.('block-stack-height-divergence', {
+            blockId,
+            savedStackIndex,
+            savedBoardPosH
+        });
+    }
+
     normalizeRestoredBlockBoardPos(boardPos = null, block = null) {
         if (!this.isValidBoardPos(boardPos)) return null;
         const zoneId = boardPos.zoneId || block?.currentZoneId || null;
         if (!zoneId) return null;
+        const savedH = this.normalizeBlockHeightHint(boardPos.h);
+        const stackHint = this.normalizeBlockHeightHint(block?.stackIndex);
+        const heightHint = savedH !== null ? savedH : (stackHint !== null ? stackHint : 0);
         const normalized = typeof structureSystem !== 'undefined' && structureSystem?.normalizeBlockCell
             ? structureSystem.normalizeBlockCell(
                 zoneId,
                 boardPos.u,
                 boardPos.v,
-                block?.stackIndex ?? boardPos.h ?? 0
+                heightHint
             )
             : {
                 zoneId,
                 u: Math.round(Number.isFinite(boardPos.u) ? boardPos.u : 0),
                 v: Math.round(Number.isFinite(boardPos.v) ? boardPos.v : 0),
-                h: Math.max(0, Math.round(Number.isFinite(boardPos.h) ? boardPos.h : 0))
+                h: heightHint
             };
         const dimensions = typeof structureSystem !== 'undefined' && structureSystem?.getBoardDimensions
             ? structureSystem.getBoardDimensions(zoneId)
@@ -1280,10 +1308,15 @@ class SaveSystem {
         block.movedAtFrame = savedBlock.movedAtFrame ?? block.movedAtFrame;
         block.lastMovedById = savedBlock.lastMovedById || null;
         block.objectProfile = this.cloneValue(savedBlock.objectProfile, block.objectProfile);
+        this.recordBlockStackHeightDivergence(savedBlock, block);
         block.boardPos = this.normalizeRestoredBlockBoardPos(this.getRestoredEntityBoardPos(savedBlock, {
             zoneId: block.currentZoneId || null,
             hHint: block.stackIndex ?? 0
         }), block);
+        const restoredH = block.boardPos?.h;
+        if (Number.isFinite(restoredH)) {
+            block.stackIndex = Math.max(0, Math.round(restoredH));
+        }
         return block;
     }
 
@@ -1854,12 +1887,15 @@ class SaveSystem {
                 const boardPos = options.blockCell
                     ? this.normalizeRestoredBlockBoardPos(saved.boardPos, entity)
                     : saved.boardPos;
-                this.applyBoardPosToScreen(entity, boardPos, {
+                const applied = this.applyBoardPosToScreen(entity, boardPos, {
                     zoneId: saved.boardPos.zoneId || saved.currentZoneId || entity.currentZoneId || null,
                     hHint: options.hHintFromEntity ? (entity.stackIndex ?? 0) : (saved.boardPos.h ?? 0),
                     includeShadowOffset: !!options.includeShadowOffset,
                     projectHeight: options.projectHeight
                 });
+                if (applied && options.blockCell && Number.isFinite(boardPos?.h)) {
+                    entity.stackIndex = Math.max(0, Math.round(boardPos.h));
+                }
             }
         };
 

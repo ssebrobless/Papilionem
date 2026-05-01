@@ -465,7 +465,13 @@ class ButterflyCollectionUI {
     handleMouseWheel(mouseX, mouseY, delta) {
         this.refreshLayout();
         if (!this.visible) return false;
-        if (!this.scrollViewport || !this.isInsideRect(mouseX, mouseY, this.scrollViewport)) {
+        const panelRect = {
+            x: this.x,
+            y: this.y,
+            width: this.width,
+            height: this.height
+        };
+        if (!this.isInsideRect(mouseX, mouseY, panelRect)) {
             return false;
         }
         if (this.maxScrollOffset <= 0) {

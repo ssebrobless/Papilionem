@@ -7,10 +7,20 @@
     { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 6.8, "v": 7.1, "h": 0 } }
   ],
   "actions": [
+    { "type": "step_simulation", "frames": 60 },
     { "type": "set_emotions", "source": "b", "threat": 0.86, "exhaustion": 0.72 },
-    { "type": "step_simulation", "frames": 180 },
+    { "type": "step_simulation", "frames": 29 },
+    { "type": "set_board_pos", "source": "a", "boardPos": { "zoneId": "ivy-cloister", "u": 6, "v": 7, "h": 0 } },
+    { "type": "set_board_pos", "source": "b", "boardPos": { "zoneId": "ivy-cloister", "u": 6.8, "v": 7.1, "h": 0 } },
+    { "type": "step_simulation", "frames": 1 },
+    { "type": "step_simulation", "frames": 150 },
     { "type": "set_emotions", "source": "b", "threat": 0.08, "exhaustion": 0.08 },
-    { "type": "step_simulation", "frames": 180 }
+    { "type": "set_board_pos", "source": "a", "boardPos": { "zoneId": "ivy-cloister", "u": 6, "v": 7, "h": 0 } },
+    { "type": "set_board_pos", "source": "b", "boardPos": { "zoneId": "ivy-cloister", "u": 6.8, "v": 7.1, "h": 0 } },
+    { "type": "step_simulation", "frames": 89 },
+    { "type": "set_board_pos", "source": "a", "boardPos": { "zoneId": "ivy-cloister", "u": 6, "v": 7, "h": 0 } },
+    { "type": "set_board_pos", "source": "b", "boardPos": { "zoneId": "ivy-cloister", "u": 6.8, "v": 7.1, "h": 0 } },
+    { "type": "step_simulation", "frames": 1 }
   ],
   "assertions": [
     { "type": "memory_packet", "entity": "a", "family": "outcome", "anchor": "pride", "min": 1 },

@@ -14,6 +14,8 @@ const STORAGE_KEYS = [
   'papilionem-audit-reports-v1'
 ];
 const POLICY_FAMILIES = ['actionFamily', 'targetPreference', 'signalChoice', 'riskPosture', 'autobattlePosture'];
+const POLICY_ARG_INDEX = process.argv.indexOf('--policy');
+const POLICY_ARG = POLICY_ARG_INDEX >= 0 ? process.argv[POLICY_ARG_INDEX + 1] : null;
 const EVAL_THRESHOLDS = Object.freeze({
   minRecordCount: 4,
   minScenarioCount: 4,
@@ -78,8 +80,17 @@ function getTraceChosenLabel(trace = null, policyName = '') {
   return null;
 }
 
-function loadPolicyArtifact() {
-  const artifactPath = path.join(ROOT, 'assets', 'ml', 'm4-garden-policy.json');
+function resolvePolicyArtifactPath(policyArg = POLICY_ARG) {
+  if (!policyArg) return path.join(ROOT, 'assets', 'ml', 'm4-garden-policy.json');
+  return path.isAbsolute(policyArg) ? policyArg : path.join(ROOT, policyArg);
+}
+
+function toBrowserPolicyPath(artifactPath = resolvePolicyArtifactPath()) {
+  return path.relative(ROOT, artifactPath).replace(/\\/g, '/');
+}
+
+function loadPolicyArtifact(policyArg = POLICY_ARG) {
+  const artifactPath = resolvePolicyArtifactPath(policyArg);
   return {
     artifactPath,
     artifact: JSON.parse(fs.readFileSync(artifactPath, 'utf8'))
@@ -263,7 +274,7 @@ async function saveShot(page, outputDir, name) {
   return file;
 }
 
-async function resetBaseline(page) {
+async function resetBaseline(page, policyBrowserPath = toBrowserPolicyPath()) {
   await page.evaluate((keys) => {
     keys.forEach(key => window.localStorage.removeItem(key));
   }, STORAGE_KEYS);
@@ -273,6 +284,14 @@ async function resetBaseline(page) {
   await page.evaluate(async () => {
     await gameCore.resetGame(true);
   });
+  await page.evaluate(async (policyPath) => {
+    gameConfig.ml.policyArtifactPath = policyPath;
+    gameConfig.ml.useModelInference = true;
+    mlInferenceSystem.reset();
+    mlInferenceSystem.modelConfig.useModelInference = true;
+    mlInferenceSystem.modelConfig.policyArtifactPath = policyPath;
+    await mlInferenceSystem.loadModelArtifact(true);
+  }, policyBrowserPath);
   await waitForMlModel(page);
   await page.waitForFunction(() => {
     const state = gameCore?.getGameState?.();
@@ -339,7 +358,10 @@ async function run() {
     await page.goto(URL, { waitUntil: 'domcontentloaded' });
     await waitForGame(page);
     await dismissTitle(page);
-    await resetBaseline(page);
+    const { artifactPath: expectedArtifactPath, artifact: expectedArtifact } = loadPolicyArtifact();
+    const expectedPolicyFamilies = Object.keys(expectedArtifact?.policies || {});
+    report.policyArtifactPath = expectedArtifactPath;
+    await resetBaseline(page, toBrowserPolicyPath(expectedArtifactPath));
 
     await phase(page, report, outputDir, '01-artifact-contract-and-runtime', async () => {
       const state = await page.evaluate(() => {
@@ -356,20 +378,20 @@ async function run() {
         pass:
           runtime.modelLoaded === true &&
           runtime.modelAvailable === true &&
-          runtime.runtime === 'local-static-policy' &&
-          runtime.backend === 'linear-policy-json' &&
-          runtime.modelVersionId === 'm4-garden-policy-v1' &&
-          runtime.policyArtifactFormat === 'linear-policy-json' &&
-          artifactSummary.schemaVersion === 'm4-linear-policy-v1' &&
-          artifactSummary.modelVersionId === 'm4-garden-policy-v1' &&
-          artifactSummary.artifactFormat === 'linear-policy-json' &&
-          artifactSummary.featureSchemaVersion === 'm4-feature-schema-v1' &&
-          artifactSummary.traceSchemaVersion === 'm4-trace-schema-v1' &&
-          artifactSummary.contractVersion === 'c1-runtime-contract-v1' &&
+          runtime.runtime === expectedArtifact.runtime &&
+          runtime.backend === expectedArtifact.backend &&
+          runtime.modelVersionId === expectedArtifact.modelVersionId &&
+          runtime.policyArtifactFormat === expectedArtifact.artifactFormat &&
+          artifactSummary.schemaVersion === expectedArtifact.schemaVersion &&
+          artifactSummary.modelVersionId === expectedArtifact.modelVersionId &&
+          artifactSummary.artifactFormat === expectedArtifact.artifactFormat &&
+          artifactSummary.featureSchemaVersion === expectedArtifact.featureSchemaVersion &&
+          artifactSummary.traceSchemaVersion === expectedArtifact.traceSchemaVersion &&
+          artifactSummary.contractVersion === expectedArtifact.contractVersion &&
           artifactSummary.legacyArtifact === false &&
           artifactSummary.missingPolicyFamilies?.length === 0 &&
-          policyFamilies.length === POLICY_FAMILIES.length &&
-          POLICY_FAMILIES.every(policyName => policyFamilies.includes(policyName)) &&
+          policyFamilies.length === expectedPolicyFamilies.length &&
+          expectedPolicyFamilies.every(policyName => policyFamilies.includes(policyName)) &&
           compatible.runtime === true &&
           compatible.artifactFormat === true &&
           compatible.featureSchema === true &&

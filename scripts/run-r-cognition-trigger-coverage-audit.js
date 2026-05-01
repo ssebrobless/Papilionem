@@ -233,9 +233,19 @@ async function run() {
       communicationSystem.simulationClockSeconds += 30;
       distressedA.lifeSim.emotions.threat = 0.08;
       distressedA.lifeSim.emotions.exhaustion = 0.08;
+      distressedB.lifeSim.emotions.threat = 0.86;
+      distressedB.lifeSim.emotions.exhaustion = 0.66;
+      communicationSystem.updateDistressCascade(state, 360);
+      setFrame(450);
+      communicationSystem.simulationClockSeconds += 30;
+      distressedB.lifeSim.emotions.threat = 0.82;
+      distressedB.lifeSim.emotions.exhaustion = 0.62;
+      communicationSystem.updateDistressCascade(state, 450);
+      setFrame(540);
+      communicationSystem.simulationClockSeconds += 30;
       distressedB.lifeSim.emotions.threat = 0.08;
       distressedB.lifeSim.emotions.exhaustion = 0.08;
-      communicationSystem.updateDistressCascade(state, 360);
+      communicationSystem.updateDistressCascade(state, 540);
 
       // Scout cluster pride and competing scout loyalty.
       setFrame(1800);

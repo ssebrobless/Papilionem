@@ -199,6 +199,8 @@ class Block extends Entity {
             v: cell.v,
             h
         };
+        this.stackIndex = h;
+        this.lastPlacedMode = h > 0 ? 'stacked' : 'ground';
         this.x = screen.x;
         this.y = screen.y;
         this.syncDebugGridPos();
