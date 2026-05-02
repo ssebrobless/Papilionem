@@ -250,6 +250,25 @@ async function run() {
     report.capture = await driver.exportCapture(captureDir);
     report.scriptedEvidence = driver.evidence;
     report.evidenceLanes = buildEvidenceLanes(report);
+    const runtimeLane = report.evidenceLanes.find(lane => lane.id === 'runtime-errors');
+    const gateUsesDisaggregated = report.runtime?.stutterTier || report.runtime?.cacheTier;
+    const pressureGateFailed = gateUsesDisaggregated
+      ? report.runtime?.stutterTier === 'critical' || report.runtime?.cacheTier === 'critical'
+      : report.runtime?.pressureTier === 'critical';
+    if (runtimeLane && pressureGateFailed) {
+      runtimeLane.pass = false;
+      runtimeLane.details = {
+        ...(runtimeLane.details || {}),
+        pressureGate: {
+          pass: false,
+          reason: gateUsesDisaggregated ? 'stutter-or-cache-critical' : 'pressureTier-critical',
+          pressureTier: report.runtime.pressureTier,
+          densityTier: report.runtime.densityTier,
+          stutterTier: report.runtime.stutterTier,
+          cacheTier: report.runtime.cacheTier
+        }
+      };
+    }
     report.laneSummary = summarizeLanes(report.evidenceLanes);
     report.overall = report.laneSummary.failed.length
       ? 'fail'

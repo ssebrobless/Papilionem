@@ -144,6 +144,44 @@ class TelemetrySystem {
         return frameValues;
     }
 
+    getPressureTierRank(tier = 'normal') {
+        return {
+            normal: 0,
+            warm: 1,
+            hot: 2,
+            critical: 3
+        }[tier] || 0;
+    }
+
+    getWorstPressureTier(tiers = []) {
+        return (tiers || []).reduce((worst, tier) => (
+            this.getPressureTierRank(tier) > this.getPressureTierRank(worst) ? tier : worst
+        ), 'normal');
+    }
+
+    computeDensityTier({ visibleEntities = 0, visibleEffects = 0, particleCount = 0 } = {}) {
+        if (visibleEntities >= 80 || visibleEffects >= 16 || particleCount >= 200) return 'critical';
+        if (visibleEntities >= 50 || visibleEffects >= 10 || particleCount >= 130) return 'hot';
+        if (visibleEntities >= 30 || visibleEffects >= 7 || particleCount >= 90) return 'warm';
+        return 'normal';
+    }
+
+    computeStutterTier({ maxRenderMs = 0, maxUpdateMs = 0, p99FrameMs = 0 } = {}) {
+        if (maxRenderMs >= 60 || maxUpdateMs >= 40 || p99FrameMs >= 28) return 'critical';
+        if (maxRenderMs >= 40 || maxUpdateMs >= 28 || p99FrameMs >= 22) return 'hot';
+        if (maxRenderMs >= 28 || maxUpdateMs >= 20 || p99FrameMs >= 18) return 'warm';
+        return 'normal';
+    }
+
+    computeCacheTier({ cacheMB = 0, capMB = 0 } = {}) {
+        if (!Number.isFinite(capMB) || capMB <= 0) return 'normal';
+        const ratio = Number(cacheMB || 0) / capMB;
+        if (ratio >= 0.95) return 'critical';
+        if (ratio >= 0.80) return 'hot';
+        if (ratio >= 0.60) return 'warm';
+        return 'normal';
+    }
+
     getHeapUsageSample(atMs = Date.now()) {
         const memory = typeof performance !== 'undefined' ? performance.memory : null;
         const usedBytes = Number(memory?.usedJSHeapSize || 0);
@@ -1251,6 +1289,23 @@ class TelemetrySystem {
         const visibleButterflies = this.lastUpdateSample?.visibleButterflyCount || 0;
         const visibleEffects = this.lastRenderSample?.visibleEffectCount || 0;
         const particleCount = this.lastRenderSample?.particleCount || 0;
+        const recentFrameValues = this.buildRecentFrameValues();
+        const maxUpdateMs = this.recentUpdateSamples.length
+            ? Math.max(...this.recentUpdateSamples.map(sample => Number(sample?.totalUpdateMs || 0)))
+            : 0;
+        const maxRenderMs = this.recentRenderSamples.length
+            ? Math.max(...this.recentRenderSamples.map(sample => Number(sample?.totalRenderMs || 0)))
+            : 0;
+        const p99FrameMs = this.getPercentile(recentFrameValues, 0.99);
+        const runtimeSpriteManager = typeof spriteManager !== 'undefined' ? spriteManager : null;
+        const cacheTelemetry = runtimeSpriteManager?.getBakedSpriteCacheTelemetry?.() || {};
+        const cacheMB = Number(cacheTelemetry.estimatedSurfaceMB || 0);
+        const capMB = Number(
+            runtimeSpriteManager?.getMaxBakedSpriteSurfaceMB?.()
+            || gameConfig?.performance?.cache?.maxBakedSpriteSurfaceMB
+            || 0
+        );
+        const cacheRatio = capMB > 0 ? cacheMB / capMB : 0;
 
         let tier = 'normal';
         if (
@@ -1279,6 +1334,20 @@ class TelemetrySystem {
             tier = 'warm';
         }
 
+        const disaggregated = gameConfig?.performance?.pressureTier?.disaggregated !== false;
+        const densityTier = disaggregated
+            ? this.computeDensityTier({ visibleEntities, visibleEffects, particleCount })
+            : tier;
+        const stutterTier = disaggregated
+            ? this.computeStutterTier({ maxRenderMs, maxUpdateMs, p99FrameMs })
+            : tier;
+        const cacheTier = disaggregated
+            ? this.computeCacheTier({ cacheMB, capMB })
+            : 'normal';
+        if (disaggregated) {
+            tier = this.getWorstPressureTier([densityTier, stutterTier, cacheTier]);
+        }
+
         const multiplierByTier = {
             normal: 1,
             warm: 0.82,
@@ -1298,10 +1367,19 @@ class TelemetrySystem {
             avgPhysicsMs,
             avgRenderMs,
             avgParticleRenderMs,
+            maxUpdateMs,
+            maxRenderMs,
+            p99FrameMs,
             visibleEntities,
             visibleButterflies,
             visibleEffects,
             particleCount,
+            densityTier,
+            stutterTier,
+            cacheTier,
+            cacheMB: Number(cacheMB.toFixed(4)),
+            cacheCapMB: capMB,
+            cacheRatio: Number(cacheRatio.toFixed(4)),
             isWarm: tier === 'warm' || tier === 'hot' || tier === 'critical',
             isHot: tier === 'hot' || tier === 'critical',
             isCritical: tier === 'critical',

@@ -317,7 +317,7 @@ const PAPILIONEM_BATTLE_ARENA = {
         },
         cache: {
             maxBakedSprites: 224,
-            maxBakedSpriteSurfaceMB: 32,
+            maxBakedSpriteSurfaceMB: 48,
             wingDimensionStep: 1,
             wingSpreadBuckets: 24,
             wingPoseSpreadBuckets: 16,
@@ -325,6 +325,12 @@ const PAPILIONEM_BATTLE_ARENA = {
             wingPoseForeOnly: true,
             wingPoseBattleOnly: true,
             flowerWaveBuckets: 12
+        },
+        pressureTier: {
+            disaggregated: true
+        },
+        pressureGate: {
+            disaggregated: true
         },
         directPresentFlowerMaxVisible: 64,
         denseDirectPresentFlowerMinVisible: 96,
@@ -378,7 +384,9 @@ const PAPILIONEM_BATTLE_ARENA = {
                 height: 256
             },
             antenna: 128
-        }
+        },
+        creatureBakeEvictOnInspectClose: true,
+        creatureBakeAsyncOnInspect: true
     },
 
     // Canvas settings

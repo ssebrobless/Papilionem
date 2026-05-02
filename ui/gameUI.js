@@ -100,6 +100,7 @@ class GameUI {
         this.textLayoutCache = new Map();
         this.inspectMeasurementCache = new Map();
         this.feedMeasurementCache = new Map();
+        this.creatureCloseupBakeEvictTimer = null;
 
         this.playerButtonTemplates = [
             { id: 'saveGame', label: 'Save', x: 466, y: 14, width: 76, height: 26 },
@@ -1698,6 +1699,41 @@ class GameUI {
         return (gameState?.butterflies || []).find(butterfly => butterfly.id === lockedTargetId) || null;
     }
 
+    getInspectTargetById(targetId, gameState = null) {
+        if (!targetId) return null;
+        const state = gameState || gameCore?.gameState || null;
+        return (state?.butterflies || []).find(butterfly => butterfly?.id === targetId) || null;
+    }
+
+    scheduleCreatureCloseupBakeEviction() {
+        if (gameConfig?.rendering?.creatureBakeEvictOnInspectClose === false) return;
+        const clearTimer = typeof clearTimeout === 'function' ? clearTimeout : null;
+        const setTimer = typeof setTimeout === 'function' ? setTimeout : null;
+        if (!setTimer) return;
+        if (this.creatureCloseupBakeEvictTimer && clearTimer) {
+            clearTimer(this.creatureCloseupBakeEvictTimer);
+        }
+        this.creatureCloseupBakeEvictTimer = setTimer(() => {
+            this.creatureCloseupBakeEvictTimer = null;
+            if (this.inspectPanel?.lockedTargetId) return;
+            spriteManager?.evictCreatureCloseupBakes?.();
+        }, 250);
+    }
+
+    setInspectLockedTargetId(targetId = null, { scheduleCloseupEvict = true, gameState = null } = {}) {
+        const previousTargetId = this.inspectPanel.lockedTargetId || null;
+        this.inspectPanel.lockedTargetId = targetId || null;
+        if (previousTargetId && previousTargetId !== this.inspectPanel.lockedTargetId) {
+            const previousTarget = this.getInspectTargetById(previousTargetId, gameState);
+            if (previousTarget) {
+                previousTarget.inspectOpenedAtFrame = null;
+            }
+        }
+        if (previousTargetId && !this.inspectPanel.lockedTargetId && scheduleCloseupEvict) {
+            this.scheduleCreatureCloseupBakeEviction();
+        }
+    }
+
     getMateHoverTarget(gameState) {
         return null;
     }
@@ -1980,7 +2016,7 @@ class GameUI {
         const result = gameCore?.releaseButterflies?.(selectedIds, { zoneId }) || { releasedIds: [] };
         this.clearInspectReleaseMode();
         if ((result.releasedIds || []).includes(this.inspectPanel.lockedTargetId)) {
-            this.inspectPanel.lockedTargetId = null;
+            this.setInspectLockedTargetId(null);
         }
         this.inspectPanel.scrollOffset = 0;
         return (result.releasedIds || []).length > 0;
@@ -1990,7 +2026,7 @@ class GameUI {
         this.releaseGuidedButterfly(gameState);
         this.inspectControl.mateSourceId = null;
         this.inspectControl.lockedBrowseScope = this.inspectControl.browseScope || 'zone';
-        this.inspectPanel.lockedTargetId = null;
+        this.setInspectLockedTargetId(null, { gameState });
         this.inspectPanel.scrollOffset = 0;
         this.inspectPanel.selectionRects = [];
         this.inspectPanel.mateOptionRects = [];
@@ -2002,7 +2038,17 @@ class GameUI {
 
     beginGuidingButterfly(target, gameState) {
         if (!target?.id) return false;
-        this.inspectPanel.lockedTargetId = target.id;
+        this.setInspectLockedTargetId(target.id, { gameState });
+        const openedFrame = Number(
+            gameCore?.getCurrentFrame?.()
+            ?? gameState?.currentFrame
+            ?? (typeof frameCount !== 'undefined' ? frameCount : 0)
+            ?? 0
+        );
+        target.inspectOpenedAtFrame = Number.isFinite(openedFrame) ? openedFrame : 0;
+        spriteManager?.scheduleAsyncCreatureCloseupBake?.(target, {
+            currentFrame: target.inspectOpenedAtFrame
+        });
         this.inspectControl.lockedBrowseScope = this.inspectControl.browseScope || 'zone';
         this.inspectControl.guidedTargetId = null;
         this.inspectPanel.scrollOffset = 0;

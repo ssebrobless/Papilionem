@@ -119,6 +119,223 @@ async function saveCloseup(page, outputDir, index, butterflyId) {
   return file;
 }
 
+async function samplePressureHeadroom(page, label) {
+  return await page.evaluate((sampleLabel) => {
+    const capture = gameCore.telemetrySystem?.getSessionCaptureSummary?.() || {};
+    const snapshot = gameCore.telemetrySystem?.getSnapshot?.() || {};
+    const pressure = snapshot.pressure || {};
+    const cache = spriteManager.getBakedSpriteCacheTelemetry?.() || {};
+    const cap = spriteManager.getMaxBakedSpriteSurfaceMB?.()
+      || gameConfig?.performance?.cache?.maxBakedSpriteSurfaceMB
+      || 0;
+    const recentRender = Array.isArray(gameCore.telemetrySystem?.recentRenderSamples)
+      ? gameCore.telemetrySystem.recentRenderSamples.slice(-180)
+      : [];
+    const recentMaxRenderMs = recentRender.length
+      ? Math.max(...recentRender.map(sample => Number(sample.totalRenderMs || 0)))
+      : 0;
+    return {
+      label: sampleLabel,
+      frame: gameCore.getCurrentFrame?.() || gameCore.gameState?.currentFrame || 0,
+      pressureTier: pressure.tier || capture.pressureTier || capture.pressure?.tier || 'unknown',
+      densityTier: pressure.densityTier || 'unknown',
+      stutterTier: pressure.stutterTier || 'unknown',
+      cacheTier: pressure.cacheTier || 'unknown',
+      p99FrameMs: Number(pressure.p99FrameMs || snapshot.percentiles?.p99FrameMs || capture.p99FrameMs || 0),
+      maxRenderMs: Number(pressure.maxRenderMs || recentMaxRenderMs || capture.maxRenderMs || 0),
+      maxUpdateMs: Number(pressure.maxUpdateMs || capture.maxUpdateMs || 0),
+      runtimeIssueKinds: capture.runtimeIssueKinds || {},
+      spriteCacheEstimatedSurfaceMB: Number(cache.estimatedSurfaceMB || capture.spriteCacheEstimatedSurfaceMB || 0),
+      spriteCacheEntryCount: Number(cache.entryCount || capture.spriteCacheEntryCount || 0),
+      spriteCacheCacheHits: Number(cache.cacheHits || capture.spriteCacheCacheHits || 0),
+      spriteCacheCacheMisses: Number(cache.cacheMisses || capture.spriteCacheCacheMisses || 0),
+      spriteCacheMaxSurfaceMB: Number(cap || 0),
+      spriteCacheTopFamilies: cache.topFamilies || capture.spriteCacheTopFamilies || []
+    };
+  }, label);
+}
+
+async function getSpriteCacheMisses(page) {
+  return await page.evaluate(() => Number(spriteManager.getBakedSpriteCacheTelemetry?.()?.cacheMisses || 0));
+}
+
+async function collectRenderSpikes(page, inspectActionTag, beforeCacheMisses, seenKeys) {
+  const spikes = await page.evaluate(({ tag, beforeMisses }) => {
+    const samples = Array.isArray(gameCore.telemetrySystem?.recentRenderSamples)
+      ? gameCore.telemetrySystem.recentRenderSamples.slice(-80)
+      : [];
+    const cacheMissesAfter = Number(spriteManager.getBakedSpriteCacheTelemetry?.()?.cacheMisses || 0);
+    const currentFrame = gameCore.getCurrentFrame?.() || gameCore.gameState?.currentFrame || 0;
+    const topContributorsFor = (sample) => Object.entries(sample.renderBreakdownFlat || {})
+      .map(([label, ms]) => ({ label, ms: Number(ms || 0) }))
+      .filter(entry => Number.isFinite(entry.ms) && entry.ms > 0)
+      .sort((left, right) => right.ms - left.ms)
+      .slice(0, 3);
+    return samples
+      .filter(sample => Number(sample.totalRenderMs || 0) > 30)
+      .map(sample => ({
+        key: `${sample.recordedAtMs || 0}:${Number(sample.totalRenderMs || 0).toFixed(3)}`,
+        frame: currentFrame,
+        recordedAtMs: sample.recordedAtMs || null,
+        totalRenderMs: Number(sample.totalRenderMs || 0),
+        particleCount: Number(sample.particleCount || 0),
+        visibleEffectCount: Number(sample.visibleEffectCount || 0),
+        topRenderContributors: topContributorsFor(sample),
+        cacheMissesDelta: Math.max(0, cacheMissesAfter - Number(beforeMisses || 0)),
+        inspectActionTag: tag
+      }));
+  }, { tag: inspectActionTag, beforeMisses: beforeCacheMisses });
+  const newSpikes = [];
+  for (const spike of spikes) {
+    if (seenKeys.has(spike.key)) continue;
+    seenKeys.add(spike.key);
+    newSpikes.push(spike);
+  }
+  return newSpikes;
+}
+
+function summarizeSpikeRootCause(spikeBreakdown = []) {
+  const openColdBakeSpikes = spikeBreakdown.filter(spike =>
+    spike.inspectActionTag === 'open' && Number(spike.cacheMissesDelta || 0) >= 4
+  );
+  const closeColdBakeSpikes = spikeBreakdown.filter(spike =>
+    spike.inspectActionTag === 'close' && Number(spike.cacheMissesDelta || 0) >= 4
+  );
+  const highRenderSpikes = spikeBreakdown.filter(spike => Number(spike.totalRenderMs || 0) > 30);
+  const likelyColdBake = (openColdBakeSpikes.length + closeColdBakeSpikes.length) > 0
+    && (openColdBakeSpikes.length + closeColdBakeSpikes.length) >= Math.ceil(Math.max(1, highRenderSpikes.length) * 0.25);
+  return {
+    cause: likelyColdBake ? 'inspect-closeup-cold-bake' : 'unconfirmed',
+    confirmed: likelyColdBake,
+    spikeCount: highRenderSpikes.length,
+    openColdBakeSpikeCount: openColdBakeSpikes.length,
+    closeColdBakeSpikeCount: closeColdBakeSpikes.length,
+    maxSpikeRenderMs: highRenderSpikes.length
+      ? Math.max(...highRenderSpikes.map(spike => Number(spike.totalRenderMs || 0)))
+      : 0
+  };
+}
+
+async function runPressureHeadroomLane(page) {
+  const durationMs = 420000;
+  const intervalMs = 15000;
+  await page.evaluate(() => {
+    spriteManager.clearBakedSpriteCache?.();
+    gameUI.inspectPanel.visible = true;
+    gameUI.activityLogPanel.visible = false;
+    gameUI.accessibilityPanel.visible = false;
+    gameUI.butterflyCollection.visible = false;
+    gameCore.telemetrySystem?.startSessionCapture?.(gameCore.getGameState(), {
+      label: 'r-sprite-fidelity-pressure-headroom'
+    });
+  });
+
+  const inspectIds = await page.evaluate(() => {
+    const candidates = (gameCore.gameState?.butterflies || [])
+      .filter(entity => entity?.hasRenderableWings?.())
+      .slice(0, 6);
+    const unique = [];
+    const seen = new Set();
+    for (const candidate of candidates) {
+      const key = candidate.personalityType || candidate.id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(candidate.id);
+      if (unique.length >= 3) break;
+    }
+    for (const candidate of candidates) {
+      if (unique.length >= 3) break;
+      if (!unique.includes(candidate.id)) unique.push(candidate.id);
+    }
+    return unique;
+  });
+
+  const startedAt = Date.now();
+  const firstSample = await samplePressureHeadroom(page, 'start');
+  firstSample.elapsedMs = 0;
+  const samples = [firstSample];
+  const spikeBreakdown = [];
+  const seenSpikeKeys = new Set();
+  let index = 0;
+  while (Date.now() - startedAt < durationMs) {
+    const targetId = inspectIds[index % Math.max(1, inspectIds.length)];
+    if (targetId) {
+      const openMissesBefore = await getSpriteCacheMisses(page);
+      await page.evaluate((id) => {
+        const state = gameCore.getGameState?.() || gameCore.gameState;
+        const target = (state?.butterflies || []).find(entity => entity.id === id);
+        if (target) {
+          const zoneId = target.currentZoneId || target.boardPos?.zoneId || state.focusedZoneId;
+          if (zoneId) gameCore.focusZone?.(zoneId);
+          gameUI.inspectPanel.visible = true;
+          gameUI.beginGuidingButterfly?.(target, state);
+        }
+      }, targetId);
+      await page.waitForTimeout(1200);
+      spikeBreakdown.push(...await collectRenderSpikes(page, 'open', openMissesBefore, seenSpikeKeys));
+      const openSample = await samplePressureHeadroom(page, `inspect-open-${index}`);
+      openSample.elapsedMs = Date.now() - startedAt;
+      samples.push(openSample);
+      const closeMissesBefore = await getSpriteCacheMisses(page);
+      await page.evaluate(() => {
+        const state = gameCore.getGameState?.() || gameCore.gameState;
+        gameUI.clearInspectSelection?.(state);
+      });
+      await page.waitForTimeout(550);
+      spikeBreakdown.push(...await collectRenderSpikes(page, 'close', closeMissesBefore, seenSpikeKeys));
+      const closeSample = await samplePressureHeadroom(page, `inspect-close-${index}`);
+      closeSample.elapsedMs = Date.now() - startedAt;
+      samples.push(closeSample);
+    }
+    index += 1;
+    const elapsedInCycle = Date.now() - startedAt;
+    const nextTick = Math.min(durationMs, index * intervalMs);
+    const waitMs = Math.max(0, Math.min(intervalMs, nextTick - elapsedInCycle));
+    if (waitMs > 0) await page.waitForTimeout(waitMs);
+  }
+  const final = await samplePressureHeadroom(page, 'final');
+  final.elapsedMs = Date.now() - startedAt;
+  samples.push(final);
+  const steadySamples = samples.filter(sample => Number(sample.elapsedMs || 0) >= 60000);
+  const measuredSamples = steadySamples.length ? steadySamples : samples;
+  const maxCacheMB = Math.max(...samples.map(sample => Number(sample.spriteCacheEstimatedSurfaceMB || 0)));
+  const maxRenderMs = Math.max(...measuredSamples.map(sample => Number(sample.maxRenderMs || 0)));
+  const maxP99FrameMs = Math.max(...measuredSamples.map(sample => Number(sample.p99FrameMs || 0)));
+  const criticalStutterSamples = measuredSamples.filter(sample => sample.stutterTier === 'critical');
+  const criticalCacheSamples = measuredSamples.filter(sample => sample.cacheTier === 'critical');
+  const cadenceBudgetOverruns = Number(final.runtimeIssueKinds?.['cadence-budget-overrun'] || 0);
+  const cacheHits = Number(final.spriteCacheCacheHits || 0);
+  const cacheMisses = Number(final.spriteCacheCacheMisses || 0);
+  const cacheHitRate = cacheHits + cacheMisses > 0
+    ? cacheHits / (cacheHits + cacheMisses)
+    : 1;
+  return {
+    inspectIds,
+    samples,
+    spikeBreakdown,
+    spikeRootCause: summarizeSpikeRootCause(spikeBreakdown),
+    final,
+    metrics: {
+      configuredCapMB: Number(final.spriteCacheMaxSurfaceMB || 0),
+      maxCacheMB,
+      headroomLimitMB: Number((Number(final.spriteCacheMaxSurfaceMB || 0) * 0.9).toFixed(4)),
+      maxRenderMs,
+      maxP99FrameMs,
+      cadenceBudgetOverruns,
+      cacheHitRate: Number(cacheHitRate.toFixed(4)),
+      criticalStutterSampleCount: criticalStutterSamples.length,
+      criticalCacheSampleCount: criticalCacheSamples.length,
+      finalPressureTier: final.pressureTier,
+      finalDensityTier: final.densityTier,
+      finalStutterTier: final.stutterTier,
+      finalCacheTier: final.cacheTier,
+      sampleCount: samples.length,
+      steadySampleCount: measuredSamples.length,
+      steadyWindowStartsAtMs: 60000
+    }
+  };
+}
+
 async function run() {
   ensureDir(OUTPUT_ROOT);
   const auditId = stamp();
@@ -234,9 +451,10 @@ async function run() {
           gardenWing: wing?.surface?.width || 0,
           closeupWing: closeupWing?.surface?.width || 0
         }),
-        assertion('sprite-cache-memory-under-32mb', Number(telemetry.estimatedSurfaceMB || 0) < 32, {
+        assertion('sprite-cache-memory-under-configured-cap', Number(telemetry.estimatedSurfaceMB || 0) < (spriteManager.getMaxBakedSpriteSurfaceMB?.() || 32), {
           estimatedSurfaceMB: telemetry.estimatedSurfaceMB || 0,
-          cacheEntryCount: telemetry.entryCount || 0
+          cacheEntryCount: telemetry.entryCount || 0,
+          configuredCapMB: spriteManager.getMaxBakedSpriteSurfaceMB?.() || 32
         }),
         assertion('blocks-remain-crisp', blockLayerSmooth === false, { imageSmoothingEnabled: blockLayerSmooth }),
         assertion('entity-layers-smooth', entityLayerSmooth === true && behindLayerSmooth === true, {
@@ -289,6 +507,61 @@ async function run() {
       id: 'four-closeup-screenshots-produced',
       pass: report.screenshots.length === 4,
       detail: { count: report.screenshots.length, screenshots: report.screenshots }
+    });
+
+    const pressureHeadroom = await runPressureHeadroomLane(page);
+    const pressureMetrics = pressureHeadroom.metrics || {};
+    report.pressureHeadroom = pressureHeadroom;
+    report.assertions.push({
+      id: 'pressure-headroom-cache-under-90pct-cap',
+      pass: Number(pressureMetrics.maxCacheMB || 0) < Number(pressureMetrics.headroomLimitMB || 0),
+      detail: pressureMetrics
+    });
+    report.assertions.push({
+      id: 'pressure-headroom-cache-non-critical',
+      pass: Number(pressureMetrics.criticalCacheSampleCount || 0) === 0,
+      detail: {
+        criticalCacheSampleCount: pressureMetrics.criticalCacheSampleCount,
+        finalCacheTier: pressureHeadroom.final?.cacheTier || 'unknown'
+      }
+    });
+    report.assertions.push({
+      id: 'pressure-headroom-stutter-non-critical',
+      pass: Number(pressureMetrics.criticalStutterSampleCount || 0) === 0,
+      detail: {
+        criticalStutterSampleCount: pressureMetrics.criticalStutterSampleCount,
+        finalStutterTier: pressureHeadroom.final?.stutterTier || 'unknown',
+        maxP99FrameMs: pressureMetrics.maxP99FrameMs,
+        maxRenderMs: pressureMetrics.maxRenderMs
+      }
+    });
+    report.assertions.push({
+      id: 'pressure-headroom-stutter-p99-frame',
+      pass: Number(pressureMetrics.maxP99FrameMs || 0) < 28,
+      detail: {
+        maxP99FrameMs: pressureMetrics.maxP99FrameMs,
+        threshold: 28
+      }
+    });
+    report.assertions.push({
+      id: 'pressure-headroom-stutter-max-render',
+      pass: Number(pressureMetrics.maxRenderMs || 0) < 60,
+      detail: {
+        maxRenderMs: pressureMetrics.maxRenderMs,
+        threshold: 60
+      }
+    });
+    report.assertions.push({
+      id: 'pressure-headroom-spike-breakdown-populated',
+      pass: Array.isArray(pressureHeadroom.spikeBreakdown) && pressureHeadroom.spikeBreakdown.length >= 1,
+      detail: {
+        spikeRootCause: pressureHeadroom.spikeRootCause,
+        spikeCount: pressureHeadroom.spikeBreakdown?.length || 0,
+        topSpikes: (pressureHeadroom.spikeBreakdown || [])
+          .slice()
+          .sort((left, right) => Number(right.totalRenderMs || 0) - Number(left.totalRenderMs || 0))
+          .slice(0, 5)
+      }
     });
 
     await context.close();

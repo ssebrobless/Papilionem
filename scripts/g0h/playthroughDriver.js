@@ -822,12 +822,35 @@ class G0HPlaythroughDriver {
   async runtimeSummary(pageErrors = [], consoleErrors = []) {
     const summary = await this.page.evaluate(() => {
       const capture = gameCore.telemetrySystem?.getSessionCaptureSummary?.() || {};
+      const telemetry = gameCore.telemetrySystem?.getSnapshot?.() || {};
+      const spriteCache = spriteManager?.getBakedSpriteCacheTelemetry?.() || {};
+      const recentRender = Array.isArray(gameCore.telemetrySystem?.recentRenderSamples)
+        ? gameCore.telemetrySystem.recentRenderSamples.slice(-180)
+        : [];
+      const recentMaxRenderMs = recentRender.length
+        ? Math.max(...recentRender.map(sample => Number(sample.totalRenderMs || 0)))
+        : 0;
       return {
         runtimeIssueCount: capture.runtimeIssueCount || 0,
         errorRuntimeIssueCount: capture.errorRuntimeIssueCount || 0,
         warningRuntimeIssueCount: capture.warningRuntimeIssueCount || 0,
         runtimeIssueKinds: capture.runtimeIssueKinds || {},
-        telemetryWarningCount: capture.telemetryWarningCount || 0
+        telemetryWarningCount: capture.telemetryWarningCount || 0,
+        pressureTier: telemetry.pressure?.tier || capture.pressureTier || capture.pressure?.tier || 'unknown',
+        densityTier: telemetry.pressure?.densityTier || 'unknown',
+        stutterTier: telemetry.pressure?.stutterTier || 'unknown',
+        cacheTier: telemetry.pressure?.cacheTier || 'unknown',
+        p95FrameMs: Number(telemetry.percentiles?.p95FrameMs || capture.p95FrameMs || 0),
+        p99FrameMs: Number(telemetry.pressure?.p99FrameMs || telemetry.percentiles?.p99FrameMs || capture.p99FrameMs || 0),
+        maxRenderMs: Number(telemetry.pressure?.maxRenderMs || recentMaxRenderMs || capture.maxRenderMs || 0),
+        captureMaxRenderMs: Number(capture.maxRenderMs || 0),
+        captureP99FrameMs: Number(capture.p99FrameMs || 0),
+        maxUpdateMs: Number(telemetry.pressure?.maxUpdateMs || capture.maxUpdateMs || 0),
+        spriteCacheEstimatedSurfaceMB: Number(spriteCache.estimatedSurfaceMB || capture.spriteCacheEstimatedSurfaceMB || 0),
+        spriteCacheMaxSurfaceMB: Number(spriteManager?.getMaxBakedSpriteSurfaceMB?.() || gameConfig?.performance?.cache?.maxBakedSpriteSurfaceMB || 0),
+        spriteCacheCacheHits: Number(spriteCache.cacheHits || capture.spriteCacheCacheHits || 0),
+        spriteCacheCacheMisses: Number(spriteCache.cacheMisses || capture.spriteCacheCacheMisses || 0),
+        spriteCacheEntryCount: Number(spriteCache.entryCount || capture.spriteCacheEntryCount || 0)
       };
     });
     return {

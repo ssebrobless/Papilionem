@@ -3833,9 +3833,25 @@ class Butterfly extends Entity {
             : {};
         const inBattle = battleActive === null ? !!renderContext.battleActive : !!battleActive;
         const closeup = inBattle || !!gameUI?.isInspectLockedToEntity?.(this.id);
+        const currentFrame = Number(
+            gameCore?.getCurrentFrame?.()
+            ?? gameCore?.gameState?.currentFrame
+            ?? (typeof frameCount !== 'undefined' ? frameCount : 0)
+            ?? 0
+        );
+        const inspectOpenedAtFrame = Number(this.inspectOpenedAtFrame);
+        const asyncBake = !!(
+            closeup
+            && gameConfig?.rendering?.creatureBakeAsyncOnInspect !== false
+            && Number.isFinite(inspectOpenedAtFrame)
+            && Number.isFinite(currentFrame)
+            && currentFrame >= inspectOpenedAtFrame
+            && currentFrame - inspectOpenedAtFrame <= 4
+        );
         return {
             lod: closeup ? 'closeup' : 'garden',
             closeup,
+            async: asyncBake,
             entityId: this.id
         };
     }

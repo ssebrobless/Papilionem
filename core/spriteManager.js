@@ -60,6 +60,7 @@ class SpriteManager {
             evictions: 0,
             evictedEstimatedSurfaceMB: 0
         };
+        this.pendingCreatureCloseupBakeKeys = new Set();
         this.sourceAlphaBounds = new WeakMap();
         this.assetDecodeMode = 'preload-image';
         this.SPRITE_SCALE = 1.0;    // Global scale multiplier for tuning
@@ -273,6 +274,109 @@ class SpriteManager {
         oldest?.surface?.remove?.();
         this.bakedSpriteCache.delete(oldestKey);
         return true;
+    }
+
+    evictBakedSpriteEntryByKey(key) {
+        if (key == null || !this.bakedSpriteCache.has(key)) return false;
+        const entry = this.bakedSpriteCache.get(key);
+        this.bakedSpriteCacheStats.evictions = Number(this.bakedSpriteCacheStats.evictions || 0) + 1;
+        this.bakedSpriteCacheStats.evictedEstimatedSurfaceMB = Number(this.bakedSpriteCacheStats.evictedEstimatedSurfaceMB || 0)
+            + Number(entry?.estimatedSurfaceMB || this.estimateBakedSurfaceMB(entry?.surface) || 0);
+        entry?.surface?.remove?.();
+        this.bakedSpriteCache.delete(key);
+        return true;
+    }
+
+    evictCreatureCloseupBakes() {
+        if (gameConfig?.rendering?.creatureBakeEvictOnInspectClose === false) {
+            return {
+                enabled: false,
+                evicted: 0,
+                estimatedSurfaceMB: 0
+            };
+        }
+        const closeupKeys = [];
+        let estimatedSurfaceMB = 0;
+        for (const [key, entry] of this.bakedSpriteCache.entries()) {
+            const keyText = String(key || '');
+            const family = String(entry?.cacheFamily || this.getBakedCacheFamily(keyText) || '');
+            const creatureFamily = family.startsWith('body')
+                || family.startsWith('wing')
+                || family.startsWith('antenna')
+                || family.startsWith('caterpillar')
+                || family.startsWith('cocoon');
+            if (!creatureFamily || !keyText.includes('profile=closeup')) continue;
+            closeupKeys.push(key);
+            estimatedSurfaceMB += Number(entry?.estimatedSurfaceMB || this.estimateBakedSurfaceMB(entry?.surface) || 0);
+        }
+        let evicted = 0;
+        for (const key of closeupKeys) {
+            if (this.evictBakedSpriteEntryByKey(key)) evicted += 1;
+        }
+        return {
+            enabled: true,
+            evicted,
+            estimatedSurfaceMB: Number(estimatedSurfaceMB.toFixed(4))
+        };
+    }
+
+    scheduleAsyncCreatureCloseupBake(entity, options = {}) {
+        if (gameConfig?.rendering?.creatureBakeAsyncOnInspect === false) {
+            return { enabled: false, scheduled: false };
+        }
+        if (!entity?.id || !this.isBakedCreatureSpritesEnabled?.()) {
+            return { enabled: true, scheduled: false, reason: 'unavailable' };
+        }
+        const spec = entity.getRenderSpec?.();
+        if (!spec || !this.hasRenderableSpec?.(spec)) {
+            return { enabled: true, scheduled: false, reason: 'missing-spec' };
+        }
+        const size = Number(entity.size || 14);
+        const bodyScale = ((size * this.SPRITE_SCALE) / 1080) * Number(entity.getBodySpriteScale?.() || 1);
+        const wingScale = ((size * this.SPRITE_SCALE) / 1080) * Number(entity.getWingSpriteScale?.() || 1) * 1.45;
+        const appearanceKey = this.getAppearanceKey(spec);
+        const pendingKey = [
+            entity.id,
+            appearanceKey,
+            bodyScale.toFixed(6),
+            wingScale.toFixed(6)
+        ].join('|');
+        if (this.pendingCreatureCloseupBakeKeys.has(pendingKey)) {
+            return { enabled: true, scheduled: false, pending: true, key: pendingKey };
+        }
+
+        this.pendingCreatureCloseupBakeKeys.add(pendingKey);
+        const runBake = () => {
+            try {
+                if (gameConfig?.rendering?.creatureBakeAsyncOnInspect === false) return;
+                const bakeOptions = {
+                    lod: 'closeup',
+                    closeup: true,
+                    async: true,
+                    asyncPrewarm: true,
+                    entityId: entity.id,
+                    openedAtFrame: options.currentFrame ?? options.frame ?? null
+                };
+                this.getBakedBodySpriteData?.(spec, bodyScale, bakeOptions);
+                this.getBakedAntennaSpriteData?.(spec, bodyScale, bakeOptions);
+                for (const wingKey of ['foreLeft', 'foreRight', 'hindLeft', 'hindRight']) {
+                    this.getBakedWingPieceData?.(spec, wingKey, wingScale, bakeOptions);
+                }
+            } finally {
+                this.pendingCreatureCloseupBakeKeys.delete(pendingKey);
+            }
+        };
+
+        if (typeof queueMicrotask === 'function') {
+            queueMicrotask(runBake);
+        } else if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(runBake);
+        } else if (typeof setTimeout === 'function') {
+            setTimeout(runBake, 0);
+        } else {
+            runBake();
+        }
+        return { enabled: true, scheduled: true, key: pendingKey };
     }
 
     normalizeBakedSpriteDimension(value) {
