@@ -188,6 +188,10 @@ async function run() {
     report.screenshots['03-moss-distress.png'] = await driver.screenshot('03-moss-distress.png');
     await driver.snapshot('03-moss-distress');
 
+    await driver.provokeAbandonedAllyShame();
+    await driver.refreshProductionEventCounts();
+    await driver.snapshot('03b-abandoned-ally-shame');
+
     await driver.waitUntil(165000);
     await driver.nudgeFlowerCleanup();
     report.screenshots['04-flower-cleanup.png'] = await driver.screenshot('04-flower-cleanup.png');
@@ -216,6 +220,7 @@ async function run() {
     await driver.waitUntil(270000);
     await driver.focusZone(spec.zones.ivy);
     await driver.nudgeWitnessedAffection();
+    await driver.provokeWarningIgnoredHarmShame();
     await driver.refreshProductionEventCounts();
     await driver.inspect('Iris');
     await driver.snapshot('06b-witnessed-affection');

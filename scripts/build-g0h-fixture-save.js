@@ -395,6 +395,14 @@ async function buildG0HFixtureSave(options = {}) {
       structureSystem?.update?.(state, 0);
       objectSystem?.update?.(state);
       lifeSimSystem?.update?.(state, 1 / 60, { currentFrame: gameCore.getCurrentFrame?.() || 0 });
+      for (const entity of state.butterflies || []) {
+        const socialPackets = entity.lifeSim?.memories?.social;
+        if (Array.isArray(socialPackets)) {
+          entity.lifeSim.memories.social = socialPackets.filter(packet =>
+            !(packet?.kind === 'bereavement' && (packet?.subtype === 'long-absence' || packet?.trigger === 'longAbsence'))
+          );
+        }
+      }
 
       const serialized = gameCore.serializeGameState();
       serialized.flowers = (state.flowers || []).map(flower => saveSystem.serializeFlower(flower));

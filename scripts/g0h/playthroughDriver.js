@@ -500,7 +500,26 @@ class G0HPlaythroughDriver {
       const briar = byName('Briar');
       const clover = byName('Clover');
       if (!aster || !briar || !clover) return { ok: false, reason: 'missing-distress-cast' };
-      const frame = Math.max(270, gameCore.getCurrentFrame?.() || state.currentFrame || 0);
+      const zoneId = 'moss-hollow';
+      const place = (entity, u, v) => {
+        const boardPos = { zoneId, u, v, h: 0 };
+        const screen = renderManager.boardToScreen?.(boardPos) || { x: entity.x, y: entity.y };
+        entity.currentZoneId = zoneId;
+        entity.boardPos = { ...boardPos };
+        entity.gridPos = { x: u, y: v };
+        entity.x = screen.x;
+        entity.y = screen.y;
+        entity.state = 'normal';
+        entity.zoneTravel = null;
+        entity.movement?.clearTarget?.('g0h-distress-choice');
+        entity.syncDebugGridPos?.();
+        entity.lifeSim = entity.lifeSim || {};
+        entity.lifeSim.lifecycle = entity.lifeSim.lifecycle || {};
+        entity.lifeSim.lifecycle.currentZoneId = zoneId;
+      };
+      place(briar, 12, 10);
+      place(clover, 13.2, 10.2);
+      place(aster, 12.5, 10.4);
       for (const target of [briar, clover]) {
         target.lifeSim.emotions = target.lifeSim.emotions || {};
         target.lifeSim.emotions.threat = 0.78;
@@ -510,14 +529,20 @@ class G0HPlaythroughDriver {
       }
       aster.lifeSim.drives = aster.lifeSim.drives || {};
       aster.lifeSim.drives.caregiving = 0.82;
-      const emittedA = communicationSystem.updateDistressCascade?.(state, 270) || 0;
-      const emittedB = communicationSystem.updateDistressCascade?.(state, 360) || 0;
+      const currentFrame = gameCore.getCurrentFrame?.() || state.currentFrame || 0;
+      const frameA = Math.max(270, Math.ceil(currentFrame / 90) * 90);
+      state.currentFrame = frameA;
+      const emittedA = communicationSystem.updateDistressCascade?.(state, frameA) || 0;
+      state.currentFrame = frameA + 90;
+      const emittedB = communicationSystem.updateDistressCascade?.(state, frameA + 90) || 0;
       briar.lifeSim.emotions.threat = 0.22;
       briar.lifeSim.emotions.exhaustion = 0.2;
-      const emittedC = communicationSystem.updateDistressCascade?.(state, 450) || 0;
+      state.currentFrame = frameA + 180;
+      const emittedC = communicationSystem.updateDistressCascade?.(state, frameA + 180) || 0;
       clover.lifeSim.emotions.threat = 0.82;
       clover.lifeSim.emotions.exhaustion = 0.66;
-      const emittedD = communicationSystem.updateDistressCascade?.(state, 540) || 0;
+      state.currentFrame = frameA + 270;
+      const emittedD = communicationSystem.updateDistressCascade?.(state, frameA + 270) || 0;
       return {
         ok: (emittedA + emittedB + emittedC + emittedD) > 0,
         emitted: emittedA + emittedB + emittedC + emittedD,
@@ -528,6 +553,159 @@ class G0HPlaythroughDriver {
     });
     this.absorbCognitionEvents(details.cognition);
     details.accumulatedCognition = this.cognitionAccumulator.slice();
+    return details;
+  }
+
+  async provokeAbandonedAllyShame() {
+    const details = await this.page.evaluate(() => {
+      const state = gameCore.getGameState();
+      const byName = name => (state.butterflies || []).find(entity => entity.displayName === name) || null;
+      const distressed = byName('Vale') || byName('Briar');
+      const nonResponder = byName('Aster');
+      if (!distressed || !nonResponder) return { ok: false, reason: 'missing-abandoned-ally-cast' };
+      const zoneId = 'moss-hollow';
+      const place = (entity, u, v) => {
+        const boardPos = { zoneId, u, v, h: 0 };
+        const screen = renderManager.boardToScreen?.(boardPos) || { x: entity.x, y: entity.y };
+        entity.currentZoneId = zoneId;
+        entity.boardPos = { ...boardPos };
+        entity.gridPos = { x: u, y: v };
+        entity.x = screen.x;
+        entity.y = screen.y;
+        entity.state = 'normal';
+        entity.zoneTravel = null;
+        entity.movement?.clearTarget?.('g0h-abandoned-ally');
+        entity.syncDebugGridPos?.();
+        entity.lifeSim = entity.lifeSim || {};
+        entity.lifeSim.lifecycle = entity.lifeSim.lifecycle || {};
+        entity.lifeSim.lifecycle.currentZoneId = zoneId;
+        entity.lifeSim.spatialAwareness = entity.lifeSim.spatialAwareness || {};
+        entity.lifeSim.spatialAwareness.boardPos = { ...boardPos };
+      };
+      place(distressed, 8, 20);
+      place(nonResponder, 24, 20);
+      distressed.lifeSim.emotions = distressed.lifeSim.emotions || {};
+      distressed.lifeSim.emotions.threat = 0.9;
+      distressed.lifeSim.emotions.exhaustion = 0.7;
+      distressed.lifeSim.communication = distressed.lifeSim.communication || {};
+      distressed.lifeSim.communication.lastDistressAtSeconds = -Infinity;
+      nonResponder.lifeSim.drives = nonResponder.lifeSim.drives || {};
+      nonResponder.lifeSim.drives.caregiving = 0.02;
+      nonResponder.lifeSim.drives.socialConnection = Math.max(nonResponder.lifeSim.drives.socialConnection || 0, 0.72);
+      if (typeof ensureLifeSocialEdge === 'function') {
+        const edge = ensureLifeSocialEdge(nonResponder, distressed.id);
+        Object.assign(edge, {
+          trust: 0.72,
+          comfort: 0.7,
+          attachment: 0.68,
+          protectiveness: 0.62,
+          bondTier: 'companion',
+          coTimeSeconds: Math.max(edge.coTimeSeconds || 0, 900)
+        });
+      } else {
+        nonResponder.lifeSim.socialEdges = nonResponder.lifeSim.socialEdges || {};
+        nonResponder.lifeSim.socialEdges[distressed.id] = {
+          ...(nonResponder.lifeSim.socialEdges[distressed.id] || {}),
+          trust: 0.72,
+          comfort: 0.7,
+          attachment: 0.68,
+          protectiveness: 0.62,
+          bondTier: 'companion',
+          coTimeSeconds: 900
+        };
+      }
+      const currentFrame = gameCore.getCurrentFrame?.() || state.currentFrame || 0;
+      const startFrame = Math.max(1080, Math.ceil(currentFrame / 90) * 90);
+      const resolveFrame = startFrame + 630;
+      const beforeCount = eventBus.getHistory?.('cognition:triggered')?.length || 0;
+      state.currentFrame = startFrame;
+      communicationSystem.updateDistressCascade?.(state, startFrame);
+      state.currentFrame = resolveFrame;
+      communicationSystem.updateDistressCascade?.(state, resolveFrame);
+      const cognition = eventBus.getHistory?.('cognition:triggered')?.slice(-20).map(entry => entry.data || entry) || [];
+      const abandonedEvents = cognition.filter(event => event?.kind === 'shame' && event?.trigger === 'abandonedAlly');
+      return {
+        ok: abandonedEvents.length > 0,
+        distressedId: distressed.id,
+        distressedAlias: distressed.displayName,
+        nonResponderId: nonResponder.id,
+        nonResponderAlias: nonResponder.displayName,
+        beforeCount,
+        afterCount: eventBus.getHistory?.('cognition:triggered')?.length || 0,
+        abandonedEvents,
+        cognition
+      };
+    });
+    this.absorbCognitionEvents(details.cognition);
+    details.accumulatedCognition = this.cognitionAccumulator.slice();
+    this.evidence.abandonedAllyShame = details;
+    return details;
+  }
+
+  async provokeWarningIgnoredHarmShame() {
+    const details = await this.page.evaluate(() => {
+      const state = gameCore.getGameState();
+      const byName = name => (state.butterflies || []).find(entity => entity.displayName === name) || null;
+      const warner = byName('Lumen');
+      const witness = byName('Mira');
+      const hazard = byName('Thorn') || byName('Kite');
+      if (!warner || !witness) return { ok: false, reason: 'missing-warning-harm-cast' };
+      const zoneId = 'ivy-cloister';
+      const place = (entity, u, v) => {
+        const boardPos = { zoneId, u, v, h: 0 };
+        const screen = renderManager.boardToScreen?.(boardPos) || { x: entity.x, y: entity.y };
+        entity.currentZoneId = zoneId;
+        entity.boardPos = { ...boardPos };
+        entity.gridPos = { x: u, y: v };
+        entity.x = screen.x;
+        entity.y = screen.y;
+        entity.state = 'normal';
+        entity.zoneTravel = null;
+        entity.movement?.clearTarget?.('g0h-warning-harm');
+        entity.syncDebugGridPos?.();
+        entity.lifeSim = entity.lifeSim || {};
+        entity.lifeSim.lifecycle = entity.lifeSim.lifecycle || {};
+        entity.lifeSim.lifecycle.currentZoneId = zoneId;
+      };
+      place(warner, 7, 7);
+      place(witness, 8, 7);
+      if (hazard) place(hazard, 10, 7);
+      const emitted = communicationSystem.emitCooperationSignal?.(warner, {
+        signalType: 'warning_signal',
+        intentFamily: 'care',
+        intentTags: ['warning', 'comfort'],
+        phrase: 'Mira, back away from that edge; it is unsafe.',
+        targetIds: [witness.id],
+        zoneId,
+        reason: 'g0h-scripted-warning-harm'
+      });
+      for (let index = 0; index < 120; index += 1) {
+        gameCore.update?.();
+      }
+      eventBus.emit?.(GameEvents.BATTLE_ACTION_OCCURRED, {
+        battleId: 'g0h_warning_ignored_harm',
+        roundNumber: 1,
+        actorId: hazard?.id || warner.id,
+        type: 'attack',
+        targetId: witness.id,
+        damage: 8,
+        source: 'g0h-scripted-warning-harm'
+      });
+      const cognition = eventBus.getHistory?.('cognition:triggered')?.slice(-20).map(entry => entry.data || entry) || [];
+      const warningEvents = cognition.filter(event => event?.kind === 'shame' && event?.trigger === 'warningIgnoredHarm');
+      return {
+        ok: warningEvents.length > 0,
+        emitted: !!emitted,
+        warningRecordCount: communicationSystem.warningRecords?.length || 0,
+        warnerId: warner.id,
+        witnessId: witness.id,
+        warningEvents,
+        cognition
+      };
+    });
+    this.absorbCognitionEvents(details.cognition);
+    details.accumulatedCognition = this.cognitionAccumulator.slice();
+    this.evidence.warningIgnoredHarmShame = details;
     return details;
   }
 

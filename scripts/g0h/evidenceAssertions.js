@@ -180,7 +180,9 @@ function summarizeCognitionCoverage(scripted = {}) {
     witnessedAffection: accumulated.filter(event => event.kind === 'witnessedAffection').length,
     loyaltyChoice: accumulated.filter(event => event.kind === 'loyalty').length,
     prideBattleWin: accumulated.filter(event => event.kind === 'pride' && event.trigger === 'battleWin').length,
-    prideCaregivingSuccess: accumulated.filter(event => event.kind === 'pride' && event.trigger === 'caregivingSuccess').length
+    prideCaregivingSuccess: accumulated.filter(event => event.kind === 'pride' && event.trigger === 'caregivingSuccess').length,
+    shameAbandonedAlly: accumulated.filter(event => event.kind === 'shame' && event.trigger === 'abandonedAlly').length,
+    shameWarningIgnoredHarm: accumulated.filter(event => event.kind === 'shame' && event.trigger === 'warningIgnoredHarm').length
   };
   const memoryCounts = {
     bereavementDeath: 0,
@@ -203,11 +205,13 @@ function summarizeCognitionCoverage(scripted = {}) {
   }
   const checks = {
     bereavementDeath: eventCounts.bereavementDeath > 0 && memoryCounts.bereavementDeath > 0,
-    bereavementLongAbsence: memoryCounts.bereavementLongAbsence > 0,
+    bereavementLongAbsence: eventCounts.bereavementLongAbsence > 0 && memoryCounts.bereavementLongAbsence > 0,
     witnessedAffection: eventCounts.witnessedAffection > 0 && memoryCounts.witnessedAffection > 0,
     loyaltyChoice: eventCounts.loyaltyChoice > 0 && memoryCounts.loyaltyChoice > 0,
     prideBattleWin: eventCounts.prideBattleWin > 0 && memoryCounts.prideAnchor > 0,
-    prideCaregivingSuccess: eventCounts.prideCaregivingSuccess > 0 && memoryCounts.prideAnchor > 0
+    prideCaregivingSuccess: eventCounts.prideCaregivingSuccess > 0 && memoryCounts.prideAnchor > 0,
+    shameAbandonedAlly: eventCounts.shameAbandonedAlly > 0 && memoryCounts.shameAnchor > 0,
+    shameWarningIgnoredHarm: eventCounts.shameWarningIgnoredHarm > 0 && memoryCounts.shameAnchor > 0
   };
   const missingKinds = Object.entries(checks)
     .filter(([, pass]) => !pass)
