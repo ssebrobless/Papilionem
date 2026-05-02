@@ -89,10 +89,17 @@ class G0HPlaythroughDriver {
     return this.evidence.cognitionAccumulator;
   }
 
-  async importFixtureSave(savePath) {
+  async importFixtureSave(savePath, options = {}) {
     const rawSave = readRawSave(savePath);
-    return this.page.evaluate(async ({ rawSave, storageKeys }) => {
-      storageKeys.forEach(key => window.localStorage.removeItem(key));
+    return this.page.evaluate(async ({ rawSave, storageKeys, preserveAccessibility }) => {
+      const accessibilityKey = 'papilionem-accessibility-v1';
+      const preservedAccessibility = preserveAccessibility
+        ? window.localStorage.getItem(accessibilityKey)
+        : null;
+      storageKeys.forEach(key => {
+        if (preserveAccessibility && key === accessibilityKey) return;
+        window.localStorage.removeItem(key);
+      });
       window.__PAPILIONEM_WORLD_RENDERMODE__ = 'sim-board';
       window.localStorage.setItem('papilionem-world-rendermode', 'sim-board');
       if (typeof saveSystem !== 'undefined' && typeof saveSystem.writePayloadToIndexedDb === 'function') {
@@ -102,6 +109,13 @@ class G0HPlaythroughDriver {
         window.localStorage.setItem('papilionem-save-v2', rawSave);
       }
       const restored = await gameCore.loadGameFromStorage?.();
+      if (preserveAccessibility && preservedAccessibility) {
+        try {
+          gameUI?.setAccessibilitySettings?.(JSON.parse(preservedAccessibility));
+        } catch (_error) {
+          window.localStorage.setItem(accessibilityKey, preservedAccessibility);
+        }
+      }
       gameCore.setViewMode?.('focused-garden');
       if (gameUI?.firstSessionGuide) gameUI.firstSessionGuide.visible = false;
       if (gameUI?.activityLogPanel) gameUI.activityLogPanel.visible = true;
@@ -117,7 +131,7 @@ class G0HPlaythroughDriver {
         flowers: gameCore.gameState?.flowers?.length || 0,
         blocks: gameCore.gameState?.blocks?.length || 0
       };
-    }, { rawSave, storageKeys: STORAGE_KEYS });
+    }, { rawSave, storageKeys: STORAGE_KEYS, preserveAccessibility: !!options.preserveAccessibility });
   }
 
   async startValeIsolationTrace() {
@@ -335,6 +349,151 @@ class G0HPlaythroughDriver {
       valeSnapshots
     };
     this.evidence.valeIsolation = details;
+    return details;
+  }
+
+  async runAccessibilityPersistenceCycle() {
+    const beforeReload = await this.page.evaluate(async () => {
+      const key = 'papilionem-accessibility-v1';
+      const parsePersisted = () => {
+        try {
+          return JSON.parse(window.localStorage.getItem(key) || '{}') || {};
+        } catch (_error) {
+          return {};
+        }
+      };
+      const summarizeDom = () => {
+        gameUI.accessibilityPanel.visible = true;
+        const state = gameCore.getGameState?.() || gameCore.gameState || {};
+        const domState = gameUI.buildAccessibilityDomState?.(state) || null;
+        const controls = Object.fromEntries((domState?.controls || []).map(control => [control.id, control.value]));
+        return {
+          visible: !!domState?.visible,
+          highContrast: !!domState?.highContrast,
+          uiScale: domState?.uiScale || null,
+          controls
+        };
+      };
+      const before = {
+        settings: gameUI.getAccessibilitySettings?.() || {},
+        persisted: parsePersisted()
+      };
+      gameUI.accessibilityPanel.visible = true;
+      gameUI.setAccessibilitySettings?.({
+        colorblindMode: 'off',
+        colorblindSafeIndicators: false,
+        trailVisibility: 'off',
+        highContrastUI: false,
+        uiScale: 1
+      });
+      const colorblindSequence = [
+        gameUI.cycleColorblindMode?.(),
+        gameUI.cycleColorblindMode?.(),
+        gameUI.cycleColorblindMode?.(),
+        gameUI.cycleColorblindMode?.(),
+        gameUI.cycleColorblindMode?.()
+      ];
+      const trailSequence = [
+        gameUI.cycleAccessibilitySetting?.('trailVisibility', ['off', 'reduced', 'full']),
+        gameUI.cycleAccessibilitySetting?.('trailVisibility', ['off', 'reduced', 'full'])
+      ];
+      const highContrastSequence = [
+        gameUI.toggleAccessibilitySetting?.('highContrastUI'),
+        gameUI.toggleAccessibilitySetting?.('highContrastUI'),
+        gameUI.toggleAccessibilitySetting?.('highContrastUI')
+      ];
+      const uiScaleSequence = [
+        gameUI.setUiScaleValue?.(0.85),
+        gameUI.setUiScaleValue?.(1.1),
+        gameUI.setUiScaleValue?.(1)
+      ];
+      if (typeof applyCanvasAccessibilityStyle === 'function') {
+        applyCanvasAccessibilityStyle();
+      }
+      await gameCore.saveGameToStorage?.({ source: 'g0h-accessibility-cycle' });
+      const settings = gameUI.getAccessibilitySettings?.() || {};
+      const persisted = parsePersisted();
+      return {
+        before,
+        applied: {
+          colorblindSequence,
+          trailSequence,
+          highContrastSequence,
+          uiScaleSequence
+        },
+        settings,
+        persisted,
+        dom: summarizeDom(),
+        canvasFilters: Array.from(document.querySelectorAll('canvas')).map(canvas => canvas.style.filter || 'none')
+      };
+    });
+
+    await this.page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForGame(this.page);
+    await dismissTitle(this.page);
+
+    const afterReload = await this.page.evaluate(() => {
+      const key = 'papilionem-accessibility-v1';
+      const parsePersisted = () => {
+        try {
+          return JSON.parse(window.localStorage.getItem(key) || '{}') || {};
+        } catch (_error) {
+          return {};
+        }
+      };
+      gameUI.accessibilityPanel.visible = true;
+      if (typeof applyCanvasAccessibilityStyle === 'function') {
+        applyCanvasAccessibilityStyle();
+      }
+      const state = gameCore.getGameState?.() || gameCore.gameState || {};
+      const domState = gameUI.buildAccessibilityDomState?.(state) || null;
+      const controls = Object.fromEntries((domState?.controls || []).map(control => [control.id, control.value]));
+      return {
+        settings: gameUI.getAccessibilitySettings?.() || {},
+        persisted: parsePersisted(),
+        dom: {
+          visible: !!domState?.visible,
+          highContrast: !!domState?.highContrast,
+          uiScale: domState?.uiScale || null,
+          controls
+        },
+        canvasFilters: Array.from(document.querySelectorAll('canvas')).map(canvas => canvas.style.filter || 'none')
+      };
+    });
+
+    const expected = {
+      colorblindMode: 'off',
+      colorblindSafeIndicators: false,
+      trailVisibility: 'full',
+      highContrastUI: true,
+      uiScale: 1
+    };
+    const matchesExpected = (settings = {}) => Object.entries(expected)
+      .every(([key, value]) => settings?.[key] === value);
+    const details = {
+      expected,
+      beforeReload,
+      afterReload,
+      checks: {
+        appliedColorblindCycle: JSON.stringify(beforeReload.applied?.colorblindSequence || []) === JSON.stringify(['protanopia', 'deuteranopia', 'tritanopia', 'monochrome', 'off']),
+        appliedTrailCycle: JSON.stringify(beforeReload.applied?.trailSequence || []) === JSON.stringify(['reduced', 'full']),
+        appliedHighContrastCycle: JSON.stringify(beforeReload.applied?.highContrastSequence || []) === JSON.stringify([true, false, true]),
+        appliedUiScaleCycle: JSON.stringify(beforeReload.applied?.uiScaleSequence || []) === JSON.stringify([0.85, 1.1, 1]),
+        persistedBeforeReload: matchesExpected(beforeReload.persisted),
+        settingsBeforeReload: matchesExpected(beforeReload.settings),
+        persistedAfterReload: matchesExpected(afterReload.persisted),
+        settingsAfterReload: matchesExpected(afterReload.settings),
+        domCanvasAgreement:
+          afterReload.dom?.highContrast === afterReload.settings?.highContrastUI &&
+          afterReload.dom?.uiScale === afterReload.settings?.uiScale &&
+          afterReload.dom?.controls?.highContrastUI === 'On' &&
+          afterReload.dom?.controls?.trailVisibility === afterReload.settings?.trailVisibility &&
+          afterReload.dom?.controls?.cycleColorblindMode === afterReload.settings?.colorblindMode,
+        canvasFilterOff: (afterReload.canvasFilters || []).every(filter => filter === 'none')
+      }
+    };
+    details.pass = Object.values(details.checks).every(Boolean);
+    this.evidence.accessibility = details;
     return details;
   }
 

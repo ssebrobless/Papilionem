@@ -166,6 +166,13 @@ async function run() {
     if (!report.importResult.restored) {
       throw new Error('Fixture save did not load cleanly');
     }
+    await driver.runAccessibilityPersistenceCycle();
+    report.postAccessibilityImportResult = await driver.importFixtureSave(fixtureReport.savePath, {
+      preserveAccessibility: true
+    });
+    if (!report.postAccessibilityImportResult.restored) {
+      throw new Error('Fixture save did not reload cleanly after accessibility cycle');
+    }
     await driver.startValeIsolationTrace();
 
     await driver.focusZone(spec.zones.ivy);

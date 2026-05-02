@@ -226,6 +226,32 @@ function summarizeCognitionCoverage(scripted = {}) {
   };
 }
 
+function summarizeAccessibilityPersistence(scripted = {}) {
+  const accessibility = scripted.accessibility || null;
+  const checks = accessibility?.checks || {};
+  const required = [
+    'appliedColorblindCycle',
+    'appliedTrailCycle',
+    'appliedHighContrastCycle',
+    'appliedUiScaleCycle',
+    'persistedBeforeReload',
+    'settingsBeforeReload',
+    'persistedAfterReload',
+    'settingsAfterReload',
+    'domCanvasAgreement',
+    'canvasFilterOff'
+  ];
+  const failed = required.filter(key => checks[key] !== true);
+  return {
+    pass: !!accessibility && failed.length === 0,
+    failed,
+    expected: accessibility?.expected || null,
+    beforeReload: accessibility?.beforeReload || null,
+    afterReload: accessibility?.afterReload || null,
+    checks
+  };
+}
+
 function summarizeContinuity(before = {}, after = {}) {
   const beforeAliases = before.aliases || {};
   const afterAliases = after.aliases || {};
@@ -355,6 +381,12 @@ function buildEvidenceLanes(report = {}) {
     pass: cognitionCoverage.pass,
     details: cognitionCoverage
   });
+  const accessibilityPersistence = summarizeAccessibilityPersistence(scripted);
+  lanes.push({
+    id: 'accessibility-persistence',
+    pass: accessibilityPersistence.pass,
+    details: accessibilityPersistence
+  });
 
   return lanes;
 }
@@ -375,6 +407,7 @@ module.exports = {
   buildEvidenceLanes,
   countBy,
   summarizeCognitionCoverage,
+  summarizeAccessibilityPersistence,
   summarizeBlockCells,
   summarizeContinuity,
   summarizeLanes
