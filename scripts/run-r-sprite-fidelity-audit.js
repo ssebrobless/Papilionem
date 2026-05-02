@@ -432,6 +432,52 @@ async function run() {
       const blockLayerSmooth = !!renderManager.layers.blocks.drawingContext.imageSmoothingEnabled;
       const entityLayerSmooth = !!renderManager.layers.entities.drawingContext.imageSmoothingEnabled;
       const behindLayerSmooth = !!renderManager.layers.entitiesBehind.drawingContext.imageSmoothingEnabled;
+      const sampleShadowPixels = (gfx, point) => {
+        const ctx = gfx.drawingContext;
+        const x = Math.max(0, Math.round(point.x) - 16);
+        const y = Math.max(0, Math.round(point.y) - 8);
+        const width = Math.min(32, gfx.width - x);
+        const height = Math.min(18, gfx.height - y);
+        if (width <= 0 || height <= 0) return { darkPixels: 0, maxAlpha: 0 };
+        const data = ctx.getImageData(x, y, width, height).data;
+        let darkPixels = 0;
+        let maxAlpha = 0;
+        for (let index = 0; index < data.length; index += 4) {
+          const alpha = data[index + 3] || 0;
+          maxAlpha = Math.max(maxAlpha, alpha);
+          if (alpha > 0 && data[index] < 40 && data[index + 1] < 40 && data[index + 2] < 40) {
+            darkPixels += 1;
+          }
+        }
+        return { darkPixels, maxAlpha };
+      };
+      const stackZoneId = 'moss-hollow';
+      const stackBoardPos = { zoneId: stackZoneId, u: 20, v: 15, h: 1 };
+      const stackScreen = renderManager.boardToScreen(stackBoardPos);
+      const expectedShadowPoint = renderManager.boardToScreen({ ...stackBoardPos, h: 0 });
+      const stackedBlock = new Block(stackScreen.x, stackScreen.y, {
+        currentZoneId: stackZoneId,
+        stackIndex: 1
+      });
+      const groundBlock = new Block(expectedShadowPoint.x, expectedShadowPoint.y, {
+        currentZoneId: stackZoneId,
+        stackIndex: 0
+      });
+      stackedBlock.boardPos = { ...stackBoardPos };
+      stackedBlock.currentZoneId = stackZoneId;
+      stackedBlock.stackIndex = 1;
+      groundBlock.boardPos = { ...stackBoardPos, h: 0 };
+      groundBlock.currentZoneId = stackZoneId;
+      groundBlock.stackIndex = 0;
+      const stackShadowPoint = stackedBlock.getStackShadowScreenPoint?.() || null;
+      const stackShadowGfx = createGraphics(gameConfig.canvas.baseWidth, gameConfig.canvas.baseHeight);
+      stackShadowGfx.clear();
+      stackedBlock.drawShadow(stackShadowGfx, 255);
+      const stackShadowPixels = sampleShadowPixels(stackShadowGfx, expectedShadowPoint);
+      const groundShadowGfx = createGraphics(gameConfig.canvas.baseWidth, gameConfig.canvas.baseHeight);
+      groundShadowGfx.clear();
+      groundBlock.drawShadow(groundShadowGfx, 255);
+      const groundShadowPixels = sampleShadowPixels(groundShadowGfx, expectedShadowPoint);
       const assertions = [
         assertion('body-bake-min-size', body?.surface?.width >= 96 && body?.surface?.height >= 96, {
           width: body?.surface?.width || 0,
@@ -457,6 +503,15 @@ async function run() {
           configuredCapMB: spriteManager.getMaxBakedSpriteSurfaceMB?.() || 32
         }),
         assertion('blocks-remain-crisp', blockLayerSmooth === false, { imageSmoothingEnabled: blockLayerSmooth }),
+        assertion('block-stack-shadow-at-h0-base', !!stackShadowPoint
+          && Math.hypot((stackShadowPoint.x || 0) - expectedShadowPoint.x, (stackShadowPoint.y || 0) - expectedShadowPoint.y) <= 0.75
+          && stackShadowPixels.darkPixels >= 10
+          && groundShadowPixels.darkPixels === 0, {
+          stackShadowPoint,
+          expectedShadowPoint,
+          stackShadowPixels,
+          groundShadowPixels
+        }),
         assertion('entity-layers-smooth', entityLayerSmooth === true && behindLayerSmooth === true, {
           entities: entityLayerSmooth,
           entitiesBehind: behindLayerSmooth

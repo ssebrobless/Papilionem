@@ -392,8 +392,42 @@ class Block extends Entity {
         return h * liftStep;
     }
 
+    getStackShadowScreenPoint() {
+        const zoneId = this.boardPos?.zoneId || this.currentZoneId || gameCore?.getFocusedZoneId?.() || null;
+        if (this.boardPos && zoneId && renderManager?.boardToScreen) {
+            return renderManager.boardToScreen({
+                zoneId,
+                u: this.boardPos.u,
+                v: this.boardPos.v,
+                h: 0
+            });
+        }
+        return { x: this.x || 0, y: this.y || 0 };
+    }
+
     drawShadow(graphics, alpha) {
-        return;
+        if (gameConfig?.rendering?.blockStackShadow?.enabled === false) return;
+        if (this.carriedById) return;
+        const h = Number.isFinite(this.boardPos?.h)
+            ? this.boardPos.h
+            : Math.max(0, this.stackIndex || 0);
+        if (h < 1) return;
+        const shadowPoint = this.getStackShadowScreenPoint();
+        const shadowWidth = Math.max(10, this.renderWidth * 0.86);
+        const shadowHeight = Math.max(4, this.renderHeight * 0.28);
+        graphics.push();
+        graphics.noStroke();
+        for (let layer = 2; layer >= 0; layer -= 1) {
+            const spread = layer + 1;
+            graphics.fill(0, 0, 0, Math.min(34, alpha * 0.055 * spread));
+            graphics.ellipse(
+                shadowPoint.x,
+                shadowPoint.y + Math.max(1, this.renderHeight * 0.08),
+                shadowWidth + (spread * 3),
+                shadowHeight + spread
+            );
+        }
+        graphics.pop();
     }
 
     getProceduralGeometry(drawY) {
@@ -484,6 +518,7 @@ class Block extends Entity {
     drawEntity(graphics, alpha) {
         const visualLift = this.getVisualLift();
         const drawY = this.y - visualLift;
+        this.drawShadow(graphics, alpha);
         this.drawProceduralCube(graphics, drawY, alpha);
         if (this.movedAtFrame) {
             const movedFramesAgo = this.getCurrentFrame() - this.movedAtFrame;

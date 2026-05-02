@@ -385,6 +385,9 @@ const PAPILIONEM_BATTLE_ARENA = {
             },
             antenna: 128
         },
+        blockStackShadow: {
+            enabled: true
+        },
         creatureBakeEvictOnInspectClose: true,
         creatureBakeAsyncOnInspect: true
     },
