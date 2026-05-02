@@ -64,6 +64,7 @@ class G0HPlaythroughDriver {
       ability: null,
       beforeReload: null,
       afterReload: null,
+      valeIsolation: null,
       residuals: []
     };
   }
@@ -117,6 +118,224 @@ class G0HPlaythroughDriver {
         blocks: gameCore.gameState?.blocks?.length || 0
       };
     }, { rawSave, storageKeys: STORAGE_KEYS });
+  }
+
+  async startValeIsolationTrace() {
+    const fixtureVale = (this.fixtureSpec.cast || []).find(entry => entry.alias === 'Vale') || null;
+    const details = await this.page.evaluate(({ fixtureVale }) => {
+      function countMemories(entity) {
+        const memories = entity?.lifeSim?.memories || {};
+        const social = Array.isArray(memories.social) ? memories.social : [];
+        const outcome = Array.isArray(memories.outcome) ? memories.outcome : [];
+        const place = Array.isArray(memories.place) ? memories.place : [];
+        return social.length + outcome.length + place.length;
+      }
+      function summarize(entity) {
+        if (!entity) return null;
+        return {
+          id: entity.id,
+          alias: entity.displayName || entity.lifeSim?.identity?.fixtureAlias || null,
+          zoneId: entity.currentZoneId || entity.boardPos?.zoneId || entity.lifeSim?.lifecycle?.currentZoneId || null,
+          boardPos: entity.boardPos ? { ...entity.boardPos } : null,
+          edgeCount: Object.keys(entity.lifeSim?.socialEdges || {}).length,
+          memoryPacketCount: countMemories(entity)
+        };
+      }
+      const state = gameCore.getGameState();
+      const vale = (state.butterflies || []).find(entity =>
+        entity.displayName === 'Vale' || entity.lifeSim?.identity?.fixtureAlias === 'Vale'
+      ) || null;
+      const valeSummary = summarize(vale);
+      const valeZoneId = valeSummary?.boardPos?.zoneId || valeSummary?.zoneId || fixtureVale?.zoneId || null;
+      const sameZoneNeighbors = (state.butterflies || [])
+        .filter(entity => entity?.id && entity.id !== vale?.id)
+        .map(entity => {
+          const board = entity.boardPos || null;
+          const zoneId = entity.currentZoneId || board?.zoneId || entity.lifeSim?.lifecycle?.currentZoneId || null;
+          if (!board || zoneId !== valeZoneId || !valeSummary?.boardPos) return null;
+          return {
+            id: entity.id,
+            alias: entity.displayName || entity.lifeSim?.identity?.fixtureAlias || null,
+            distanceUnits: Math.hypot((board.u || 0) - (valeSummary.boardPos.u || 0), (board.v || 0) - (valeSummary.boardPos.v || 0))
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.distanceUnits - b.distanceUnits)
+        .slice(0, 5);
+      const trace = {
+        installedAtFrame: gameCore.getCurrentFrame?.() || state.currentFrame || 0,
+        valeId: vale?.id || null,
+        fixtureBoardPos: fixtureVale?.boardPos || null,
+        initial: valeSummary,
+        sameZoneNeighborsAtStart: sameZoneNeighbors,
+        ensureLifeSimStateCount: 0,
+        ensureLifeSocialEdgeCount: 0,
+        ensureLifeSimState: [],
+        ensureLifeSocialEdge: []
+      };
+      window.__g0hValeIsolationTrace = trace;
+
+      function recordTraceSample(bucket, sample) {
+        const traceState = window.__g0hValeIsolationTrace;
+        if (!traceState) return;
+        const countKey = `${bucket}Count`;
+        traceState[countKey] = (traceState[countKey] || 0) + 1;
+        const samples = traceState[bucket];
+        if (Array.isArray(samples) && samples.length < 32) {
+          samples.push(sample);
+        }
+      }
+
+      if (vale?.id && lifeSimSystem?.ensureLifeSimState && !lifeSimSystem.__g0hValeTraceOriginalEnsureLifeSimState) {
+        lifeSimSystem.__g0hValeTraceOriginalEnsureLifeSimState = lifeSimSystem.ensureLifeSimState.bind(lifeSimSystem);
+        lifeSimSystem.ensureLifeSimState = function tracedEnsureLifeSimState(entity, ...args) {
+          const result = lifeSimSystem.__g0hValeTraceOriginalEnsureLifeSimState(entity, ...args);
+          if (entity?.id === window.__g0hValeIsolationTrace?.valeId) {
+            recordTraceSample('ensureLifeSimState', {
+              frame: gameCore.getCurrentFrame?.() || gameCore.getGameState?.()?.currentFrame || 0,
+              edgeCount: Object.keys(entity.lifeSim?.socialEdges || {}).length,
+              memoryPacketCount: countMemories(entity)
+            });
+          }
+          return result;
+        };
+      }
+
+      if (vale?.id && typeof ensureLifeSocialEdge === 'function' && !window.__g0hValeTraceOriginalEnsureLifeSocialEdge) {
+        window.__g0hValeTraceOriginalEnsureLifeSocialEdge = ensureLifeSocialEdge;
+        window.ensureLifeSocialEdge = function tracedEnsureLifeSocialEdge(entity, targetId, ...args) {
+          const result = window.__g0hValeTraceOriginalEnsureLifeSocialEdge(entity, targetId, ...args);
+          if (entity?.id === window.__g0hValeIsolationTrace?.valeId || targetId === window.__g0hValeIsolationTrace?.valeId) {
+            recordTraceSample('ensureLifeSocialEdge', {
+              frame: gameCore.getCurrentFrame?.() || gameCore.getGameState?.()?.currentFrame || 0,
+              entityId: entity?.id || null,
+              targetId,
+              edgeCount: Object.keys(entity?.lifeSim?.socialEdges || {}).length
+            });
+          }
+          return result;
+        };
+        try {
+          ensureLifeSocialEdge = window.ensureLifeSocialEdge;
+        } catch (_error) {
+          window.__g0hValeIsolationTrace.ensureLifeSocialEdgeAssignmentError = true;
+        }
+      }
+
+      return {
+        installed: !!vale,
+        trace
+      };
+    }, { fixtureVale });
+    this.evidence.valeIsolation = {
+      ...(this.evidence.valeIsolation || {}),
+      traceStart: details
+    };
+    return details;
+  }
+
+  async collectValeIsolationDiagnosis() {
+    const fixtureVale = (this.fixtureSpec.cast || []).find(entry => entry.alias === 'Vale') || null;
+    const runtime = await this.page.evaluate(({ fixtureVale }) => {
+      function countMemories(entity) {
+        const memories = entity?.lifeSim?.memories || {};
+        const social = Array.isArray(memories.social) ? memories.social : [];
+        const outcome = Array.isArray(memories.outcome) ? memories.outcome : [];
+        const place = Array.isArray(memories.place) ? memories.place : [];
+        return {
+          social: social.length,
+          outcome: outcome.length,
+          place: place.length,
+          total: social.length + outcome.length + place.length
+        };
+      }
+      function countMeaningfulEdges(entity) {
+        return Object.values(entity?.lifeSim?.socialEdges || {}).filter(edge => {
+          if (!edge || typeof edge !== 'object') return false;
+          const tier = `${edge.bondTier || edge.tier || ''}`.toLowerCase();
+          if (['companion', 'bonded', 'family', 'mate'].includes(tier)) return true;
+          const strongest = Math.max(
+            edge.trust || 0,
+            edge.comfort || 0,
+            edge.attachment || 0,
+            edge.admiration || 0,
+            edge.protectiveness || 0,
+            edge.familiarity || 0
+          );
+          return strongest >= 0.35 || (edge.coTimeSeconds || 0) >= 60;
+        }).length;
+      }
+      const state = gameCore.getGameState();
+      const vale = (state.butterflies || []).find(entity =>
+        entity.displayName === 'Vale' || entity.lifeSim?.identity?.fixtureAlias === 'Vale'
+      ) || null;
+      const memories = countMemories(vale);
+      const current = vale ? {
+        id: vale.id,
+        zoneId: vale.currentZoneId || vale.boardPos?.zoneId || vale.lifeSim?.lifecycle?.currentZoneId || null,
+        boardPos: vale.boardPos ? { ...vale.boardPos } : null,
+        edgeCount: Object.keys(vale.lifeSim?.socialEdges || {}).length,
+        meaningfulEdgeCount: countMeaningfulEdges(vale),
+        memoryPacketCount: memories.total,
+        memoryFamilyCounts: {
+          social: memories.social,
+          outcome: memories.outcome,
+          place: memories.place
+        },
+        isolationMarker: gameUI.getInspectIsolationMarker?.(vale, state) || null
+      } : null;
+      const trace = window.__g0hValeIsolationTrace || null;
+      return {
+        fixtureBoardPos: fixtureVale?.boardPos || null,
+        trace,
+        current
+      };
+    }, { fixtureVale });
+    const valeSnapshots = (this.evidence.snapshots || [])
+      .map(snapshot => ({
+        label: snapshot.label,
+        frame: snapshot.frame,
+        vale: snapshot.aliases?.Vale || null
+      }))
+      .filter(entry => !!entry.vale);
+    const initial = runtime.trace?.initial || valeSnapshots[0]?.vale || null;
+    const current = runtime.current || valeSnapshots[valeSnapshots.length - 1]?.vale || null;
+    const nearestStartDistance = runtime.trace?.sameZoneNeighborsAtStart?.[0]?.distanceUnits ?? null;
+    const startsEmpty = (initial?.edgeCount || 0) === 0 && (initial?.memoryPacketCount || 0) === 0;
+    const startsIsolated = startsEmpty && (!Number.isFinite(nearestStartDistance) || nearestStartDistance >= 8);
+    const endsWithEdges = (current?.edgeCount || 0) >= 2;
+    const endsWithMemories = (current?.memoryPacketCount || 0) >= 3;
+    const endsSocialized = endsWithEdges && endsWithMemories;
+    const remainsIntentionallyAlone = startsIsolated && !endsWithEdges && !endsWithMemories;
+    const cause = endsSocialized
+      ? 'fixture-starts-isolated; lived play creates social truth'
+      : remainsIntentionallyAlone
+        ? 'fixture-intentional-isolation-remains-without-meaningful-social-truth'
+        : startsIsolated && endsWithEdges
+          ? 'fixture-starts-isolated; lived play creates edges without owned cognition packets'
+          : 'possible-social-initialization-gap';
+    const details = {
+      pass: endsSocialized || remainsIntentionallyAlone,
+      cause,
+      startsEmpty,
+      startsIsolated,
+      remainsIntentionallyAlone,
+      endsWithEdges,
+      endsWithMemories,
+      endsSocialized,
+      initial,
+      current,
+      inspectMarker: current?.isolationMarker || null,
+      nearestStartDistance,
+      traceCounts: {
+        ensureLifeSimState: runtime.trace?.ensureLifeSimStateCount ?? runtime.trace?.ensureLifeSimState?.length ?? 0,
+        ensureLifeSocialEdge: runtime.trace?.ensureLifeSocialEdgeCount ?? runtime.trace?.ensureLifeSocialEdge?.length ?? 0
+      },
+      trace: runtime.trace,
+      valeSnapshots
+    };
+    this.evidence.valeIsolation = details;
+    return details;
   }
 
   async startCapture(label = 'g0h-scripted-playthrough') {
@@ -209,6 +428,22 @@ class G0HPlaythroughDriver {
           memoryKindCounts
         };
       }
+      function countMeaningfulEdges(entity) {
+        return Object.values(entity?.lifeSim?.socialEdges || {}).filter(edge => {
+          if (!edge || typeof edge !== 'object') return false;
+          const tier = `${edge.bondTier || edge.tier || ''}`.toLowerCase();
+          if (['companion', 'bonded', 'family', 'mate'].includes(tier)) return true;
+          const strongest = Math.max(
+            edge.trust || 0,
+            edge.comfort || 0,
+            edge.attachment || 0,
+            edge.admiration || 0,
+            edge.protectiveness || 0,
+            edge.familiarity || 0
+          );
+          return strongest >= 0.35 || (edge.coTimeSeconds || 0) >= 60;
+        }).length;
+      }
       const state = gameCore.getGameState();
       const target = (state.butterflies || []).find(entity => entity.displayName === alias || entity.lifeSim?.identity?.fixtureAlias === alias) || null;
       if (!target) return { alias, found: false, afterReload: !!afterReload };
@@ -218,6 +453,7 @@ class G0HPlaythroughDriver {
       gameUI.inspectPanel.scrollOffset = 0;
       gameUI.inspectControl.browseScope = 'all';
       gameUI.inspectControl.lockedBrowseScope = 'all';
+      const isolationMarker = gameUI.getInspectIsolationMarker?.(target, state) || null;
       return {
         alias,
         id: target.id,
@@ -228,7 +464,9 @@ class G0HPlaythroughDriver {
         memoryFamilyCounts: memorySummary.memoryFamilyCounts,
         memoryKindCounts: memorySummary.memoryKindCounts,
         edgeCount: Object.keys(target.lifeSim?.socialEdges || {}).length,
-        boardPos: target.boardPos || null
+        meaningfulEdgeCount: countMeaningfulEdges(target),
+        boardPos: target.boardPos || null,
+        isolationMarker
       };
     }, { alias, afterReload: !!options.afterReload });
     this.evidence.inspections.push(details);
@@ -286,6 +524,7 @@ class G0HPlaythroughDriver {
           memoryPacketCount: memorySummary.memoryPacketCount,
           memoryFamilyCounts: memorySummary.memoryFamilyCounts,
           memoryKindCounts: memorySummary.memoryKindCounts,
+          isolationMarker: gameUI.getInspectIsolationMarker?.(entity, state) || null,
           derivedFeelings: clone(entity.lifeSim?.derived?.feelings || entity.lifeSim?.derived?.emotionalState || {}, {}),
           drives: clone(entity.lifeSim?.drives || {}, {}),
           emotions: clone(entity.lifeSim?.emotions || {}, {})
@@ -560,7 +799,7 @@ class G0HPlaythroughDriver {
     const details = await this.page.evaluate(() => {
       const state = gameCore.getGameState();
       const byName = name => (state.butterflies || []).find(entity => entity.displayName === name) || null;
-      const distressed = byName('Vale') || byName('Briar');
+      const distressed = byName('Briar') || byName('Vale');
       const nonResponder = byName('Aster');
       if (!distressed || !nonResponder) return { ok: false, reason: 'missing-abandoned-ally-cast' };
       const zoneId = 'moss-hollow';

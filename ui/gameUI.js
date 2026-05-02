@@ -593,6 +593,43 @@ class GameUI {
         };
     }
 
+    getInspectIsolationMarker(target, gameState) {
+        if (!target?.lifeSim) return null;
+        const edges = target.lifeSim.socialEdges || {};
+        const memories = target.lifeSim.memories || {};
+        const socialPackets = Array.isArray(memories.social) ? memories.social : [];
+        const outcomePackets = Array.isArray(memories.outcome) ? memories.outcome : [];
+        const placePackets = Array.isArray(memories.place) ? memories.place : [];
+        const memoryPacketCount = socialPackets.length + outcomePackets.length + placePackets.length;
+        const meaningfulEdgeCount = Object.values(edges).filter(edge => {
+            if (!edge || typeof edge !== 'object') return false;
+            const tier = `${edge.bondTier || edge.tier || ''}`.toLowerCase();
+            if (['companion', 'bonded', 'family', 'mate'].includes(tier)) return true;
+            const strongest = Math.max(
+                edge.trust || 0,
+                edge.comfort || 0,
+                edge.attachment || 0,
+                edge.admiration || 0,
+                edge.protectiveness || 0,
+                edge.familiarity || 0
+            );
+            return strongest >= 0.35 || (edge.coTimeSeconds || 0) >= 60;
+        }).length;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? gameState?.currentFrame ?? 0;
+        const ageTicks = Number.isFinite(target.lifeSim.lifecycle?.ageTicks)
+            ? target.lifeSim.lifecycle.ageTicks
+            : 0;
+        const spawnedAtFrame = Number.isFinite(target.spawnedAtFrame)
+            ? target.spawnedAtFrame
+            : (Number.isFinite(target.createdAtFrame) ? target.createdAtFrame : null);
+        const frameAge = spawnedAtFrame !== null ? Math.max(0, currentFrame - spawnedAtFrame) : currentFrame;
+        const ageFrames = Math.max(ageTicks || 0, frameAge || 0);
+        if (meaningfulEdgeCount === 0 && memoryPacketCount < 3 && ageFrames >= 1800) {
+            return 'alone in the garden so far';
+        }
+        return null;
+    }
+
     buildInspectDetailDomState(target, gameState) {
         const zoneId = target.currentZoneId || target.lifeSim?.lifecycle?.currentZoneId || null;
         const sleepState = typeof sleepSystem !== 'undefined'
@@ -631,6 +668,7 @@ class GameUI {
         const feelingLine = cognition?.strongestFeeling && cognition.strongestFeeling !== 'steady'
             ? `Feeling ${cognition.strongestFeeling} | lonely ${feelingCounters.loneliness} | grief ${feelingCounters.grief} | jealous ${feelingCounters.jealousy} | pride ${feelingCounters.pride} | shame ${feelingCounters.shame}`
             : `Feeling steady | lonely ${feelingCounters.loneliness} | grief ${feelingCounters.grief} | jealous ${feelingCounters.jealousy} | pride ${feelingCounters.pride} | shame ${feelingCounters.shame}`;
+        const isolationMarker = this.getInspectIsolationMarker(target, gameState);
         return {
             targetId: target.id,
             targetLabel: this.getInspectButterflyTitle(target),
@@ -670,6 +708,7 @@ class GameUI {
                         relationshipSummary
                             ? this.normalizePresentationText(`${relationshipSummary.partnerLabel} | trust ${relationshipSummary.trust} | comfort ${relationshipSummary.comfort} | admiration ${relationshipSummary.admiration}`)
                             : this.normalizePresentationText(`rep ${lifeSimSummary?.social?.reputation || 0} | belong ${lifeSimSummary?.social?.belonging || 0} | conf ${lifeSimSummary?.social?.confidence || 0}`),
+                        isolationMarker ? this.normalizePresentationText(isolationMarker) : null,
                         relationshipSummary
                             ? this.normalizePresentationText(`${relationshipSummary.partnerLabel} | ${relationshipSummary.pairTextureLabel || 'steady'} | attachment ${relationshipSummary.attachment} | chemistry ${relationshipSummary.chemistry}`)
                             : 'No strong bond tracked yet',
@@ -3218,6 +3257,8 @@ class GameUI {
         const relationshipText = cleanDisplayText(relationshipSummary
             ? `${relationshipSummary.partnerLabel} | trust ${relationshipSummary.trust} | comfort ${relationshipSummary.comfort} | admiration ${relationshipSummary.admiration} | resentment ${relationshipSummary.resentment}`
             : `rep ${lifeSimSummary?.social?.reputation || 0} | belong ${lifeSimSummary?.social?.belonging || 0} | conf ${lifeSimSummary?.social?.confidence || 0} | ${lifeSimSummary?.social?.context || 'wandering'}`);
+        const isolationMarker = this.getInspectIsolationMarker(target, gameState);
+        const isolationMarkerText = isolationMarker ? cleanDisplayText(isolationMarker) : null;
         const romanceText = cleanDisplayText(relationshipSummary
             ? `${relationshipSummary.partnerLabel} | ${relationshipSummary.pairTextureLabel || 'steady'} | attachment ${relationshipSummary.attachment} | chemistry ${relationshipSummary.chemistry}`
             : 'No strong bond tracked yet');
@@ -3320,7 +3361,7 @@ class GameUI {
             {
                 id: 'social',
                 title: 'Social + Mind',
-                lines: [relationshipText, romanceText, followThroughText, `Society ${societyToneText}`, societyToneDetailText, `Rhythm ${socialEcologyText}`, socialEcologyDetailText, playerText, dominantMindText, socialText],
+                lines: [relationshipText, isolationMarkerText, romanceText, followThroughText, `Society ${societyToneText}`, societyToneDetailText, `Rhythm ${socialEcologyText}`, socialEcologyDetailText, playerText, dominantMindText, socialText],
                 maxLinesPerItem: 2
             },
             {

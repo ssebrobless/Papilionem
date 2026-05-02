@@ -25,6 +25,7 @@ function writeHumanReview(outputDir, report, spec) {
   const fidelityGaps = fidelityLane && !fidelityLane.pass
     ? (fidelityLane.details?.gaps || ['Evidence fidelity lane failed without a named gap.'])
     : [];
+  const valeIsolation = report.scriptedEvidence?.valeIsolation || null;
   const lines = [
     '# G0H Scripted Playthrough Human Review',
     '',
@@ -48,6 +49,16 @@ function writeHumanReview(outputDir, report, spec) {
       '## Evidence Fidelity',
       '',
       ...fidelityGaps.map(gap => `- ${gap}`),
+      ''
+    ] : []),
+    ...(valeIsolation ? [
+      '## Vale Isolation Diagnosis',
+      '',
+      `- Cause: ${valeIsolation.cause || 'unknown'}`,
+      `- Starts isolated: ${valeIsolation.startsIsolated ? 'yes' : 'no'}`,
+      `- Ends socialized: ${valeIsolation.endsSocialized ? 'yes' : 'no'}`,
+      `- Inspect marker: ${valeIsolation.inspectMarker || 'not shown'}`,
+      `- Current raw edges / meaningful edges / memories: ${valeIsolation.current?.edgeCount ?? 'n/a'} / ${valeIsolation.current?.meaningfulEdgeCount ?? 'n/a'} / ${valeIsolation.current?.memoryPacketCount ?? 'n/a'}`,
       ''
     ] : []),
     '## Residuals / Follow-Up',
@@ -155,6 +166,7 @@ async function run() {
     if (!report.importResult.restored) {
       throw new Error('Fixture save did not load cleanly');
     }
+    await driver.startValeIsolationTrace();
 
     await driver.focusZone(spec.zones.ivy);
     await driver.startCapture(fast ? 'g0h-scripted-playthrough-fast' : 'g0h-scripted-playthrough');
@@ -250,6 +262,7 @@ async function run() {
     report.screenshots['09-final-feed.png'] = await driver.screenshot('09-final-feed.png');
     await driver.snapshot('09-final-feed');
     await driver.refreshFlowerLifecycleFinal();
+    await driver.collectValeIsolationDiagnosis();
 
     await driver.waitUntil(421000);
     report.runtime = await driver.runtimeSummary(report.runtime.pageErrors, report.runtime.consoleErrors);
