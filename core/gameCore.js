@@ -2668,24 +2668,37 @@ class GameCore {
             && flower.stage !== 'dissolve'
             && flower.occupancyState === 'normal'
         );
+        const dirtPileCount = flowers.filter(flower => flower?.lifecycleKind === 'dirt-pile').length;
+        const soiledConfig = gameConfig?.entities?.flower?.soiledSpawnSuppression || {};
+        const soiledSuppressionEnabled = soiledConfig.enabled !== false;
+        const soiledThreshold = Math.max(1, Number(soiledConfig.thresholdPiles || 3));
+        const soiledPenalty = soiledSuppressionEnabled
+            ? this.clampUnit((dirtPileCount / soiledThreshold) * Number(soiledConfig.maxPenalty || 0.72))
+            : 0;
         const butterflyCount = Array.isArray(butterflies) ? butterflies.length : (butterflies || 0);
-        const floorTarget = Math.max(1, Math.min(3,
+        const baseFloorTarget = Math.max(1, Math.min(3,
             1
             + (butterflyCount >= 2 ? 1 : 0)
             + (butterflyCount >= 6 && (state.habitatQuality ?? 0.5) >= 0.78 ? 1 : 0)
         ));
+        const floorTarget = Math.max(0, Math.round(baseFloorTarget * (1 - soiledPenalty)));
         const qualityBonus = (state.habitatQuality ?? 0.5) >= 0.72 ? 1 : 0;
         const reserveBonus = (state.resourceReserve ?? 0.5) >= 0.7 ? 1 : 0;
         const demandTarget = Math.ceil(Math.max(1, butterflyCount) * 0.35);
-        const minNormalFlowers = Math.max(floorTarget, Math.min(7, demandTarget + 1 + qualityBonus + reserveBonus));
-        const maxNormalFlowers = Math.max(minNormalFlowers, Math.min(9, minNormalFlowers + 2 + ((state.habitatQuality ?? 0.5) >= 0.8 ? 1 : 0)));
-        const recoveryChance = this.clampUnit(0.12 + ((state.habitatQuality ?? 0.5) * 0.2) + ((state.resourceReserve ?? 0.5) * 0.16) - ((state.depletionPressure ?? 0.08) * 0.18));
+        const rawMinNormalFlowers = Math.max(floorTarget, Math.min(7, demandTarget + 1 + qualityBonus + reserveBonus));
+        const minNormalFlowers = Math.max(floorTarget, Math.round(rawMinNormalFlowers - (soiledPenalty * 3)));
+        const rawMaxNormalFlowers = Math.max(rawMinNormalFlowers, Math.min(9, rawMinNormalFlowers + 2 + ((state.habitatQuality ?? 0.5) >= 0.8 ? 1 : 0)));
+        const maxNormalFlowers = Math.max(minNormalFlowers, Math.round(rawMaxNormalFlowers - (soiledPenalty * 4)));
+        const recoveryChanceBase = this.clampUnit(0.12 + ((state.habitatQuality ?? 0.5) * 0.2) + ((state.resourceReserve ?? 0.5) * 0.16) - ((state.depletionPressure ?? 0.08) * 0.18));
+        const recoveryChance = this.clampUnit(recoveryChanceBase * (1 - soiledPenalty));
         return {
             floorTarget,
             minNormalFlowers,
             maxNormalFlowers,
             recoveryChance,
-            normalFlowerCount: normalFlowers.length
+            normalFlowerCount: normalFlowers.length,
+            dirtPileCount,
+            soiledPenalty
         };
     }
 
@@ -5050,10 +5063,12 @@ class GameCore {
         if (this.getCurrentFrame() % checkInterval !== 0) return;
 
         for (const zoneId of zoneIds) {
-            const activeFlowers = (sceneState?.flowers || []).filter(flower =>
+            const worldFlowers = this.gameState?.flowers || sceneState?.flowers || [];
+            const worldButterflies = this.gameState?.butterflies || sceneState?.butterflies || [];
+            const activeFlowers = worldFlowers.filter(flower =>
                 this.getEntityZoneId(flower, null) === zoneId && flower?.stage !== 'dissolve'
             );
-            const activeButterflies = (sceneState?.butterflies || []).filter(butterfly => this.getEntityZoneId(butterfly, null) === zoneId);
+            const activeButterflies = worldButterflies.filter(butterfly => this.getEntityZoneId(butterfly, null) === zoneId);
             const zoneState = this.zoneSystem?.getZoneEcologyState?.(zoneId) || {};
             const spawnTargets = this.getZoneFlowerSpawnTargets(zoneId, {
                 flowers: activeFlowers,

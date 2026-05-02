@@ -244,8 +244,9 @@ async function run() {
     }
     report.screenshots['09-final-feed.png'] = await driver.screenshot('09-final-feed.png');
     await driver.snapshot('09-final-feed');
+    await driver.refreshFlowerLifecycleFinal();
 
-    await driver.waitUntil(420000);
+    await driver.waitUntil(421000);
     report.runtime = await driver.runtimeSummary(report.runtime.pageErrors, report.runtime.consoleErrors);
     report.capture = await driver.exportCapture(captureDir);
     report.scriptedEvidence = driver.evidence;

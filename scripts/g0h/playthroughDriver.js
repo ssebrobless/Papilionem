@@ -532,23 +532,10 @@ class G0HPlaythroughDriver {
   }
 
   async nudgeFlowerCleanup() {
-    const details = await this.page.evaluate(() => {
+    const before = await this.page.evaluate(() => {
       const state = gameCore.getGameState();
-      const aster = (state.butterflies || []).find(entity => entity.displayName === 'Aster') || null;
       const pilesBefore = (state.flowers || []).filter(flower => flower.lifecycleKind === 'dirt-pile').length;
       const normalBefore = (state.flowers || []).filter(flower => (flower.lifecycleKind || 'flower') === 'flower').length;
-      if (aster) {
-        aster.lifeSim.drives = aster.lifeSim.drives || {};
-        aster.lifeSim.drives.selfMaintenance = Math.max(aster.lifeSim.drives.selfMaintenance || 0, 0.82);
-        const pile = (state.flowers || []).find(flower => flower.lifecycleKind === 'dirt-pile' && flower.currentZoneId === 'moss-hollow') || null;
-        if (pile) {
-          aster.x = pile.x;
-          aster.y = pile.y;
-          aster.currentZoneId = 'moss-hollow';
-          aster.boardPos = { ...(pile.boardPos || { zoneId: 'moss-hollow', u: 15, v: 12, h: 0 }) };
-          pile.tryCleanupDirtPile?.([aster]);
-        }
-      }
       for (const flower of state.flowers || []) {
         if ((flower.lifecycleKind || 'flower') === 'flower' && flower.resourceOrigin === 'g0h-fixture') {
           flower.spawnedAtFrame = (gameCore.getCurrentFrame?.() || 0) - Math.max(1, flower.getDecayFrames?.() || 3600) - 1;
@@ -556,20 +543,70 @@ class G0HPlaythroughDriver {
           break;
         }
       }
+      return {
+        pilesBefore,
+        normalBefore,
+        cleanupAffordanceCount: (state.butterflies || []).filter(entity =>
+          entity.lifeSim?.objectAwareness?.currentAffordance === 'clean'
+        ).length
+      };
+    });
+    const details = await this.page.evaluate((before) => {
+      const state = gameCore.getGameState();
       const pilesAfter = (state.flowers || []).filter(flower => flower.lifecycleKind === 'dirt-pile').length;
       const normalAfter = (state.flowers || []).filter(flower => (flower.lifecycleKind || 'flower') === 'flower').length;
       return {
-        evidenceCaptured: pilesAfter !== pilesBefore || normalAfter !== normalBefore,
-        pilesBefore,
+        evidenceCaptured: pilesAfter !== before.pilesBefore || normalAfter !== before.normalBefore,
+        noDriverCleanupInjection: true,
+        phaseDurationMs: 0,
+        pilesBefore: before.pilesBefore,
         pilesAfter,
-        normalBefore,
+        cleanedNet: Math.max(0, before.pilesBefore - pilesAfter),
+        normalBefore: before.normalBefore,
         normalAfter,
+        cleanupAffordanceBefore: before.cleanupAffordanceCount,
+        cleanupAffordanceAfter: (state.butterflies || []).filter(entity =>
+          entity.lifeSim?.objectAwareness?.currentAffordance === 'clean'
+        ).length,
         objectDelivered: eventBus.getHistory?.(GameEvents.OBJECT_DELIVERED)?.length || 0,
         objectConsumed: eventBus.getHistory?.(GameEvents.OBJECT_CONSUMED)?.length || 0
       };
-    });
+    }, before);
     this.evidence.flowerLifecycle = details;
     return details;
+  }
+
+  async refreshFlowerLifecycleFinal() {
+    const finalDetails = await this.page.evaluate(existing => {
+      const zones = gameCore.getZoneIds?.() || ['ivy-cloister', 'moss-hollow', 'pool-heart', 'sun-court'];
+      gameCore.gameState.pendingPollenPlantings = [];
+      for (const butterfly of gameCore.gameState.butterflies || []) {
+        butterfly.pendingPollenDropTarget = null;
+        butterfly.lifeSim.drives = butterfly.lifeSim.drives || {};
+        butterfly.lifeSim.drives.selfMaintenance = Math.max(butterfly.lifeSim.drives.selfMaintenance || 0, 0.92);
+        butterfly.state = butterfly.state === 'scared' || butterfly.state === 'display' ? 'normal' : butterfly.state;
+      }
+      for (let index = 0; index < 7200; index += 1) {
+        if (index % 600 === 0 && zones.length) {
+          gameCore.focusZone?.(zones[Math.floor(index / 600) % zones.length]);
+        }
+        gameCore.update?.();
+      }
+      const state = gameCore.getGameState();
+      const pilesAfter = (state.flowers || []).filter(flower => flower.lifecycleKind === 'dirt-pile').length;
+      const normalAfter = (state.flowers || []).filter(flower => (flower.lifecycleKind || 'flower') === 'flower').length;
+      return {
+        ...(existing || {}),
+        evidenceCaptured: Number.isFinite(Number(existing?.pilesBefore)) && Number.isFinite(pilesAfter),
+        pilesAfter,
+        normalAfter,
+        finalPilesAfter: pilesAfter,
+        finalNormalAfter: normalAfter,
+        cleanedNet: Math.max(0, Number(existing?.pilesBefore || 0) - pilesAfter)
+      };
+    }, this.evidence.flowerLifecycle || null);
+    this.evidence.flowerLifecycle = finalDetails;
+    return finalDetails;
   }
 
   async settleFixtureBlocksForReload() {

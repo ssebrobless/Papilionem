@@ -315,11 +315,17 @@ function buildEvidenceLanes(report = {}) {
     pass: !!scripted.feedShape?.hasMotive && !!scripted.feedShape?.hasTarget && !!scripted.feedShape?.hasResponse && !!scripted.feedShape?.hasConsequence,
     details: scripted.feedShape || null
   });
+  const finalDirtPileCount = Number(scripted.flowerLifecycle?.finalPilesAfter ?? flowerKinds['dirt-pile'] ?? 0);
   lanes.push({
     id: 'flower-lifecycle',
-    pass: !!scripted.flowerLifecycle?.evidenceCaptured,
+    pass:
+      !!scripted.flowerLifecycle?.evidenceCaptured &&
+      scripted.flowerLifecycle?.noDriverCleanupInjection === true &&
+      Number(scripted.flowerLifecycle?.pilesAfter || 0) <= Number(scripted.flowerLifecycle?.pilesBefore || 0) - 5 &&
+      finalDirtPileCount < 50,
     details: {
       flowerLifecycle: scripted.flowerLifecycle || null,
+      finalDirtPileCount,
       finalFlowerKinds: flowerKinds
     }
   });

@@ -518,6 +518,7 @@ class Butterfly extends Entity {
             postFeedingLeadCooldownDuration: 480 // 8 seconds
         };
         this.targetFlower = null;
+        this.targetCleanupPile = null;
         this._decisionTraceCache = {
             frame: -1,
             trace: null,
@@ -1548,6 +1549,17 @@ class Butterfly extends Entity {
             // Don't return early - continue with behavior logic
         }
         
+        if (this.checkCleanupSeeking(flowers)) {
+            const targetPile = this.targetCleanupPile || this.findDirtPileAtTarget(flowers);
+            if (targetPile && this.getDistanceToMovementTarget() < 0.65) {
+                targetPile.tryCleanupDirtPile?.([this]);
+                this.movement.clearTarget('cleanup');
+                this.targetCleanupPile = null;
+                this.pickNewWanderTarget();
+            }
+            return;
+        }
+
         this.checkFlowerSeeking(flowers);
 
         if (this.movement.targetType === 'goal') {
@@ -1573,6 +1585,7 @@ class Butterfly extends Entity {
             if (!this.movement.target || (!this.movement.targetType || 
                 (this.movement.targetType !== 'meander' &&
                  this.movement.targetType !== 'immediate' &&
+                 this.movement.targetType !== 'cleanup' &&
                  this.movement.targetType !== 'pheromone'))) {
                 // Pick a new wander target if we don't have one or if we're not already wandering/dashing
                 this.pickNewWanderTarget();
@@ -2411,6 +2424,7 @@ class Butterfly extends Entity {
 
     pickNewWanderTarget() {
         this.targetFlower = null;
+        this.targetCleanupPile = null;
         const behaviorBiases = this.lifeSim?.derived?.behaviorBiases || {};
         const wanderScale = Math.max(0.7, Math.min(1.35, behaviorBiases.wanderScale || 1));
         const shelterSeeking = Math.max(0, Math.min(1, behaviorBiases.shelterSeeking || 0));
@@ -3010,6 +3024,9 @@ class Butterfly extends Entity {
     }
     
     checkFlowerSeeking(flowers) {
+        if (this.lifeSim?.objectAwareness?.currentAffordance === 'clean' && this.checkCleanupSeeking(flowers)) {
+            return;
+        }
         const availableFlowers = flowers.filter(f => this.isFlowerAvailable(f));
         const feedUrgency = this.lifeSim?.derived?.behaviorBiases?.feedUrgency || 0;
         const mlTrace = typeof mlInferenceSystem !== 'undefined' ? mlInferenceSystem.getEntityTrace?.(this.id) : null;
@@ -3089,6 +3106,105 @@ class Butterfly extends Entity {
                 zoneId: targetFlower.currentZoneId || this.getMovementZoneId()
             });
         }
+    }
+
+    getDirtPileCleanupDrive() {
+        const selfMaintenance = this.lifeSim?.drives?.selfMaintenance
+            ?? this.lifeSim?.derived?.driveTargets?.selfMaintenance
+            ?? 0;
+        const threshold = Math.max(0, gameConfig?.entities?.flower?.pileCleanupSelfMaintenance || 0.56);
+        return { selfMaintenance, threshold };
+    }
+
+    getDirtPilesInCurrentZone(flowers = []) {
+        const zoneId = this.getMovementZoneId();
+        return (flowers || []).filter(flower =>
+            flower?.lifecycleKind === 'dirt-pile'
+            && (!zoneId || !flower.currentZoneId || flower.currentZoneId === zoneId)
+        );
+    }
+
+    findNearestCleanupPile(flowers = []) {
+        const current = this.ensureBoardPos();
+        if (!current) return null;
+        const maxUnits = Math.max(1, Number(gameConfig?.cognition?.affordances?.cleanupNavigationMaxUnits || 18));
+        let best = null;
+        let bestScore = Infinity;
+        for (const pile of this.getDirtPilesInCurrentZone(flowers)) {
+            const pileBoard = this.getEntityBoardPos(pile, current.zoneId);
+            if (!pileBoard) continue;
+            const distance = Math.hypot((pileBoard.u || 0) - current.u, (pileBoard.v || 0) - current.v);
+            if (distance > maxUnits) continue;
+            const targeters = (gameCore?.gameState?.butterflies || []).filter(other =>
+                other?.id
+                && other.id !== this.id
+                && other.targetCleanupPile?.id === pile.id
+            ).length;
+            const score = distance + (targeters * 2.5);
+            if (score < bestScore) {
+                best = { pile, boardPos: pileBoard, distance, targeters };
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    findDirtPileAtTarget(flowers = []) {
+        if (!this.movement?.target) return null;
+        const targetBoard = this.getMovementTargetBoardPos();
+        if (!targetBoard) return null;
+        for (const pile of this.getDirtPilesInCurrentZone(flowers)) {
+            const pileBoard = this.getEntityBoardPos(pile, targetBoard.zoneId);
+            if (!pileBoard) continue;
+            const distance = Math.hypot((pileBoard.u || 0) - targetBoard.u, (pileBoard.v || 0) - targetBoard.v);
+            if (distance <= 0.75) return pile;
+        }
+        return null;
+    }
+
+    checkCleanupSeeking(flowers = []) {
+        if (gameConfig?.cognition?.affordances?.cleanupNavigationBias === false) {
+            if (this.movement.targetType === 'cleanup') this.movement.clearTarget('cleanup');
+            this.targetCleanupPile = null;
+            return false;
+        }
+        if (this.state !== 'normal' || this.zoneTravel || this.pendingPollenDropTarget || this.blockInteraction?.carryingBlockId) {
+            if (this.movement.targetType === 'cleanup') this.movement.clearTarget('cleanup');
+            this.targetCleanupPile = null;
+            return false;
+        }
+        const { selfMaintenance, threshold } = this.getDirtPileCleanupDrive();
+        if (selfMaintenance < threshold) {
+            if (this.movement.targetType === 'cleanup') this.movement.clearTarget('cleanup');
+            this.targetCleanupPile = null;
+            return false;
+        }
+        const zonePiles = this.getDirtPilesInCurrentZone(flowers);
+        const affordanceWantsClean = this.lifeSim?.objectAwareness?.currentAffordance === 'clean';
+        const directCleanupPressure = zonePiles.length > 0 && selfMaintenance >= threshold + 0.04;
+        if (!affordanceWantsClean && !directCleanupPressure) {
+            if (this.movement.targetType === 'cleanup') this.movement.clearTarget('cleanup');
+            this.targetCleanupPile = null;
+            return false;
+        }
+        if (this.targetCleanupPile && !(flowers || []).includes(this.targetCleanupPile)) {
+            this.targetCleanupPile = null;
+            if (this.movement.targetType === 'cleanup') this.movement.clearTarget('cleanup');
+        }
+        if (this.movement.targetType === 'cleanup' && this.targetCleanupPile) {
+            return true;
+        }
+        const candidate = this.findNearestCleanupPile(zonePiles);
+        if (!candidate?.pile || !candidate.boardPos) {
+            if (this.movement.targetType === 'cleanup') this.movement.clearTarget('cleanup');
+            this.targetCleanupPile = null;
+            return false;
+        }
+        this.targetCleanupPile = candidate.pile;
+        this.rememberDispersalAnchor(`cleanup:${candidate.pile.id}`);
+        const priority = Number(gameConfig?.cognition?.affordances?.cleanupNavigationPriority || 4);
+        this.movement.setBoardTarget(candidate.boardPos.u, candidate.boardPos.v, 'cleanup', priority, 0);
+        return true;
     }
     
     findFlowerAtTarget(flowers) {

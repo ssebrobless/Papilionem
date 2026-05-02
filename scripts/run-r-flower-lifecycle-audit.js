@@ -362,6 +362,91 @@ async function run() {
         pass: organicPileIds.length === 8 && (organicPileIds.length - remainingOrganicPiles.length) >= 4
       };
 
+      for (const flower of [...(gameCore.gameState.flowers || [])]) {
+        gameCore.removeFlowerFromGame(flower, 'z2-cleanup-lived-reset');
+      }
+      gameCore.gameState.pendingPollenPlantings = [];
+      for (const butterfly of gameCore.gameState.butterflies || []) {
+        butterfly.pendingPollenDropTarget = null;
+      }
+      const livedZoneIds = ['ivy-cloister', 'moss-hollow', 'pool-heart', 'sun-court']
+        .filter(id => zoneIds.includes(id));
+      const livedPileIds = [];
+      const perZonePoints = [
+        { u: 9, v: 8 },
+        { u: 15, v: 11 },
+        { u: 21, v: 14 }
+      ];
+      livedZoneIds.forEach(zone => {
+        perZonePoints.forEach(point => {
+          const screen = renderManager.boardToScreen({ zoneId: zone, u: point.u, v: point.v, h: 0 });
+          const flower = gameCore.spawnFlowerAt(zone, screen.x, screen.y, {
+            exactPoint: true,
+            ignoreZoneFlowerCap: true,
+            allowFlowerOverlap: true,
+            persistentUntilConsumed: true,
+            resourceOrigin: 'z2-cleanup-lived'
+          });
+          const dirt = gameCore.transformFlowerToDirtPile(flower, { source: 'z2-cleanup-lived-seed' });
+          if (dirt) livedPileIds.push(dirt.id);
+        });
+      });
+      while ((gameCore.gameState.butterflies || []).length < 12) {
+        const index = gameCore.gameState.butterflies.length;
+        const zone = livedZoneIds[index % Math.max(1, livedZoneIds.length)] || cleanupZoneId;
+        const board = { zoneId: zone, u: 5 + ((index % 3) * 8), v: 5 + (Math.floor(index / 3) % 2) * 12, h: 0 };
+        const screen = renderManager.boardToScreen(board);
+        gameCore.godSpawnButterfly(screen.x, screen.y, null);
+      }
+      const livedButterflies = gameCore.gameState.butterflies.slice(0, 12);
+      livedButterflies.forEach((butterfly, index) => {
+        const zone = livedZoneIds[index % Math.max(1, livedZoneIds.length)] || cleanupZoneId;
+        const localIndex = Math.floor(index / Math.max(1, livedZoneIds.length));
+        const boardPos = {
+          zoneId: zone,
+          u: 6 + ((localIndex % 3) * 8),
+          v: 6 + ((localIndex % 2) * 11),
+          h: 0
+        };
+        const screen = renderManager.boardToScreen(boardPos);
+        butterfly.currentZoneId = zone;
+        butterfly.lifeSim.lifecycle.currentZoneId = zone;
+        butterfly.lifeSim.drives.selfMaintenance = index < 4 ? 0.92 : (index % 2 === 0 ? 0.78 : 0.72);
+        butterfly.lifeSim.drives.caregiving = index % 2 === 1 ? 0.78 : 0.44;
+        butterfly.boardPos = boardPos;
+        butterfly.x = screen.x;
+        butterfly.y = screen.y - (butterfly.shadowOffset || 0);
+        butterfly.targetCleanupPile = null;
+        butterfly.movement?.clearTarget?.();
+        butterfly.syncDebugGridPos?.();
+      });
+      const livedInitialTotalPiles = gameCore.gameState.flowers.filter(flower => flower.lifecycleKind === 'dirt-pile').length;
+      for (let frame = 0; frame < 18000; frame += 1) {
+        if (frame % 450 === 0 && livedZoneIds.length) {
+          gameCore.focusZone?.(livedZoneIds[Math.floor(frame / 450) % livedZoneIds.length]);
+        }
+        gameCore.update();
+      }
+      const remainingLivedPiles = gameCore.gameState.flowers.filter(flower => livedPileIds.includes(flower.id));
+      const livedFinalTotalPiles = gameCore.gameState.flowers.filter(flower => flower.lifecycleKind === 'dirt-pile').length;
+      const cleanupOrganicFloorLived = {
+        id: 'cleanup-organic-floor-lived',
+        seed: 9090,
+        zoneIds: livedZoneIds,
+        seeded: livedPileIds.length,
+        cleaned: livedPileIds.length - remainingLivedPiles.length,
+        remaining: remainingLivedPiles.length,
+        initialTotalPiles: livedInitialTotalPiles,
+        finalTotalPiles: livedFinalTotalPiles,
+        newPilesSpawned: Math.max(0, livedFinalTotalPiles - remainingLivedPiles.length),
+        teleported: false,
+        injectedCleanup: false,
+        pass:
+          livedPileIds.length === 12 &&
+          (livedPileIds.length - remainingLivedPiles.length) >= 6 &&
+          Math.max(0, livedFinalTotalPiles - remainingLivedPiles.length) <= 18
+      };
+
       objectSystem?.syncEntityProfile?.(reserveFood);
       for (const flower of gameCore.gameState.flowers) {
         objectSystem?.syncEntityProfile?.(flower);
@@ -388,6 +473,7 @@ async function run() {
         },
         cleanupFloor,
         cleanupOrganic,
+        cleanupOrganicFloorLived,
         totals: {
           flowers: gameCore.gameState.flowers.length,
           dirtPiles: gameCore.gameState.flowers.filter(flower => flower.lifecycleKind === 'dirt-pile').length,
@@ -409,6 +495,7 @@ async function run() {
       && assertions.cleanup?.pileCleaned === true
       && assertions.cleanupFloor?.pass === true
       && assertions.cleanupOrganic?.pass === true
+      && assertions.cleanupOrganicFloorLived?.pass === true
       && report.pageErrors.length === 0
       && report.consoleErrors.length === 0
     ) ? 'pass' : 'fail';

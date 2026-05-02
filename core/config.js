@@ -317,7 +317,7 @@ const PAPILIONEM_BATTLE_ARENA = {
         },
         cache: {
             maxBakedSprites: 224,
-            maxBakedSpriteSurfaceMB: 48,
+            maxBakedSpriteSurfaceMB: 64,
             wingDimensionStep: 1,
             wingSpreadBuckets: 24,
             wingPoseSpreadBuckets: 16,
@@ -509,8 +509,14 @@ const PAPILIONEM_BATTLE_ARENA = {
             decayEnabled: true,
             reserveFoodEnabled: true,
             decayFrames: 3600,
-            pileCleanupRadius: 24,
+            pileCleanupRadius: 32,
+            pileCleanupBoardRadius: 1.25,
             pileCleanupSelfMaintenance: 0.56,
+            soiledSpawnSuppression: {
+                enabled: true,
+                thresholdPiles: 1,
+                maxPenalty: 1
+            },
             sectorGrid: {
                 cols: 4,
                 rows: 3
@@ -772,6 +778,11 @@ const PAPILIONEM_BATTLE_ARENA = {
     cognition: {
         derivedFeelings: { enabled: true },
         bondTier: { enabled: true },
+        affordances: {
+            cleanupNavigationBias: true,
+            cleanupNavigationPriority: 4,
+            cleanupNavigationMaxUnits: 40
+        },
         grief: {
             enabled: true,
             longAbsence: { enabled: true }

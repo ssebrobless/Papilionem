@@ -229,7 +229,11 @@ class Flower extends Entity {
     tryCleanupDirtPile(butterflies = []) {
         if (!this.isDirtPile()) return false;
         const radius = Math.max(8, gameConfig?.entities?.flower?.pileCleanupRadius || 24);
+        const boardRadius = Math.max(0.35, gameConfig?.entities?.flower?.pileCleanupBoardRadius || 0.85);
         const driveThreshold = Math.max(0, gameConfig?.entities?.flower?.pileCleanupSelfMaintenance || 0.56);
+        const pileBoard = this.boardPos && Number.isFinite(this.boardPos.u) && Number.isFinite(this.boardPos.v)
+            ? this.boardPos
+            : null;
         for (const butterfly of butterflies || []) {
             if (!butterfly?.id) continue;
             if (this.currentZoneId && butterfly.currentZoneId && butterfly.currentZoneId !== this.currentZoneId) continue;
@@ -237,7 +241,15 @@ class Flower extends Entity {
                 ?? butterfly.lifeSim?.derived?.driveTargets?.selfMaintenance
                 ?? 0;
             if (selfMaintenance < driveThreshold) continue;
-            if (Math.hypot((butterfly.x || 0) - this.x, (butterfly.y || 0) - this.y) > radius) continue;
+            const butterflyBoard = butterfly.boardPos && Number.isFinite(butterfly.boardPos.u) && Number.isFinite(butterfly.boardPos.v)
+                ? butterfly.boardPos
+                : null;
+            const sameBoardZone = pileBoard && butterflyBoard
+                && (pileBoard.zoneId || this.currentZoneId || null) === (butterflyBoard.zoneId || butterfly.currentZoneId || null);
+            const boardAdjacent = sameBoardZone
+                && Math.hypot((butterflyBoard.u || 0) - (pileBoard.u || 0), (butterflyBoard.v || 0) - (pileBoard.v || 0)) <= boardRadius;
+            const pixelAdjacent = Math.hypot((butterfly.x || 0) - this.x, (butterfly.y || 0) - this.y) <= radius;
+            if (!boardAdjacent && !pixelAdjacent) continue;
             this.cleanedAtFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
             objectSystem?.recordInteraction?.(this.id, 'cleaned dirt pile', butterfly.id, {
                 zoneId: this.currentZoneId || null
