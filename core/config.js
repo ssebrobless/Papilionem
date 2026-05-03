@@ -528,6 +528,15 @@ const PAPILIONEM_BATTLE_ARENA = {
                 thresholdPiles: 1,
                 maxPenalty: 1
             },
+            naturalSpawn: {
+                enabled: true,
+                openLandMaxNormalFlowers: 5,
+                trainingMaxNormalFlowers: 0,
+                openLandMinNormalFlowers: 1,
+                trainingMinNormalFlowers: 0,
+                openLandFloorTarget: 1,
+                trainingFloorTarget: 0
+            },
             sectorGrid: {
                 cols: 4,
                 rows: 3
