@@ -2251,6 +2251,10 @@ class LifeSimSystem {
         const spatialContext = typeof structureSystem !== 'undefined'
             ? structureSystem.getSpatialContextForEntity?.(entity, gameState)
             : null;
+        const shadeConfig = gameConfig?.entities?.block?.shade || {};
+        const inShade = !!spatialContext?.inShade;
+        const shadeCandidate = !!(spatialContext?.shadeCandidate || inShade);
+        const shadeStrength = this.clamp01(spatialContext?.shadeStrength || 0);
         const happinessRange = Math.max(1, (entity.maxHappiness || 100) - (entity.baselineHappiness || 30));
         const happinessRatio = this.clamp01(((entity.happiness || 0) - (entity.baselineHappiness || 0)) / happinessRange);
         const cursorTrust = this.clamp01(entity.cursor?.trustLevel ? (entity.cursor.trustLevel / 100) : (lifeSim.playerInteraction?.cursorTrust || 0));
@@ -2264,7 +2268,7 @@ class LifeSimSystem {
                     ? 'stack'
                     : dirtPileCount > 0 && ((lifeSim.drives?.selfMaintenance || 0) + cleanupSocialPressure) > 0.45
                         ? 'clean'
-                    : spatialContext?.shelterCandidate && !liveZoneFlowers.length
+                    : (spatialContext?.shelterCandidate || shadeCandidate) && ((lifeSim.drives?.rest || 0) + (lifeSim.emotions?.exhaustion || 0)) > 0.52
                         ? 'shelterUse'
                         : liveZoneFlowers.length
                             ? 'feedFrom'
@@ -2281,7 +2285,7 @@ class LifeSimSystem {
                         ? 'soiled-place'
                     : liveZoneFlowers.length
                         ? 'flower'
-                        : spatialContext?.shelterCandidate
+                        : spatialContext?.shelterCandidate || shadeCandidate
                             ? 'block'
                             : 'none';
         const obstacleDensity = spatialContext?.obstacleDensity ?? this.clamp01(nearbyBlockCount / 6);
@@ -2327,6 +2331,10 @@ class LifeSimSystem {
         lifeSim.spatialAwareness.pathState = spatialContext?.pathState || (obstacleDensity > 0.55 ? 'obstructed' : obstacleDensity > 0.22 ? 'enterable' : 'open');
         lifeSim.spatialAwareness.bodyFit = spatialContext?.bodyFit || ((entity.blockInteraction?.lastRelativeSize || 0) > 1.05 ? 'tooNarrow' : 'canPass');
         lifeSim.spatialAwareness.obstacleDensity = obstacleDensity;
+        lifeSim.spatialAwareness.shadeCandidate = shadeCandidate;
+        lifeSim.spatialAwareness.inShade = inShade;
+        lifeSim.spatialAwareness.shadeStrength = shadeStrength;
+        lifeSim.spatialAwareness.shadeSourceBlockId = spatialContext?.shadeSourceBlockId || null;
         lifeSim.spatialAwareness.shelterCandidate = !!spatialContext?.shelterCandidate;
         lifeSim.spatialAwareness.canUseInterior = !!spatialContext?.canUseInterior;
         lifeSim.progression.originType = entity.birthSource === 'bred' ? 'bred' : 'wild';
@@ -2390,6 +2398,7 @@ class LifeSimSystem {
                 + (lifeSim.emotions?.threat || 0) * 0.26
                 + (spatialContext?.insideShelter ? 0.12 : 0)
                 + (spatialContext?.canUseInterior ? 0.08 : 0)
+                + (shadeCandidate ? Number(shadeConfig.shelterSeekingBoost ?? 0.18) * Math.max(0.35, shadeStrength) : 0)
                 + zoneInfluence.derived.shelterSeeking
             ),
             shelterSeekingBoost: ((socialEcology?.roosting?.score || 0) * 0.18) + ((socialEcology?.warning?.score || 0) * 0.24),
@@ -2561,6 +2570,10 @@ class LifeSimSystem {
         const spatialContext = typeof structureSystem !== 'undefined'
             ? structureSystem.getSpatialContextForEntity?.(entity, gameState)
             : null;
+        const shadeConfig = gameConfig?.entities?.block?.shade || {};
+        const inShade = !!spatialContext?.inShade;
+        const shadeCandidate = !!(spatialContext?.shadeCandidate || inShade);
+        const shadeStrength = this.clamp01(spatialContext?.shadeStrength || 0);
         const nearbyButterflies = this.getButterfliesInZone(zoneId, gameState).filter(item => item !== entity);
         const nearbyAllies = nearbyButterflies.filter(candidate => (candidate.birthSource || 'wild') === (entity.birthSource || 'wild'));
         const nearbyRivals = nearbyButterflies.filter(candidate => candidate.personalityType !== entity.personalityType);
@@ -2585,7 +2598,7 @@ class LifeSimSystem {
                     ? 'stack'
                     : dirtPileCount > 0 && ((lifeSim.drives?.selfMaintenance || 0) + cleanupSocialPressure) > 0.45
                         ? 'clean'
-                    : spatialContext?.shelterCandidate && !liveZoneFlowers.length
+                    : (spatialContext?.shelterCandidate || shadeCandidate) && ((lifeSim.drives?.rest || 0) + (lifeSim.emotions?.exhaustion || 0)) > 0.52
                         ? 'shelterUse'
                     : liveZoneFlowers.length
                         ? 'feedFrom'
@@ -2602,7 +2615,7 @@ class LifeSimSystem {
                         ? 'soiled-place'
                     : liveZoneFlowers.length
                         ? 'flower'
-                        : spatialContext?.shelterCandidate
+                        : spatialContext?.shelterCandidate || shadeCandidate
                             ? 'block'
                         : 'none';
         const obstacleDensity = spatialContext?.obstacleDensity ?? this.clamp01(nearbyBlockCount / 6);
@@ -2622,6 +2635,7 @@ class LifeSimSystem {
             + (currentAffordance === 'feedFrom' ? 0.24 : 0)
             + (currentAffordance === 'plant' ? 0.34 : 0)
             + (currentAffordance === 'stack' ? 0.18 : 0)
+            + (currentAffordance === 'shelterUse' ? 0.14 : 0)
             + (currentAffordance === 'carry' ? 0.12 : 0)
             + (currentAffordance === 'clean' ? 0.16 : 0)
             + (isCarryingObject ? 0.08 : 0)
@@ -2652,19 +2666,19 @@ class LifeSimSystem {
             caregiving: this.clamp01(0.05 + stateCare + admiration * 0.1 + careRoutineStrength * 0.18 + careMemoryDensity * 0.2 + zoneInfluence.drives.caregiving),
             exploration: this.clamp01(0.1 + novelty * 0.34 + happinessRatio * 0.2 - crowding * 0.24 - stateCare * 0.3 - resourceFocusPressure * 0.18 - (isSleeping ? 0.4 : 0) + movementRoutineStrength * 0.12 + placeMemoryDensity * 0.06 + routineMemoryDensity * 0.05 + zoneInfluence.drives.exploration),
             statusExpression: this.clamp01(0.1 + rarityBias + reputationBias + admiration * 0.22 + stateDisplay + cleanupSocialPressure * Number(cleanupConfig.cleanupStatusDisplayBoost ?? 0.08) + communicationActivity.emitted * 0.03 + trainingStrength * 0.08 + lessonDepth * 0.08 + zoneInfluence.drives.statusExpression),
-            rest: this.clamp01(0.08 + (lifeSim.emotions?.exhaustion || 0) * 0.74 + (isSleeping ? 0.18 : 0) + restRoutineStrength * 0.14 + Math.max(0, shelterTrustRecoveryScale - 1) * 0.12 + (lifeSim.distortion?.oversleepBias || 0) * 0.08 - (lifeSim.distortion?.insomniaBias || 0) * 0.06 + zoneInfluence.drives.rest)
+            rest: this.clamp01(0.08 + (lifeSim.emotions?.exhaustion || 0) * 0.74 + (isSleeping ? 0.18 : 0) + restRoutineStrength * 0.14 + Math.max(0, shelterTrustRecoveryScale - 1) * 0.12 + (inShade ? Number(shadeConfig.restDriveBoost ?? 0.12) * Math.max(0.35, shadeStrength) : 0) + (lifeSim.distortion?.oversleepBias || 0) * 0.08 - (lifeSim.distortion?.insomniaBias || 0) * 0.06 + zoneInfluence.drives.rest)
         };
 
         const emotionTargets = {
             threat: this.clamp01(stateThreat + driveTargets.safetyAvoidance * 0.34 + warningPressure + dangerMemoryDensity * 0.16 + (lifeSim.distortion?.traumaBias || 0) * 0.14 - calmPressure * 0.4 + zoneInfluence.emotions.threat),
-            relief: this.clamp01(calmPressure + attachment * 0.24 + careMemoryDensity * 0.06 + (entity.state === 'feeding' ? 0.22 : 0) + (isSleeping ? 0.28 : 0) + recentWarmth * 0.16 + recentEase * 0.12 + Math.max(0, shelterTrustRecoveryScale - 1) * 0.18 - recentFriction * 0.12 + zoneInfluence.emotions.relief),
+            relief: this.clamp01(calmPressure + attachment * 0.24 + careMemoryDensity * 0.06 + (entity.state === 'feeding' ? 0.22 : 0) + (isSleeping ? 0.28 : 0) + recentWarmth * 0.16 + recentEase * 0.12 + Math.max(0, shelterTrustRecoveryScale - 1) * 0.18 + (inShade ? Number(shadeConfig.reliefBoost ?? 0.1) * Math.max(0.35, shadeStrength) : 0) - recentFriction * 0.12 + zoneInfluence.emotions.relief),
             attachment: this.clamp01(attachment + communicationActivity.received * 0.025 + trainingStrength * 0.08 + careMemoryDensity * 0.08 + socialMemoryDensity * 0.06 + recentWarmth * 0.14 + recentMutualAttention * 0.08),
             rejection: this.clamp01(rejection + (lifeSim.interpretation?.warpedSignals || 0) * 0.04 + (lifeSim.distortion?.withdrawalBias || 0) * 0.08 + Math.max(0, crowding - 0.35) * 0.18 + recentFriction * 0.2),
             significance: this.clamp01(driveTargets.statusExpression * 0.62 + lessons * 0.02 + lessonDepth * 0.12 + socialMemoryDensity * 0.04 + (lifeSim.communication?.activeSignal ? 0.08 : 0) + reputationBias + zoneInfluence.emotions.significance),
             failure: this.clamp01(Math.max(0, hungerPressure - flowerAvailability * 0.4) * 0.35 + rejection * 0.2 + outcomeMemoryDensity * 0.06 + (lifeSim.interpretation?.warpedSignals || 0) * 0.03),
             curiosity: this.clamp01(driveTargets.exploration * 0.72 + novelty * 0.28 + movementRoutineStrength * 0.06 + (lifeSim.distortion?.fixationBias || 0) * 0.04 - stateThreat * 0.18 + zoneInfluence.emotions.curiosity),
             agitation: this.clamp01((entity.traits?.jitteriness || 0.5) * 0.14 + crowding * 0.28 + stateThreat * 0.4 + rejection * 0.12 + dangerMemoryDensity * 0.08 + (lifeSim.distortion?.anxietyBias || 0) * 0.12 + recentFriction * 0.16 - recentEase * 0.1 - calmPressure * 0.18),
-            exhaustion: this.clamp01((lifeSim.emotions?.exhaustion || 0) - Math.max(0, shelterTrustRecoveryScale - 1) * 0.012)
+            exhaustion: this.clamp01((lifeSim.emotions?.exhaustion || 0) - Math.max(0, shelterTrustRecoveryScale - 1) * 0.012 - (inShade ? Number(shadeConfig.exhaustionRecovery ?? 0.01) * Math.max(0.35, shadeStrength) : 0))
         };
         const targetPriority = this.clamp01((driveTargets.statusExpression * 0.22) + (driveTargets.resourceControl * 0.18) + (lifeSim.derived?.behaviorBiases?.feedUrgency || 0) * 0.28);
         const retreatPressure = this.clamp01(((entity.battleState?.pressure || 0) * 0.04) + (emotionTargets.exhaustion || 0) * 0.45 + (emotionTargets.threat || 0) * 0.32);
@@ -2726,6 +2740,10 @@ class LifeSimSystem {
         lifeSim.spatialAwareness.pathState = pathState;
         lifeSim.spatialAwareness.bodyFit = bodyFit;
         lifeSim.spatialAwareness.obstacleDensity = this.clamp01(this.lerpValue(lifeSim.spatialAwareness.obstacleDensity || 0, obstacleDensity, 0.12));
+        lifeSim.spatialAwareness.shadeCandidate = shadeCandidate;
+        lifeSim.spatialAwareness.inShade = inShade;
+        lifeSim.spatialAwareness.shadeStrength = this.clamp01(this.lerpValue(lifeSim.spatialAwareness.shadeStrength || 0, shadeStrength, 0.18));
+        lifeSim.spatialAwareness.shadeSourceBlockId = spatialContext?.shadeSourceBlockId || null;
         lifeSim.spatialAwareness.shelterCandidate = shelterCandidate;
         lifeSim.spatialAwareness.canUseInterior = !!spatialContext?.canUseInterior;
         lifeSim.progression.originType = entity.birthSource === 'bred' ? 'bred' : 'wild';
@@ -2797,12 +2815,13 @@ class LifeSimSystem {
                 - ((socialEcology?.exclusion?.score || 0) * 0.1)
             ),
             shelterSeeking: this.clamp01(
-                (shelterCandidate ? 0.32 : 0.08)
+                ((shelterCandidate || shadeCandidate) ? 0.32 : 0.08)
                 + obstacleDensity * 0.24
                 + (lifeSim.emotions.threat || 0) * 0.26
                 + dangerMemoryDensity * 0.22
                 + (spatialContext?.insideShelter ? 0.12 : 0)
                 + (spatialContext?.canUseInterior ? 0.08 : 0)
+                + (shadeCandidate ? Number(shadeConfig.shelterSeekingBoost ?? 0.18) * Math.max(0.35, shadeStrength) : 0)
                 + zoneInfluence.derived.shelterSeeking
             ),
             shelterSeekingBoost: ((socialEcology?.roosting?.score || 0) * 0.18) + ((socialEcology?.warning?.score || 0) * 0.24),

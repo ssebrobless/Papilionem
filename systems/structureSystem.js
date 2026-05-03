@@ -764,6 +764,11 @@ class StructureSystem {
             bodyFit: semantics?.defaults?.bodyFit || 'canPass',
             occupancyBand: semantics?.defaultOccupancyBand || 'ground',
             obstacleDensity: 0,
+            shadeCandidate: false,
+            inShade: false,
+            shadeStrength: 0,
+            shadeSourceBlockId: null,
+            preferredShadePoint: null,
             shelterCandidate: false,
             canUseInterior: false,
             insideShelter: false,
@@ -1617,6 +1622,145 @@ class StructureSystem {
         ) || null;
     }
 
+    getShadeConfig() {
+        return gameConfig?.entities?.block?.shade || {};
+    }
+
+    isBlockShadeEnabled() {
+        return this.getShadeConfig().enabled !== false;
+    }
+
+    getShadeColumnsForZoneProfile(zoneProfile) {
+        if (!zoneProfile || !this.isBlockShadeEnabled()) return [];
+        const shadeConfig = this.getShadeConfig();
+        const minStackHeight = Math.max(2, Math.round(shadeConfig.minStackHeight || 2));
+        const radiusUnits = Math.max(0.5, Number(shadeConfig.radiusUnits || 1.35));
+        const ppu = Math.max(1, this.getProjectionPpu(zoneProfile.zoneId));
+        const radius = radiusUnits * ppu;
+        const columns = [];
+        for (const component of zoneProfile.components || []) {
+            for (const stack of component.stacks || []) {
+                if ((stack.height || 0) < minStackHeight) continue;
+                const point = Number.isFinite(stack.x) && Number.isFinite(stack.y)
+                    ? { x: stack.x, y: stack.y }
+                    : (stack.boardPos && renderManager?.boardToScreen?.(stack.boardPos)) || null;
+                if (!point) continue;
+                columns.push({
+                    componentId: component.id || null,
+                    stackId: stack.id || null,
+                    sourceBlockId: stack.topBlockId || stack.baseBlockId || null,
+                    height: stack.height || 0,
+                    boardPos: stack.boardPos ? { ...stack.boardPos, h: 0 } : null,
+                    x: point.x,
+                    y: point.y,
+                    radius,
+                    radiusUnits
+                });
+            }
+        }
+        return columns;
+    }
+
+    getPreferredShadePointForColumn(zoneId, column) {
+        if (!zoneId || !column) return null;
+        const base = column.boardPos || null;
+        if (!base || !Number.isFinite(base.u) || !Number.isFinite(base.v)) {
+            return { x: column.x, y: column.y, zoneId };
+        }
+        const offsets = [
+            { u: 0, v: 1 },
+            { u: 1, v: 0 },
+            { u: -1, v: 0 },
+            { u: 0, v: -1 },
+            { u: 1, v: 1 },
+            { u: -1, v: 1 },
+            { u: 1, v: -1 },
+            { u: -1, v: -1 }
+        ];
+        for (const offset of offsets) {
+            const candidate = {
+                zoneId,
+                u: Math.round(base.u + offset.u),
+                v: Math.round(base.v + offset.v),
+                h: 0
+            };
+            const occupancy = this.canOccupyBoardCell?.({
+                ...candidate,
+                occupantType: 'butterfly'
+            });
+            if (occupancy && !occupancy.accepted) continue;
+            const point = renderManager?.boardToScreen?.(candidate);
+            if (point) {
+                return {
+                    x: point.x,
+                    y: point.y,
+                    zoneId,
+                    boardPos: candidate
+                };
+            }
+        }
+        return {
+            x: column.x,
+            y: column.y,
+            zoneId,
+            boardPos: base ? { ...base } : null
+        };
+    }
+
+    getShadeContextForPoint(zoneId, point, options = {}) {
+        if (!zoneId || !point || !this.isBlockShadeEnabled()) {
+            return {
+                shadeCandidate: false,
+                inShade: false,
+                shadeStrength: 0,
+                shadeSourceBlockId: null,
+                preferredShadePoint: null
+            };
+        }
+        const zoneProfile = this.getZoneProfileRef(zoneId);
+        if (!zoneProfile) {
+            return {
+                shadeCandidate: false,
+                inShade: false,
+                shadeStrength: 0,
+                shadeSourceBlockId: null,
+                preferredShadePoint: null
+            };
+        }
+        const searchRadiusScale = Math.max(1, Number(options.searchRadiusScale || 2.25));
+        let nearest = null;
+        let nearestDistance = Infinity;
+        for (const column of this.getShadeColumnsForZoneProfile(zoneProfile)) {
+            const distance = Math.hypot((column.x || 0) - point.x, (column.y || 0) - point.y);
+            if (distance > (column.radius || 0) * searchRadiusScale) continue;
+            if (distance < nearestDistance) {
+                nearest = column;
+                nearestDistance = distance;
+            }
+        }
+        if (!nearest) {
+            return {
+                shadeCandidate: false,
+                inShade: false,
+                shadeStrength: 0,
+                shadeSourceBlockId: null,
+                preferredShadePoint: null
+            };
+        }
+        const radius = Math.max(1, nearest.radius || 1);
+        const inShade = nearestDistance <= radius;
+        return {
+            shadeCandidate: true,
+            inShade,
+            shadeStrength: this.clamp01(1 - (nearestDistance / Math.max(radius * searchRadiusScale, 1))),
+            shadeSourceBlockId: nearest.sourceBlockId || null,
+            preferredShadePoint: this.getPreferredShadePointForColumn(zoneId, nearest),
+            shadeDistance: nearestDistance,
+            shadeRadius: radius,
+            shadeColumn: nearest
+        };
+    }
+
     queryCollisionGeometry(zoneId, point, options = {}) {
         if (!zoneId || !point) return null;
         const cloneResults = options.cloneResults !== false;
@@ -1858,6 +2002,7 @@ class StructureSystem {
                 cloneResults: false
             })
             : null;
+        const shadeContext = this.getShadeContextForPoint(zoneId, { x, y });
         const entityWidth = metrics.width;
         let nearbySolidCount = 0;
         let nearestProfile = null;
@@ -1916,6 +2061,11 @@ class StructureSystem {
             bodyFit: this.normalizeSpatialHookValue('bodyFit', bodyFit),
             occupancyBand,
             obstacleDensity,
+            shadeCandidate: !!shadeContext.shadeCandidate,
+            inShade: !!shadeContext.inShade,
+            shadeStrength: shadeContext.shadeStrength || 0,
+            shadeSourceBlockId: shadeContext.shadeSourceBlockId || null,
+            preferredShadePoint: shadeContext.preferredShadePoint || null,
             shelterCandidate: !!nearestShelter,
             canUseInterior: !!nearestShelter && bodyFit === 'canShelterInside',
             insideShelter,
@@ -1949,9 +2099,12 @@ class StructureSystem {
     getPreferredShelterPointForEntity(entity, zoneId = entity?.currentZoneId || entity?.lifeSim?.lifecycle?.currentZoneId || null) {
         if (!entity || !zoneId) return null;
         const context = this.getSpatialContextForEntity(entity);
-        if (!context?.shelterCandidate) return null;
+        if (!context?.shelterCandidate && !context?.shadeCandidate) return null;
         if (context.preferredShelterPoint) {
             return { ...context.preferredShelterPoint };
+        }
+        if (context.preferredShadePoint) {
+            return { ...context.preferredShadePoint };
         }
         const zoneProfile = this.getZoneProfileRef(zoneId);
         const shelter = this.getNearestShelter(zoneProfile, entity.x || 0, entity.y || 0);

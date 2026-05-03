@@ -580,7 +580,16 @@ const PAPILIONEM_BATTLE_ARENA = {
             interactionRadius: 18,
             placementAvoidFlowerRadius: 20,
             shelterThresholdBlocks: 6,
-            maxStackHeight: 12
+            maxStackHeight: 12,
+            shade: {
+                enabled: true,
+                minStackHeight: 2,
+                radiusUnits: 1.35,
+                restDriveBoost: 0.12,
+                reliefBoost: 0.1,
+                exhaustionRecovery: 0.01,
+                shelterSeekingBoost: 0.18
+            }
         },
 
         spatialFootprints: {
