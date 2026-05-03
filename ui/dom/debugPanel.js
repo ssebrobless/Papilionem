@@ -5,6 +5,7 @@ class DebugDomPanel {
         this.headerTitle = null;
         this.headerSubtitle = null;
         this.statusBody = null;
+        this.statusScrollTop = 0;
         this.buttonGrid = null;
         this.focusBody = null;
     }
@@ -18,6 +19,7 @@ class DebugDomPanel {
 
         const header = document.createElement('div');
         header.className = 'shell-header';
+        header.addEventListener('wheel', event => this.handlePanelWheel(event), { passive: false });
         this.headerTitle = document.createElement('div');
         this.headerTitle.className = 'shell-title';
         this.headerSubtitle = document.createElement('div');
@@ -27,12 +29,18 @@ class DebugDomPanel {
 
         this.statusBody = document.createElement('div');
         this.statusBody.className = 'shell-body-scroll shell-debug-status';
+        this.statusBody.addEventListener('wheel', event => this.handlePanelWheel(event), { passive: false });
+        this.statusBody.addEventListener('scroll', () => {
+            this.statusScrollTop = this.statusBody?.scrollTop || 0;
+        });
 
         this.buttonGrid = document.createElement('div');
         this.buttonGrid.className = 'shell-debug-grid';
+        this.buttonGrid.addEventListener('wheel', event => this.handlePanelWheel(event), { passive: false });
 
         this.focusBody = document.createElement('div');
         this.focusBody.className = 'shell-footer-row';
+        this.focusBody.addEventListener('wheel', event => this.handlePanelWheel(event), { passive: false });
 
         root.appendChild(header);
         root.appendChild(this.statusBody);
@@ -52,7 +60,11 @@ class DebugDomPanel {
             : event.deltaMode === 2
                 ? rawDelta * 240
                 : rawDelta;
-        this.statusBody.scrollTop += deltaY;
+        const maxScrollTop = Math.max(0, this.statusBody.scrollHeight - this.statusBody.clientHeight);
+        const nextScrollTop = Math.max(0, Math.min(maxScrollTop, this.statusBody.scrollTop + deltaY));
+        this.statusBody.scrollTop = nextScrollTop;
+        this.statusScrollTop = nextScrollTop;
+        this.restoreStatusScrollTopSoon();
         event.preventDefault?.();
         event.stopPropagation?.();
     }
@@ -74,6 +86,9 @@ class DebugDomPanel {
     }
 
     renderStatus(state) {
+        const previousScrollTop = Number.isFinite(this.statusScrollTop)
+            ? this.statusScrollTop
+            : (this.statusBody.scrollTop || 0);
         this.statusBody.replaceChildren();
         const intro = document.createElement('div');
         intro.className = 'shell-section-card';
@@ -88,6 +103,26 @@ class DebugDomPanel {
             intro.appendChild(row);
         }
         this.statusBody.appendChild(intro);
+        if (previousScrollTop > 0) {
+            const maxScrollTop = Math.max(0, this.statusBody.scrollHeight - this.statusBody.clientHeight);
+            const restoredScrollTop = Math.min(previousScrollTop, maxScrollTop);
+            this.statusBody.scrollTop = restoredScrollTop;
+            this.statusScrollTop = restoredScrollTop;
+            this.restoreStatusScrollTopSoon();
+        }
+    }
+
+    restoreStatusScrollTopSoon() {
+        const targetScrollTop = this.statusScrollTop || 0;
+        const restore = () => {
+            if (!this.statusBody || targetScrollTop <= 0) return;
+            const maxScrollTop = Math.max(0, this.statusBody.scrollHeight - this.statusBody.clientHeight);
+            this.statusBody.scrollTop = Math.min(targetScrollTop, maxScrollTop);
+        };
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(restore);
+        }
+        setTimeout(restore, 60);
     }
 
     renderButtons(buttons) {
@@ -134,6 +169,7 @@ class DebugDomPanel {
         this.headerTitle = null;
         this.headerSubtitle = null;
         this.statusBody = null;
+        this.statusScrollTop = 0;
         this.buttonGrid = null;
         this.focusBody = null;
     }

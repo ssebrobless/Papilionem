@@ -385,6 +385,14 @@ const PAPILIONEM_BATTLE_ARENA = {
             },
             antenna: 128
         },
+        creatureLodBattleSize: {
+            body: 96,
+            wing: {
+                width: 128,
+                height: 96
+            },
+            antenna: 48
+        },
         blockStackShadow: {
             enabled: true
         },
@@ -712,6 +720,22 @@ const PAPILIONEM_BATTLE_ARENA = {
         }
     },
 
+    zones: {
+        affordanceMigrationPressure: {
+            enabled: true,
+            decisionIntervalFrames: 60,
+            minActiveDrive: 0.55,
+            bottomQuantile: 1,
+            topQuantile: 0,
+            minDelta: 0.01,
+            urgencyBase: 0.78,
+            urgencyScale: 0.34,
+            targetAffinityBoost: 0.34,
+            scarcityResourcePriority: true,
+            excludeTrainingAsAmbientTarget: true
+        }
+    },
+
     accessibility: {
         reducedMotion: false,
         battleMotionSimplify: false,
@@ -780,17 +804,58 @@ const PAPILIONEM_BATTLE_ARENA = {
 
     cognition: {
         derivedFeelings: { enabled: true },
-        bondTier: { enabled: true },
+        bondTier: {
+            enabled: true,
+            arcEvents: {
+                enabled: true,
+                eventWeighting: true,
+                maxProcessedTags: 12,
+                transitionCooldownFrames: 300,
+                stabilization: {
+                    enabled: true,
+                    familiarPromotionHoldFrames: 1200,
+                    companionPromotionHoldFrames: 3600,
+                    bondedPromotionHoldFrames: 7200
+                },
+                sharedSuccess: { trust: 0.04, comfort: 0.04, attachment: 0.045, coTimeSeconds: 180 },
+                conflict: { trust: -0.04, comfort: -0.035, attachment: -0.025, resentment: 0.045 },
+                absence: { comfort: -0.025, attachment: -0.02 },
+                rivalry: { trust: -0.025, comfort: -0.02, rivalry: 0.025 },
+                loyalty: { trust: 0.035, attachment: 0.04, coTimeSeconds: 120 }
+            }
+        },
         affordances: {
             cleanupNavigationBias: true,
             cleanupNavigationPriority: 4,
-            cleanupNavigationMaxUnits: 40
+            cleanupNavigationMaxUnits: 40,
+            cleanupSocialModulation: true,
+            cleanupSocialPriorityBase: 4,
+            cleanupCaregivingDriveWeight: 0.16,
+            cleanupStatusDriveWeight: 0.1,
+            cleanupSelfMaintenanceBoost: 0.18,
+            cleanupStatusDisplayBoost: 0.06,
+            cleanupActivityDirt: {
+                enabled: true,
+                intervalFrames: 1800,
+                minActiveButterflies: 3,
+                maxPilesPerZone: 7,
+                maxTotalPiles: 28,
+                activityScale: 0.22
+            }
         },
         grief: {
             enabled: true,
             longAbsence: { enabled: true }
         },
-        jealousy: { enabled: true },
+        jealousy: {
+            enabled: true,
+            witnessedAffection: {
+                exposureBias: true,
+                distanceUnits: 8,
+                decayFrames: 5400,
+                opportunityBoost: 0.08
+            }
+        },
         anchors: { enabled: true },
         loyalty: { enabled: true },
         triggers: {
@@ -813,6 +878,22 @@ const PAPILIONEM_BATTLE_ARENA = {
                 },
                 competingScout: { enabled: true }
             }
+        }
+    },
+
+    expression: {
+        namedMemoryDialogue: {
+            enabled: true,
+            minEdgeComposite: 0.35,
+            maxPrefixCharacters: 72
+        },
+        whyThisMoment: {
+            enabled: true
+        },
+        causeLabel: {
+            enabled: true,
+            maxCharacters: 24,
+            cooldownSeconds: 60
         }
     },
 
@@ -927,7 +1008,7 @@ const PAPILIONEM_BATTLE_ARENA = {
         },
         migration: {
             autoHabitatTravel: true,
-            decisionIntervalFrames: 360,
+            decisionIntervalFrames: 60,
             routeDurationFrames: 60,
             arrivalSettleFrames: 42,
             exitDurationFrames: 42,
@@ -940,6 +1021,28 @@ const PAPILIONEM_BATTLE_ARENA = {
 
     presentation: {
         renderCommunicationIndicators: false
+    },
+
+    communication: {
+        partnerSelection: {
+            recencyPressure: true,
+            recencyWindowSeconds: 180,
+            recencyDecaySeconds: 180,
+            recencyPenalty: 8,
+            suppressFullyRecentPartnerSignals: true,
+            suppressPenaltyThreshold: 1,
+            repeatedWarningDialogueCooldownSeconds: 330,
+            explicitTargetBias: 0.08,
+            needTypedWeighting: true,
+            lonelinessBondedBoost: 0.28,
+            comfortCompanionBoost: 0.24,
+            curiosityAcquaintanceBoost: 0.32,
+            statusAdmirationBoost: 0.24,
+            shameRepairBoost: 0.36,
+            bondedCheckInExemptionSeconds: 60,
+            bondedCheckInGriefThreshold: 0.45,
+            bondedCheckInLonelinessThreshold: 0.55
+        }
     },
 
     world: {
@@ -1238,6 +1341,7 @@ const PAPILIONEM_BATTLE_ARENA = {
     },
 
     battle: {
+        closeupBakeEvictOnExit: true,
         arena: {
             geometry: PAPILIONEM_BATTLE_ARENA,
             teamOrder: ['left', 'right'],

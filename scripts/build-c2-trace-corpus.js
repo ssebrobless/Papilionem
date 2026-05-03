@@ -15,7 +15,16 @@ const LIVED_LOOP_SCENARIO_NAMES = [
   'seed-grief-organic',
   'seed-loneliness-organic',
   'seed-loyalty-organic',
-  'seed-shame-organic'
+  'seed-shame-organic',
+  'seed-target-cleanup-priority',
+  'seed-target-distress-vs-flower',
+  'seed-target-mate-vs-rival',
+  'seed-target-shelter-fit',
+  'seed-autobattle-defend-injured-ally',
+  'seed-autobattle-pursue-fleeing-rival',
+  'seed-autobattle-restore-bonded',
+  'seed-signal-warn-incoming-harm',
+  'seed-signal-comfort-recent-grief'
 ];
 const STORAGE_KEYS = [
   'papilionem-save-v2',
@@ -53,6 +62,16 @@ function buildRecordDigest(record) {
     review: record?.review || {},
     features: record?.features || {}
   });
+}
+
+function normalizeScenarioRecord(record, scenarioIdSuffix = '', fallbackTags = []) {
+  if (!record) return null;
+  const next = JSON.parse(JSON.stringify(record));
+  if (scenarioIdSuffix) {
+    next.scenarioId = `${next.scenarioId || 'scenario'}-${scenarioIdSuffix}`;
+  }
+  next.tags = [...new Set([...(next.tags || []), ...fallbackTags].filter(Boolean))];
+  return next;
 }
 
 function readScenarioFile(name) {
@@ -169,6 +188,92 @@ function buildCorpusManifest(records = [], meta = {}) {
     artifactFiles: {
       records: 'corpus-records.json',
       manifest: 'corpus-manifest.json'
+    },
+    balance: meta.balance || null
+  };
+}
+
+function getTrainingLabel(record = null, policyName = '') {
+  return record?.trainingLabels?.[policyName] || record?.review?.correctedLabels?.[policyName] || null;
+}
+
+function summarizePolicyLabelCounts(records = [], policyName = '', labels = []) {
+  const counts = Object.fromEntries(labels.map(label => [label, 0]));
+  for (const record of records || []) {
+    const label = getTrainingLabel(record, policyName);
+    if (Object.prototype.hasOwnProperty.call(counts, label)) counts[label] += 1;
+  }
+  return counts;
+}
+
+function createBalancedClone(sourceRecord = {}, policyName = '', label = '', cloneIndex = 1) {
+  const clone = JSON.parse(JSON.stringify(sourceRecord));
+  clone.scenarioId = `${sourceRecord.scenarioId || policyName}-${policyName}-${label}-balanced-${cloneIndex}`;
+  clone.auditPhase = 'b6-corpus-balance';
+  clone.tags = [...new Set([...(clone.tags || []), 'b6-balanced', `policy-${policyName}`, `label-${label}`])];
+  clone.trainingLabels = { ...(clone.trainingLabels || {}), [policyName]: label };
+  clone.review = {
+    ...(clone.review || {}),
+    status: 'corrected',
+    correctedLabels: {
+      ...(clone.review?.correctedLabels || {}),
+      [policyName]: label
+    },
+    correctedPolicies: [...new Set([...(clone.review?.correctedPolicies || []), policyName])],
+    rationale: `B6 corpus balance clone preserving feature schema while filling ${policyName}:${label}.`
+  };
+  clone.digest = buildRecordDigest(clone);
+  return clone;
+}
+
+function balanceTraceCorpusRecords(records = [], options = {}) {
+  const policies = {
+    signalChoice: {
+      labels: ['warning', 'calming', 'invitation', 'teaching', 'quiet'],
+      min: Number(options.signalChoiceMin || 8)
+    },
+    autobattlePosture: {
+      labels: ['engage', 'support', 'focusWeakTarget', 'stabilize', 'retreat'],
+      min: Number(options.autobattlePostureMin || 10)
+    }
+  };
+  const balanced = [...records];
+  const added = [];
+  const before = {};
+  const after = {};
+
+  for (const [policyName, policy] of Object.entries(policies)) {
+    before[policyName] = summarizePolicyLabelCounts(balanced, policyName, policy.labels);
+    let cloneIndex = 0;
+    for (const label of policy.labels) {
+      while ((summarizePolicyLabelCounts(balanced, policyName, policy.labels)[label] || 0) < policy.min) {
+        const sameLabel = balanced.find(record => getTrainingLabel(record, policyName) === label);
+        const samePolicy = balanced.find(record => !!getTrainingLabel(record, policyName));
+        const source = sameLabel || samePolicy || balanced[0];
+        if (!source) break;
+        cloneIndex += 1;
+        const clone = createBalancedClone(source, policyName, label, cloneIndex);
+        balanced.push(clone);
+        added.push({
+          scenarioId: clone.scenarioId,
+          policyName,
+          label,
+          sourceScenarioId: source.scenarioId || null
+        });
+      }
+    }
+    after[policyName] = summarizePolicyLabelCounts(balanced, policyName, policy.labels);
+  }
+
+  return {
+    records: balanced,
+    balance: {
+      enabled: true,
+      addedCount: added.length,
+      added,
+      before,
+      after,
+      requirements: policies
     }
   };
 }
@@ -512,23 +617,47 @@ async function captureAutobattleScenario(page) {
     refreshedFocus.actionSubtype = 'steady';
     refreshedFocus.targetId = allyId;
 
-    const record = mlInferenceSystem.buildBattleCorpusRecord(refreshedFocus, snapshot, gameState, {
-      scenarioId: 'autobattle-support-window',
-      scenarioFamily: 'autobattle',
-      auditPhase: 'c2-builder',
-      tags: ['support-window', 'battle', 'reviewed'],
-      review: {
-        correctedLabels: {
-          autobattlePosture: 'support'
-        },
-        rationale: 'Curated battle state with a pressured ally and an explicit support opportunity.'
+    const records = [];
+    const postureLabels = ['support', 'engage', 'focusWeakTarget', 'stabilize', 'retreat'];
+    const participants = snapshot.participantOrder
+      .map(id => battleSystem.getParticipantSnapshot(snapshot.battleId, id))
+      .filter(Boolean);
+    for (let index = 0; index < participants.length; index += 1) {
+      const participant = participants[index];
+      const label = postureLabels[index % postureLabels.length];
+      const mutable = battleSystem.snapshots.get(snapshot.battleId)?.participantsById?.[participant.id];
+      if (mutable?.cognition?.battle) {
+        mutable.cognition.battle.supportOpportunity = label === 'support' ? 0.95 : 0.2;
+        mutable.cognition.battle.allyPressure = label === 'support' ? 0.86 : 0.25;
+        mutable.cognition.battle.enemyThreat = label === 'retreat' ? 0.94 : 0.42;
+        mutable.cognition.battle.retreatPressure = label === 'retreat' ? 0.9 : 0.16;
+        mutable.cognition.battle.targetPriority = label === 'focusWeakTarget' ? 0.94 : 0.45;
       }
-    });
+      if (mutable) {
+        mutable.hp = label === 'retreat' ? 18 : (label === 'stabilize' ? 42 : 86);
+        mutable.pressure = label === 'retreat' ? 9 : (label === 'stabilize' ? 5 : 1);
+      }
+      const refreshed = battleSystem.getParticipantSnapshot(snapshot.battleId, participant.id);
+      const record = mlInferenceSystem.buildBattleCorpusRecord(refreshed, snapshot, gameState, {
+        scenarioId: `autobattle-support-window-${label}-${index + 1}`,
+        scenarioFamily: 'autobattle',
+        auditPhase: 'aa4-corpus-growth',
+        tags: ['battle', 'reviewed', `posture-${label}`],
+        review: {
+          correctedLabels: {
+            autobattlePosture: label
+          },
+          rationale: `Curated battle posture example for ${label}.`
+        }
+      });
+      if (record) records.push(record);
+    }
 
     gameCore.commitBattleSession?.(snapshot.battleId);
     return {
-      ok: !!record,
-      record,
+      ok: records.length > 0,
+      records,
+      record: records[0] || null,
       mlCorpusProfile: telemetrySystem.getMlCorpusProfile?.() || null
     };
   });
@@ -682,32 +811,65 @@ async function captureLivedLoopTraceScenario(page, scenario) {
       return { ok: false, reason: `${scenarioSpec.id || 'lived-loop'}-missing-focus` };
     }
 
+    const corpusConfig = scenarioSpec.corpus || {};
+    const sampleFrames = Array.isArray(corpusConfig.sampleFrames) && corpusConfig.sampleFrames.length
+      ? corpusConfig.sampleFrames
+      : [20, 40, 60, 80];
+    const focusRefs = Array.isArray(corpusConfig.focusIds) && corpusConfig.focusIds.length
+      ? corpusConfig.focusIds
+      : entitySpecs.map(spec => spec.id).filter(Boolean);
+    const records = [];
+    const baseScenarioId = scenarioSpec.id || `lived-loop-${focus.id}`;
+    const scenarioFamily = corpusConfig.scenarioFamily || 'lived-loop';
+    const correctedLabels = corpusConfig.correctedLabels || {};
+    const rationale = corpusConfig.rationale
+      || 'Scenario-derived lived-loop trace source captured through production update paths for AA4 corpus growth.';
+    const baseTags = [
+      'aa4-lived-loop',
+      'scenario-derived',
+      ...(corpusConfig.tags || []),
+      ...(scenarioSpec.assertions || []).map(assertion => assertion.type).filter(Boolean)
+    ];
+
     mlInferenceSystem.update(gameState, 0);
     const startFrame = gameCore.getCurrentFrame?.() || mlInferenceSystem.frameCounter || 0;
-    for (let frame = 1; frame <= 72; frame += 1) {
-      mlInferenceSystem.update(gameState, 1 / 60, { currentFrame: startFrame + frame });
+    let previousFrame = 0;
+    for (const sampleFrame of sampleFrames) {
+      const targetFrame = Math.max(previousFrame + 1, Math.round(Number(sampleFrame) || previousFrame + 20));
+      for (let frame = previousFrame + 1; frame <= targetFrame; frame += 1) {
+        if (frame === targetFrame) {
+          mlInferenceSystem.markAllRuntimeStale?.();
+        }
+        mlInferenceSystem.update(gameState, 1 / 60, { currentFrame: startFrame + frame });
+      }
+      previousFrame = targetFrame;
+      for (const focusRef of focusRefs) {
+        const entity = getEntity(focusRef);
+        if (!entity?.id) continue;
+        const record = mlInferenceSystem.buildCorpusRecord(entity.id, gameState, {
+          scenarioId: `${baseScenarioId}-${focusRef}-f${targetFrame}`,
+          scenarioFamily,
+          auditPhase: 'aa4-corpus-growth',
+          tags: baseTags,
+          review: Object.keys(correctedLabels).length
+            ? {
+                correctedLabels,
+                rationale
+              }
+            : { rationale }
+        });
+        if (record) records.push(record);
+      }
     }
 
-    const record = mlInferenceSystem.buildCorpusRecord(focus.id, gameState, {
-      scenarioId: scenarioSpec.id || `lived-loop-${focus.id}`,
-      scenarioFamily: 'lived-loop',
-      auditPhase: 'w6-corpus-growth',
-      tags: [
-        'w2-lived-loop',
-        'scenario-derived',
-        ...(scenarioSpec.assertions || []).map(assertion => assertion.type).filter(Boolean)
-      ],
-      review: {
-        rationale: 'Scenario-derived lived-loop trace source captured through production update paths for W6 corpus growth.'
-      }
-    });
-
     return {
-      ok: !!record,
-      record,
+      ok: records.length > 0,
+      records,
+      record: records[0] || null,
       mlCorpusProfile: telemetrySystem.getMlCorpusProfile?.() || null,
       summary: {
         scenarioId: scenarioSpec.id || null,
+        recordCount: records.length,
         butterflyCount: (gameState.butterflies || []).length,
         dialogueCount: communicationSystem?.dialogueHistory?.length || 0,
         currentFrame: gameCore.getCurrentFrame?.() || 0
@@ -758,12 +920,23 @@ async function buildC2TraceCorpus(options = {}) {
       scenarios.push(await captureLivedLoopTraceScenario(page, livedLoopScenario));
     }
 
-    const failedScenario = scenarios.find(entry => !entry?.ok || !entry?.record);
+    const failedScenario = scenarios.find(entry => !entry?.ok || (!entry?.record && !entry?.records?.length));
     if (failedScenario) {
       throw new Error(failedScenario?.reason || 'failed to build one or more c2 trace corpus scenarios');
     }
 
-    const records = scenarios.map(entry => entry.record);
+    const capturedRecords = scenarios.flatMap((entry, index) => {
+      const scenarioRecords = Array.isArray(entry.records) && entry.records.length
+        ? entry.records
+        : [entry.record];
+      return scenarioRecords
+        .filter(Boolean)
+        .map((record, recordIndex) => normalizeScenarioRecord(record, `r${index + 1}-${recordIndex + 1}`, ['aa4-corpus']));
+    });
+    const balanceResult = options.balance === true
+      ? balanceTraceCorpusRecords(capturedRecords, options.balanceOptions || {})
+      : { records: capturedRecords, balance: { enabled: false, addedCount: 0 } };
+    const records = balanceResult.records;
     const telemetryProfile = scenarios[scenarios.length - 1]?.mlCorpusProfile || null;
     const runtimeContract = await page.evaluate(() => mlInferenceSystem.getRuntimeSummary?.()?.contract?.version || null);
     const runtimeFeatureSchema = await page.evaluate(() => mlInferenceSystem.getRuntimeSummary?.()?.featureSchemaVersion || null);
@@ -775,7 +948,8 @@ async function buildC2TraceCorpus(options = {}) {
       contractVersion: runtimeContract,
       featureSchemaVersion: runtimeFeatureSchema,
       traceSchemaVersion: runtimeTraceSchema,
-      telemetryProfile
+      telemetryProfile,
+      balance: balanceResult.balance
     });
 
     const recordsPath = path.join(outputDir, 'corpus-records.json');
@@ -790,7 +964,8 @@ async function buildC2TraceCorpus(options = {}) {
       contractVersion: runtimeContract,
       featureSchemaVersion: runtimeFeatureSchema,
       traceSchemaVersion: runtimeTraceSchema,
-      telemetryProfile
+      telemetryProfile,
+      balance: balanceResult.balance
     });
     manifest.rebuildCheck = {
       matches: rebuiltManifest.recordsDigest === manifest.recordsDigest,
@@ -812,7 +987,9 @@ async function buildC2TraceCorpus(options = {}) {
 }
 
 if (require.main === module) {
-  buildC2TraceCorpus()
+  buildC2TraceCorpus({
+    balance: process.argv.includes('--balance')
+  })
     .then(result => {
       console.log(JSON.stringify({
         outputDir: result.outputDir,
@@ -834,5 +1011,6 @@ if (require.main === module) {
 
 module.exports = {
   buildC2TraceCorpus,
-  buildCorpusManifest
+  buildCorpusManifest,
+  balanceTraceCorpusRecords
 };

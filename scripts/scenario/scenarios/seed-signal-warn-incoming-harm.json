@@ -1,0 +1,25 @@
+{
+  "id": "seed-signal-warn-incoming-harm",
+  "seed": 1221,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 8, "v": 15, "h": 0 }, "drives": { "safetyAvoidance": 0.82, "caregiving": 0.55 }, "emotions": { "threat": 0.72 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 15, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "set_emotions", "source": "a", "threat": 0.86, "agitation": 0.5 },
+    { "type": "emit_signal", "source": "a", "targets": ["b"], "signalType": "warning_signal", "intentFamily": "warning", "intentTags": ["warning", "harm"], "phrase": "Move back from that edge." },
+    { "type": "step_simulation", "frames": 80 }
+  ],
+  "corpus": {
+    "scenarioFamily": "signalChoice",
+    "focusIds": ["a", "b"],
+    "sampleFrames": [20, 40, 60, 80],
+    "correctedLabels": { "signalChoice": "warning", "riskPosture": "avoid", "actionFamily": "signal" },
+    "tags": ["signal-warning", "incoming-harm"],
+    "rationale": "Hazard awareness should produce warning signals."
+  },
+  "assertions": [
+    { "type": "dialogue_count", "min": 1 }
+  ]
+}

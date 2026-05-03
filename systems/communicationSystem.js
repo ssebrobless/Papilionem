@@ -19,6 +19,8 @@ class CommunicationSystem {
         this.warningRecords = [];
         this.scoutOfferRecords = [];
         this.eventUnsubscribers = [];
+        this.partnerSelectionHistory = new Map();
+        this.causeLabelCooldowns = new Map();
     }
 
     initialize() {
@@ -65,6 +67,8 @@ class CommunicationSystem {
         this.warningRecords = [];
         this.scoutOfferRecords = [];
         this.simulationClockSeconds = 0;
+        this.partnerSelectionHistory.clear();
+        this.causeLabelCooldowns.clear();
     }
 
     registerEntity(entity) {
@@ -1289,6 +1293,324 @@ class CommunicationSystem {
         };
     }
 
+    getPartnerSelectionConfig() {
+        return gameConfig?.communication?.partnerSelection || {};
+    }
+
+    getBondRank(edgeOrTier = null) {
+        const tier = typeof edgeOrTier === 'string' ? edgeOrTier : edgeOrTier?.bondTier;
+        return lifeSimSystem?.getBondRank?.(tier) ?? ({ acquaintance: 0, familiar: 1, companion: 2, bonded: 3 }[tier] ?? 0);
+    }
+
+    getRecentDialogueAgeSeconds(entity, partnerId = null, direction = 'outgoing') {
+        if (!entity?.id || !partnerId) return Infinity;
+        const historyKey = `${entity.id}->${partnerId}`;
+        const trackedAt = this.partnerSelectionHistory.get(historyKey);
+        if (Number.isFinite(trackedAt)) {
+            return Math.max(0, this.simulationClockSeconds - trackedAt);
+        }
+        if (!entity?.lifeSim?.communication?.recentDialogues?.length) return Infinity;
+        const recent = entity.lifeSim.communication.recentDialogues.find(entry =>
+            entry?.partnerId === partnerId
+            && (!direction || entry.direction === direction)
+            && Number.isFinite(entry.atSeconds)
+        );
+        if (!recent) return Infinity;
+        return Math.max(0, this.simulationClockSeconds - recent.atSeconds);
+    }
+
+    rememberPartnerSelection(sourceId = null, partnerId = null, atSeconds = this.simulationClockSeconds) {
+        if (!sourceId || !partnerId || !Number.isFinite(atSeconds)) return;
+        this.partnerSelectionHistory.set(`${sourceId}->${partnerId}`, atSeconds);
+        if (this.partnerSelectionHistory.size <= 512) return;
+        const cutoff = atSeconds - 540;
+        for (const [key, value] of Array.from(this.partnerSelectionHistory.entries())) {
+            if (!Number.isFinite(value) || value < cutoff) {
+                this.partnerSelectionHistory.delete(key);
+            }
+        }
+    }
+
+    getDerivedFeelingValue(entity, key = null) {
+        if (!entity?.lifeSim || !key) return 0;
+        const feelings = entity.lifeSim.derived?.derivedFeelings || {};
+        const direct = feelings[key];
+        if (Number.isFinite(direct)) return this.clamp01(direct);
+        if (feelings.motiveBias === key || feelings.dominant === key) return 0.68;
+        return 0;
+    }
+
+    getDriveValue(entity, key = null) {
+        if (!entity?.lifeSim || !key) return 0;
+        const direct = entity.lifeSim.drives?.[key];
+        if (Number.isFinite(direct)) return this.clamp01(direct);
+        const driveTargets = entity.lifeSim.derived?.driveTargets || entity.lifeSim.derived?.drives || {};
+        return this.clamp01(driveTargets[key] || 0);
+    }
+
+    getRecentMemoryPackets(entity, family = 'social', maxAgeSeconds = Infinity) {
+        const packets = entity?.lifeSim?.memories?.[family] || [];
+        if (!Array.isArray(packets) || !packets.length) return [];
+        const currentFrame = this.getCurrentFrame();
+        const maxAgeFrames = Number.isFinite(maxAgeSeconds) ? Math.max(0, maxAgeSeconds * 60) : Infinity;
+        return packets.filter(packet => {
+            const frame = packet.createdAtFrame ?? packet.emittedAtFrame ?? packet.lostAtFrame ?? packet.lastSeenFrame ?? packet.witnessedAtFrame ?? 0;
+            return !Number.isFinite(maxAgeFrames) || (currentFrame - frame) <= maxAgeFrames;
+        });
+    }
+
+    hasBondedCheckInExemption(entity, candidate, edge, config = this.getPartnerSelectionConfig()) {
+        if (!entity?.id || !candidate?.id || this.getBondRank(edge) < 3) return false;
+        const recentSeconds = Number(config.bondedCheckInExemptionSeconds ?? 60);
+        const loneliness = this.getDerivedFeelingValue(entity, 'loneliness');
+        if (loneliness >= Number(config.bondedCheckInLonelinessThreshold ?? 0.55)) {
+            return true;
+        }
+        const griefThreshold = Number(config.bondedCheckInGriefThreshold ?? 0.45);
+        return this.getRecentMemoryPackets(entity, 'social', recentSeconds).some(packet =>
+            (packet?.kind === 'bereavement' || packet?.kind === 'bereavementLongAbsence')
+            && (packet.partnerId === candidate.id || packet.entityId === entity.id)
+            && this.clamp01(packet.intensity ?? packet.strength ?? 0) >= griefThreshold
+        );
+    }
+
+    getShameRepairTargetIds(entity) {
+        const packets = this.getRecentMemoryPackets(entity, 'outcome', 600)
+            .filter(packet => packet?.kind === 'shameAnchor' || packet?.anchor === 'shame');
+        const ids = new Set();
+        for (const packet of packets) {
+            [
+                packet.partnerId,
+                packet.distressedId,
+                packet.harmedWitnessId,
+                packet.targetId,
+                packet.thirdPartyId
+            ].filter(Boolean).forEach(id => ids.add(id));
+        }
+        return ids;
+    }
+
+    getNeedTypedPartnerBias(entity, candidate, relationship = {}, edge = {}, signal = {}, config = this.getPartnerSelectionConfig()) {
+        if (config.needTypedWeighting === false || !entity?.id || !candidate?.id) return 0;
+        const bondRank = this.getBondRank(edge);
+        const loneliness = Math.max(
+            this.getDerivedFeelingValue(entity, 'loneliness'),
+            this.getDriveValue(entity, 'socialConnection')
+        );
+        const comfortSeeking = Math.max(
+            this.getDerivedFeelingValue(entity, 'comfortSeeking'),
+            this.getDriveValue(entity, 'safetyAvoidance')
+        );
+        const curiosity = Math.max(
+            this.getDerivedFeelingValue(entity, 'curiosity'),
+            this.getDriveValue(entity, 'exploration')
+        );
+        const statusExpression = Math.max(
+            this.getDerivedFeelingValue(entity, 'statusExpression'),
+            this.getDriveValue(entity, 'statusExpression')
+        );
+        const shame = this.getDerivedFeelingValue(entity, 'shame');
+        let bias = 0;
+        if (loneliness >= 0.5 && bondRank >= 2) {
+            bias += Number(config.lonelinessBondedBoost ?? 0.42) * loneliness;
+        }
+        if (comfortSeeking >= 0.48 && bondRank >= 2) {
+            bias += Number(config.comfortCompanionBoost ?? 0.36) * comfortSeeking;
+        }
+        if (curiosity >= 0.5 && bondRank <= 1) {
+            bias += Number(config.curiosityAcquaintanceBoost ?? 0.46) * curiosity;
+        }
+        if (statusExpression >= 0.5) {
+            bias += Number(config.statusAdmirationBoost ?? 0.34) * this.clamp01(relationship.admiration || edge.admiration || 0);
+        }
+        if (shame >= 0.35 || (signal.intentTags || []).includes('repair')) {
+            const repairTargets = this.getShameRepairTargetIds(entity);
+            if (repairTargets.has(candidate.id)) {
+                bias += Number(config.shameRepairBoost ?? 0.5) * Math.max(0.5, shame);
+            }
+        }
+        return bias;
+    }
+
+    getPartnerRecencyPenalty(entity, candidate, edge = {}, config = this.getPartnerSelectionConfig()) {
+        if (config.recencyPressure === false || !entity?.id || !candidate?.id) return 0;
+        if (this.hasBondedCheckInExemption(entity, candidate, edge, config)) return 0;
+        const windowSeconds = Math.max(1, Number(config.recencyWindowSeconds ?? 180));
+        const decaySeconds = Math.max(1, Number(config.recencyDecaySeconds ?? 180));
+        const age = this.getRecentDialogueAgeSeconds(entity, candidate.id, 'outgoing');
+        if (!Number.isFinite(age) || age > windowSeconds + decaySeconds) return 0;
+        const basePenalty = Number(config.recencyPenalty ?? 1.1);
+        if (age <= windowSeconds) return basePenalty;
+        return basePenalty * (1 - ((age - windowSeconds) / decaySeconds));
+    }
+
+    getRepeatedDialogueCooldownSeconds(signal = {}, config = this.getPartnerSelectionConfig()) {
+        if (!signal || signal.signalType !== 'warning_signal') return 0;
+        return Math.max(0, Number(config.repeatedWarningDialogueCooldownSeconds ?? 0));
+    }
+
+    shouldSuppressRepeatedDialogueSignal(source, signal = {}, recipients = []) {
+        const targetIds = (signal?.targetIds?.length ? signal.targetIds : recipients.map(entity => entity?.id)).filter(Boolean);
+        if (!source?.id || !targetIds.length) return false;
+        const cooldownSeconds = this.getRepeatedDialogueCooldownSeconds(signal);
+        if (cooldownSeconds <= 0) return false;
+        const createdAtSeconds = Number(signal.createdAtSeconds ?? this.simulationClockSeconds);
+        if (!Number.isFinite(createdAtSeconds)) return false;
+        return targetIds.some(partnerId => {
+            const age = this.getRecentDialogueAgeSeconds(source, partnerId, 'outgoing');
+            return Number.isFinite(age) && age <= cooldownSeconds;
+        });
+    }
+
+    isWitnessedAffectionPositiveSignal(signal = {}) {
+        const tags = Array.isArray(signal.intentTags) ? signal.intentTags : [];
+        return tags.some(tag => ['comfort', 'companionship', 'warmth', 'admiration', 'playful', 'shared_attention'].includes(tag))
+            || (signal.metadata?.affectionIntensity || 0) > 0.5;
+    }
+
+    getWitnessedAffectionOpportunityBias(source, candidate, edge = {}, signal = {}, gameState = gameCore?.gameState) {
+        const config = gameConfig?.cognition?.jealousy?.witnessedAffection || {};
+        if (config.exposureBias === false || !source?.id || !candidate?.id) return 0;
+        if (!this.isWitnessedAffectionPositiveSignal(signal)) return 0;
+        if (this.getBondRank(edge) < this.getBondRank('bonded')) return 0;
+        if (this.getPartnerRecencyPenalty(source, candidate, edge) > 0) return 0;
+        const zoneId = source.currentZoneId || source.lifeSim?.lifecycle?.currentZoneId || signal.sourceZoneId || null;
+        const distanceUnits = Number(config.distanceUnits ?? 8);
+        const hasWitness = this.getLiveEntities(gameState).some(witness => {
+            if (!witness?.id || witness.id === source.id || witness.id === candidate.id) return false;
+            const witnessZoneId = witness.currentZoneId || witness.lifeSim?.lifecycle?.currentZoneId || null;
+            if (zoneId && witnessZoneId && witnessZoneId !== zoneId) return false;
+            const witnessEdge = witness.lifeSim?.socialEdges?.[source.id] || {};
+            if (this.getBondRank(witnessEdge) < this.getBondRank('companion')) return false;
+            const distance = lifeSimSystem?.getBoardDistanceBetweenEntities?.(witness, source, zoneId)
+                ?? structureSystem?.getBoardDistanceBetweenEntities?.(witness, source, zoneId)
+                ?? Infinity;
+            return distance <= distanceUnits;
+        });
+        return hasWitness ? Number(config.opportunityBoost ?? 0.18) : 0;
+    }
+
+    scorePartnerCandidateForSignal(source, candidate, signal = {}, explicitTargetIds = new Set()) {
+        const edge = source?.lifeSim?.socialEdges?.[candidate?.id] || {};
+        const relationship = this.getRelationshipContext(source, candidate?.id);
+        const distance = Math.hypot((candidate.x || 0) - (source.x || 0), (candidate.y || 0) - (source.y || 0));
+        const distanceWeight = this.clamp01(distance / Math.max(120, signal.radius || 160));
+        const config = this.getPartnerSelectionConfig();
+        const base = (
+            relationship.trust * 0.18
+            + relationship.comfort * 0.2
+            + relationship.attachment * 0.16
+            + relationship.admiration * 0.1
+            + relationship.followThroughScore * 0.12
+            + relationship.recentWarmth * 0.1
+            + relationship.recentEase * 0.08
+            + relationship.recentMutualAttention * 0.08
+            - relationship.resentment * 0.22
+            - relationship.rejectionWeight * 0.18
+            - relationship.recentFriction * 0.12
+            - distanceWeight * 0.18
+        );
+        const explicitBias = explicitTargetIds.has(candidate.id) ? Number(config.explicitTargetBias ?? 0.16) : 0;
+        const needBias = this.getNeedTypedPartnerBias(source, candidate, relationship, edge, signal, config);
+        const witnessedAffectionBias = this.getWitnessedAffectionOpportunityBias(source, candidate, edge, signal);
+        const recencyPenalty = this.getPartnerRecencyPenalty(source, candidate, edge, config);
+        const jitter = (this.buildNameSeed(source.id, candidate.id, signal.signalType, Math.floor(this.simulationClockSeconds / 12)) % 100) / 10000;
+        return {
+            candidate,
+            distance,
+            base,
+            explicitBias,
+            needBias,
+            witnessedAffectionBias,
+            recencyPenalty,
+            score: base + explicitBias + needBias + witnessedAffectionBias - recencyPenalty + jitter
+        };
+    }
+
+    getPartnerCandidatePoolForSignal(source, signal = {}, gameState = gameCore?.gameState) {
+        if (!source?.id) return [];
+        const sourceZoneId = signal.sourceZoneId || source.currentZoneId || source.lifeSim?.lifecycle?.currentZoneId || null;
+        const explicit = (signal.targetIds || [])
+            .map(entityId => this.getEntityById(entityId, gameState))
+            .filter(entity => entity?.id && entity.id !== source.id);
+        const allZoneCandidates = this.getLiveEntities(gameState).filter(entity => {
+            if (!entity?.id || entity.id === source.id) return false;
+            const zoneId = entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null;
+            if (sourceZoneId && zoneId && zoneId !== sourceZoneId) return false;
+            return true;
+        });
+        let pool = allZoneCandidates.filter(entity => {
+            if (signal.radius && !this.isEntityWithinRadius(source, entity, signal.radius, signal.radiusUnits, sourceZoneId)) return false;
+            return true;
+        });
+        if (pool.length <= Math.max(1, (signal.targetIds || []).length)) {
+            pool = allZoneCandidates;
+        }
+        const byId = new Map();
+        [...explicit, ...pool].forEach(entity => {
+            if (entity?.id) byId.set(entity.id, entity);
+        });
+        return Array.from(byId.values());
+    }
+
+    applyPartnerSelectionPressure(signal, gameState = gameCore?.gameState) {
+        const config = this.getPartnerSelectionConfig();
+        if (config.recencyPressure === false || !signal?.sourceId || !signal.targetIds?.length) return signal;
+        if (signal.signalType === 'warning_signal') return signal;
+        const source = this.getEntityById(signal.sourceId, gameState);
+        if (!source?.id) return signal;
+        const explicitTargetIds = new Set(signal.targetIds || []);
+        const targetCount = Math.max(1, signal.targetIds.length);
+        const scored = this.getPartnerCandidatePoolForSignal(source, signal, gameState)
+            .map(candidate => this.scorePartnerCandidateForSignal(source, candidate, signal, explicitTargetIds))
+            .sort((left, right) => (right.score - left.score) || (left.distance - right.distance));
+        const suppressibleTypes = new Set([
+            'acknowledgement_signal',
+            'calming_signal',
+            'courtship_signal',
+            'guidance_signal',
+            'teaching_signal',
+            'trust_display'
+        ]);
+        if (config.suppressFullyRecentPartnerSignals !== false
+            && suppressibleTypes.has(signal.signalType)
+            && scored.length
+            && (scored[0].recencyPenalty || 0) >= Number(config.suppressPenaltyThreshold ?? 4)) {
+            return {
+                ...signal,
+                partnerSelection: {
+                    recencyPressure: true,
+                    suppressed: true,
+                    reason: 'all-available-partners-recent',
+                    topScores: scored.slice(0, Math.min(4, scored.length)).map(entry => ({
+                        id: entry.candidate.id,
+                        score: Number(entry.score.toFixed(3)),
+                        recencyPenalty: Number(entry.recencyPenalty.toFixed(3))
+                    }))
+                }
+            };
+        }
+        const selectedIds = scored.slice(0, targetCount).map(entry => entry.candidate.id);
+        if (!selectedIds.length) return signal;
+        return {
+            ...signal,
+            targetIds: selectedIds,
+            targetLabel: selectedIds.length === 1 ? this.getEntityLabel(scored[0].candidate) : signal.targetLabel,
+            partnerSelection: {
+                recencyPressure: true,
+                selectedIds,
+                replacedIds: signal.targetIds.filter(id => !selectedIds.includes(id)),
+                topScores: scored.slice(0, Math.min(4, scored.length)).map(entry => ({
+                    id: entry.candidate.id,
+                    score: Number(entry.score.toFixed(3)),
+                    base: Number(entry.base.toFixed(3)),
+                    needBias: Number(entry.needBias.toFixed(3)),
+                    recencyPenalty: Number(entry.recencyPenalty.toFixed(3))
+                }))
+            }
+        };
+    }
+
     getFollowThroughBehaviorProfile(entity, gameState = gameCore?.gameState, options = {}) {
         if (!entity?.id) {
             return {
@@ -1299,10 +1621,20 @@ class CommunicationSystem {
         }
 
         const zoneId = options.zoneId || entity.currentZoneId || entity?.lifeSim?.lifecycle?.currentZoneId || null;
-        const candidates = Array.isArray(options.nearbyButterflies)
+        const providedCandidates = Array.isArray(options.nearbyButterflies)
             ? options.nearbyButterflies.filter(candidate => candidate?.id && candidate.id !== entity.id)
-            : ((gameCore?.getButterfliesInZone?.(zoneId) || gameState?.butterflies || [])
-                .filter(candidate => candidate?.id && candidate.id !== entity.id));
+            : null;
+        const zoneList = gameCore?.getButterfliesInZone?.(zoneId) || [];
+        const zoneCandidates = (zoneList.length ? zoneList : (gameState?.butterflies || []))
+            .filter(candidate => candidate?.id && candidate.id !== entity.id);
+        const edgeCandidates = Object.keys(entity?.lifeSim?.socialEdges || {})
+            .map(entityId => this.getEntityById(entityId, gameState))
+            .filter(candidate => candidate?.id && candidate.id !== entity.id);
+        const byId = new Map();
+        [...(providedCandidates || []), ...zoneCandidates, ...edgeCandidates].forEach(candidate => {
+            if (candidate?.id) byId.set(candidate.id, candidate);
+        });
+        const candidates = Array.from(byId.values());
 
         const ranked = candidates.map(candidate => {
             const relationship = this.getRelationshipContext(entity, candidate.id);
@@ -1595,6 +1927,7 @@ class CommunicationSystem {
     getSocialSubtypeIntentTags(subtype = 'check_in') {
         const tagsBySubtype = {
             check_in: ['reply', 'casual', 'companionship', 'warmth'],
+            cleanup_care: ['comfort', 'guidance', 'coordination'],
             shared_observation: ['reply', 'casual', 'shared_attention'],
             playful_banter: ['reply', 'casual', 'playful', 'warmth', 'shared_attention'],
             gentle_tease: ['reply', 'casual', 'playful', 'friction', 'warmth'],
@@ -1614,6 +1947,17 @@ class CommunicationSystem {
         const partnerEdge = partner?.lifeSim?.socialEdges?.[source?.id] || {};
         const partnerAdmiration = this.clamp01(partnerEdge.admiration || 0);
         const partnerWarmth = this.clamp01(partnerEdge.recentWarmth || 0);
+        const cleanupConfig = gameConfig?.cognition?.affordances || {};
+        const sourceCare = this.clamp01(source?.lifeSim?.drives?.caregiving || 0);
+        const dirtCount = Math.max(0, Math.round(source?.lifeSim?.objectAwareness?.dirtPileCount || 0));
+        const partnerComfort = this.clamp01(partner?.lifeSim?.social?.belonging || partnerEdge.comfort || 0);
+
+        if (cleanupConfig.cleanupSocialModulation !== false
+            && dirtCount > 0
+            && sourceCare >= 0.58
+            && (!partner || partnerComfort <= 0.55)) {
+            return 'cleanup_care';
+        }
 
         if (responseTo?.intentTags?.includes('repair') || ['offered', 'repair-open', 'hurt'].includes(partner?.lifeSim?.socialEdges?.[source?.id]?.repairState)) {
             return this.pickPairSubtype(source, partner?.id || null, 'soft-repair', ['soft_repair', 'check_in']);
@@ -2362,6 +2706,213 @@ class CommunicationSystem {
             relationship,
             crowdWord
         };
+    }
+
+    isNamedMemoryDialogueEnabled() {
+        return gameConfig?.expression?.namedMemoryDialogue?.enabled !== false;
+    }
+
+    getPacketCreatedFrame(packet = {}) {
+        const frame = packet.createdAtFrame ?? packet.lostAtFrame ?? packet.watchedAtFrame ?? packet.createdFrame;
+        return Number.isFinite(frame) ? Math.max(0, Math.round(frame)) : null;
+    }
+
+    getPacketStrength(packet = {}) {
+        const value = packet.intensity ?? packet.activeStrength ?? packet.strength ?? packet.score ?? 0;
+        return this.clamp01(value);
+    }
+
+    getMemoryPartnerIds(packet = {}) {
+        return [
+            packet.partnerId,
+            packet.bondPartnerId,
+            packet.chosenPartnerId,
+            packet.rejectedPartnerId,
+            packet.thirdPartyId
+        ].filter(Boolean);
+    }
+
+    getMemoryReferenceLabel(packet = {}, speaker = null, listener = null, gameState = gameCore?.gameState) {
+        const candidateIds = this.getMemoryPartnerIds(packet);
+        const preferredId = listener?.id && candidateIds.includes(listener.id)
+            ? listener.id
+            : candidateIds[0];
+        if (!preferredId) return null;
+        const entity = this.getEntityById(preferredId, gameState) || (listener?.id === preferredId ? listener : null);
+        const label = entity
+            ? this.getKnownName(speaker, entity, { includeSex: false })
+            : preferredId;
+        const clean = this.stripSexSuffix(label || '').trim();
+        return clean && !/^undefined|null$/i.test(clean) ? clean : null;
+    }
+
+    getRelevantMemoryPacket(speaker, listener = null, gameState = gameCore?.gameState) {
+        if (!speaker?.lifeSim?.memories) return null;
+        const buckets = [
+            ...(speaker.lifeSim.memories.social || []).map(packet => ({ ...packet, memoryFamily: 'social' })),
+            ...(speaker.lifeSim.memories.outcome || []).map(packet => ({ ...packet, memoryFamily: 'outcome' })),
+            ...(speaker.lifeSim.memories.place || []).map(packet => ({ ...packet, memoryFamily: 'place' }))
+        ];
+        if (!buckets.length) return null;
+        const currentFrame = this.getCurrentFrame();
+        const minEdgeComposite = Number(gameConfig?.expression?.namedMemoryDialogue?.minEdgeComposite ?? 0.35);
+        const ranked = buckets
+            .map(packet => {
+                const partnerIds = this.getMemoryPartnerIds(packet);
+                const partnerId = listener?.id && partnerIds.includes(listener.id) ? listener.id : partnerIds[0] || null;
+                const edge = partnerId ? speaker.lifeSim?.socialEdges?.[partnerId] || null : null;
+                const edgeComposite = edge
+                    ? Math.max(
+                        this.computeChemistry(edge, 0),
+                        this.clamp01(edge.trust || 0),
+                        this.clamp01(edge.comfort || 0),
+                        this.clamp01(edge.attachment || 0),
+                        this.clamp01(edge.familiarity || 0)
+                    )
+                    : (packet.memoryFamily === 'outcome' ? minEdgeComposite : 0);
+                const createdFrame = this.getPacketCreatedFrame(packet);
+                const ageFrames = createdFrame == null ? 600 : Math.max(0, currentFrame - createdFrame);
+                const recencyScore = 1 / (1 + (ageFrames / 600));
+                const partnerMatch = listener?.id && partnerIds.includes(listener.id) ? 0.25 : 0;
+                return {
+                    packet,
+                    partnerId,
+                    edgeComposite,
+                    score: this.getPacketStrength(packet) * recencyScore + partnerMatch
+                };
+            })
+            .filter(entry => {
+                if (!entry.packet?.id) return false;
+                if (entry.partnerId && entry.edgeComposite < minEdgeComposite) return false;
+                return entry.score > 0.02;
+            })
+            .sort((left, right) => right.score - left.score);
+        return ranked[0] || null;
+    }
+
+    composeMemoryReferencingPhrase(speaker, listener = null, intent = 'social', options = {}) {
+        if (!this.isNamedMemoryDialogueEnabled()) return null;
+        const basePhrase = String(options.basePhrase || '').trim();
+        const memoryReference = this.getRelevantMemoryPacket(speaker, listener, options.gameState || gameCore?.gameState);
+        const packet = memoryReference?.packet || null;
+        if (!packet?.id) return null;
+        const label = this.getMemoryReferenceLabel(packet, speaker, listener, options.gameState || gameCore?.gameState);
+        const trim = value => String(value || '').replace(/\s+/g, ' ').trim();
+        const reason = trim(packet.reason || packet.label || packet.anchor || packet.kind || intent);
+        let prefix = null;
+        let templateId = `memory:${packet.memoryFamily || 'social'}:${packet.kind || packet.anchor || 'packet'}`;
+        if (packet.kind === 'bereavement' && label) {
+            prefix = packet.subtype === 'long-absence'
+                ? `I keep checking the path where ${label} was last seen.`
+                : `I still track the space ${label} left behind.`;
+        } else if (packet.kind === 'witnessedAffection' && label) {
+            prefix = `I saw ${label} draw close, and that moment still follows me.`;
+        } else if (packet.kind === 'loyaltyChoice') {
+            const chosen = this.getMemoryReferenceLabel({ partnerId: packet.chosenPartnerId }, speaker, null, options.gameState || gameCore?.gameState);
+            const rejected = this.getMemoryReferenceLabel({ partnerId: packet.rejectedPartnerId }, speaker, null, options.gameState || gameCore?.gameState);
+            if (chosen && rejected) prefix = `I chose ${chosen} over ${rejected}, and I still feel that pull.`;
+        } else if (packet.anchor === 'pride') {
+            prefix = `That ${reason} still steadies me.`;
+            templateId = 'memory:outcome:prideAnchor';
+        } else if (packet.anchor === 'shame') {
+            prefix = `I am still correcting after ${reason}.`;
+            templateId = 'memory:outcome:shameAnchor';
+        } else if (label) {
+            prefix = `I keep remembering ${label}.`;
+        }
+        if (!prefix) return null;
+        const maxPrefix = Math.max(24, Number(gameConfig?.expression?.namedMemoryDialogue?.maxPrefixCharacters ?? 72));
+        const clippedPrefix = prefix.length > maxPrefix ? `${prefix.slice(0, maxPrefix - 3)}...` : prefix;
+        return {
+            phrase: basePhrase ? `${clippedPrefix} ${basePhrase}` : clippedPrefix,
+            referencedMemoryPacketId: packet.id,
+            referencedMemoryFamily: packet.memoryFamily || null,
+            referencedMemoryKind: packet.kind || packet.anchor || null,
+            referencedPartnerId: memoryReference.partnerId || null,
+            referencedPartnerLabel: label || null,
+            causeLabel: this.buildMemoryCauseLabel(packet, {
+                partnerLabel: label,
+                rejectedPartnerLabel: this.getEntityLabel(this.getEntityById(packet.rejectedPartnerId), packet.rejectedPartnerId || '')
+            }),
+            phraseTemplateId: templateId
+        };
+    }
+
+    getCauseLabelConfig() {
+        const config = gameConfig?.expression?.causeLabel || {};
+        return {
+            enabled: config.enabled !== false,
+            maxCharacters: Math.max(8, Math.round(Number(config.maxCharacters || 24))),
+            cooldownSeconds: Math.max(0, Number(config.cooldownSeconds ?? 60))
+        };
+    }
+
+    clipCauseLabel(label = '') {
+        const { maxCharacters } = this.getCauseLabelConfig();
+        const clean = String(label || '').replace(/\s+/g, ' ').trim();
+        if (!clean) return null;
+        return clean.length > maxCharacters ? clean.slice(0, Math.max(1, maxCharacters - 1)).trimEnd() : clean;
+    }
+
+    buildMemoryCauseLabel(packet = {}, context = {}) {
+        if (!packet || this.getCauseLabelConfig().enabled === false) return null;
+        const partnerLabel = this.stripSexSuffix(context.partnerLabel || context.referencedPartnerLabel || '');
+        const rejectedLabel = this.stripSexSuffix(context.rejectedPartnerLabel || '');
+        let label = null;
+        if (packet.kind === 'bereavementLongAbsence' || packet.subtype === 'long-absence') {
+            label = 'grief: long absence';
+        } else if (packet.kind === 'bereavement') {
+            label = 'grief: loss';
+        } else if (packet.kind === 'witnessedAffection') {
+            label = partnerLabel ? `witnessed: ${partnerLabel}` : 'witnessed affection';
+        } else if (packet.kind === 'loyaltyChoice') {
+            label = partnerLabel ? `loyalty: ${partnerLabel}` : 'loyalty: choice';
+            if (!partnerLabel && rejectedLabel) label = `loyalty vs ${rejectedLabel}`;
+        } else if (packet.kind === 'prideAnchor' || packet.anchor === 'pride') {
+            label = 'pride: outcome';
+        } else if (packet.kind === 'shameAnchor' || packet.anchor === 'shame') {
+            label = 'shame: repair';
+        } else if (packet.kind || packet.anchor) {
+            label = `${packet.memoryFamily || 'memory'}: ${packet.kind || packet.anchor}`;
+        }
+        return this.clipCauseLabel(label);
+    }
+
+    buildCauseLabelFromMetadata(metadata = {}) {
+        if (metadata?.causeLabel) return this.clipCauseLabel(metadata.causeLabel);
+        const packet = {
+            kind: metadata?.referencedMemoryKind || null,
+            anchor: metadata?.referencedMemoryKind || null,
+            memoryFamily: metadata?.referencedMemoryFamily || null
+        };
+        return this.buildMemoryCauseLabel(packet, {
+            partnerLabel: metadata?.referencedPartnerLabel || null
+        });
+    }
+
+    applyCauseLabelCooldown(entries = []) {
+        if (this.getCauseLabelConfig().enabled === false) return entries;
+        const { cooldownSeconds } = this.getCauseLabelConfig();
+        const lastShownByKey = new Map();
+        return entries.map(entry => {
+            const packetId = entry?.referencedMemoryPacketId || null;
+            const sourceId = entry?.sourceId || entry?.threadSourceId || 'unknown';
+            const rawLabel = entry?.causeLabel || this.buildCauseLabelFromMetadata(entry?.metadata || entry?.dialogueMetadata || {});
+            if (!packetId || !rawLabel) return { ...entry, causeLabel: null };
+            const seconds = Number.isFinite(entry?.createdAtSeconds)
+                ? entry.createdAtSeconds
+                : Math.round((entry?.timestamp || 0) / 1000);
+            const key = `${sourceId}:${packetId}`;
+            const previous = lastShownByKey.get(key);
+            const shouldShow = !Number.isFinite(previous) || Math.abs(seconds - previous) >= cooldownSeconds;
+            if (shouldShow) {
+                lastShownByKey.set(key, seconds);
+            }
+            return {
+                ...entry,
+                causeLabel: shouldShow ? rawLabel : null
+            };
+        });
     }
 
     joinDialogueParts(parts = [], band = 'average') {
@@ -3761,16 +4312,36 @@ class CommunicationSystem {
             ...(overrides.metadata || {}),
             feelingSource
         };
+        const memoryReference = this.composeMemoryReferencingPhrase(source, recipients[0] || null, intentSubtype, {
+            basePhrase: phrase,
+            gameState: gameCore?.gameState
+        });
+        const renderedPhrase = memoryReference?.phrase || phrase;
+        if (memoryReference?.referencedMemoryPacketId) {
+            metadata.referencedMemoryPacketId = memoryReference.referencedMemoryPacketId;
+            metadata.referencedMemoryFamily = memoryReference.referencedMemoryFamily || null;
+            metadata.referencedMemoryKind = memoryReference.referencedMemoryKind || null;
+            metadata.referencedPartnerId = memoryReference.referencedPartnerId || null;
+            metadata.referencedPartnerLabel = memoryReference.referencedPartnerLabel || null;
+            metadata.causeLabel = memoryReference.causeLabel || null;
+        }
+        const phraseTemplateId = memoryReference?.phraseTemplateId
+            || overrides.phraseTemplateId
+            || signal?.phraseTemplateId
+            || `${signal?.signalType || 'speech'}:${intentSubtype || intentProfile.subtype || 'general'}`;
 
         return {
             id: overrides.id || `dialogue_${signal?.signalType || 'speech'}_${source.id}_${Math.round((overrides.createdAtSeconds ?? signal?.createdAtSeconds ?? this.simulationClockSeconds) * 1000)}`,
             timestamp: overrides.timestamp || Date.now(),
             createdAtSeconds: overrides.createdAtSeconds ?? signal?.createdAtSeconds ?? this.simulationClockSeconds,
+            createdAtFrame: overrides.createdAtFrame ?? signal?.createdAtFrame ?? this.getCurrentFrame(),
             sourceId: source.id,
             sourceLabel: this.getEntityLabel(source),
             sourceZoneId: zoneId,
             sourceSignalType: signal?.signalType || overrides.sourceSignalType || null,
-            phrase,
+            phrase: renderedPhrase,
+            basePhrase: phrase,
+            phraseTemplateId,
             category: this.normalizeFeedCategory(overrides.category || signal?.category || dialogueSpec.category || 'talk'),
             tone,
             register,
@@ -3795,6 +4366,16 @@ class CommunicationSystem {
             responseToIntentTags: Array.isArray(overrides.responseToIntentTags) ? [...new Set(overrides.responseToIntentTags.filter(Boolean))] : [],
             responseToSourceId: overrides.responseToSourceId || null,
             interpretation: overrides.interpretation || signal?.interpretation || null,
+            dialogueMetadata: {
+                ...(overrides.dialogueMetadata || {}),
+                referencedMemoryPacketId: memoryReference?.referencedMemoryPacketId || null,
+                referencedMemoryFamily: memoryReference?.referencedMemoryFamily || null,
+                referencedMemoryKind: memoryReference?.referencedMemoryKind || null,
+                referencedPartnerId: memoryReference?.referencedPartnerId || null,
+                referencedPartnerLabel: memoryReference?.referencedPartnerLabel || null,
+                causeLabel: memoryReference?.causeLabel || null,
+                phraseTemplateId
+            },
             autoReplyDepth: overrides.autoReplyDepth || 0,
             responseExpected: overrides.responseExpected ?? (dialogueSpec.allowResponse && (intentProfile.allowResponse ?? true))
         };
@@ -3883,6 +4464,11 @@ class CommunicationSystem {
         if (!choice?.recipient) return;
 
         const communication = choice.recipient.lifeSim.communication;
+        const replyEdge = choice.recipient?.lifeSim?.socialEdges?.[dialogue.sourceId] || {};
+        const replyRecencyPenalty = this.getPartnerRecencyPenalty(choice.recipient, this.getEntityById(dialogue.sourceId), replyEdge);
+        if (this.getPartnerSelectionConfig().recencyPressure !== false && replyRecencyPenalty >= 0.7) {
+            return;
+        }
         const response = this.buildResponseDialogue(choice.recipient, dialogue);
         if (!response) return;
 
@@ -4499,9 +5085,14 @@ class CommunicationSystem {
             register: dialogue.register,
             languageBand: dialogue.languageBand,
             stance: dialogue.stance || null,
+            referencedMemoryPacketId: dialogue.dialogueMetadata?.referencedMemoryPacketId || dialogue.metadata?.referencedMemoryPacketId || null,
+            phraseTemplateId: dialogue.phraseTemplateId || dialogue.dialogueMetadata?.phraseTemplateId || null,
             responseToIntentTags: [...(dialogue.responseToIntentTags || [])]
         });
         communication.lastSpokenAtSeconds = dialogue.createdAtSeconds;
+        for (const partnerId of dialogue.targetIds || []) {
+            this.rememberPartnerSelection(source.id, partnerId, dialogue.createdAtSeconds);
+        }
         this.trimCommunicationState(source);
         this.requestLifeSimRefresh(source, 'dialogue-spoken');
 
@@ -4596,7 +5187,7 @@ class CommunicationSystem {
     }
 
     handleSignal(data = {}) {
-        const signal = this.normalizeSignal(data);
+        const signal = this.applyPartnerSelectionPressure(this.normalizeSignal(data));
         if (!signal) return null;
 
         const source = this.getEntityById(signal.sourceId);
@@ -4613,6 +5204,14 @@ class CommunicationSystem {
 
         this.activeSignals.set(signal.sourceId, signal);
         const internalEntry = this.storeHistory(signal, recipients);
+        if (signal.partnerSelection?.suppressed) {
+            return internalEntry;
+        }
+        if (this.shouldSuppressRepeatedDialogueSignal(source, signal, recipients)) {
+            internalEntry.dialogueSuppressed = true;
+            internalEntry.dialogueSuppressionReason = 'repeat-warning-cooldown';
+            return internalEntry;
+        }
         const dialogue = this.createDialogueRecord(signal, source, recipients);
         if (dialogue) {
             this.emitDialogue(dialogue, recipients);
@@ -5165,6 +5764,8 @@ class CommunicationSystem {
                 previous.grounding = entry.grounding || previous.grounding;
                 previous.contextTags = entry.contextTags?.length ? entry.contextTags : previous.contextTags;
                 previous.pairTextureLabel = entry.pairTextureLabel || previous.pairTextureLabel;
+                previous.causeLabel = previous.causeLabel || entry.causeLabel || null;
+                previous.referencedMemoryPacketId = previous.referencedMemoryPacketId || entry.referencedMemoryPacketId || null;
                 previous.signature = `dialogue-thread:${previous.pairKey}:${previous.motiveFamily}:${previous.threadStartedAt}:${previous.threadCount}`;
                 continue;
             }
@@ -5218,7 +5819,26 @@ class CommunicationSystem {
             if (!zoneId) return true;
             return entry.sourceZoneId === zoneId;
         });
-        const talkEntries = filtered.slice(-limit).map(entry => {
+        const deduped = [];
+        const recentByTemplate = new Map();
+        for (const entry of filtered.slice(-(limit * 3))) {
+            const targetKey = (entry.targetIds || []).filter(Boolean).sort().join('|');
+            const templateKey = [
+                entry.sourceId || 'unknown',
+                entry.phraseTemplateId || entry.dialogueMetadata?.phraseTemplateId || entry.basePhrase || entry.phrase || 'speech',
+                targetKey
+            ].join('::');
+            const frame = Number.isFinite(entry.createdAtFrame)
+                ? Math.round(entry.createdAtFrame)
+                : Math.round((entry.createdAtSeconds || 0) * 60);
+            const previousFrame = recentByTemplate.get(templateKey);
+            if (Number.isFinite(previousFrame) && Math.abs(frame - previousFrame) <= 30) {
+                continue;
+            }
+            recentByTemplate.set(templateKey, frame);
+            deduped.push(entry);
+        }
+        const talkEntries = deduped.slice(-limit).map(entry => {
             const time = new Date(entry.timestamp).toLocaleTimeString([], {
                 hour: 'numeric',
                 minute: '2-digit'
@@ -5233,6 +5853,8 @@ class CommunicationSystem {
             const heardMeaning = this.getDialogueHeardMeaning(relevantResidues);
             return {
                 timestamp: entry.timestamp,
+                sourceId: entry.sourceId || null,
+                createdAtSeconds: entry.createdAtSeconds ?? null,
                 signature: `dialogue:${entry.id}`,
                 line: `${time}-${presentation.sourceLabel}: ${entry.phrase}`,
                 category: this.normalizeFeedCategory(entry.category || 'talk'),
@@ -5247,6 +5869,11 @@ class CommunicationSystem {
                 contextTags: presentation.contextTags,
                 timeLabel: time,
                 targetText: presentation.targetText,
+                referencedMemoryPacketId: entry.dialogueMetadata?.referencedMemoryPacketId || entry.metadata?.referencedMemoryPacketId || null,
+                causeLabel: entry.dialogueMetadata?.causeLabel || entry.metadata?.causeLabel || null,
+                metadata: entry.metadata || null,
+                dialogueMetadata: entry.dialogueMetadata || null,
+                phraseTemplateId: entry.phraseTemplateId || entry.dialogueMetadata?.phraseTemplateId || null,
                 conversationId: entry.conversationId || (entry.targetIds?.length === 1 ? this.getConversationId(entry.sourceId, entry.targetIds[0], entry.sourceZoneId) : null),
                 pairKey: this.getDialoguePairKey(entry),
                 motiveFamily: presentation.motiveFamily,
@@ -5264,8 +5891,9 @@ class CommunicationSystem {
                 pairTextureLabel: presentation.pairTextureLabel
             };
         });
-        const groupedTalkEntries = this.groupTalkFeedEntries(talkEntries);
-        const learnEntries = filtered.slice(-limit).flatMap(entry => {
+        const labeledTalkEntries = this.applyCauseLabelCooldown(talkEntries);
+        const groupedTalkEntries = this.groupTalkFeedEntries(labeledTalkEntries);
+        const learnEntries = deduped.slice(-limit).flatMap(entry => {
             const time = new Date(entry.timestamp).toLocaleTimeString([], {
                 hour: 'numeric',
                 minute: '2-digit'

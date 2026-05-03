@@ -67,6 +67,122 @@ class BehaviorSystem {
         return zoneSystem.getEntityZone?.(entity)?.id || null;
     }
 
+    clamp01(value) {
+        return Math.max(0, Math.min(1, Number(value) || 0));
+    }
+
+    getAffordanceMigrationConfig() {
+        return gameConfig?.zones?.affordanceMigrationPressure || {};
+    }
+
+    getPrimaryDrive(entity) {
+        const drives = entity?.lifeSim?.drives || {};
+        let best = { key: null, value: 0 };
+        for (const [key, value] of Object.entries(drives)) {
+            const score = this.clamp01(value);
+            if (score > best.value) best = { key, value: score };
+        }
+        return best;
+    }
+
+    mapDriveToZoneAffordance(driveKey) {
+        const map = {
+            selfMaintenance: 'resource',
+            resourceControl: 'resource',
+            socialConnection: 'social',
+            caregiving: 'social',
+            safetyAvoidance: 'shelter',
+            rest: 'shelter',
+            exploration: 'exploration',
+            statusExpression: 'training'
+        };
+        return map[driveKey] || null;
+    }
+
+    getAffordanceMigrationIntent(entity, gameState) {
+        const config = this.getAffordanceMigrationConfig();
+        if (config.enabled === false || !entity?.id || typeof zoneSystem === 'undefined') return null;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        const interval = Math.max(1, Math.round(config.decisionIntervalFrames ?? 120));
+        const offset = Math.abs(String(entity.id).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)) % interval;
+        if ((currentFrame + offset) % interval !== 0) return null;
+        const currentZoneId = this.resolveZoneId(entity);
+        if (!currentZoneId || entity.zoneTravel || entity.isSpawning) return null;
+        const snapshot = zoneSystem.getZoneAffordanceSnapshot?.(gameState) || {};
+        const currentVector = snapshot[currentZoneId] || zoneSystem.getZoneAffordanceVector?.(currentZoneId, gameState);
+        if (!currentVector) return null;
+        const adjacentZones = zoneSystem.getAdjacentZones?.(currentZoneId) || [];
+        let activeDrives = Object.entries(entity?.lifeSim?.drives || {})
+            .map(([key, value]) => ({ key, value: this.clamp01(value), affordanceKey: this.mapDriveToZoneAffordance(key) }))
+            .filter(drive => drive.affordanceKey && drive.value >= Number(config.minActiveDrive ?? 0.55))
+            .sort((left, right) => right.value - left.value);
+        if (config.scarcityResourcePriority !== false && currentVector.scarcityActive) {
+            const resourceDrives = activeDrives.filter(drive => drive.affordanceKey === 'resource');
+            if (resourceDrives.length) {
+                activeDrives = resourceDrives;
+            }
+        }
+        let best = null;
+        for (const drive of activeDrives) {
+            const currentValue = this.clamp01(currentVector[drive.affordanceKey]);
+            if (currentValue > Number(config.bottomQuantile ?? 0.35)) continue;
+            for (const zone of adjacentZones) {
+                if (!zone?.id || zone.id === currentZoneId) continue;
+                if (config.excludeTrainingAsAmbientTarget !== false && zone.kind === 'training') continue;
+                const vector = snapshot[zone.id] || zoneSystem.getZoneAffordanceVector?.(zone.id, gameState);
+                if (!vector) continue;
+                const targetValue = this.clamp01(vector[drive.affordanceKey]);
+                const delta = targetValue - currentValue;
+                if (targetValue < Number(config.topQuantile ?? 0.62) || delta < Number(config.minDelta ?? 0.18)) continue;
+                const weightedDelta = delta * drive.value;
+                if (!best || weightedDelta > best.weightedDelta || targetValue > best.targetValue) {
+                    best = { zoneId: zone.id, vector, targetValue, currentValue, delta, weightedDelta, drive };
+                }
+            }
+        }
+        if (!best) return null;
+        return {
+            actionFamily: 'wander',
+            actionSubtype: 'zone-affordance-migration',
+            targetId: best.zoneId,
+            targetZoneId: best.zoneId,
+            priorityScore: Math.round((Number(config.urgencyBase ?? 0.64) + (best.drive.value * Number(config.urgencyScale ?? 0.32))) * 100),
+            reason: `seeking-${best.drive.affordanceKey}-affordance`,
+            driveKey: best.drive.key,
+            driveValue: best.drive.value,
+            affordanceKey: best.drive.affordanceKey,
+            currentZoneId,
+            currentValue: best.currentValue,
+            targetValue: best.targetValue,
+            delta: best.delta
+        };
+    }
+
+    applyAffordanceMigrationIntent(entity, intent) {
+        if (!entity?.lifeSim || !intent?.targetZoneId) return;
+        entity.lifeSim.derived = entity.lifeSim.derived || {};
+        entity.lifeSim.derived.migration = entity.lifeSim.derived.migration || {};
+        const config = this.getAffordanceMigrationConfig();
+        entity.lifeSim.derived.migration.travelTargetZoneId = intent.targetZoneId;
+        entity.lifeSim.derived.migration.travelUrgency = this.clamp01((Number(config.urgencyBase ?? 0.64) + intent.driveValue * Number(config.urgencyScale ?? 0.32)));
+        entity.lifeSim.derived.migration.affordancePull = {
+            targetZoneId: intent.targetZoneId,
+            driveKey: intent.driveKey,
+            affordanceKey: intent.affordanceKey,
+            currentZoneId: intent.currentZoneId,
+            currentValue: intent.currentValue,
+            targetValue: intent.targetValue,
+            delta: intent.delta,
+            updatedAtSeconds: this.simulationClockSeconds
+        };
+        entity.lifeSim.migration = entity.lifeSim.migration || {};
+        entity.lifeSim.migration.zoneAffinities = entity.lifeSim.migration.zoneAffinities || {};
+        entity.lifeSim.migration.zoneAffinities[intent.targetZoneId] = this.clamp01(
+            (entity.lifeSim.migration.zoneAffinities[intent.targetZoneId] || 0)
+            + Number(config.targetAffinityBoost ?? 0.22)
+        );
+    }
+
     getSocialEcologyIntent(entity) {
         const socialEcology = entity?.lifeSim?.derived?.socialEcology || null;
         const behaviorBiases = entity?.lifeSim?.derived?.behaviorBiases || {};
@@ -211,9 +327,12 @@ class BehaviorSystem {
     syncRuntimeFromEntity(entity, runtime = this.ensureRuntime(entity)) {
         if (!runtime) return null;
         const actionFamily = this.inferActionFamily(entity);
-        const socialIntent = ['sleep', 'seek_resource'].includes(actionFamily)
+        const socialIntent = actionFamily === 'sleep'
             ? null
-            : (this.getFollowThroughIntent(entity) || this.getSocialEcologyIntent(entity));
+            : (this.getAffordanceMigrationIntent(entity, gameCore?.gameState) || this.getFollowThroughIntent(entity) || this.getSocialEcologyIntent(entity));
+        if (socialIntent?.actionSubtype === 'zone-affordance-migration') {
+            this.applyAffordanceMigrationIntent(entity, socialIntent);
+        }
         runtime.currentActionFamily = socialIntent?.actionFamily || actionFamily;
         runtime.currentActionSubtype = socialIntent?.actionSubtype || this.inferActionSubtype(entity, actionFamily);
         runtime.currentTargetId = socialIntent?.targetId || this.inferTargetId(entity);

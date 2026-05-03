@@ -666,6 +666,7 @@ class BattleSystem {
             participantIds: [...snapshot.participantOrder],
             teamIds: Object.keys(snapshot.teams || {})
         });
+        this.emitBattleState('entry', battleId, snapshot);
         return snapshot;
     }
 
@@ -962,6 +963,17 @@ class BattleSystem {
             speed: nextSpeed
         });
         return this.getSnapshot(battleId);
+    }
+
+    emitBattleState(state, battleId, snapshot = null) {
+        if (typeof eventBus === 'undefined') return;
+        eventBus.emit('battle:state', {
+            state,
+            battleId,
+            mode: snapshot?.mode || null,
+            participantCount: snapshot?.participantOrder?.length || 0,
+            currentFrame: this.getCurrentFrame()
+        });
     }
 
     resolveRound(battleId, queuedActions = {}) {
@@ -1526,6 +1538,7 @@ class BattleSystem {
         if (this.activeBattleId === battleId) {
             this.activeBattleId = null;
         }
+        this.emitBattleState('exit', battleId, snapshot);
         this.appendBattleEvent(battleId, 'battle-committed', {
             winnerTeamId: payload.result?.winnerTeamId || null
         });

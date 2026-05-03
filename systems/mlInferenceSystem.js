@@ -3068,6 +3068,61 @@ class MlInferenceSystem {
         };
     }
 
+    getDecisionExplanation(entityId, gameState = gameCore?.gameState) {
+        const summary = this.getEntitySummary(entityId, gameState);
+        if (!summary) {
+            return {
+                source: 'heuristic-fallback',
+                actionLabel: 'none',
+                targetLabel: 'none',
+                signalLabel: 'quiet',
+                riskLabel: 'observe',
+                confidenceBand: 'low',
+                topAlternative: null,
+                highestFeatureGroup: null,
+                shortText: 'No decision trace yet'
+            };
+        }
+        const action = summary.policies?.action || {};
+        const target = summary.policies?.target || {};
+        const signal = summary.policies?.signal || {};
+        const risk = summary.policies?.risk || {};
+        const highlights = [
+            ...(summary.explainability?.action?.entries || []),
+            ...(summary.explainability?.target?.entries || []),
+            ...(summary.explainability?.signal?.entries || []),
+            ...(summary.explainability?.risk?.entries || [])
+        ].filter(Boolean);
+        const strongest = highlights
+            .sort((left, right) => Math.abs(right.contribution || 0) - Math.abs(left.contribution || 0))[0] || null;
+        const alternative = action.primaryAlternative?.label || target.primaryAlternative?.label || null;
+        const sourceLabel = summary.sourceLabel || 'Fallback';
+        const shortText = [
+            `${sourceLabel} chose ${summary.actionLabel || action.label || 'none'}`,
+            `toward ${summary.targetLabel || target.label || 'none'}`,
+            `signal ${summary.signalLabel || signal.label || 'quiet'}`,
+            `risk ${summary.riskLabel || risk.label || 'observe'}`,
+            `${summary.confidenceBand || action.confidenceBand || 'low'} confidence`
+        ].join(' | ');
+        return {
+            source: summary.source || 'heuristic-fallback',
+            sourceLabel,
+            actionLabel: summary.actionLabel || action.label || 'none',
+            targetLabel: summary.targetLabel || target.label || 'none',
+            signalLabel: summary.signalLabel || signal.label || 'quiet',
+            riskLabel: summary.riskLabel || risk.label || 'observe',
+            confidenceBand: summary.confidenceBand || action.confidenceBand || 'low',
+            confidence: summary.confidence || action.confidence || 0,
+            topAlternative: alternative,
+            highestFeatureGroup: strongest?.group || strongest?.feature || null,
+            highestFeatureLabel: strongest?.label || strongest?.feature || null,
+            shortText,
+            debugText: strongest
+                ? `${shortText} | strongest feature ${strongest.label || strongest.feature || strongest.group}`
+                : shortText
+        };
+    }
+
     serializeDurableState() {
         return {
             modelConfig: this.cloneValue(this.modelConfig, {})

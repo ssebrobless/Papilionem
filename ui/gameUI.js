@@ -549,6 +549,9 @@ class GameUI {
                 footer: this.buildFeedContextFooter(entry),
                 grounding: entry.grounding || null,
                 pairTextureLabel: entry.pairTextureLabel || null,
+                referencedMemoryPacketId: entry.referencedMemoryPacketId || null,
+                causeLabel: entry.causeLabel || null,
+                phraseTemplateId: entry.phraseTemplateId || null,
                 conversationId: entry.conversationId || null,
                 threadCount: Array.isArray(entry.threadLines) ? entry.threadLines.length : 0,
                 threadLines: Array.isArray(entry.threadLines) ? entry.threadLines.map(line => ({
@@ -630,6 +633,183 @@ class GameUI {
         return null;
     }
 
+    getInspectMemoryPackets(target) {
+        const memories = target?.lifeSim?.memories || {};
+        return [
+            ...(memories.social || []).map(packet => ({ ...packet, memoryFamily: 'social' })),
+            ...(memories.outcome || []).map(packet => ({ ...packet, memoryFamily: 'outcome' })),
+            ...(memories.place || []).map(packet => ({ ...packet, memoryFamily: 'place' }))
+        ].filter(packet => packet?.id || packet?.kind || packet?.anchor);
+    }
+
+    getInspectMemoryPacketFrame(packet = {}) {
+        const frame = packet.createdAtFrame ?? packet.lostAtFrame ?? packet.watchedAtFrame ?? packet.createdFrame;
+        return Number.isFinite(frame) ? Math.max(0, Math.round(frame)) : null;
+    }
+
+    getInspectMemoryStrength(packet = {}) {
+        const value = packet.intensity ?? packet.activeStrength ?? packet.strength ?? packet.score ?? 0;
+        return Math.max(0, Math.min(1, Number(value) || 0));
+    }
+
+    getInspectEntityLabel(entityId, gameState = null) {
+        if (!entityId) return null;
+        const state = gameState || gameCore?.getGameState?.() || gameCore?.gameState || {};
+        const entity = (state.butterflies || []).find(entry => entry.id === entityId);
+        return this.normalizePresentationText(entity?.displayName || entity?.personalityType || entityId);
+    }
+
+    getMostRelevantInspectMemory(target, gameState = null) {
+        const packets = this.getInspectMemoryPackets(target);
+        if (!packets.length) return null;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        return packets
+            .map(packet => {
+                const frame = this.getInspectMemoryPacketFrame(packet);
+                const ageFrames = frame == null ? 600 : Math.max(0, currentFrame - frame);
+                const recency = 1 / (1 + (ageFrames / 600));
+                return {
+                    packet,
+                    ageFrames,
+                    score: this.getInspectMemoryStrength(packet) * recency
+                };
+            })
+            .sort((left, right) => right.score - left.score)[0] || null;
+    }
+
+    formatInspectMemoryReason(memoryRef, gameState = null) {
+        const packet = memoryRef?.packet || null;
+        if (!packet) return null;
+        const causeLabel = this.getInspectMemoryCauseLabel(packet, gameState);
+        const lead = causeLabel ? `[${causeLabel}] ` : '';
+        const partnerLabel = this.getInspectEntityLabel(
+            packet.partnerId || packet.bondPartnerId || packet.chosenPartnerId || packet.thirdPartyId,
+            gameState
+        );
+        const rejectedLabel = this.getInspectEntityLabel(packet.rejectedPartnerId, gameState);
+        if (packet.kind === 'bereavement') {
+            return partnerLabel
+                ? `${lead}Returning to traces of ${partnerLabel}; ${Math.round((packet.intensity || 0) * 100)} grief strength.`
+                : `${lead}Carrying a bereavement packet; ${Math.round((packet.intensity || 0) * 100)} grief strength.`;
+        }
+        if (packet.kind === 'witnessedAffection') {
+            return partnerLabel
+                ? `${lead}Reacting to seeing ${partnerLabel} bond elsewhere; jealousy packet is still active.`
+                : `${lead}Reacting to a witnessed affection packet that is still active.`;
+        }
+        if (packet.kind === 'loyaltyChoice') {
+            return partnerLabel && rejectedLabel
+                ? `${lead}Biasing toward ${partnerLabel} after choosing them over ${rejectedLabel}.`
+                : `${lead}Biasing a choice from a recent loyalty packet.`;
+        }
+        if (packet.anchor === 'pride') {
+            return `${lead}Acting with pride from ${this.normalizePresentationText(packet.reason || 'a successful outcome')}.`;
+        }
+        if (packet.anchor === 'shame') {
+            return `${lead}Correcting course after ${this.normalizePresentationText(packet.reason || 'a costly outcome')}.`;
+        }
+        return partnerLabel
+            ? `${lead}Recent memory of ${partnerLabel} is shaping this moment.`
+            : `${lead}Recent ${packet.memoryFamily || 'memory'} packet is shaping this moment.`;
+    }
+
+    getInspectMemoryCauseLabel(packet = {}, gameState = null) {
+        if (!packet || gameConfig?.expression?.causeLabel?.enabled === false) return null;
+        if (typeof communicationSystem !== 'undefined' && communicationSystem.buildMemoryCauseLabel) {
+            return communicationSystem.buildMemoryCauseLabel(packet, {
+                partnerLabel: this.getInspectEntityLabel(
+                    packet.partnerId || packet.bondPartnerId || packet.chosenPartnerId || packet.thirdPartyId,
+                    gameState
+                ),
+                rejectedPartnerLabel: this.getInspectEntityLabel(packet.rejectedPartnerId, gameState)
+            });
+        }
+        const label = packet.subtype === 'long-absence'
+            ? 'grief: long absence'
+            : packet.kind === 'bereavement'
+                ? 'grief: loss'
+                : packet.kind === 'witnessedAffection'
+                    ? 'witnessed affection'
+                    : packet.kind === 'loyaltyChoice'
+                        ? 'loyalty: choice'
+                        : packet.anchor === 'pride'
+                            ? 'pride: outcome'
+                            : packet.anchor === 'shame'
+                                ? 'shame: repair'
+                                : null;
+        return label ? this.normalizePresentationText(label).slice(0, 24).trim() : null;
+    }
+
+    getInspectStrongestFeelingLabel(lifeSimSummary = null, memoryRef = null) {
+        const packet = memoryRef?.packet || null;
+        const packetId = packet?.id ? String(packet.id) : null;
+        const packetKind = packet?.kind || packet?.anchor || null;
+        const cognition = lifeSimSummary?.cognition || {};
+        const strongest = cognition.strongestFeeling || null;
+        let label = strongest?.label || strongest?.key || strongest?.id || null;
+        let value = strongest?.value ?? strongest?.strength ?? strongest?.intensity ?? null;
+        const feelings = cognition.feelings || lifeSimSummary?.feelings || {};
+        if (!label && feelings && typeof feelings === 'object') {
+            const ignored = new Set(['dominant', 'motiveBias', 'targetPartnerId', 'updatedAtFrame']);
+            const ranked = Object.entries(feelings)
+                .filter(([key, entry]) => !ignored.has(key) && entry && typeof entry === 'object')
+                .map(([key, entry]) => ({
+                    key,
+                    value: Number(entry.value ?? entry.strength ?? entry.intensity ?? 0)
+                }))
+                .sort((left, right) => right.value - left.value);
+            if (ranked[0]?.value > 0) {
+                label = ranked[0].key;
+                value = ranked[0].value;
+            }
+        }
+        if (!label && packetKind) {
+            label = packetKind === 'witnessedAffection'
+                ? 'jealousy'
+                : packetKind === 'loyaltyChoice'
+                    ? 'loyalty'
+                    : packetKind === 'bereavement'
+                        ? 'grief'
+                        : packetKind;
+            value = packet?.intensity ?? packet?.strength ?? value;
+        }
+        if (!label) return null;
+        const strengthText = Number.isFinite(value) ? ` ${Math.round(Math.max(0, Math.min(1, value)) * 100)}%` : '';
+        const packetText = packetId ? ` packet ${packetId}` : '';
+        return `Feeling ${this.normalizePresentationText(label)}${strengthText}${packetText}`;
+    }
+
+    buildWhyThisMomentState(target, gameState = null, mlSummary = null, lifeSimSummary = null) {
+        if (gameConfig?.expression?.whyThisMoment?.enabled === false || !target?.id) return null;
+        const decision = typeof mlInferenceSystem !== 'undefined'
+            ? mlInferenceSystem.getDecisionExplanation?.(target.id, gameState)
+            : null;
+        const memoryRef = this.getMostRelevantInspectMemory(target, gameState);
+        const memoryReason = this.formatInspectMemoryReason(memoryRef, gameState);
+        const drive = lifeSimSummary?.dominantDrives?.[0] || null;
+        const emotion = lifeSimSummary?.dominantEmotions?.[0] || null;
+        const feelingLine = this.getInspectStrongestFeelingLabel(lifeSimSummary, memoryRef);
+        const mindLine = [
+            drive || emotion ? `Mind ${[drive, emotion].filter(Boolean).join(' | ')}` : null,
+            feelingLine
+        ].filter(Boolean).join(' | ');
+        const lines = [
+            decision?.shortText || (mlSummary
+                ? `${mlSummary.sourceLabel || 'Fallback'} chose ${mlSummary.actionLabel || 'none'} toward ${mlSummary.targetLabel || 'none'}`
+                : 'No decision trace yet'),
+            memoryReason,
+            mindLine || null,
+            decision?.topAlternative ? `Alternative ${decision.topAlternative}` : null,
+            decision?.highestFeatureLabel ? `Driver ${decision.highestFeatureLabel}` : null
+        ].filter(Boolean).map(line => this.normalizePresentationText(line));
+        return {
+            title: 'Why This Moment',
+            lines,
+            memoryPacketId: memoryRef?.packet?.id || null,
+            decision
+        };
+    }
+
     buildInspectDetailDomState(target, gameState) {
         const zoneId = target.currentZoneId || target.lifeSim?.lifecycle?.currentZoneId || null;
         const sleepState = typeof sleepSystem !== 'undefined'
@@ -646,6 +826,9 @@ class GameUI {
             : null;
         const statProfile = typeof statProfileSystem !== 'undefined'
             ? statProfileSystem.getEntityProfile?.(target, gameState)
+            : null;
+        const mlSummary = typeof mlInferenceSystem !== 'undefined'
+            ? mlInferenceSystem.getEntitySummary?.(target.id, gameState)
             : null;
         const spatialProof = this.getInspectSpatialProofSummary(target, gameState);
         const cleanJoin = (lines = [], fallback = '') => {
@@ -669,6 +852,20 @@ class GameUI {
             ? `Feeling ${cognition.strongestFeeling} | lonely ${feelingCounters.loneliness} | grief ${feelingCounters.grief} | jealous ${feelingCounters.jealousy} | pride ${feelingCounters.pride} | shame ${feelingCounters.shame}`
             : `Feeling steady | lonely ${feelingCounters.loneliness} | grief ${feelingCounters.grief} | jealous ${feelingCounters.jealousy} | pride ${feelingCounters.pride} | shame ${feelingCounters.shame}`;
         const isolationMarker = this.getInspectIsolationMarker(target, gameState);
+        const whyThisMoment = this.buildWhyThisMomentState(target, gameState, mlSummary, lifeSimSummary);
+        const socialLensLines = this.buildSocialLensInspectLines({
+            lifeSimSummary,
+            communicationSummary,
+            relationshipSummary,
+            mlSummary
+        }).map(line => this.normalizePresentationText(line));
+        const foodReserveCount = (gameState?.flowers || []).filter(flower =>
+            flower?.lifecycleKind === 'reserve-food-ball'
+            && (!zoneId || !flower.currentZoneId || flower.currentZoneId === zoneId)
+        ).length;
+        const ecologyReserveText = this.normalizePresentationText(
+            `Reserve food ${foodReserveCount} | dirt ${lifeSimSummary?.objects?.dirtPileCount || 0} | clean ${lifeSimSummary?.objects?.cleanupPressure || 0}`
+        );
         return {
             targetId: target.id,
             targetLabel: this.getInspectButterflyTitle(target),
@@ -682,6 +879,11 @@ class GameUI {
                 this.normalizePresentationText(cleanJoin(statProfile?.display?.readinessLines, 'Ready -- | Unknown'))
             ].filter(Boolean),
             sections: [
+                whyThisMoment ? {
+                    id: 'whyThisMoment',
+                    title: whyThisMoment.title,
+                    lines: whyThisMoment.lines
+                } : null,
                 {
                     id: 'current',
                     title: 'Current Read',
@@ -700,6 +902,11 @@ class GameUI {
                         this.normalizePresentationText(`Voice ${communicationSummary?.voiceSummaryLabel || 'average | neutral | direct'}`),
                         this.normalizePresentationText(`Residue ${communicationSummary?.recentResidueLabel || 'No recent dialogue residue'}`)
                     ].filter(Boolean)
+                },
+                {
+                    id: 'socialLens',
+                    title: 'Social Lens',
+                    lines: socialLensLines
                 },
                 {
                     id: 'social',
@@ -722,6 +929,7 @@ class GameUI {
                     title: 'Ecology + Space',
                     lines: [
                         this.normalizePresentationText(lifeSimSummary?.zone?.headline || `Zone ${this.getZoneDisplayName(zoneId)} | steady habitat`),
+                        ecologyReserveText,
                         this.normalizePresentationText(`Space ${spatialProof?.headline || 'ground | loose | open | canPass'}`),
                         this.normalizePresentationText(`Contact ${spatialProof?.detail || 'open air | touch 0 | hands free'}`),
                         this.normalizePresentationText(lifeSimSummary?.progression
@@ -729,7 +937,7 @@ class GameUI {
                             : `${target.birthSource || 'wild'} | line 0 | rare 0`)
                     ].filter(Boolean)
                 }
-            ].filter(section => (section.lines || []).length > 0)
+            ].filter(section => section && (section.lines || []).length > 0)
         };
     }
 
@@ -2866,11 +3074,13 @@ class GameUI {
     buildFeedEntryDetailLines(graphics, entry, width, maxLines = 3) {
         const availableWidth = Math.max(36, width);
         const detailText = entry.detail || entry.line || '';
+        const causeLabel = entry?.causeLabel ? `[${entry.causeLabel}]` : null;
         const hasHeardMeaning = this.isFeedThreadInterpretationItalicEnabled()
             && Array.isArray(entry?.threadLines)
             && entry.threadLines.some(line => !!this.formatFeedHeardMeaning(line?.heardMeaning));
         if ((!Array.isArray(entry?.threadLines) || entry.threadLines.length <= 1) && !hasHeardMeaning) {
-            const baseLines = this.wrapTextLines(graphics, detailText, availableWidth, maxLines);
+            const baseLines = causeLabel ? [causeLabel] : [];
+            baseLines.push(...this.wrapTextLines(graphics, detailText, availableWidth, Math.max(1, maxLines - baseLines.length)));
             if (entry?.consequenceTail && baseLines.length < maxLines) {
                 baseLines.push(...this.wrapTextLines(graphics, `=> ${entry.consequenceTail}`, availableWidth, maxLines - baseLines.length));
             }
@@ -2878,6 +3088,7 @@ class GameUI {
         }
 
         const rendered = [];
+        if (causeLabel) rendered.push(causeLabel);
         for (const item of entry.threadLines) {
             if (rendered.length >= maxLines) break;
             const speaker = item?.speakerLabel || 'Butterfly';
@@ -2926,6 +3137,7 @@ class GameUI {
             entry?.headline || '',
             entry?.detail || '',
             entry?.line || '',
+            entry?.causeLabel || '',
             this.normalizeFeedCategory(entry?.category || 'action'),
             Array.isArray(entry?.threadLines)
                 ? entry.threadLines.map(line => `${line?.speakerLabel || ''}:${line?.phrase || ''}:${line?.heardMeaning || ''}`).join('¦')
@@ -3316,6 +3528,7 @@ class GameUI {
             ...row,
             value: cleanDisplayText(row.value)
         }));
+        const whyThisMoment = this.buildWhyThisMomentState(target, gameState, mlSummary, lifeSimSummary);
         const rosterStatusText = rosterSummary?.label || 'Not rostered';
         const objectStatusText = cleanDisplayText(objectSummary
             ? `${objectSummary.latestLabel} | ${objectSummary.currentCarryLabel}`
@@ -3329,6 +3542,12 @@ class GameUI {
             readinessLead
         ].filter(Boolean).map(line => cleanDisplayText(line));
         const sections = [
+            ...(whyThisMoment ? [{
+                id: 'whyThisMoment',
+                title: whyThisMoment.title,
+                lines: whyThisMoment.lines,
+                maxLinesPerItem: 2
+            }] : []),
             {
                 id: 'current',
                 title: 'Current Read',
@@ -3661,6 +3880,9 @@ class GameUI {
                 timeLabel: entry.timeLabel || null,
                 targetText: entry.targetText || null,
                 threadLines: entry.threadLines || null,
+                referencedMemoryPacketId: entry.referencedMemoryPacketId || null,
+                causeLabel: entry.causeLabel || null,
+                phraseTemplateId: entry.phraseTemplateId || null,
                 conversationId: entry.conversationId || null,
                 pairModeLabel: entry.pairModeLabel || null,
                 pairTextureLabel: entry.pairTextureLabel || null,
@@ -3685,6 +3907,9 @@ class GameUI {
                 previous.contextTags = entry.contextTags || previous.contextTags;
                 previous.timeLabel = entry.timeLabel || previous.timeLabel;
                 previous.threadLines = entry.threadLines || previous.threadLines;
+                previous.referencedMemoryPacketId = entry.referencedMemoryPacketId || previous.referencedMemoryPacketId;
+                previous.causeLabel = entry.causeLabel || previous.causeLabel;
+                previous.phraseTemplateId = entry.phraseTemplateId || previous.phraseTemplateId;
                 previous.conversationId = entry.conversationId || previous.conversationId;
                 previous.pairModeLabel = entry.pairModeLabel || previous.pairModeLabel;
                 previous.pairTextureLabel = entry.pairTextureLabel || previous.pairTextureLabel;
@@ -3706,6 +3931,9 @@ class GameUI {
                     timeLabel: entry.timeLabel || null,
                     targetText: entry.targetText || null,
                     threadLines: entry.threadLines || null,
+                    referencedMemoryPacketId: entry.referencedMemoryPacketId || null,
+                    causeLabel: entry.causeLabel || null,
+                    phraseTemplateId: entry.phraseTemplateId || null,
                     conversationId: entry.conversationId || null,
                     pairModeLabel: entry.pairModeLabel || null,
                     pairTextureLabel: entry.pairTextureLabel || null,
@@ -4420,6 +4648,9 @@ class GameUI {
                 footer: this.buildFeedContextFooter(entry),
                 grounding: entry.grounding || null,
                 pairTextureLabel: entry.pairTextureLabel || null,
+                referencedMemoryPacketId: entry.referencedMemoryPacketId || null,
+                causeLabel: entry.causeLabel || null,
+                phraseTemplateId: entry.phraseTemplateId || null,
                 conversationId: entry.conversationId || null,
                 threadCount: Array.isArray(entry.threadLines) ? entry.threadLines.length : 0,
                 threadLines: Array.isArray(entry.threadLines) ? entry.threadLines.map(line => ({

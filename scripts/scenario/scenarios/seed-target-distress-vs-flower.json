@@ -1,0 +1,27 @@
+{
+  "id": "seed-target-distress-vs-flower",
+  "seed": 1202,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 8, "v": 13, "h": 0 }, "drives": { "caregiving": 0.88, "selfMaintenance": 0.76 }, "emotions": { "threat": 0.2 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 11, "v": 13, "h": 0 }, "emotions": { "threat": 0.82, "exhaustion": 0.5 } }
+  ],
+  "objects": [
+    { "id": "flower", "type": "flower", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 13, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "distress", "source": "b", "threat": 0.86, "exhaustion": 0.55 },
+    { "type": "step_simulation", "frames": 100 }
+  ],
+  "corpus": {
+    "scenarioFamily": "targetPreference",
+    "focusIds": ["a", "b"],
+    "sampleFrames": [20, 40, 60, 80],
+    "correctedLabels": { "targetPreference": "butterfly", "actionFamily": "socialize", "signalChoice": "calming" },
+    "tags": ["target-distress", "caregiving"],
+    "rationale": "Caregiver should prioritize a distressed ally over an easy flower."
+  },
+  "assertions": [
+    { "type": "entity_count", "min": 2 }
+  ]
+}

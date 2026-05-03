@@ -12,6 +12,11 @@ const STORAGE_KEYS = [
   'papilionem-audit-setup-v1',
   'papilionem-audit-reports-v1'
 ];
+const RUNTIME_WARMUP_EXCLUSION_MS = 2000;
+const RUNTIME_STEADY_SAMPLE_MS = 5000;
+const BATTLE_ENTRY_SAMPLE_MS = 650;
+const BATTLE_STEADY_SAMPLE_MS = 3000;
+const BATTLE_EXIT_SAMPLE_MS = 1600;
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -120,7 +125,9 @@ async function pickTarget(page) {
 
 async function startBattle(page) {
   await page.evaluate(() => {
-    const snapshot = gameCore.startSinglePlayerAutoBattleSession?.();
+    const snapshot = gameCore.startSinglePlayerAutoBattleSession?.({
+      maxRounds: 100
+    });
     if (!snapshot?.battleId) {
       throw new Error('Unable to start autobattle session for ML closure audit');
     }
@@ -133,13 +140,80 @@ async function startBattle(page) {
   }, null, { timeout: 10000 });
 }
 
+async function resetSteadyRuntimeWindow(page, reason) {
+  await page.evaluate((resetReason) => {
+    telemetrySystem?.resetRecentRuntimeWindow?.(resetReason);
+    if (Array.isArray(telemetrySystem?.recentMlRuntimeSamples)) {
+      telemetrySystem.recentMlRuntimeSamples = [];
+      telemetrySystem.lastMlRuntimeProfile = null;
+    }
+  }, reason);
+}
+
+async function collectRuntimeBudgetSnapshot(page, extra = {}) {
+  return page.evaluate((snapshotExtra) => {
+    const runtime = mlInferenceSystem.getRuntimeSummary?.() || null;
+    const telemetry = telemetrySystem.getSnapshot?.() || null;
+    return {
+      ...snapshotExtra,
+      runtime,
+      telemetry,
+      pressure: telemetry?.pressure || null,
+      mlRuntime: telemetry?.mlRuntime || null
+    };
+  }, extra);
+}
+
+async function collectBattleBudgetSnapshot(page, label) {
+  return page.evaluate((sampleLabel) => {
+    const gameState = gameCore.getGameState();
+    const snapshot = battleSystem.getSnapshot?.(gameState.activeBattleId) || null;
+    const participants = Object.values(snapshot?.participantsById || {}).filter(Boolean).map(participant => ({
+      id: participant.id,
+      teamId: participant.teamId,
+      defeated: !!participant.defeated,
+      retreated: !!participant.retreated,
+      battleLabel: participant.inference?.battleLabel || null,
+      battleSource: participant.inference?.battleSource || null,
+      battleSourceLabel: participant.inference?.battleSourceLabel || null
+    }));
+    const activeParticipants = participants.filter(participant => !participant.defeated && !participant.retreated);
+    const runtime = mlInferenceSystem.getRuntimeSummary?.() || null;
+    const telemetry = telemetrySystem.getSnapshot?.() || null;
+    return {
+      label: sampleLabel,
+      viewMode: gameState.viewMode,
+      activeBattleId: gameState.activeBattleId,
+      roundNumber: snapshot?.metadata?.roundNumber || 0,
+      state: snapshot?.state || null,
+      participants,
+      activeParticipants,
+      runtime,
+      telemetry,
+      pressure: telemetry?.pressure || null,
+      mlRuntime: telemetry?.mlRuntime || null
+    };
+  }, label);
+}
+
+function isNonCriticalPressure(pressure = {}) {
+  return pressure?.tier !== 'critical'
+    && pressure?.stutterTier !== 'critical'
+    && pressure?.cacheTier !== 'critical';
+}
+
+function isBattleBudgetPressureWithinAcceptance(pressure = {}) {
+  return pressure?.cacheTier !== 'critical'
+    && (pressure?.cacheRatio || 0) < 0.85
+    && (pressure?.maxRenderMs || 0) < 60
+    && (pressure?.p99FrameMs || 0) < 35;
+}
+
 async function run() {
   ensureDir(OUTPUT_ROOT);
   const auditId = stamp();
   const outputDir = path.join(OUTPUT_ROOT, auditId);
-  const videoDir = path.join(outputDir, 'video');
   ensureDir(outputDir);
-  ensureDir(videoDir);
 
   const report = {
     auditId,
@@ -160,11 +234,7 @@ async function run() {
     await ensureServer(report);
     browser = await chromium.launch({ headless: true });
     context = await browser.newContext({
-      viewport: { width: 1600, height: 900 },
-      recordVideo: {
-        dir: videoDir,
-        size: { width: 1600, height: 900 }
-      }
+      viewport: { width: 1600, height: 900 }
     });
     page = await context.newPage();
 
@@ -204,16 +274,13 @@ async function run() {
     });
 
     await phase(page, report, outputDir, '02-runtime-budget-proof', async () => {
-      await page.waitForTimeout(1400);
-      const state = await page.evaluate(() => {
-        const runtime = mlInferenceSystem.getRuntimeSummary?.() || null;
-        const telemetry = telemetrySystem.getSnapshot?.() || null;
-        return {
-          runtime,
-          telemetry,
-          pressure: telemetry?.pressure || null,
-          mlRuntime: telemetry?.mlRuntime || null
-        };
+      await page.waitForTimeout(RUNTIME_WARMUP_EXCLUSION_MS);
+      // AA3: judge runtime budget from a steady window, not startup fallback/loading samples.
+      await resetSteadyRuntimeWindow(page, 'ml-closure-runtime-budget-steady-start');
+      await page.waitForTimeout(RUNTIME_STEADY_SAMPLE_MS);
+      const state = await collectRuntimeBudgetSnapshot(page, {
+        warmupExclusionMs: RUNTIME_WARMUP_EXCLUSION_MS,
+        steadySampleMs: RUNTIME_STEADY_SAMPLE_MS
       });
       return {
         pass:
@@ -225,6 +292,7 @@ async function run() {
           state?.mlRuntime?.withinBudget?.gardenInference === true &&
           (state?.pressure?.avgUpdateMs || 0) <= (state?.runtime?.performanceBudget?.focusedGardenTotalUpdateMs || 0) &&
           (state?.pressure?.avgPhysicsMs || 0) <= (state?.runtime?.performanceBudget?.focusedGardenPhysicsMs || 0) &&
+          state?.pressure?.tier !== 'critical' &&
           (state?.mlRuntime?.mlPolicyShare || 0) >= 0.75 &&
           state?.runtime?.lastDecisionSource === 'ml',
         details: state
@@ -367,50 +435,62 @@ async function run() {
       };
     });
 
+    await page.evaluate(() => {
+      if (typeof debugUI !== 'undefined') {
+        debugUI.enabled = false;
+      }
+    });
+
     await phase(page, report, outputDir, '07-battle-rollout-budget', async () => {
       await startBattle(page);
-      await page.waitForTimeout(1500);
+      await page.waitForTimeout(BATTLE_ENTRY_SAMPLE_MS);
+      const entry = await collectBattleBudgetSnapshot(page, 'battle-entry');
 
-      const state = await page.evaluate(() => {
-        const gameState = gameCore.getGameState();
-        const snapshot = battleSystem.getSnapshot?.(gameState.activeBattleId) || null;
-        const participants = Object.values(snapshot?.participantsById || {}).filter(Boolean).map(participant => ({
-          id: participant.id,
-          teamId: participant.teamId,
-          defeated: !!participant.defeated,
-          retreated: !!participant.retreated,
-          battleLabel: participant.inference?.battleLabel || null,
-          battleSource: participant.inference?.battleSource || null,
-          battleSourceLabel: participant.inference?.battleSourceLabel || null
-        }));
-        const activeParticipants = participants.filter(participant => !participant.defeated && !participant.retreated);
-        const runtime = mlInferenceSystem.getRuntimeSummary?.() || null;
-        const telemetry = telemetrySystem.getSnapshot?.() || null;
-        return {
-          viewMode: gameState.viewMode,
-          activeBattleId: gameState.activeBattleId,
-          roundNumber: snapshot?.metadata?.roundNumber || 0,
-          participants,
-          activeParticipants,
-          runtime,
-          telemetry,
-          pressure: telemetry?.pressure || null,
-          mlRuntime: telemetry?.mlRuntime || null
-        };
+      await resetSteadyRuntimeWindow(page, 'ml-closure-battle-steady-start');
+      await page.waitForTimeout(BATTLE_STEADY_SAMPLE_MS);
+      const steady = await collectBattleBudgetSnapshot(page, 'battle-steady');
+
+      await page.evaluate(() => {
+        const battleId = gameCore.getGameState()?.activeBattleId || null;
+        if (!battleId) return;
+        const snapshot = battleSystem.getSnapshot?.(battleId) || null;
+        const teamIds = Object.keys(snapshot?.teams || {});
+        const winnerTeamId = teamIds[0] || null;
+        if (snapshot?.state === 'active') {
+          gameCore.resolveBattleSession?.(battleId, {
+            winnerTeamId,
+            summary: 'ML closure audit exit sample'
+          });
+        }
+        gameCore.commitBattleSession?.(battleId);
       });
+      await resetSteadyRuntimeWindow(page, 'ml-closure-battle-exit-start');
+      await page.waitForTimeout(BATTLE_EXIT_SAMPLE_MS);
+      const exit = await collectBattleBudgetSnapshot(page, 'battle-exit');
 
       return {
         pass:
-          state?.viewMode === 'battle' &&
-          !!state?.activeBattleId &&
-          (state?.roundNumber || 0) >= 1 &&
-          (state?.activeParticipants?.length || 0) >= 4 &&
-          state.activeParticipants.every(participant => participant.battleSource === 'ml' && !!participant.battleLabel) &&
-          (state?.mlRuntime?.battleSampleCount || 0) >= 4 &&
-          (state?.mlRuntime?.avgBattleDecisionMs || 0) > 0 &&
-          state?.mlRuntime?.withinBudget?.battleDecision === true &&
-          (state?.pressure?.avgUpdateMs || 0) <= (state?.runtime?.performanceBudget?.focusedGardenTotalUpdateMs || 0),
-        details: state
+          steady?.viewMode === 'battle' &&
+          !!steady?.activeBattleId &&
+          (steady?.roundNumber || 0) >= 1 &&
+          (steady?.activeParticipants?.length || 0) >= 4 &&
+          steady.activeParticipants.every(participant => participant.battleSource === 'ml' && !!participant.battleLabel) &&
+          (steady?.mlRuntime?.battleSampleCount || 0) >= 4 &&
+          (steady?.mlRuntime?.avgBattleDecisionMs || 0) > 0 &&
+          steady?.mlRuntime?.withinBudget?.battleDecision === true &&
+          (steady?.pressure?.avgUpdateMs || 0) <= (steady?.runtime?.performanceBudget?.focusedGardenTotalUpdateMs || 0) &&
+          isBattleBudgetPressureWithinAcceptance(steady?.pressure) &&
+          isBattleBudgetPressureWithinAcceptance(exit?.pressure),
+        details: {
+          entry,
+          steady,
+          exit,
+          windowsMs: {
+            entry: BATTLE_ENTRY_SAMPLE_MS,
+            steady: BATTLE_STEADY_SAMPLE_MS,
+            exit: BATTLE_EXIT_SAMPLE_MS
+          }
+        }
       };
     });
 

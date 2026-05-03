@@ -2410,7 +2410,8 @@ class Butterfly extends Entity {
             };
         }
 
-        const zoneButterflies = gameCore?.getButterfliesInZone?.(zoneId) || gameCore?.getGameState?.()?.butterflies || [];
+        const zoneList = gameCore?.getButterfliesInZone?.(zoneId) || [];
+        const zoneButterflies = zoneList.length ? zoneList : (gameCore?.getGameState?.()?.butterflies || []);
         const resolvePartner = partnerId => zoneButterflies.find(candidate => candidate?.id === partnerId && candidate.id !== this.id) || null;
 
         return {
@@ -2438,10 +2439,25 @@ class Butterfly extends Entity {
         const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || gameCore?.getFocusedZoneId?.();
         const socialTargets = this.getSocialFollowThroughTargets(zoneId);
         const followThrough = socialTargets.followThrough || null;
+        const isProjectedNearEntity = (entity, screenPoint) => {
+            if (!entity || !screenPoint) return false;
+            const groundY = (entity.y || 0) + (entity.shadowOffset || 0);
+            return Math.hypot((screenPoint.x || 0) - (entity.x || 0), (screenPoint.y || 0) - groundY) <= 96;
+        };
+        const getBoardAnchorPoint = entity => {
+            if (!entity || !this.isBoardMovementWorld()) return null;
+            const boardPos = this.getEntityBoardPos(entity, zoneId);
+            const screenPoint = boardPos && renderManager?.boardToScreen?.(boardPos);
+            if (screenPoint && isProjectedNearEntity(entity, screenPoint)) return boardPos;
+            if (renderManager?.screenToBoard && Number.isFinite(entity.x) && Number.isFinite(entity.y)) {
+                return renderManager.screenToBoard(entity.x, (entity.y || 0) + (entity.shadowOffset || 0), zoneId, 0);
+            }
+            return boardPos || null;
+        };
         const getGroundScreenPoint = entity => {
             if (!entity) return null;
             if (this.isBoardMovementWorld()) {
-                const boardPos = this.getEntityBoardPos(entity, zoneId);
+                const boardPos = getBoardAnchorPoint(entity);
                 const screenPoint = boardPos && renderManager?.boardToScreen?.(boardPos);
                 if (screenPoint) return screenPoint;
             }
@@ -2477,7 +2493,7 @@ class Butterfly extends Entity {
             || null;
         const socialAnchorPoint = socialAnchor?.partner ? getGroundScreenPoint(socialAnchor.partner) : null;
         const socialAnchorBoardPoint = this.isBoardMovementWorld() && socialAnchor?.partner
-            ? this.getEntityBoardPos(socialAnchor.partner, zoneId)
+            ? getBoardAnchorPoint(socialAnchor.partner)
             : null;
         const socialAnchorGridPoint = !this.isBoardMovementWorld() && socialAnchor?.partner?.gridPos
             && Number.isFinite(socialAnchor.partner.gridPos.x)

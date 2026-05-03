@@ -213,6 +213,28 @@ function summarizeCognitionCoverage(scripted = {}) {
     shameAbandonedAlly: eventCounts.shameAbandonedAlly > 0 && memoryCounts.shameAnchor > 0,
     shameWarningIgnoredHarm: eventCounts.shameWarningIgnoredHarm > 0 && memoryCounts.shameAnchor > 0
   };
+  const evidenceFidelityNotes = [];
+  const memoryEventPairs = [
+    ['bereavementDeath', 'bereavementDeath'],
+    ['bereavementLongAbsence', 'bereavementLongAbsence'],
+    ['witnessedAffection', 'witnessedAffection'],
+    ['loyaltyChoice', 'loyaltyChoice'],
+    ['prideAnchor', 'prideBattleWin'],
+    ['prideAnchor', 'prideCaregivingSuccess'],
+    ['shameAnchor', 'shameAbandonedAlly'],
+    ['shameAnchor', 'shameWarningIgnoredHarm']
+  ];
+  for (const [memoryKey, eventKey] of memoryEventPairs) {
+    if (Number(memoryCounts[memoryKey] || 0) > 0 && Number(eventCounts[eventKey] || 0) === 0) {
+      evidenceFidelityNotes.push({
+        kind: eventKey,
+        memoryKey,
+        memoryCount: Number(memoryCounts[memoryKey] || 0),
+        eventCount: 0,
+        note: `${eventKey} has durable memory evidence but no accumulated cognition event evidence`
+      });
+    }
+  }
   const missingKinds = Object.entries(checks)
     .filter(([, pass]) => !pass)
     .map(([key]) => key);
@@ -222,6 +244,7 @@ function summarizeCognitionCoverage(scripted = {}) {
     missingKinds,
     eventCounts,
     memoryCounts,
+    evidenceFidelityNotes,
     accumulatedCognitionCount: accumulated.length
   };
 }
@@ -368,14 +391,22 @@ function buildEvidenceLanes(report = {}) {
       ability: scripted.ability || null
     }
   });
+  const cognitionCoverage = summarizeCognitionCoverage(scripted);
   const evidenceFidelity = summarizeEvidenceFidelity(scripted);
+  if (cognitionCoverage.evidenceFidelityNotes?.length) {
+    evidenceFidelity.pass = false;
+    evidenceFidelity.evidenceFidelityNotes = cognitionCoverage.evidenceFidelityNotes;
+    evidenceFidelity.gaps = [
+      ...(evidenceFidelity.gaps || []),
+      ...cognitionCoverage.evidenceFidelityNotes.map(note => note.note)
+    ];
+  }
   lanes.push({
     id: 'evidence-fidelity',
     pass: evidenceFidelity.pass,
     residual: !evidenceFidelity.pass,
     details: evidenceFidelity
   });
-  const cognitionCoverage = summarizeCognitionCoverage(scripted);
   lanes.push({
     id: 'cognition-coverage',
     pass: cognitionCoverage.pass,

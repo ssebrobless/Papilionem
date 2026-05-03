@@ -122,6 +122,8 @@ async function seedFeedScenario(page) {
     }
 
     const [left, right] = pair;
+    lifeSimSystem?.ensureLifeSimState?.(left);
+    lifeSimSystem?.ensureLifeSimState?.(right);
     left.x = 520;
     left.y = 420;
     right.x = 540;
@@ -148,6 +150,29 @@ async function seedFeedScenario(page) {
     right.lifeSim.communication.expressiveness = 0.98;
     right.lifeSim.communication.receptivity = 0.98;
     right.lifeSim.interpretation.clarity = 0.96;
+    left.lifeSim.memories.social = Array.isArray(left.lifeSim.memories.social) ? left.lifeSim.memories.social : [];
+    right.lifeSim.memories.social = Array.isArray(right.lifeSim.memories.social) ? right.lifeSim.memories.social : [];
+    left.lifeSim.memories.social.unshift({
+      id: 'r7_thread_memory_left',
+      kind: 'loyaltyChoice',
+      partnerId: right.id,
+      chosenPartnerId: right.id,
+      rejectedPartnerId: null,
+      intensity: 0.72,
+      createdAtFrame: gameCore.getCurrentFrame?.() || 0,
+      createdAtSeconds: 120,
+      decayFrames: 10800
+    });
+    right.lifeSim.memories.social.unshift({
+      id: 'r7_thread_memory_right',
+      kind: 'witnessedAffection',
+      partnerId: left.id,
+      thirdPartyId: left.id,
+      intensity: 0.68,
+      createdAtFrame: gameCore.getCurrentFrame?.() || 0,
+      createdAtSeconds: 120,
+      decayFrames: 10800
+    });
 
     eventBus.clearHistory?.();
     communicationSystem.history = [];
@@ -271,6 +296,7 @@ async function run() {
         const entries = gameUI.getRecentActivityEntries();
         const categories = [...new Set(entries.map(entry => entry.category))].sort();
         const talkThreads = entries.filter(entry => entry.category === 'talk' && Array.isArray(entry.threadLines));
+        const causeLabelEntries = entries.filter(entry => entry.category === 'talk' && entry.referencedMemoryPacketId && entry.causeLabel);
         const socialThread = talkThreads.find(entry =>
           entry.motiveFamily === 'social'
           || (entry.contextTags || []).some(tag => /social motive/i.test(tag))
@@ -290,8 +316,16 @@ async function run() {
             grounding: socialThread.grounding,
             contextTags: socialThread.contextTags,
             threadLines: socialThread.threadLines,
-            consequenceTail: socialThread.consequenceTail
+            consequenceTail: socialThread.consequenceTail,
+            referencedMemoryPacketId: socialThread.referencedMemoryPacketId || null,
+            causeLabel: socialThread.causeLabel || null
           } : null,
+          causeLabelCount: causeLabelEntries.length,
+          causeLabelSamples: causeLabelEntries.slice(0, 5).map(entry => ({
+            headline: entry.headline,
+            referencedMemoryPacketId: entry.referencedMemoryPacketId,
+            causeLabel: entry.causeLabel
+          })),
           warningCount: warningEntries.length,
           warningTriggerCount: warningTriggerEvents.length,
           warningEntries
@@ -311,6 +345,7 @@ async function run() {
           && (details.socialThread.threadLines?.length || 0) <= 4
           && /social motive/i.test(`${details.socialThread.grounding || ''} ${(details.socialThread.contextTags || []).join(' ')}`)
           && /trust|comfort|admiration|follow-through|warmth|attention/i.test(details.socialThread.consequenceTail || details.socialThread.detail || '')
+          && details.causeLabelCount >= 1
           && details.warningCount === details.warningTriggerCount
           && details.warningCount === 1,
         details

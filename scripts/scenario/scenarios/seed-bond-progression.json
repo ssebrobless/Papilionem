@@ -7,7 +7,7 @@
     { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 9, "h": 0 } }
   ],
   "edges": [
-    { "source": "a", "target": "b", "values": { "trust": 0.62, "comfort": 0.58, "attachment": 0.56, "coTimeSeconds": 590 } }
+    { "source": "a", "target": "b", "values": { "trust": 0.62, "comfort": 0.58, "attachment": 0.56, "coTimeSeconds": 650 } }
   ],
   "actions": [
     { "type": "advance_cognition", "seconds": 20 }

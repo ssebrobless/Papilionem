@@ -61,6 +61,7 @@ class SpriteManager {
             evictedEstimatedSurfaceMB: 0
         };
         this.pendingCreatureCloseupBakeKeys = new Set();
+        this.unsubscribeBattleState = null;
         this.sourceAlphaBounds = new WeakMap();
         this.assetDecodeMode = 'preload-image';
         this.SPRITE_SCALE = 1.0;    // Global scale multiplier for tuning
@@ -230,6 +231,7 @@ class SpriteManager {
 
         this.rawWings = { M: {}, F: {} };
         this.loaded = true;
+        this.installBattleStateListener();
 
         console.log('SpriteManager: Initialized -', Object.keys(this.wings.M).length * 2, 'sexed wing sets loaded');
     }
@@ -287,12 +289,33 @@ class SpriteManager {
         return true;
     }
 
-    evictCreatureCloseupBakes() {
-        if (gameConfig?.rendering?.creatureBakeEvictOnInspectClose === false) {
+    installBattleStateListener() {
+        if (this.unsubscribeBattleState) {
+            this.unsubscribeBattleState();
+            this.unsubscribeBattleState = null;
+        }
+        if (typeof eventBus === 'undefined' || typeof eventBus.on !== 'function') return;
+        this.unsubscribeBattleState = eventBus.on('battle:state', (payload = {}) => {
+            if (payload?.state !== 'exit') return;
+            if (gameConfig?.battle?.closeupBakeEvictOnExit === false) return;
+            this.evictCreatureCloseupBakes({
+                source: 'battle-exit',
+                battleId: payload.battleId || null
+            });
+        });
+    }
+
+    evictCreatureCloseupBakes(options = {}) {
+        const source = options?.source || 'inspect-close';
+        const enabled = source === 'battle-exit'
+            ? gameConfig?.battle?.closeupBakeEvictOnExit !== false
+            : gameConfig?.rendering?.creatureBakeEvictOnInspectClose !== false;
+        if (!enabled) {
             return {
                 enabled: false,
                 evicted: 0,
-                estimatedSurfaceMB: 0
+                estimatedSurfaceMB: 0,
+                source
             };
         }
         const closeupKeys = [];
@@ -305,7 +328,9 @@ class SpriteManager {
                 || family.startsWith('antenna')
                 || family.startsWith('caterpillar')
                 || family.startsWith('cocoon');
-            if (!creatureFamily || !keyText.includes('profile=closeup')) continue;
+            const isTransientProfile = keyText.includes('profile=closeup')
+                || (source === 'battle-exit' && keyText.includes('profile=battle'));
+            if (!creatureFamily || !isTransientProfile) continue;
             closeupKeys.push(key);
             estimatedSurfaceMB += Number(entry?.estimatedSurfaceMB || this.estimateBakedSurfaceMB(entry?.surface) || 0);
         }
@@ -316,7 +341,9 @@ class SpriteManager {
         return {
             enabled: true,
             evicted,
-            estimatedSurfaceMB: Number(estimatedSurfaceMB.toFixed(4))
+            estimatedSurfaceMB: Number(estimatedSurfaceMB.toFixed(4)),
+            source,
+            battleId: options?.battleId || null
         };
     }
 
@@ -703,6 +730,13 @@ class SpriteManager {
     }
 
     getCreatureBakeProfile(options = {}) {
+        const battleActive = options?.battleActive === true
+            || (
+                options?.closeup === true
+                && typeof renderManager !== 'undefined'
+                && !!renderManager.getRenderContext?.().battleActive
+            );
+        if (battleActive && gameConfig?.rendering?.creatureLodBattleSize) return 'battle';
         return options?.closeup || options?.lod === 'closeup' ? 'closeup' : 'garden';
     }
 
@@ -714,9 +748,11 @@ class SpriteManager {
     getCreatureBakeConfigForKind(kind, options = {}) {
         const rendering = gameConfig?.rendering || {};
         const profile = this.getCreatureBakeProfile(options);
-        const source = profile === 'closeup'
-            ? rendering.creatureLodCloseupSize || rendering.creatureBakeSize || {}
-            : rendering.creatureBakeSize || {};
+        const source = profile === 'battle'
+            ? rendering.creatureLodBattleSize || rendering.creatureLodCloseupSize || rendering.creatureBakeSize || {}
+            : (profile === 'closeup'
+                ? rendering.creatureLodCloseupSize || rendering.creatureBakeSize || {}
+                : rendering.creatureBakeSize || {});
         const fallback = {
             body: 96,
             wing: { width: 128, height: 96 },

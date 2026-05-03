@@ -1,0 +1,24 @@
+{
+  "id": "seed-target-shelter-fit",
+  "seed": 1204,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 14, "v": 18, "h": 0 }, "drives": { "safetyAvoidance": 0.82, "rest": 0.62 }, "emotions": { "agitation": 0.78, "threat": 0.44 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 16, "v": 18, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "set_emotions", "source": "a", "agitation": 0.86, "threat": 0.52 },
+    { "type": "step_simulation", "frames": 100 }
+  ],
+  "corpus": {
+    "scenarioFamily": "targetPreference",
+    "focusIds": ["a", "b"],
+    "sampleFrames": [20, 40, 60, 80],
+    "correctedLabels": { "targetPreference": "shelter", "riskPosture": "avoid", "actionFamily": "rest" },
+    "tags": ["target-shelter", "body-fit"],
+    "rationale": "High agitation plus safety drive should prefer shelter-fit targets."
+  },
+  "assertions": [
+    { "type": "entity_count", "min": 2 }
+  ]
+}

@@ -462,6 +462,98 @@ class ZoneSystem {
         return this.zones.get(zoneId) || null;
     }
 
+    getZoneEntityCollections(zoneId, gameState = gameCore?.gameState) {
+        const inZone = entity => entity
+            && (entity.currentZoneId || entity.boardPos?.zoneId || entity.lifeSim?.lifecycle?.currentZoneId || null) === zoneId;
+        const flowers = (gameState?.flowers || []).filter(inZone);
+        return {
+            butterflies: (gameState?.butterflies || []).filter(inZone),
+            flowers,
+            blocks: (gameState?.blocks || []).filter(inZone),
+            dirtPiles: flowers.filter(flower => flower?.lifecycleKind === 'dirt-pile')
+        };
+    }
+
+    getZoneAffordanceVector(zoneId, gameState = gameCore?.gameState) {
+        const zone = this.getZone(zoneId);
+        if (!zone) return null;
+        const profile = zone.ecologyProfile || {};
+        const actionBiases = profile.actionBiases || {};
+        const ecology = this.ensureZoneEcologyState(zoneId) || {};
+        const collections = this.getZoneEntityCollections(zoneId, gameState);
+        const normalFlowers = collections.flowers.filter(flower =>
+            flower
+            && (flower.lifecycleKind || 'flower') === 'flower'
+            && flower.stage !== 'dissolve'
+            && flower.occupancyState === 'normal'
+        );
+        const flowerDensity = this.clampUnit(normalFlowers.length / 6);
+        const dirtDensity = this.clampUnit(collections.dirtPiles.length / 5);
+        const shelterDensity = this.clampUnit(collections.blocks.filter(block => !block?.carriedById).length / 6);
+        const socialDensity = this.clampUnit(collections.butterflies.length / 8);
+        const crowdPenalty = this.clampUnit(Math.max(0, collections.butterflies.length - 5) / 8);
+        const resource = this.clampUnit(
+            (flowerDensity * 0.42)
+            + ((ecology.foodRichness ?? 0.5) * 0.28)
+            + ((ecology.resourceReserve ?? 0.5) * 0.18)
+            - ((ecology.depletionPressure ?? 0.08) * 0.18)
+            - (dirtDensity * 0.12)
+        );
+        const social = this.clampUnit(
+            (socialDensity * 0.34)
+            + ((ecology.socialValence ?? 0.4) * 0.34)
+            + ((actionBiases.social || 0) * 0.2)
+            + ((actionBiases.caregiving || 0) * 0.08)
+            - (crowdPenalty * 0.12)
+        );
+        const shelter = this.clampUnit(
+            (shelterDensity * 0.44)
+            + ((ecology.shelterCapacity ?? 0.4) * 0.32)
+            + ((actionBiases.rest || 0) * 0.12)
+            + ((actionBiases.vigilance || 0) * 0.08)
+        );
+        const exploration = this.clampUnit(
+            ((actionBiases.exploration || 0) * 0.42)
+            + ((ecology.migrationPull ?? 0.2) * 0.26)
+            + ((1 - crowdPenalty) * 0.12)
+            + ((zone.kind === 'training' ? 0 : 0.1))
+        );
+        const training = this.clampUnit(
+            ((actionBiases.training || 0) * 0.58)
+            + ((ecology.trainingValence ?? 0.2) * 0.24)
+            + (zone.kind === 'training' ? 0.18 : 0)
+        );
+        const cleanup = this.clampUnit((dirtDensity * 0.72) + ((actionBiases.caregiving || 0) * 0.1));
+        return {
+            zoneId,
+            label: zone.label || zoneId,
+            kind: zone.kind || 'open-land',
+            resource,
+            social,
+            shelter,
+            exploration,
+            training,
+            cleanup,
+            scarcityActive: !!ecology.scarcityActive,
+            scarcityReason: ecology.scarcityReason || null,
+            dirtDensity,
+            flowerDensity,
+            shelterDensity,
+            socialDensity,
+            butterflyCount: collections.butterflies.length,
+            flowerCount: normalFlowers.length,
+            dirtPileCount: collections.dirtPiles.length,
+            blockCount: collections.blocks.length,
+            sourcePath: 'computed:zoneSystem.getZoneAffordanceVector'
+        };
+    }
+
+    getZoneAffordanceSnapshot(gameState = gameCore?.gameState) {
+        return Object.fromEntries(
+            this.getZones().map(zone => [zone.id, this.getZoneAffordanceVector(zone.id, gameState)])
+        );
+    }
+
     getBoardConfigForZone(zoneId = this.focusedZoneId) {
         const zone = this.getZone(zoneId) || this.getFocusedZone();
         return zone?.board ? {

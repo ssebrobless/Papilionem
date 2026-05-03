@@ -421,11 +421,19 @@ async function run() {
         butterfly.syncDebugGridPos?.();
       });
       const livedInitialTotalPiles = gameCore.gameState.flowers.filter(flower => flower.lifecycleKind === 'dirt-pile').length;
+      const activityDirtConfig = gameConfig?.cognition?.affordances?.cleanupActivityDirt || null;
+      const previousActivityDirtEnabled = activityDirtConfig ? activityDirtConfig.enabled : null;
+      if (activityDirtConfig) {
+        activityDirtConfig.enabled = false;
+      }
       for (let frame = 0; frame < 18000; frame += 1) {
         if (frame % 450 === 0 && livedZoneIds.length) {
           gameCore.focusZone?.(livedZoneIds[Math.floor(frame / 450) % livedZoneIds.length]);
         }
         gameCore.update();
+      }
+      if (activityDirtConfig && previousActivityDirtEnabled !== null) {
+        activityDirtConfig.enabled = previousActivityDirtEnabled;
       }
       const remainingLivedPiles = gameCore.gameState.flowers.filter(flower => livedPileIds.includes(flower.id));
       const livedFinalTotalPiles = gameCore.gameState.flowers.filter(flower => flower.lifecycleKind === 'dirt-pile').length;

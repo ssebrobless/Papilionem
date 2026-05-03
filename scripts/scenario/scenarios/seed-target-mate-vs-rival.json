@@ -1,0 +1,30 @@
+{
+  "id": "seed-target-mate-vs-rival",
+  "seed": 1203,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 7, "v": 12, "h": 0 }, "emotions": { "attachment": 0.74, "rejection": 0.28 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 8, "v": 12, "h": 0 } },
+    { "id": "c", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 12, "h": 0 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.72, "attachment": 0.7, "comfort": 0.65, "bondTier": "companion" } },
+    { "source": "a", "target": "c", "values": { "rivalry": 0.2, "trust": 0.14 } }
+  ],
+  "actions": [
+    { "type": "emit_dialogue", "source": "b", "targets": ["a"], "intentFamily": "care", "intentTags": ["comfort", "companionship"], "phrase": "Stay close to me." },
+    { "type": "step_simulation", "frames": 100 }
+  ],
+  "corpus": {
+    "scenarioFamily": "targetPreference",
+    "focusIds": ["a", "b", "c"],
+    "sampleFrames": [20, 40, 60, 80],
+    "correctedLabels": { "targetPreference": "butterfly", "actionFamily": "socialize", "signalChoice": "calming" },
+    "tags": ["target-bond", "rivalry"],
+    "rationale": "Bond pressure should bias target choice toward the trusted companion instead of the rival."
+  },
+  "assertions": [
+    { "type": "entity_count", "min": 3 },
+    { "type": "dialogue_count", "min": 1 }
+  ]
+}

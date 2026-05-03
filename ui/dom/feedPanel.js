@@ -6,6 +6,7 @@ class FeedDomPanel {
         this.headerSubtitle = null;
         this.filterRow = null;
         this.list = null;
+        this.listScrollTop = 0;
         this.footerRow = null;
     }
 
@@ -18,6 +19,7 @@ class FeedDomPanel {
 
         const header = document.createElement('div');
         header.className = 'shell-header';
+        header.addEventListener('wheel', event => this.handlePanelWheel(event), { passive: false });
         this.headerTitle = document.createElement('div');
         this.headerTitle.className = 'shell-title';
         this.headerSubtitle = document.createElement('div');
@@ -27,12 +29,18 @@ class FeedDomPanel {
 
         this.filterRow = document.createElement('div');
         this.filterRow.className = 'shell-action-row';
+        this.filterRow.addEventListener('wheel', event => this.handlePanelWheel(event), { passive: false });
 
         this.list = document.createElement('div');
         this.list.className = 'shell-feed-list';
+        this.list.addEventListener('wheel', event => this.handlePanelWheel(event), { passive: false });
+        this.list.addEventListener('scroll', () => {
+            this.listScrollTop = this.list?.scrollTop || 0;
+        });
 
         this.footerRow = document.createElement('div');
         this.footerRow.className = 'shell-action-row';
+        this.footerRow.addEventListener('wheel', event => this.handlePanelWheel(event), { passive: false });
 
         root.appendChild(header);
         root.appendChild(this.filterRow);
@@ -52,7 +60,11 @@ class FeedDomPanel {
             : event.deltaMode === 2
                 ? rawDelta * 240
                 : rawDelta;
-        this.list.scrollTop += deltaY;
+        const maxScrollTop = Math.max(0, this.list.scrollHeight - this.list.clientHeight);
+        const nextScrollTop = Math.max(0, Math.min(maxScrollTop, this.list.scrollTop + deltaY));
+        this.list.scrollTop = nextScrollTop;
+        this.listScrollTop = nextScrollTop;
+        this.restoreListScrollTopSoon();
         event.preventDefault?.();
         event.stopPropagation?.();
     }
@@ -65,6 +77,7 @@ class FeedDomPanel {
         this.headerSubtitle = null;
         this.filterRow = null;
         this.list = null;
+        this.listScrollTop = 0;
         this.footerRow = null;
     }
 
@@ -113,12 +126,16 @@ class FeedDomPanel {
     }
 
     renderEntries(entries) {
+        const previousScrollTop = Number.isFinite(this.listScrollTop)
+            ? this.listScrollTop
+            : (this.list.scrollTop || 0);
         this.list.replaceChildren();
         if (!entries.length) {
             const empty = document.createElement('div');
             empty.className = 'shell-empty';
             empty.textContent = 'No visible activity for the current feed filters.';
             this.list.appendChild(empty);
+            this.restoreListScrollTop(previousScrollTop);
             return;
         }
 
@@ -139,6 +156,13 @@ class FeedDomPanel {
                 detail.className = 'shell-feed-detail';
                 detail.textContent = entry.detail;
                 card.appendChild(detail);
+            }
+
+            if (entry.causeLabel) {
+                const cause = document.createElement('div');
+                cause.className = 'shell-feed-cause-label';
+                cause.textContent = `[${entry.causeLabel}]`;
+                card.appendChild(cause);
             }
 
             if (gameConfig?.ui?.feedThreads?.interpretationItalicDom !== false
@@ -163,6 +187,29 @@ class FeedDomPanel {
 
             this.list.appendChild(card);
         }
+        this.restoreListScrollTop(previousScrollTop);
+    }
+
+    restoreListScrollTop(previousScrollTop = 0) {
+        if (!previousScrollTop) return;
+        const maxScrollTop = Math.max(0, this.list.scrollHeight - this.list.clientHeight);
+        const restoredScrollTop = Math.min(previousScrollTop, maxScrollTop);
+        this.list.scrollTop = restoredScrollTop;
+        this.listScrollTop = restoredScrollTop;
+        this.restoreListScrollTopSoon();
+    }
+
+    restoreListScrollTopSoon() {
+        const targetScrollTop = this.listScrollTop || 0;
+        const restore = () => {
+            if (!this.list || targetScrollTop <= 0) return;
+            const maxScrollTop = Math.max(0, this.list.scrollHeight - this.list.clientHeight);
+            this.list.scrollTop = Math.min(targetScrollTop, maxScrollTop);
+        };
+        if (typeof requestAnimationFrame === 'function') {
+            requestAnimationFrame(restore);
+        }
+        setTimeout(restore, 60);
     }
 
     formatHeardMeaning(value = '') {

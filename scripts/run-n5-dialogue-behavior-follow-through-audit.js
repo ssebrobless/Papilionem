@@ -392,8 +392,16 @@ async function run() {
 
         runtime = behaviorSystem.getRuntime(focus.id);
         summary = lifeSimSystem.getEntitySummary(focus.id)?.socialEcology?.followThrough || null;
-        const targetScreen = focus.movement?.target
-          ? gridManager.isoToScreen(focus.movement.target.x, focus.movement.target.y)
+        const target = focus.movement?.target || null;
+        const targetScreen = target
+          ? (target.space === 'board' || Number.isFinite(target.u) || Number.isFinite(target.v)
+            ? renderManager.boardToScreen?.({
+                zoneId: target.zoneId || zoneId,
+                u: Number.isFinite(target.u) ? target.u : target.x,
+                v: Number.isFinite(target.v) ? target.v : target.y,
+                h: target.h || 0
+              })
+            : gridManager.isoToScreen(target.x, target.y))
           : null;
         const partnerGroundPoint = partner?.gridPos
           ? gridManager.isoToScreen(partner.gridPos.x, partner.gridPos.y)

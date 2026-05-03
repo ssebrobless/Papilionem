@@ -1,0 +1,27 @@
+{
+  "id": "seed-autobattle-restore-bonded",
+  "seed": 1213,
+  "world": { "focusedZoneId": "sun-court", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "sun-court", "u": 11, "v": 13, "h": 0 }, "drives": { "caregiving": 0.9 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "sun-court", "u": 12, "v": 13, "h": 0 }, "emotions": { "exhaustion": 0.8 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.82, "attachment": 0.78, "comfort": 0.72, "bondTier": "bonded" } }
+  ],
+  "actions": [
+    { "type": "distress", "source": "b", "threat": 0.6, "exhaustion": 0.84 },
+    { "type": "step_simulation", "frames": 80 }
+  ],
+  "corpus": {
+    "scenarioFamily": "autobattle",
+    "focusIds": ["a", "b"],
+    "sampleFrames": [20, 40, 60, 80],
+    "correctedLabels": { "autobattlePosture": "support", "actionFamily": "battlePosture" },
+    "tags": ["autobattle-bond", "support"],
+    "rationale": "Bonded partner distress should bias battle posture toward restoration/support."
+  },
+  "assertions": [
+    { "type": "entity_count", "min": 2 }
+  ]
+}

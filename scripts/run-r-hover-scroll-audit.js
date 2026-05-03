@@ -135,6 +135,7 @@ async function run() {
       const panelIds = ['feed', 'access', 'inspect', 'journal', 'debug'];
       const setupPanel = async (panelId) => {
         await dom.page.evaluate((id) => {
+          window.loop?.();
           gameUI.activityLogPanel.visible = id === 'feed';
           gameUI.accessibilityPanel.visible = id === 'access';
           gameUI.inspectPanel.visible = id === 'inspect';
@@ -143,6 +144,7 @@ async function run() {
           if (typeof debugUI !== 'undefined') debugUI.enabled = id === 'debug';
           shellDomOverlay.panelSignatures?.clear?.();
           gameUI.updateDomShell?.(gameCore.gameState);
+          window.noLoop?.();
         }, panelId);
         await dom.page.waitForTimeout(160);
         return dom.page.evaluate((id) => {
@@ -162,6 +164,8 @@ async function run() {
             const filler = document.createElement('div');
             filler.className = 'shell-scroll-audit-filler';
             filler.style.height = '720px';
+            filler.style.minHeight = '720px';
+            filler.style.flex = '0 0 720px';
             filler.textContent = 'Scroll audit filler';
             scroller.appendChild(filler);
           }

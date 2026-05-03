@@ -1,0 +1,27 @@
+{
+  "id": "seed-signal-comfort-recent-grief",
+  "seed": 1222,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 8, "v": 16, "h": 0 }, "drives": { "socialConnection": 0.78, "caregiving": 0.72 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 16, "h": 0 }, "emotions": { "exhaustion": 0.55, "rejection": 0.3 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.66, "comfort": 0.62, "attachment": 0.5 } }
+  ],
+  "actions": [
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "intentFamily": "care", "intentTags": ["comfort", "companionship"], "phrase": "I will stay near you." },
+    { "type": "step_simulation", "frames": 80 }
+  ],
+  "corpus": {
+    "scenarioFamily": "signalChoice",
+    "focusIds": ["a", "b"],
+    "sampleFrames": [20, 40, 60, 80],
+    "correctedLabels": { "signalChoice": "calming", "actionFamily": "signal", "targetPreference": "butterfly" },
+    "tags": ["signal-comfort", "grief-support"],
+    "rationale": "Recent grief/support texture should bias signal choice toward comfort."
+  },
+  "assertions": [
+    { "type": "dialogue_count", "min": 1 }
+  ]
+}

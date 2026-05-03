@@ -1,0 +1,58 @@
+{
+  "id": "seed-witness-affection-organic",
+  "seed": 1202,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 10, "h": 0 }, "emotions": { "joy": 0.72, "calm": 0.64 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 11, "v": 10, "h": 0 }, "emotions": { "joy": 0.66, "calm": 0.68 } },
+    { "id": "c", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 12.5, "v": 10, "h": 0 }, "emotions": { "calm": 0.58 } },
+    { "id": "d", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 18, "v": 18, "h": 0 }, "drives": { "exploration": 0.72 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.9, "comfort": 0.9, "attachment": 0.86, "admiration": 0.66, "bondTier": "bonded", "coTimeSeconds": 2400 } },
+    { "source": "b", "target": "a", "values": { "trust": 0.9, "comfort": 0.88, "attachment": 0.84, "admiration": 0.62, "bondTier": "bonded", "coTimeSeconds": 2400 } },
+    { "source": "c", "target": "a", "values": { "trust": 0.72, "comfort": 0.68, "attachment": 0.62, "admiration": 0.54, "bondTier": "companion", "coTimeSeconds": 1100 } },
+    { "source": "c", "target": "b", "values": { "trust": 0.56, "comfort": 0.5, "attachment": 0.44, "admiration": 0.28, "bondTier": "familiar", "coTimeSeconds": 600 } },
+    { "source": "a", "target": "c", "values": { "trust": 0.36, "comfort": 0.34, "attachment": 0.24, "bondTier": "acquaintance", "coTimeSeconds": 120 } }
+  ],
+  "actions": [
+    {
+      "type": "emit_signal",
+      "source": "a",
+      "targets": ["b"],
+      "signalType": "acknowledgement_signal",
+      "intentFamily": "social",
+      "intentTags": ["comfort", "companionship", "warmth", "shared_attention"],
+      "phrase": "I like when you stay close with me here.",
+      "metadata": { "affectionIntensity": 0.84 }
+    },
+    { "type": "step_simulation", "frames": 60 },
+    { "type": "advance_cognition", "seconds": 70 }
+  ],
+  "assertions": [
+    { "type": "dialogue_count", "min": 1 },
+    { "type": "near", "left": "a", "right": "b", "max": 2 },
+    { "type": "near", "left": "c", "right": "a", "max": 8 },
+    { "type": "bond_tier", "entity": "c", "target": "a", "minTier": "companion" },
+    {
+      "type": "cognition_event_count",
+      "name": "production_witnessed_affection_event",
+      "kind": "witnessedAffection",
+      "trigger": "dialogueWitnessed",
+      "entity": "c",
+      "partner": "a",
+      "thirdParty": "b",
+      "min": 1
+    },
+    {
+      "type": "memory_packet",
+      "name": "witnessed_affection_packet_survives_two_ticks",
+      "entity": "c",
+      "family": "social",
+      "kind": "witnessedAffection",
+      "min": 1,
+      "minIntensity": 0.6
+    },
+    { "type": "feeling_min", "entity": "c", "key": "jealousy", "min": 0.15 }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "id": "seed-society-soak-organic",
+  "seed": 1201,
+  "durationSeconds": 360,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "name": "Aster", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 10, "h": 0 }, "drives": { "socialConnection": 0.82, "caregiving": 0.72 } },
+    { "id": "b", "name": "Briar", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 11, "v": 10, "h": 0 }, "drives": { "socialConnection": 0.78, "caregiving": 0.62 } },
+    { "id": "c", "name": "Clover", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 11, "h": 0 }, "drives": { "socialConnection": 0.66, "exploration": 0.48 } },
+    { "id": "d", "name": "Dawn", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 14, "v": 12, "h": 0 }, "drives": { "exploration": 0.72, "statusExpression": 0.42 } },
+    { "id": "e", "name": "Ember", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 15, "v": 12, "h": 0 }, "drives": { "resourceControl": 0.72, "socialConnection": 0.44 } },
+    { "id": "f", "name": "Fern", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 12, "v": 14, "h": 0 }, "drives": { "resourceControl": 0.78, "caregiving": 0.46 } },
+    { "id": "g", "name": "Gale", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 13, "v": 14, "h": 0 }, "drives": { "exploration": 0.62, "socialConnection": 0.52 } },
+    { "id": "h", "name": "Halo", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 17, "v": 17, "h": 0 }, "drives": { "rest": 0.66, "socialConnection": 0.58 } },
+    { "id": "i", "name": "Iris", "type": "butterfly", "boardPos": { "zoneId": "pool-heart", "u": 9, "v": 18, "h": 0 }, "drives": { "exploration": 0.58, "caregiving": 0.68 } },
+    { "id": "j", "name": "Juniper", "type": "butterfly", "boardPos": { "zoneId": "pool-heart", "u": 10, "v": 18, "h": 0 }, "drives": { "statusExpression": 0.76, "socialConnection": 0.36 } },
+    { "id": "k", "name": "Kite", "type": "butterfly", "boardPos": { "zoneId": "pool-heart", "u": 13, "v": 20, "h": 0 }, "drives": { "safetyAvoidance": 0.62, "socialConnection": 0.4 } },
+    { "id": "l", "name": "Lumen", "type": "butterfly", "boardPos": { "zoneId": "pool-heart", "u": 14, "v": 20, "h": 0 }, "drives": { "caregiving": 0.64, "exploration": 0.46 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.86, "comfort": 0.84, "attachment": 0.88, "bondTier": "bonded", "coTimeSeconds": 2400 } },
+    { "source": "b", "target": "a", "values": { "trust": 0.86, "comfort": 0.84, "attachment": 0.88, "bondTier": "bonded", "coTimeSeconds": 2400 } },
+    { "source": "c", "target": "a", "values": { "trust": 0.7, "comfort": 0.68, "attachment": 0.62, "bondTier": "companion", "coTimeSeconds": 1200 } },
+    { "source": "c", "target": "b", "values": { "trust": 0.58, "comfort": 0.56, "attachment": 0.52, "bondTier": "companion", "coTimeSeconds": 900 } },
+    { "source": "d", "target": "e", "values": { "trust": 0.46, "comfort": 0.44, "attachment": 0.34, "bondTier": "familiar", "coTimeSeconds": 600 } },
+    { "source": "e", "target": "d", "values": { "trust": 0.42, "comfort": 0.4, "attachment": 0.32, "bondTier": "familiar", "coTimeSeconds": 600 } },
+    { "source": "f", "target": "g", "values": { "trust": 0.28, "comfort": 0.24, "attachment": 0.18, "bondTier": "acquaintance", "coTimeSeconds": 120 } },
+    { "source": "g", "target": "f", "values": { "trust": 0.3, "comfort": 0.24, "attachment": 0.2, "bondTier": "acquaintance", "coTimeSeconds": 120 } },
+    { "source": "h", "target": "f", "values": { "trust": 0.62, "comfort": 0.6, "attachment": 0.54, "bondTier": "companion", "coTimeSeconds": 980 } },
+    { "source": "i", "target": "j", "values": { "trust": 0.72, "comfort": 0.66, "attachment": 0.58, "bondTier": "companion", "coTimeSeconds": 1100 } },
+    { "source": "j", "target": "k", "values": { "trust": 0.12, "comfort": 0.08, "attachment": 0.06, "rivalry": 0.42, "resentment": 0.28, "bondTier": "acquaintance", "coTimeSeconds": 60 } },
+    { "source": "k", "target": "j", "values": { "trust": 0.1, "comfort": 0.08, "attachment": 0.06, "rivalry": 0.38, "resentment": 0.24, "bondTier": "acquaintance", "coTimeSeconds": 60 } },
+    { "source": "k", "target": "l", "values": { "trust": 0.48, "comfort": 0.44, "attachment": 0.4, "bondTier": "familiar", "coTimeSeconds": 640 } },
+    { "source": "l", "target": "k", "values": { "trust": 0.5, "comfort": 0.46, "attachment": 0.42, "bondTier": "familiar", "coTimeSeconds": 640 } }
+  ],
+  "objects": [
+    { "id": "dirt-a", "type": "dirt-pile", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 13, "h": 0 } },
+    { "id": "dirt-b", "type": "dirt-pile", "boardPos": { "zoneId": "ivy-cloister", "u": 13, "v": 13, "h": 0 } },
+    { "id": "dirt-c", "type": "dirt-pile", "boardPos": { "zoneId": "moss-hollow", "u": 13, "v": 16, "h": 0 } },
+    { "id": "dirt-d", "type": "dirt-pile", "boardPos": { "zoneId": "moss-hollow", "u": 18, "v": 15, "h": 0 } },
+    { "id": "flower-a", "type": "flower", "boardPos": { "zoneId": "ivy-cloister", "u": 12, "v": 11, "h": 0 } },
+    { "id": "flower-b", "type": "flower", "boardPos": { "zoneId": "moss-hollow", "u": 15, "v": 16, "h": 0 } },
+    { "id": "flower-c", "type": "flower", "boardPos": { "zoneId": "pool-heart", "u": 11, "v": 19, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "witness_affection", "source": "a", "targets": ["b"], "affectionIntensity": 0.86, "intentTags": ["comfort", "companionship", "warmth"], "phrase": "I am glad you are here." },
+    { "type": "step_simulation", "frames": 120 }
+  ],
+  "longSoakActions": [
+    { "atSeconds": 120, "type": "set_edge", "source": "j", "target": "k", "values": { "trust": 0.38, "comfort": 0.34, "attachment": 0.24, "rivalry": 0.24, "resentment": 0.12, "bondTier": "familiar", "coTimeSeconds": 420 } },
+    { "atSeconds": 240, "type": "set_edge", "source": "j", "target": "k", "values": { "trust": 0.62, "comfort": 0.58, "attachment": 0.52, "rivalry": 0.08, "resentment": 0.02, "bondTier": "companion", "coTimeSeconds": 900 } }
+  ],
+  "longSoakExpected": {
+    "witnessedAffectionEventCountMin": 1,
+    "bondChurnTransitions": 2,
+    "bondChurnPair": { "source": "j", "target": "k" },
+    "bondChurnHandComputed": "j->k starts acquaintance, changes to familiar at 120s, then companion at 240s: 2 transitions.",
+    "meanDistinctZonesVisitedMin": 1
+  },
+  "assertions": [
+    { "type": "entity_count", "min": 12 },
+    { "type": "object_count", "kind": "dirt-pile", "min": 3 },
+    { "type": "memory_packet", "entity": "c", "family": "social", "kind": "witnessedAffection", "min": 1 }
+  ]
+}

@@ -339,10 +339,11 @@ async function run() {
 
     await phase(page, report, outputDir, '01-inspect-social-lens', async () => {
       const details = await page.evaluate(() => {
-        const snapshot = gameUI.lastInspectPresentation || null;
+        const domInspectState = gameUI.buildInspectDomState?.(gameCore.getGameState?.() || gameCore.gameState) || null;
+        const snapshot = gameUI.lastInspectPresentation || domInspectState?.detailState || null;
         const socialLens = snapshot?.sections?.find(section => section.id === 'socialLens') || null;
         return {
-          targetId: snapshot?.targetId || null,
+          targetId: snapshot?.targetId || domInspectState?.targetId || null,
           sectionIds: (snapshot?.sections || []).map(section => section.id),
           socialLensLines: socialLens?.lines || []
         };

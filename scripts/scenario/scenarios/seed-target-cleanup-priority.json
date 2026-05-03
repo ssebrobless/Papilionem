@@ -1,0 +1,28 @@
+{
+  "id": "seed-target-cleanup-priority",
+  "seed": 1201,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 12, "h": 0 }, "drives": { "resourceControl": 0.72, "caregiving": 0.18 }, "emotions": { "curiosity": 0.44, "agitation": 0.2 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 12, "v": 12, "h": 0 } }
+  ],
+  "objects": [
+    { "id": "pile", "type": "dirt-pile", "boardPos": { "zoneId": "moss-hollow", "u": 16, "v": 12, "h": 0 } },
+    { "id": "flower", "type": "flower", "boardPos": { "zoneId": "moss-hollow", "u": 13, "v": 12, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "step_simulation", "frames": 80 }
+  ],
+  "corpus": {
+    "scenarioFamily": "targetPreference",
+    "focusIds": ["a", "b"],
+    "sampleFrames": [20, 40, 60, 80],
+    "correctedLabels": { "targetPreference": "emptySpace", "actionFamily": "buildOrUseObject" },
+    "tags": ["target-cleanup", "weak-policy-target"],
+    "rationale": "Target cleanup pressure over nearby social or food distractions."
+  },
+  "assertions": [
+    { "type": "entity_count", "min": 2 },
+    { "type": "object_count", "kind": "dirt-pile", "min": 1 }
+  ]
+}

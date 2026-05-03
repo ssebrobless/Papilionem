@@ -1,0 +1,27 @@
+{
+  "id": "seed-autobattle-pursue-fleeing-rival",
+  "seed": 1212,
+  "world": { "focusedZoneId": "sun-court", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "sun-court", "u": 10, "v": 12, "h": 0 }, "drives": { "statusExpression": 0.72 }, "emotions": { "significance": 0.65 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "sun-court", "u": 14, "v": 12, "h": 0 }, "emotions": { "threat": 0.5 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "rivalry": 0.42, "trust": 0.08 } }
+  ],
+  "actions": [
+    { "type": "emit_battle_action", "actor": "b", "target": "a", "actionType": "attack", "damage": 8 },
+    { "type": "step_simulation", "frames": 80 }
+  ],
+  "corpus": {
+    "scenarioFamily": "autobattle",
+    "focusIds": ["a", "b"],
+    "sampleFrames": [20, 40, 60, 80],
+    "correctedLabels": { "autobattlePosture": "focusWeakTarget", "actionFamily": "battlePosture" },
+    "tags": ["autobattle-rival", "focus-target"],
+    "rationale": "Rivalry plus recent harm should bias battle posture toward focused pressure."
+  },
+  "assertions": [
+    { "type": "entity_count", "min": 2 }
+  ]
+}

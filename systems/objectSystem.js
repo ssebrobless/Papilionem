@@ -2,6 +2,7 @@ class ObjectSystem {
     constructor() {
         this.objectState = new Map();
         this.objectsByCarrierId = new Map();
+        this.lastActivityDirtFrameByZone = new Map();
         this.initialized = false;
     }
 
@@ -12,6 +13,7 @@ class ObjectSystem {
     reset() {
         this.objectState.clear();
         this.objectsByCarrierId.clear();
+        this.lastActivityDirtFrameByZone.clear();
     }
 
     registerObject(entity, metadata = {}) {
@@ -267,6 +269,111 @@ class ObjectSystem {
         }
     }
 
+    getCleanupActivityConfig() {
+        const config = gameConfig?.cognition?.affordances?.cleanupActivityDirt || {};
+        return {
+            enabled: config.enabled !== false && gameConfig?.cognition?.affordances?.cleanupSocialModulation !== false,
+            intervalFrames: Math.max(300, Math.round(config.intervalFrames || 3600)),
+            minActiveButterflies: Math.max(1, Math.round(config.minActiveButterflies || 3)),
+            maxPilesPerZone: Math.max(1, Math.round(config.maxPilesPerZone || 3)),
+            maxTotalPiles: Math.max(1, Math.round(config.maxTotalPiles || 12)),
+            activityScale: Math.max(0, Number(config.activityScale ?? 0.34))
+        };
+    }
+
+    getEntityZoneId(entity, fallback = null) {
+        return gameCore?.getEntityZoneId?.(entity, fallback)
+            || entity?.currentZoneId
+            || entity?.boardPos?.zoneId
+            || fallback;
+    }
+
+    getZoneDirtPiles(zoneId, gameState = gameCore?.gameState) {
+        return (gameState?.flowers || []).filter(flower =>
+            flower?.lifecycleKind === 'dirt-pile'
+            && this.getEntityZoneId(flower, null) === zoneId
+        );
+    }
+
+    getActivityDirtBoardPoint(zoneId, zoneIndex = 0, currentFrame = 0) {
+        const config = zoneSystem?.getBoardConfigForZone?.(zoneId) || {};
+        const width = Math.max(8, Math.round(config.widthUnits || 28));
+        const depth = Math.max(8, Math.round(config.depthUnits || 22));
+        const seed = Math.abs(String(zoneId || '').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0))
+            + zoneIndex * 17
+            + Math.floor(currentFrame / 900) * 7;
+        return {
+            zoneId,
+            u: 3 + (seed % Math.max(1, width - 6)),
+            v: 4 + ((seed * 5) % Math.max(1, depth - 8)),
+            h: 0
+        };
+    }
+
+    spawnActivityDirtPile(zoneId, options = {}) {
+        const boardPos = this.getActivityDirtBoardPoint(zoneId, options.zoneIndex || 0, options.currentFrame || 0);
+        const screen = renderManager?.boardToScreen?.(boardPos);
+        if (!screen) return null;
+        const flower = gameCore?.spawnFlowerAt?.(zoneId, screen.x, screen.y, {
+            exactPoint: true,
+            preferredPoint: screen,
+            ignoreZoneFlowerCap: true,
+            allowFlowerOverlap: false,
+            minDistance: gameConfig?.entities?.flower?.spawnMinDistance || 52,
+            persistentUntilConsumed: true,
+            resourceOrigin: 'cleanup-activity-dirt'
+        });
+        const dirt = gameCore?.transformFlowerToDirtPile?.(flower, {
+            source: 'cleanup-activity-dirt'
+        });
+        if (dirt) {
+            dirt.resourceOrigin = 'cleanup-activity-dirt';
+            dirt.boardPos = dirt.boardPos || { ...boardPos };
+            dirt.syncDebugGridPos?.();
+            this.syncEntityProfile(dirt);
+        }
+        return dirt || null;
+    }
+
+    updateActivityDirtPressure(gameState = gameCore?.gameState) {
+        const config = this.getCleanupActivityConfig();
+        if (!config.enabled || !gameState) return { spawned: 0, skipped: 'disabled' };
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? gameState.currentFrame ?? 0;
+        const zones = gameCore?.getZoneIds?.() || [];
+        const totalPiles = (gameState.flowers || []).filter(flower => flower?.lifecycleKind === 'dirt-pile').length;
+        if (totalPiles >= config.maxTotalPiles) return { spawned: 0, skipped: 'total-cap', totalPiles };
+        let spawned = 0;
+        zones.forEach((zoneId, zoneIndex) => {
+            if (spawned || totalPiles + spawned >= config.maxTotalPiles) return;
+            const lastFrame = this.lastActivityDirtFrameByZone.get(zoneId) ?? -Infinity;
+            if (currentFrame - lastFrame < config.intervalFrames) return;
+            const activeButterflies = (gameState.butterflies || []).filter(entity =>
+                entity?.id
+                && !entity.dead
+                && this.getEntityZoneId(entity, null) === zoneId
+                && entity.state !== 'sleeping'
+                && entity.state !== 'mating'
+                && !entity.zoneTravel
+            );
+            if (activeButterflies.length < config.minActiveButterflies) return;
+            const zonePiles = this.getZoneDirtPiles(zoneId, gameState);
+            if (zonePiles.length >= config.maxPilesPerZone) return;
+            const cleanupPressure = activeButterflies.reduce((sum, entity) => {
+                const drives = entity.lifeSim?.drives || {};
+                return sum
+                    + Math.max(0, drives.caregiving || 0) * 0.45
+                    + Math.max(0, drives.statusExpression || 0) * 0.28
+                    + Math.max(0, drives.selfMaintenance || 0) * 0.18;
+            }, 0) / Math.max(1, activeButterflies.length);
+            if (cleanupPressure < config.activityScale) return;
+            if (this.spawnActivityDirtPile(zoneId, { zoneIndex, currentFrame })) {
+                this.lastActivityDirtFrameByZone.set(zoneId, currentFrame);
+                spawned += 1;
+            }
+        });
+        return { spawned };
+    }
+
     update(gameState) {
         for (const flower of gameState.flowers || []) {
             this.registerObject(flower, { type: 'flower', consumable: true });
@@ -276,6 +383,7 @@ class ObjectSystem {
             this.registerObject(block, { type: 'block', carryable: true });
             this.syncEntityProfile(block);
         }
+        this.updateActivityDirtPressure(gameState);
     }
 }
 

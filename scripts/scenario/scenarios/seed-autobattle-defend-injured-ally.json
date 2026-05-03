@@ -1,0 +1,24 @@
+{
+  "id": "seed-autobattle-defend-injured-ally",
+  "seed": 1211,
+  "world": { "focusedZoneId": "sun-court", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "sun-court", "u": 12, "v": 10, "h": 0 }, "drives": { "caregiving": 0.85 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "sun-court", "u": 13, "v": 10, "h": 0 }, "emotions": { "threat": 0.8 } }
+  ],
+  "actions": [
+    { "type": "distress", "source": "b", "threat": 0.86, "exhaustion": 0.5 },
+    { "type": "step_simulation", "frames": 80 }
+  ],
+  "corpus": {
+    "scenarioFamily": "autobattle",
+    "focusIds": ["a", "b"],
+    "sampleFrames": [20, 40, 60, 80],
+    "correctedLabels": { "autobattlePosture": "support", "actionFamily": "battlePosture" },
+    "tags": ["autobattle-support", "injured-ally"],
+    "rationale": "Battle posture should defend/support an injured ally."
+  },
+  "assertions": [
+    { "type": "entity_count", "min": 2 }
+  ]
+}

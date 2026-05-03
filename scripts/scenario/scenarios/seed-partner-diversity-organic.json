@@ -1,0 +1,62 @@
+{
+  "id": "seed-partner-diversity-organic",
+  "seed": 1317,
+  "durationSeconds": 90,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    {
+      "id": "a",
+      "name": "Aster",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "ivy-cloister", "u": 12, "v": 12, "h": 0 },
+      "drives": { "socialConnection": 0.74, "exploration": 0.62, "statusExpression": 0.52 },
+      "derived": { "derivedFeelings": { "curiosity": 0.72, "dominant": "curiosity", "motiveBias": "curiosity" } }
+    },
+    { "id": "b", "name": "Briar", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 13, "v": 12, "h": 0 }, "drives": { "socialConnection": 0.48 } },
+    { "id": "c", "name": "Clover", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 14, "v": 12, "h": 0 }, "drives": { "socialConnection": 0.48 } },
+    { "id": "d", "name": "Dawn", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 13, "v": 13, "h": 0 }, "drives": { "socialConnection": 0.48 } },
+    { "id": "e", "name": "Ember", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 14, "v": 13, "h": 0 }, "drives": { "socialConnection": 0.48 } },
+    { "id": "f", "name": "Fern", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 12, "v": 14, "h": 0 }, "drives": { "socialConnection": 0.48 } }
+  ],
+  "edges": [
+    { "source": "a", "target": "b", "values": { "trust": 0.76, "comfort": 0.72, "attachment": 0.5, "bondTier": "companion", "coTimeSeconds": 900 } },
+    { "source": "a", "target": "c", "values": { "trust": 0.42, "comfort": 0.38, "attachment": 0.22, "bondTier": "acquaintance", "coTimeSeconds": 120 } },
+    { "source": "a", "target": "d", "values": { "trust": 0.4, "comfort": 0.36, "attachment": 0.2, "bondTier": "acquaintance", "coTimeSeconds": 90 } },
+    { "source": "a", "target": "e", "values": { "trust": 0.38, "comfort": 0.34, "attachment": 0.18, "bondTier": "acquaintance", "coTimeSeconds": 80 } },
+    { "source": "a", "target": "f", "values": { "trust": 0.36, "comfort": 0.32, "attachment": 0.16, "bondTier": "acquaintance", "coTimeSeconds": 70 } }
+  ],
+  "actions": [
+    { "type": "set_partner_recency_pressure", "enabled": true },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "step_simulation", "frames": 18 },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "step_simulation", "frames": 18 },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "step_simulation", "frames": 18 },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "step_simulation", "frames": 18 },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "step_simulation", "frames": 18 },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "assert_dialogue_pair_diversity", "name": "recency-enabled-diversifies-partners", "source": "a", "withinSeconds": 90, "minDistinct": 5 },
+    { "type": "clear_dialogue_history" },
+    { "type": "set_partner_recency_pressure", "enabled": false },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "step_simulation", "frames": 18 },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "step_simulation", "frames": 18 },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "step_simulation", "frames": 18 },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "step_simulation", "frames": 18 },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "step_simulation", "frames": 18 },
+    { "type": "emit_dialogue", "source": "a", "targets": ["b"], "signalType": "teaching_signal", "intentFamily": "social", "intentTags": ["teaching", "companionship"], "phrase": "Show me what you notice here." },
+    { "type": "assert_dialogue_pair_diversity", "name": "recency-disabled-stays-looped", "source": "a", "withinSeconds": 90, "maxDistinct": 2 },
+    { "type": "set_partner_recency_pressure", "enabled": true }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 6 },
+    { "type": "dialogue_count", "min": 6 }
+  ]
+}

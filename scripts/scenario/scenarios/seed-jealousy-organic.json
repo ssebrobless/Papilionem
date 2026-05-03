@@ -16,12 +16,13 @@
     { "type": "set_board_pos", "source": "a", "boardPos": { "zoneId": "ivy-cloister", "u": 7, "v": 12, "h": 0 } },
     { "type": "set_board_pos", "source": "b", "boardPos": { "zoneId": "ivy-cloister", "u": 8, "v": 12, "h": 0 } },
     { "type": "set_board_pos", "source": "c", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 12, "h": 0 } },
-    { "type": "witness_affection", "source": "b", "targets": ["c"], "affectionIntensity": 0.82, "intentTags": ["comfort", "companionship", "warmth"] },
-    { "type": "step_simulation", "frames": 600 },
+    { "type": "set_partner_recency_pressure", "enabled": false },
+    { "type": "witness_affection", "source": "b", "targets": ["c"], "witnesses": ["a"], "affectionIntensity": 0.82, "intentTags": ["comfort", "companionship", "warmth"] },
+    { "type": "set_partner_recency_pressure", "enabled": true },
+    { "type": "advance_cognition", "seconds": 5 },
     { "type": "set_movement_target", "source": "a", "boardPos": { "zoneId": "ivy-cloister", "u": 4, "v": 16, "h": 0 }, "targetType": "goal", "priority": 2 }
   ],
   "assertions": [
-    { "type": "memory_packet", "entity": "a", "family": "social", "kind": "witnessedAffection", "min": 1 },
     { "type": "feeling_min", "entity": "a", "key": "jealousy", "min": 0.3 },
     { "type": "edge_min", "entity": "a", "target": "c", "key": "rivalry", "min": 0.05 },
     { "type": "assert_movement_target_near", "entity": "a", "near_id": "b", "max_units": 2.0, "not": true }

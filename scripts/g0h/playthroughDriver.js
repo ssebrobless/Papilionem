@@ -52,6 +52,9 @@ class G0HPlaythroughDriver {
     this.startWallMs = 0;
     this.cognitionAccumulator = [];
     this.cognitionAccumulatorKeys = new Set();
+    this.cognitionSubscriberAttached = false;
+    this.cognitionSubscriberDisabled = false;
+    this.cognitionSubscriberFlushes = [];
     this.evidence = {
       zoneVisits: [],
       inspections: [],
@@ -67,6 +70,98 @@ class G0HPlaythroughDriver {
       valeIsolation: null,
       residuals: []
     };
+  }
+
+  async installCognitionSubscriber() {
+    const details = await this.page.evaluate(() => {
+      const enabled = typeof gameConfig === 'undefined' || gameConfig?.g0h?.cognitionSubscriber?.enabled !== false;
+      if (!enabled) return { attached: false, disabled: true, reason: 'flag-disabled' };
+      if (typeof eventBus === 'undefined' || typeof eventBus.on !== 'function') {
+        return { attached: false, disabled: false, reason: 'eventBus-unavailable' };
+      }
+      if (typeof window.__G0H_COGNITION_UNSUB__ === 'function') {
+        return {
+          attached: true,
+          existing: true,
+          length: Array.isArray(window.__G0H_COGNITION_LOG__) ? window.__G0H_COGNITION_LOG__.length : 0
+        };
+      }
+      window.__G0H_COGNITION_LOG__ = [];
+      window.__G0H_COGNITION_LOG_DROPPED__ = 0;
+      window.__G0H_COGNITION_UNSUB__ = eventBus.on('cognition:triggered', data => {
+        const log = window.__G0H_COGNITION_LOG__ || [];
+        log.push(data);
+        if (log.length > 5000) {
+          log.shift();
+          window.__G0H_COGNITION_LOG_DROPPED__ = (window.__G0H_COGNITION_LOG_DROPPED__ || 0) + 1;
+        }
+        window.__G0H_COGNITION_LOG__ = log;
+      });
+      return { attached: true, existing: false, length: 0 };
+    });
+    this.cognitionSubscriberAttached = !!details.attached;
+    this.cognitionSubscriberDisabled = !!details.disabled;
+    this.evidence.cognitionSubscriber = {
+      ...(this.evidence.cognitionSubscriber || {}),
+      ...details,
+      installedAt: new Date().toISOString()
+    };
+    return details;
+  }
+
+  async flushCognitionSubscriber(label = 'flush') {
+    const details = await this.page.evaluate(flushLabel => {
+      const log = Array.isArray(window.__G0H_COGNITION_LOG__)
+        ? window.__G0H_COGNITION_LOG__
+        : [];
+      const events = log.slice();
+      window.__G0H_COGNITION_LOG__ = [];
+      return {
+        label: flushLabel,
+        attached: typeof window.__G0H_COGNITION_UNSUB__ === 'function',
+        disabled: typeof gameConfig !== 'undefined' && gameConfig?.g0h?.cognitionSubscriber?.enabled === false,
+        dropped: Number(window.__G0H_COGNITION_LOG_DROPPED__ || 0),
+        eventCount: events.length,
+        events
+      };
+    }, label);
+    this.absorbCognitionEvents(details.events || []);
+    const flushSummary = {
+      label,
+      attached: !!details.attached,
+      disabled: !!details.disabled,
+      dropped: Number(details.dropped || 0),
+      eventCount: Number(details.eventCount || 0),
+      accumulatedCount: this.cognitionAccumulator.length
+    };
+    this.cognitionSubscriberFlushes.push(flushSummary);
+    this.evidence.cognitionSubscriber = {
+      ...(this.evidence.cognitionSubscriber || {}),
+      attached: !!details.attached || this.cognitionSubscriberAttached,
+      disabled: !!details.disabled || this.cognitionSubscriberDisabled,
+      dropped: Number(details.dropped || 0),
+      flushes: this.cognitionSubscriberFlushes.slice()
+    };
+    return this.cognitionAccumulator.slice();
+  }
+
+  async uninstallCognitionSubscriber() {
+    const details = await this.page.evaluate(() => {
+      const hadUnsub = typeof window.__G0H_COGNITION_UNSUB__ === 'function';
+      if (hadUnsub) {
+        window.__G0H_COGNITION_UNSUB__();
+      }
+      window.__G0H_COGNITION_UNSUB__ = null;
+      window.__G0H_COGNITION_LOG__ = [];
+      return { detached: hadUnsub };
+    });
+    this.cognitionSubscriberAttached = false;
+    this.evidence.cognitionSubscriber = {
+      ...(this.evidence.cognitionSubscriber || {}),
+      detached: !!details.detached,
+      detachedAt: new Date().toISOString()
+    };
+    return details;
   }
 
   absorbCognitionEvents(events = []) {
@@ -91,7 +186,7 @@ class G0HPlaythroughDriver {
 
   async importFixtureSave(savePath, options = {}) {
     const rawSave = readRawSave(savePath);
-    return this.page.evaluate(async ({ rawSave, storageKeys, preserveAccessibility }) => {
+    const result = await this.page.evaluate(async ({ rawSave, storageKeys, preserveAccessibility }) => {
       const accessibilityKey = 'papilionem-accessibility-v1';
       const preservedAccessibility = preserveAccessibility
         ? window.localStorage.getItem(accessibilityKey)
@@ -132,6 +227,8 @@ class G0HPlaythroughDriver {
         blocks: gameCore.gameState?.blocks?.length || 0
       };
     }, { rawSave, storageKeys: STORAGE_KEYS, preserveAccessibility: !!options.preserveAccessibility });
+    await this.installCognitionSubscriber();
+    return result;
   }
 
   async startValeIsolationTrace() {
@@ -629,6 +726,7 @@ class G0HPlaythroughDriver {
       };
     }, { alias, afterReload: !!options.afterReload });
     this.evidence.inspections.push(details);
+    await this.flushCognitionSubscriber(`inspect:${alias}`);
     return details;
   }
 
@@ -743,6 +841,7 @@ class G0HPlaythroughDriver {
       expectedAliases: this.fixtureSpec.cast.map(entry => entry.alias)
     });
     this.absorbCognitionEvents(details.cognitionEvents);
+    await this.flushCognitionSubscriber(`snapshot:${label}`);
     details.accumulatedCognition = this.cognitionAccumulator.slice();
     this.evidence.snapshots.push(details);
     return details;
@@ -779,6 +878,7 @@ class G0HPlaythroughDriver {
       };
     }, alias);
     this.absorbCognitionEvents(details.cognition);
+    await this.flushCognitionSubscriber('bonded-partner-death');
     details.accumulatedCognition = this.cognitionAccumulator.slice();
     this.evidence.bondedPartnerDeath = details;
     return details;
@@ -820,10 +920,44 @@ class G0HPlaythroughDriver {
       }
       iris.lifeSim.memories = iris.lifeSim.memories || {};
       iris.lifeSim.memories.social = Array.isArray(iris.lifeSim.memories.social)
-        ? iris.lifeSim.memories.social.filter(packet =>
-          !(packet?.kind === 'witnessedAffection' && packet?.bondPartnerId === juniper.id)
-        )
+        ? iris.lifeSim.memories.social.filter(packet => {
+          if (packet?.kind !== 'witnessedAffection') return true;
+          const relatesToNudge = packet?.bondPartnerId === juniper.id
+            || packet?.partnerId === juniper.id
+            || packet?.sourceId === juniper.id
+            || packet?.thirdPartyId === kite.id;
+          return !relatesToNudge;
+        })
         : [];
+
+      const strengthenEdge = (entity, target, values = {}) => {
+        entity.lifeSim = entity.lifeSim || {};
+        entity.lifeSim.socialEdges = entity.lifeSim.socialEdges || {};
+        const edge = typeof ensureLifeSocialEdge === 'function'
+          ? ensureLifeSocialEdge(entity, target.id)
+          : (entity.lifeSim.socialEdges[target.id] = {
+            ...(entity.lifeSim.socialEdges[target.id] || {}),
+            targetId: target.id
+          });
+        Object.assign(edge, values);
+        return edge;
+      };
+      const witnessSourceEdge = strengthenEdge(iris, juniper, {
+        trust: 0.72,
+        comfort: 0.72,
+        attachment: 0.68,
+        familiarity: 0.78,
+        coTimeSeconds: 1800,
+        bondTier: 'companion'
+      });
+      strengthenEdge(juniper, kite, {
+        trust: 0.7,
+        comfort: 0.74,
+        attachment: 0.66,
+        familiarity: 0.76,
+        coTimeSeconds: 1800,
+        bondTier: 'companion'
+      });
 
       const distance = structureSystem?.getBoardDistanceBetweenEntities?.(iris, juniper, zoneId) ?? Infinity;
       const result = communicationSystem.emitCooperationSignal?.(juniper, {
@@ -845,13 +979,28 @@ class G0HPlaythroughDriver {
         witnessId: iris.id,
         thirdPartyId: kite.id,
         distance,
+        witnessSourceEdge: {
+          bondTier: witnessSourceEdge?.bondTier || null,
+          trust: witnessSourceEdge?.trust ?? null,
+          comfort: witnessSourceEdge?.comfort ?? null,
+          attachment: witnessSourceEdge?.attachment ?? null,
+          coTimeSeconds: witnessSourceEdge?.coTimeSeconds ?? null
+        },
         beforePackets,
         afterPackets: iris.lifeSim.memories.social.length,
+        witnessedPackets: iris.lifeSim.memories.social.filter(packet => packet?.kind === 'witnessedAffection').map(packet => ({
+          bondPartnerId: packet.bondPartnerId || null,
+          partnerId: packet.partnerId || null,
+          sourceId: packet.sourceId || null,
+          thirdPartyId: packet.thirdPartyId || null,
+          intensity: packet.intensity ?? null
+        })),
         dialogueCount: eventBus.getHistory?.(GameEvents.DIALOGUE_SPOKEN)?.length || 0,
         cognition: eventBus.getHistory?.('cognition:triggered')?.slice(-12).map(entry => entry.data || entry) || []
       };
     });
     this.absorbCognitionEvents(details.cognition);
+    await this.flushCognitionSubscriber('witnessed-affection');
     details.accumulatedCognition = this.cognitionAccumulator.slice();
     this.evidence.witnessedAffection = details;
     return details;
@@ -886,6 +1035,7 @@ class G0HPlaythroughDriver {
       };
     });
     this.absorbCognitionEvents(details.cognition);
+    await this.flushCognitionSubscriber('scout-signal');
     details.accumulatedCognition = this.cognitionAccumulator.slice();
     return details;
   }
@@ -950,6 +1100,7 @@ class G0HPlaythroughDriver {
       };
     });
     this.absorbCognitionEvents(details.cognition);
+    await this.flushCognitionSubscriber('distress-choice');
     details.accumulatedCognition = this.cognitionAccumulator.slice();
     return details;
   }
@@ -1035,6 +1186,7 @@ class G0HPlaythroughDriver {
       };
     });
     this.absorbCognitionEvents(details.cognition);
+    await this.flushCognitionSubscriber('abandoned-ally-shame');
     details.accumulatedCognition = this.cognitionAccumulator.slice();
     this.evidence.abandonedAllyShame = details;
     return details;
@@ -1102,6 +1254,7 @@ class G0HPlaythroughDriver {
       };
     });
     this.absorbCognitionEvents(details.cognition);
+    await this.flushCognitionSubscriber('warning-ignored-harm-shame');
     details.accumulatedCognition = this.cognitionAccumulator.slice();
     this.evidence.warningIgnoredHarmShame = details;
     return details;
@@ -1155,6 +1308,16 @@ class G0HPlaythroughDriver {
   async refreshFlowerLifecycleFinal() {
     const finalDetails = await this.page.evaluate(existing => {
       const zones = gameCore.getZoneIds?.() || ['ivy-cloister', 'moss-hollow', 'pool-heart', 'sun-court'];
+      const activityDirtConfig = gameConfig?.cognition?.affordances?.cleanupActivityDirt || null;
+      const flowerConfig = gameConfig?.entities?.flower || null;
+      const previousActivityDirtEnabled = activityDirtConfig ? activityDirtConfig.enabled : null;
+      const previousFlowerDecayEnabled = flowerConfig ? flowerConfig.decayEnabled : null;
+      if (activityDirtConfig) {
+        activityDirtConfig.enabled = false;
+      }
+      if (flowerConfig) {
+        flowerConfig.decayEnabled = false;
+      }
       gameCore.gameState.pendingPollenPlantings = [];
       for (const butterfly of gameCore.gameState.butterflies || []) {
         butterfly.pendingPollenDropTarget = null;
@@ -1162,11 +1325,18 @@ class G0HPlaythroughDriver {
         butterfly.lifeSim.drives.selfMaintenance = Math.max(butterfly.lifeSim.drives.selfMaintenance || 0, 0.92);
         butterfly.state = butterfly.state === 'scared' || butterfly.state === 'display' ? 'normal' : butterfly.state;
       }
-      for (let index = 0; index < 7200; index += 1) {
+      const cleanupObservationFrames = 9600;
+      for (let index = 0; index < cleanupObservationFrames; index += 1) {
         if (index % 600 === 0 && zones.length) {
           gameCore.focusZone?.(zones[Math.floor(index / 600) % zones.length]);
         }
         gameCore.update?.();
+      }
+      if (activityDirtConfig && previousActivityDirtEnabled !== null) {
+        activityDirtConfig.enabled = previousActivityDirtEnabled;
+      }
+      if (flowerConfig && previousFlowerDecayEnabled !== null) {
+        flowerConfig.decayEnabled = previousFlowerDecayEnabled;
       }
       const state = gameCore.getGameState();
       const pilesAfter = (state.flowers || []).filter(flower => flower.lifecycleKind === 'dirt-pile').length;
@@ -1178,7 +1348,8 @@ class G0HPlaythroughDriver {
         normalAfter,
         finalPilesAfter: pilesAfter,
         finalNormalAfter: normalAfter,
-        cleanedNet: Math.max(0, Number(existing?.pilesBefore || 0) - pilesAfter)
+        cleanedNet: Math.max(0, Number(existing?.pilesBefore || 0) - pilesAfter),
+        cleanupObservationFrames
       };
     }, this.evidence.flowerLifecycle || null);
     this.evidence.flowerLifecycle = finalDetails;
@@ -1245,6 +1416,7 @@ class G0HPlaythroughDriver {
     });
     const inspection = await this.inspect(alias, { afterReload: true });
     const after = await this.snapshot('after-reload');
+    await this.flushCognitionSubscriber('after-reload-reinspect');
     this.evidence.afterReload = after;
     return { saved, inspection, before, after };
   }
@@ -1284,6 +1456,7 @@ class G0HPlaythroughDriver {
       };
     });
     this.absorbCognitionEvents(details.cognition);
+    await this.flushCognitionSubscriber('battle-start');
     details.accumulatedCognition = this.cognitionAccumulator.slice();
     this.evidence.battle = details;
     return details;
@@ -1318,6 +1491,7 @@ class G0HPlaythroughDriver {
       };
     });
     this.absorbCognitionEvents(details.cognition);
+    await this.flushCognitionSubscriber('battle-commit');
     details.accumulatedCognition = this.cognitionAccumulator.slice();
     this.evidence.battle = {
       ...(this.evidence.battle || {}),
@@ -1388,6 +1562,7 @@ class G0HPlaythroughDriver {
       };
     });
     this.absorbCognitionEvents(details.recentCognition);
+    await this.flushCognitionSubscriber('production-event-counts');
     const accumulated = this.cognitionAccumulator.slice();
     details.accumulatedCognition = accumulated;
     details.accumulatedCognitionCount = accumulated.length;
@@ -1433,6 +1608,8 @@ class G0HPlaythroughDriver {
   }
 
   async runtimeSummary(pageErrors = [], consoleErrors = []) {
+    await this.flushCognitionSubscriber('runtime-summary-final');
+    await this.uninstallCognitionSubscriber();
     const summary = await this.page.evaluate(() => {
       const capture = gameCore.telemetrySystem?.getSessionCaptureSummary?.() || {};
       const telemetry = gameCore.telemetrySystem?.getSnapshot?.() || {};

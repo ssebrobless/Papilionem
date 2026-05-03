@@ -1,0 +1,105 @@
+{
+  "id": "seed-relationship-arc-rivalry-to-companion",
+  "seed": 1303,
+  "durationSeconds": 900,
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "entities": [
+    {
+      "id": "a",
+      "name": "Aster",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 10, "h": 0 },
+      "drives": { "socialConnection": 0.74, "caregiving": 0.68 },
+      "emotions": { "calm": 0.52, "joy": 0.42 }
+    },
+    {
+      "id": "b",
+      "name": "Briar",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "ivy-cloister", "u": 11, "v": 10, "h": 0 },
+      "drives": { "socialConnection": 0.78, "safetyAvoidance": 0.48 },
+      "emotions": { "threat": 0.28, "calm": 0.38 }
+    },
+    {
+      "id": "c",
+      "name": "Clover",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "ivy-cloister", "u": 13, "v": 10, "h": 0 },
+      "drives": { "exploration": 0.5, "caregiving": 0.5 }
+    }
+  ],
+  "edges": [
+    {
+      "source": "b",
+      "target": "a",
+      "values": {
+        "trust": 0.42,
+        "comfort": 0.42,
+        "attachment": 0.51,
+        "rivalry": 0.28,
+        "resentment": 0.16,
+        "bondTier": "familiar",
+        "coTimeSeconds": 560,
+        "historyTags": ["scenario-harm"]
+      }
+    },
+    {
+      "source": "a",
+      "target": "b",
+      "values": {
+        "trust": 0.34,
+        "comfort": 0.32,
+        "attachment": 0.28,
+        "rivalry": 0.24,
+        "resentment": 0.14,
+        "bondTier": "familiar",
+        "coTimeSeconds": 560
+      }
+    }
+  ],
+  "actions": [
+    {
+      "type": "emit_battle_action",
+      "actor": "a",
+      "target": "b",
+      "battleId": "relationship-arc-seeded-harm",
+      "actionType": "warning_ignored_then_harm",
+      "damage": 1
+    },
+    { "type": "advance_cognition", "seconds": 600 },
+    {
+      "type": "emit_signal",
+      "source": "a",
+      "targets": ["b"],
+      "signalType": "caregiving_success",
+      "intentFamily": "social",
+      "intentTags": ["comfort", "care", "companionship", "warmth"],
+      "phrase": "I stayed. Let me help you steady again.",
+      "metadata": { "affectionIntensity": 0.72, "arcFixture": "scenario-help" }
+    },
+    {
+      "type": "set_edge",
+      "source": "b",
+      "target": "a",
+      "values": { "historyTags": ["scenario-help"] }
+    },
+    { "type": "step_simulation", "frames": 120 },
+    { "type": "advance_cognition", "seconds": 80 }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 3 },
+    { "type": "dialogue_count", "min": 1 },
+    { "type": "near", "left": "a", "right": "b", "max": 2 },
+    { "type": "bond_tier", "name": "briar_arc_reaches_companion", "entity": "b", "target": "a", "minTier": "companion" },
+    { "type": "edge_min", "name": "briar_trust_recovers", "entity": "b", "target": "a", "key": "trust", "min": 0.4 },
+    {
+      "type": "cognition_event_count",
+      "name": "relationship_arc_event_fires",
+      "kind": "relationshipArcEvent",
+      "trigger": "bondTierTransition",
+      "entity": "b",
+      "partner": "a",
+      "min": 1
+    }
+  ]
+}

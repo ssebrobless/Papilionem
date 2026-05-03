@@ -1,0 +1,41 @@
+{
+  "id": "seed-zone-pull-resource",
+  "seed": 1404,
+  "durationSeconds": 240,
+  "world": {
+    "focusedZoneId": "ivy-cloister",
+    "renderMode": "sim-board",
+    "ecologyMode": "wild-release-loop",
+    "enableAffordanceMigrationPressure": true
+  },
+  "entities": [
+    { "id": "a", "name": "Aster", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 10, "h": 0 }, "drives": { "resourceControl": 0.92, "selfMaintenance": 0.72, "exploration": 0.42 } },
+    { "id": "b", "name": "Briar", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 11, "v": 10, "h": 0 }, "drives": { "resourceControl": 0.9, "selfMaintenance": 0.68, "exploration": 0.44 } },
+    { "id": "c", "name": "Clover", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 12, "v": 10, "h": 0 }, "drives": { "resourceControl": 0.88, "selfMaintenance": 0.7, "exploration": 0.4 } },
+    { "id": "d", "name": "Dawn", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 13, "v": 10, "h": 0 }, "drives": { "resourceControl": 0.86, "selfMaintenance": 0.66, "exploration": 0.42 } },
+    { "id": "e", "name": "Ember", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 14, "v": 10, "h": 0 }, "drives": { "resourceControl": 0.84, "selfMaintenance": 0.64, "exploration": 0.44 } }
+  ],
+  "objects": [
+    { "id": "moss-flower-a", "type": "flower", "boardPos": { "zoneId": "moss-hollow", "u": 9, "v": 10, "h": 0 } },
+    { "id": "moss-flower-b", "type": "flower", "boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 10, "h": 0 } },
+    { "id": "moss-flower-c", "type": "flower", "boardPos": { "zoneId": "moss-hollow", "u": 13, "v": 10, "h": 0 } },
+    { "id": "moss-flower-d", "type": "flower", "boardPos": { "zoneId": "moss-hollow", "u": 15, "v": 10, "h": 0 } },
+    { "id": "moss-flower-e", "type": "flower", "boardPos": { "zoneId": "moss-hollow", "u": 17, "v": 10, "h": 0 } },
+    { "id": "moss-flower-f", "type": "flower", "boardPos": { "zoneId": "moss-hollow", "u": 19, "v": 10, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "trigger_scarcity_pulse", "zoneId": "ivy-cloister", "durationFrames": 18000 },
+    { "type": "step_simulation", "frames": 14400 }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 4 },
+    {
+      "type": "entity_not_zone_count",
+      "name": "resource_pull_moves_three_out_of_ivy",
+      "entities": ["a", "b", "c", "d", "e"],
+      "zoneId": "ivy-cloister",
+      "min": 3,
+      "countDepartingAsMoved": true
+    }
+  ]
+}
