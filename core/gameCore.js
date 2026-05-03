@@ -1677,6 +1677,21 @@ class GameCore {
                 interactionSpace
             });
         if (!resolvedPoint) return null;
+        if (!options.allowObjectCellOverlap) {
+            const boardPos = renderManager?.screenToBoard?.(resolvedPoint.x, resolvedPoint.y, resolvedZoneId, 0);
+            if (boardPos) {
+                const occupancy = structureSystem?.canOccupyBoardCell?.({
+                    zoneId: resolvedZoneId,
+                    u: boardPos.u,
+                    v: boardPos.v,
+                    h: 0,
+                    occupantType: options.lifecycleKind || 'flower',
+                    candidateFlowers: zoneFlowers,
+                    ignoreObjectIds: options.ignoreObjectIds || []
+                });
+                if (occupancy && !occupancy.accepted) return null;
+            }
+        }
         if (!options.allowFlowerOverlap) {
             const tooClose = zoneFlowers.some(flower =>
                 flower
@@ -3315,12 +3330,31 @@ class GameCore {
         if (!zoneId || !Number.isFinite(x) || !Number.isFinite(y)) return false;
         const interactionSpace = this.getFlowerInteractionSpace(zoneId);
         const point = this.clampPlacementPointInZone(zoneId, x, y, interactionSpace.clampPadding);
+        const boardPos = renderManager?.screenToBoard?.(point.x, point.y, zoneId, 0);
+        if (!boardPos) return false;
+        const cell = structureSystem?.normalizeObjectCell?.(zoneId, boardPos.u, boardPos.v, 0) || {
+            zoneId,
+            u: Math.round(boardPos.u),
+            v: Math.round(boardPos.v),
+            h: 0
+        };
+        const plantingId = `${butterflyId || 'unknown'}:pollen:${zoneId}:${cell.u}:${cell.v}:${this.getCurrentFrame?.() || 0}`;
+        const occupancy = structureSystem?.canOccupyBoardCell?.({
+            zoneId,
+            u: cell.u,
+            v: cell.v,
+            h: 0,
+            occupantType: 'pollen-patch'
+        });
+        if (occupancy && !occupancy.accepted) return false;
+        const center = renderManager?.boardToScreen?.(cell) || point;
         const planting = {
-            id: `${butterflyId || 'unknown'}:pollen:${Date.now()}:${Math.floor(random(1000))}`,
+            id: plantingId,
             butterflyId: butterflyId || null,
             zoneId,
-            x: point.x,
-            y: point.y,
+            x: center.x,
+            y: center.y,
+            boardPos: cell,
             framesRemaining: options.framesRemaining || ((20 * 60) + Math.floor(random(10 * 60))),
             source: options.source || 'pollen-drop'
         };
@@ -3345,11 +3379,16 @@ class GameCore {
             if (planting.framesRemaining > 0) continue;
 
             const zoneFlowers = (this.gameState.flowers || []).filter(flower => this.getEntityZoneId(flower, null) === planting.zoneId);
-            const flower = this.spawnFlowerAt(planting.zoneId, planting.x, planting.y, {
+            const bloomPoint = planting.boardPos && renderManager?.boardToScreen
+                ? (renderManager.boardToScreen(planting.boardPos) || { x: planting.x, y: planting.y })
+                : { x: planting.x, y: planting.y };
+            const flower = this.spawnFlowerAt(planting.zoneId, bloomPoint.x, bloomPoint.y, {
                 candidateFlowers: zoneFlowers,
-                preferredPoint: { x: planting.x, y: planting.y },
+                preferredPoint: bloomPoint,
+                exactPoint: true,
                 maxAttempts: 16,
-                minDistance: 38
+                minDistance: 38,
+                ignoreObjectIds: [planting.id].filter(Boolean)
             });
             if (flower) {
                 this.particleSystem?.emitBurst?.(flower.x, flower.y, [255, 232, 170], 10);
@@ -5156,6 +5195,21 @@ class GameCore {
                     : this.getRandomPlacementPoint(zoneId, interactionSpace.randomPadding);
             if (!sampledPoint) continue;
             const screenPos = this.clampPlacementPointInZone(zoneId, sampledPoint.x, sampledPoint.y, interactionSpace.clampPadding);
+            if (!options.allowObjectCellOverlap) {
+                const boardPos = renderManager?.screenToBoard?.(screenPos.x, screenPos.y, zoneId, 0);
+                if (boardPos) {
+                    const occupancy = structureSystem?.canOccupyBoardCell?.({
+                        zoneId,
+                        u: boardPos.u,
+                        v: boardPos.v,
+                        h: 0,
+                        occupantType: options.lifecycleKind || 'flower',
+                        candidateFlowers,
+                        ignoreObjectIds: options.ignoreObjectIds || []
+                    });
+                    if (occupancy && !occupancy.accepted) continue;
+                }
+            }
             
             let minDistToFlower = Infinity;
             let tooClose = false;

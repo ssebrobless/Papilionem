@@ -377,10 +377,33 @@ async function run() {
         { u: 15, v: 11 },
         { u: 21, v: 14 }
       ];
+      const findOpenFlowerSeedPoint = (zone, origin) => {
+        for (let radius = 0; radius <= 6; radius += 1) {
+          for (let du = -radius; du <= radius; du += 1) {
+            for (let dv = -radius; dv <= radius; dv += 1) {
+              if (radius > 0 && Math.max(Math.abs(du), Math.abs(dv)) !== radius) continue;
+              const u = origin.u + du;
+              const v = origin.v + dv;
+              const occupancy = structureSystem.canOccupyBoardCell?.({
+                zoneId: zone,
+                u,
+                v,
+                h: 0,
+                occupantType: 'flower'
+              });
+              if (!occupancy?.accepted) continue;
+              const screen = renderManager.boardToScreen({ zoneId: zone, u, v, h: 0 });
+              if (screen) return { screen, u, v };
+            }
+          }
+        }
+        return null;
+      };
       livedZoneIds.forEach(zone => {
         perZonePoints.forEach(point => {
-          const screen = renderManager.boardToScreen({ zoneId: zone, u: point.u, v: point.v, h: 0 });
-          const flower = gameCore.spawnFlowerAt(zone, screen.x, screen.y, {
+          const seedPoint = findOpenFlowerSeedPoint(zone, point);
+          if (!seedPoint) return;
+          const flower = gameCore.spawnFlowerAt(zone, seedPoint.screen.x, seedPoint.screen.y, {
             exactPoint: true,
             ignoreZoneFlowerCap: true,
             allowFlowerOverlap: true,

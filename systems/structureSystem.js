@@ -411,6 +411,10 @@ class StructureSystem {
         };
     }
 
+    normalizeObjectCell(zoneId, u, v, h = 0) {
+        return this.normalizeBlockCell(zoneId, u, v, h);
+    }
+
     getBlockCell(block, options = {}) {
         if (!block) return null;
         const zoneId = options.zoneId || block.currentZoneId || block.boardPos?.zoneId || null;
@@ -426,6 +430,119 @@ class StructureSystem {
     buildBlockCellKey(zoneId, u, v, h = 0) {
         const cell = this.normalizeBlockCell(zoneId, u, v, h);
         return `${cell.zoneId}:${cell.u}:${cell.v}:${cell.h}`;
+    }
+
+    buildObjectCellKey(zoneId, u, v, h = 0) {
+        const cell = this.normalizeObjectCell(zoneId, u, v, h);
+        return `${cell.zoneId}:${cell.u}:${cell.v}:${cell.h}`;
+    }
+
+    getEntityObjectCell(entity, options = {}) {
+        if (!entity) return null;
+        const zoneId = options.zoneId || entity.currentZoneId || entity.boardPos?.zoneId || null;
+        if (!zoneId) return null;
+        const h = Number.isFinite(options.h)
+            ? options.h
+            : (Number.isFinite(entity.boardPos?.h) ? entity.boardPos.h : 0);
+        if (entity.boardPos && Number.isFinite(entity.boardPos.u) && Number.isFinite(entity.boardPos.v)) {
+            return this.normalizeObjectCell(zoneId, entity.boardPos.u, entity.boardPos.v, h);
+        }
+        const renderer = typeof renderManager !== 'undefined' ? renderManager : null;
+        const boardPos = renderer?.screenToBoard?.(entity.x || 0, entity.y || 0, zoneId, h);
+        if (!boardPos) return null;
+        return this.normalizeObjectCell(zoneId, boardPos.u, boardPos.v, h);
+    }
+
+    getPollenPlantingCell(planting, options = {}) {
+        if (!planting) return null;
+        const zoneId = options.zoneId || planting.zoneId || planting.boardPos?.zoneId || null;
+        if (!zoneId) return null;
+        if (planting.boardPos && Number.isFinite(planting.boardPos.u) && Number.isFinite(planting.boardPos.v)) {
+            return this.normalizeObjectCell(zoneId, planting.boardPos.u, planting.boardPos.v, planting.boardPos.h || 0);
+        }
+        const renderer = typeof renderManager !== 'undefined' ? renderManager : null;
+        const boardPos = renderer?.screenToBoard?.(planting.x || 0, planting.y || 0, zoneId, 0);
+        if (!boardPos) return null;
+        return this.normalizeObjectCell(zoneId, boardPos.u, boardPos.v, 0);
+    }
+
+    getBoardCellOccupants(zoneId, u, v, h = 0, options = {}) {
+        if (!zoneId) return [];
+        const targetKey = this.buildObjectCellKey(zoneId, u, v, h);
+        const ignoreIds = new Set([
+            ...(options.ignoreIds || []),
+            ...(options.ignoreBlockIds || []),
+            ...(options.ignoreFlowerIds || []),
+            ...(options.ignoreObjectIds || [])
+        ].filter(Boolean));
+        if (options.ignoreBlockId) ignoreIds.add(options.ignoreBlockId);
+        if (options.ignoreFlowerId) ignoreIds.add(options.ignoreFlowerId);
+        if (options.ignoreObjectId) ignoreIds.add(options.ignoreObjectId);
+
+        const occupants = [];
+        for (const block of this.getCandidateBlocksForCell(zoneId, options.candidateBlocks)) {
+            if (!block?.id || ignoreIds.has(block.id)) continue;
+            const cell = this.getBlockCell(block, { zoneId });
+            if (cell && this.buildObjectCellKey(cell.zoneId, cell.u, cell.v, cell.h) === targetKey) {
+                occupants.push({ type: 'block', id: block.id, entity: block, cell, reason: 'occupied-by-block' });
+            }
+        }
+
+        const flowers = Array.isArray(options.candidateFlowers)
+            ? options.candidateFlowers
+            : (gameCore?.getFlowersInZone?.(zoneId) || []);
+        for (const flower of flowers) {
+            if (!flower?.id || ignoreIds.has(flower.id) || flower.stage === 'dissolve' || flower.consumed) continue;
+            const lifecycleKind = flower.lifecycleKind || 'flower';
+            if (!['flower', 'dirt-pile', 'reserve-food-ball'].includes(lifecycleKind)) continue;
+            const cell = this.getEntityObjectCell(flower, { zoneId, h: 0 });
+            if (cell && this.buildObjectCellKey(cell.zoneId, cell.u, cell.v, cell.h) === targetKey) {
+                const reason = lifecycleKind === 'dirt-pile'
+                    ? 'occupied-by-dirt-pile'
+                    : lifecycleKind === 'reserve-food-ball'
+                        ? 'occupied-by-reserve-food'
+                        : 'occupied-by-flower';
+                occupants.push({ type: lifecycleKind, id: flower.id, entity: flower, cell, reason });
+            }
+        }
+
+        const pollenPlantings = Array.isArray(options.pendingPollenPlantings)
+            ? options.pendingPollenPlantings
+            : (gameCore?.gameState?.pendingPollenPlantings || []);
+        for (const planting of pollenPlantings) {
+            const id = planting?.id || planting?.plantingId || null;
+            if (!planting || (id && ignoreIds.has(id))) continue;
+            const cell = this.getPollenPlantingCell(planting, { zoneId });
+            if (cell && this.buildObjectCellKey(cell.zoneId, cell.u, cell.v, cell.h) === targetKey) {
+                occupants.push({ type: 'pollen-patch', id, entity: planting, cell, reason: 'occupied-by-pollen-patch' });
+            }
+        }
+
+        return occupants;
+    }
+
+    canOccupyBoardCell(request = {}) {
+        const zoneId = request.zoneId || request.cell?.zoneId || null;
+        if (!zoneId) return { accepted: false, reason: 'missing-zone' };
+        const cell = this.normalizeObjectCell(
+            zoneId,
+            request.u ?? request.cell?.u,
+            request.v ?? request.cell?.v,
+            request.h ?? request.cell?.h ?? 0
+        );
+        if (request.allowObjectCellOverlap === true) {
+            return { accepted: true, reason: 'accepted', ...cell, occupants: [] };
+        }
+        const occupants = this.getBoardCellOccupants(cell.zoneId, cell.u, cell.v, cell.h, request);
+        if (occupants.length) {
+            return {
+                accepted: false,
+                reason: occupants[0].reason || 'occupied',
+                ...cell,
+                occupants: occupants.map(entry => ({ type: entry.type, id: entry.id, reason: entry.reason }))
+            };
+        }
+        return { accepted: true, reason: 'accepted', ...cell, occupants: [] };
     }
 
     getCandidateBlocksForCell(zoneId, candidateBlocks = null) {
@@ -487,6 +604,21 @@ class StructureSystem {
             ignoreBlockIds: [...ignoreBlockIds]
         })) {
             return { accepted: false, reason: 'duplicate-cell', ...cell };
+        }
+
+        if (cell.h === 0) {
+            const objectOccupancy = this.canOccupyBoardCell({
+                ...request,
+                zoneId,
+                u: cell.u,
+                v: cell.v,
+                h: cell.h,
+                occupantType: 'block',
+                ignoreBlockIds: [...ignoreBlockIds]
+            });
+            if (!objectOccupancy.accepted) {
+                return { accepted: false, reason: objectOccupancy.reason, ...cell, occupants: objectOccupancy.occupants };
+            }
         }
 
         if (cell.h > 0 && !this.cellOccupiedBySolid(zoneId, cell.u, cell.v, cell.h - 1, {

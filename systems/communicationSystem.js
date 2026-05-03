@@ -1456,8 +1456,17 @@ class CommunicationSystem {
         if (cooldownSeconds <= 0) return false;
         const createdAtSeconds = Number(signal.createdAtSeconds ?? this.simulationClockSeconds);
         if (!Number.isFinite(createdAtSeconds)) return false;
+        const signalFingerprint = this.getDialogueFingerprint(signal.phrase || signal.intent || signal.signalType || '');
+        const recentDialogues = source.lifeSim?.communication?.recentDialogues || [];
         return targetIds.some(partnerId => {
-            const age = this.getRecentDialogueAgeSeconds(source, partnerId, 'outgoing');
+            const matchingRecent = recentDialogues.find(entry => {
+                if (entry?.direction !== 'outgoing' || entry.partnerId !== partnerId) return false;
+                if (entry.sourceSignalType !== signal.signalType) return false;
+                const entryFingerprint = this.getDialogueFingerprint(entry.phrase || entry.sourceSignalType || '');
+                return entryFingerprint === signalFingerprint;
+            });
+            if (!matchingRecent) return false;
+            const age = Math.max(0, createdAtSeconds - matchingRecent.atSeconds);
             return Number.isFinite(age) && age <= cooldownSeconds;
         });
     }
