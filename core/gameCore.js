@@ -1816,6 +1816,11 @@ class GameCore {
             lifecycleKind: 'reserve-food-ball',
             flowerType: flower.flowerType || null
         });
+        if (butterfly?.id) {
+            this.grantPollenCharges?.(butterfly, flower, {
+                reason: 'reserve-food-conversion'
+            });
+        }
         objectSystem?.syncEntityProfile?.(flower);
         this.particleSystem?.emitBurst?.(flower.x, flower.y - 2, flower.petalColor || [255, 220, 150], 5);
         return flower;
@@ -3345,8 +3350,193 @@ class GameCore {
         return butterfly;
     }
 
+    getPollenPropagationConfig() {
+        return gameConfig?.entities?.flower?.pollenPropagation || {};
+    }
+
+    ensureButterflyPollenInventory(butterfly) {
+        if (!butterfly?.id) return null;
+        const config = this.getPollenPropagationConfig();
+        const maxCharges = Math.max(0, Math.round(config.maxCharges ?? 2));
+        const current = butterfly.pollenInventory || {};
+        const charges = Math.max(0, Math.min(maxCharges, Math.round(current.charges || 0)));
+        butterfly.pollenInventory = {
+            charges,
+            maxCharges,
+            expiresAtFrame: Number.isFinite(current.expiresAtFrame) ? Math.max(0, Math.round(current.expiresAtFrame)) : 0,
+            sourceFlowerTypes: Array.isArray(current.sourceFlowerTypes) ? current.sourceFlowerTypes.slice(-maxCharges) : [],
+            lastUpdatedFrame: Number.isFinite(current.lastUpdatedFrame) ? Math.max(0, Math.round(current.lastUpdatedFrame)) : 0
+        };
+        return butterfly.pollenInventory;
+    }
+
+    grantPollenCharges(butterfly, sourceFlower = null, options = {}) {
+        const config = this.getPollenPropagationConfig();
+        if (config.enabled === false || !butterfly?.id) return null;
+        const inventory = this.ensureButterflyPollenInventory(butterfly);
+        if (!inventory || inventory.maxCharges <= 0) return null;
+        const currentFrame = this.getCurrentFrame?.() || 0;
+        const ttlFrames = Math.max(1, Math.round(config.chargeTtlFrames ?? 7200));
+        const chargesToAdd = Math.max(1, Math.round(options.charges ?? config.chargesPerFlowerUse ?? 1));
+        const previousCharges = inventory.charges;
+        inventory.charges = Math.min(inventory.maxCharges, inventory.charges + chargesToAdd);
+        inventory.expiresAtFrame = currentFrame + ttlFrames;
+        inventory.lastUpdatedFrame = currentFrame;
+        const sourceType = sourceFlower?.flowerType || options.flowerType || null;
+        if (sourceType) {
+            inventory.sourceFlowerTypes.push(sourceType);
+            inventory.sourceFlowerTypes = inventory.sourceFlowerTypes.slice(-inventory.maxCharges);
+        }
+        if (inventory.charges > previousCharges && typeof eventBus !== 'undefined') {
+            eventBus.emit('pollen:charged', {
+                butterflyId: butterfly.id,
+                zoneId: this.getEntityZoneId(butterfly, butterfly.currentZoneId || null),
+                charges: inventory.charges,
+                previousCharges,
+                expiresAtFrame: inventory.expiresAtFrame,
+                sourceFlowerId: sourceFlower?.id || null,
+                sourceFlowerType: sourceType,
+                reason: options.reason || 'flower-use'
+            });
+        }
+        return inventory;
+    }
+
+    hasUsablePollenCharge(butterfly) {
+        const inventory = this.ensureButterflyPollenInventory(butterfly);
+        if (!inventory || inventory.charges <= 0) return false;
+        const currentFrame = this.getCurrentFrame?.() || 0;
+        if (inventory.expiresAtFrame > 0 && currentFrame >= inventory.expiresAtFrame) {
+            this.clearButterflyPollenInventory(butterfly, 'expired');
+            return false;
+        }
+        return true;
+    }
+
+    clearButterflyPollenInventory(butterfly, reason = 'cleared') {
+        if (!butterfly?.pollenInventory) return false;
+        const previousCharges = Math.max(0, Math.round(butterfly.pollenInventory.charges || 0));
+        butterfly.pollenInventory.charges = 0;
+        butterfly.pollenInventory.expiresAtFrame = 0;
+        butterfly.pollenInventory.sourceFlowerTypes = [];
+        butterfly.pollenInventory.lastUpdatedFrame = this.getCurrentFrame?.() || 0;
+        if (butterfly.pendingPollenDropTarget) {
+            butterfly.pendingPollenDropTarget = null;
+        }
+        if (previousCharges > 0 && typeof eventBus !== 'undefined') {
+            eventBus.emit('pollen:expired', {
+                butterflyId: butterfly.id,
+                previousCharges,
+                reason
+            });
+        }
+        return previousCharges > 0;
+    }
+
+    consumePollenCharge(butterfly, options = {}) {
+        if (!this.hasUsablePollenCharge(butterfly)) return false;
+        const inventory = this.ensureButterflyPollenInventory(butterfly);
+        inventory.charges = Math.max(0, inventory.charges - 1);
+        inventory.lastUpdatedFrame = this.getCurrentFrame?.() || 0;
+        if (inventory.charges <= 0) {
+            inventory.expiresAtFrame = 0;
+            inventory.sourceFlowerTypes = [];
+        }
+        if (typeof eventBus !== 'undefined') {
+            eventBus.emit('pollen:charge-consumed', {
+                butterflyId: butterfly.id,
+                zoneId: this.getEntityZoneId(butterfly, butterfly.currentZoneId || null),
+                remainingCharges: inventory.charges,
+                reason: options.reason || 'planting'
+            });
+        }
+        return true;
+    }
+
+    transferPollenCharge(source, recipient, options = {}) {
+        const config = this.getPollenPropagationConfig();
+        if (config.enabled === false || config.handoffEnabled === false) return false;
+        if (!source?.id || !recipient?.id || source.id === recipient.id) return false;
+        if (!this.hasUsablePollenCharge(source)) return false;
+        const donorInventory = this.ensureButterflyPollenInventory(source);
+        const recipientInventory = this.ensureButterflyPollenInventory(recipient);
+        const recipientMax = Math.max(0, Math.round(config.handoffRecipientMaxCharges ?? 0));
+        if (!donorInventory || !recipientInventory || donorInventory.charges <= 0 || recipientInventory.charges > recipientMax) {
+            return false;
+        }
+        const currentFrame = this.getCurrentFrame?.() || 0;
+        donorInventory.charges = Math.max(0, donorInventory.charges - 1);
+        donorInventory.lastUpdatedFrame = currentFrame;
+        recipientInventory.charges = Math.min(recipientInventory.maxCharges, recipientInventory.charges + 1);
+        recipientInventory.expiresAtFrame = Math.max(recipientInventory.expiresAtFrame || 0, donorInventory.expiresAtFrame || 0);
+        recipientInventory.lastUpdatedFrame = currentFrame;
+        const handedType = donorInventory.sourceFlowerTypes.shift() || null;
+        if (handedType) {
+            recipientInventory.sourceFlowerTypes.push(handedType);
+            recipientInventory.sourceFlowerTypes = recipientInventory.sourceFlowerTypes.slice(-recipientInventory.maxCharges);
+        }
+        if (donorInventory.charges <= 0) {
+            donorInventory.expiresAtFrame = 0;
+            donorInventory.sourceFlowerTypes = [];
+            source.pendingPollenDropTarget = null;
+        }
+        if (typeof eventBus !== 'undefined') {
+            eventBus.emit('pollen:handoff', {
+                sourceId: source.id,
+                recipientId: recipient.id,
+                zoneId: this.getEntityZoneId(source, source.currentZoneId || null),
+                sourceRemainingCharges: donorInventory.charges,
+                recipientCharges: recipientInventory.charges,
+                flowerType: handedType,
+                reason: options.reason || 'social-handoff'
+            });
+        }
+        return true;
+    }
+
+    updateButterflyPollenInventories() {
+        const config = this.getPollenPropagationConfig();
+        if (config.enabled === false) return;
+        const butterflies = this.gameState?.butterflies || [];
+        const currentFrame = this.getCurrentFrame?.() || 0;
+        const interval = Math.max(1, Math.round(config.handoffCheckIntervalFrames ?? 180));
+        const shouldCheckHandoff = config.handoffEnabled !== false && currentFrame % interval === 0;
+        for (const butterfly of butterflies) {
+            if (!butterfly?.id) continue;
+            if (butterfly.pollenInventory?.charges > 0) {
+                this.hasUsablePollenCharge(butterfly);
+            }
+        }
+        if (!shouldCheckHandoff) return;
+        const radiusUnits = Math.max(0.5, Number(config.handoffRadiusUnits ?? 2.5));
+        const minDonorCharges = Math.max(1, Math.round(config.handoffMinDonorCharges ?? 2));
+        for (const donor of butterflies) {
+            const donorInventory = this.ensureButterflyPollenInventory(donor);
+            if (!donorInventory || donorInventory.charges < minDonorCharges) continue;
+            const donorBoard = donor.ensureBoardPos?.() || donor.boardPos || null;
+            if (!donorBoard?.zoneId) continue;
+            let bestRecipient = null;
+            let bestScore = Infinity;
+            for (const recipient of butterflies) {
+                if (!recipient?.id || recipient.id === donor.id) continue;
+                const recipientInventory = this.ensureButterflyPollenInventory(recipient);
+                if (!recipientInventory || recipientInventory.charges > Math.max(0, Math.round(config.handoffRecipientMaxCharges ?? 0))) continue;
+                const recipientBoard = recipient.ensureBoardPos?.() || recipient.boardPos || null;
+                if (!recipientBoard || recipientBoard.zoneId !== donorBoard.zoneId) continue;
+                const distance = Math.hypot((recipientBoard.u || 0) - (donorBoard.u || 0), (recipientBoard.v || 0) - (donorBoard.v || 0));
+                if (distance > radiusUnits || distance >= bestScore) continue;
+                bestRecipient = recipient;
+                bestScore = distance;
+            }
+            if (bestRecipient) {
+                this.transferPollenCharge(donor, bestRecipient, { reason: 'nearby-social-handoff' });
+            }
+        }
+    }
+
     planPollenDropTarget(butterfly) {
         if (!butterfly?.id) return null;
+        if (!this.hasUsablePollenCharge(butterfly)) return null;
         const zoneId = this.getEntityZoneId(butterfly, this.getFocusedZoneId());
         const point = this.findValidFlowerPosition(this.getFlowersInZone(zoneId), zoneId, {
             minDistance: 42,
@@ -3364,12 +3554,31 @@ class GameCore {
     completePollenDrop(butterfly) {
         const target = butterfly?.pendingPollenDropTarget;
         if (!butterfly?.id || !target) return false;
+        if (!this.hasUsablePollenCharge(butterfly)) {
+            butterfly.pendingPollenDropTarget = null;
+            return false;
+        }
 
         const zoneId = target.zoneId || this.getEntityZoneId(butterfly, this.getFocusedZoneId());
-        this.queuePollenPlanting(butterfly.id, zoneId, target.x, target.y, {
-            source: 'pollen-drop'
+        const planting = this.queuePollenPlanting(butterfly.id, zoneId, target.x, target.y, {
+            source: 'pollen-drop',
+            framesRemaining: Math.max(1, Math.round(this.getPollenPropagationConfig().bloomFrames ?? 1200))
         });
+        if (!planting) {
+            butterfly.pendingPollenDropTarget = null;
+            return false;
+        }
+        this.consumePollenCharge(butterfly, { reason: 'pollen-drop' });
         butterfly.pendingPollenDropTarget = null;
+        if (typeof eventBus !== 'undefined') {
+            eventBus.emit('pollen:planted', {
+                butterflyId: butterfly.id,
+                plantingId: planting.id,
+                zoneId,
+                boardPos: planting.boardPos || null,
+                source: planting.source
+            });
+        }
         return true;
     }
 
@@ -3402,7 +3611,7 @@ class GameCore {
             x: center.x,
             y: center.y,
             boardPos: cell,
-            framesRemaining: options.framesRemaining || ((20 * 60) + Math.floor(random(10 * 60))),
+            framesRemaining: options.framesRemaining || Math.max(1, Math.round(this.getPollenPropagationConfig().bloomFrames ?? 1200)),
             source: options.source || 'pollen-drop'
         };
         this.gameState.pendingPollenPlantings.push(planting);
@@ -3883,6 +4092,9 @@ class GameCore {
         stageStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
         this.updatePollenPlantings();
         worldBreakdown.pollenPlantingMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - stageStart;
+        stageStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        this.updateButterflyPollenInventories();
+        worldBreakdown.pollenInventoryMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - stageStart;
         stageStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
         this.flowerManager.update(this.gameState.flowers, this.gameState.butterflies, this.particleSystem);
         worldBreakdown.flowerManagerMs = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - stageStart;

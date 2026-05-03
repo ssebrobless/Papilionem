@@ -3369,6 +3369,9 @@ class Butterfly extends Entity {
         });
 
         if (typeof gameCore !== 'undefined') {
+            gameCore.grantPollenCharges?.(this, this.feeding.targetFlower, {
+                reason: 'fed-from-flower'
+            });
             gameCore.planPollenDropTarget?.(this);
         }
         

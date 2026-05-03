@@ -537,6 +537,18 @@ const PAPILIONEM_BATTLE_ARENA = {
                 openLandFloorTarget: 1,
                 trainingFloorTarget: 0
             },
+            pollenPropagation: {
+                enabled: true,
+                chargesPerFlowerUse: 1,
+                maxCharges: 2,
+                chargeTtlFrames: 7200,
+                bloomFrames: 1200,
+                handoffEnabled: true,
+                handoffCheckIntervalFrames: 180,
+                handoffRadiusUnits: 2.5,
+                handoffMinDonorCharges: 2,
+                handoffRecipientMaxCharges: 0
+            },
             sectorGrid: {
                 cols: 4,
                 rows: 3
