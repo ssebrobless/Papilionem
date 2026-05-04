@@ -646,6 +646,16 @@ const PAPILIONEM_BATTLE_ARENA = {
                         objectInterestWeight: 0.06,
                         distancePenaltyWeight: 0.1,
                         memoryGateBoost: 0.04
+                    },
+                    roleSelection: {
+                        enabled: true,
+                        builderMemoryWeight: 0.36,
+                        builderFollowThroughWeight: 0.34,
+                        carrierObjectInterestWeight: 0.42,
+                        carrierBlockProximityWeight: 0.34,
+                        coordinatorEdgeWeight: 0.3,
+                        coordinatorWarmthWeight: 0.2,
+                        diversityTieBreakWeight: 0.04
                     }
                 },
                 sharedProjects: {
@@ -663,6 +673,15 @@ const PAPILIONEM_BATTLE_ARENA = {
                         followThroughBoost: 0.02,
                         mutualAttentionBoost: 0.025,
                         warmthBoost: 0.02
+                    },
+                    failureFeedback: {
+                        enabled: true,
+                        abandonAfterFrames: 1800,
+                        memoryStrength: 0.32,
+                        trustPenalty: 0.006,
+                        comfortPenalty: 0.006,
+                        followThroughPenalty: 0.015,
+                        frictionBoost: 0.012
                     }
                 }
             }

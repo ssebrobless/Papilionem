@@ -312,6 +312,57 @@ class CommunicationSystem {
         return this.clamp01(best);
     }
 
+    getNearestLooseBlockDistanceUnits(entity, blocks = [], zoneId = null, maxDistanceUnits = 5) {
+        if (!entity?.id || !Array.isArray(blocks)) return maxDistanceUnits;
+        let best = maxDistanceUnits;
+        for (const block of blocks) {
+            if (!block?.id || block.carriedById || (block.currentZoneId || null) !== zoneId) continue;
+            if (block.canBeMovedBy?.(entity) === false) continue;
+            best = Math.min(best, this.getBoardDistanceBetween(entity, block, zoneId));
+        }
+        return best;
+    }
+
+    getBuildingHelperRoleProfile(source, candidate, zoneId = null, blocks = [], scores = {}) {
+        const config = this.getShadeBuildingCooperationConfig();
+        const roleConfig = config.roleSelection || {};
+        const maxBlockDistanceUnits = Math.max(1, Number(config.maxHelperBlockDistanceUnits ?? 5));
+        const nearestBlockDistance = this.getNearestLooseBlockDistanceUnits(candidate, blocks, zoneId, maxBlockDistanceUnits);
+        const blockProximity = this.clamp01(1 - (nearestBlockDistance / maxBlockDistanceUnits));
+        const objectInterest = this.clamp01(scores.objectInterest ?? candidate?.lifeSim?.derived?.behaviorBiases?.objectInterest ?? 0);
+        const edge = candidate?.lifeSim?.socialEdges?.[source.id] || {};
+        const sourceEdge = source?.lifeSim?.socialEdges?.[candidate.id] || {};
+        const sharedMemory = this.clamp01(Math.max(scores.requesterMemoryScore || 0, scores.candidateMemoryScore || 0));
+        const followThrough = this.clamp01(scores.followThroughScore || 0);
+        const edgeFit = this.clamp01(Math.max(scores.candidateEdgeScore || 0, scores.requesterEdgeScore || 0));
+        const warmth = this.clamp01(Math.max(edge.recentWarmth || 0, sourceEdge.recentWarmth || 0));
+        const roleScores = {
+            builder: this.clamp01(
+                sharedMemory * Number(roleConfig.builderMemoryWeight ?? 0.36)
+                + followThrough * Number(roleConfig.builderFollowThroughWeight ?? 0.34)
+                + edgeFit * 0.14
+            ),
+            carrier: this.clamp01(
+                objectInterest * Number(roleConfig.carrierObjectInterestWeight ?? 0.42)
+                + blockProximity * Number(roleConfig.carrierBlockProximityWeight ?? 0.34)
+                + this.clamp01(candidate?.lifeSim?.drives?.exploration || 0) * 0.08
+            ),
+            coordinator: this.clamp01(
+                edgeFit * Number(roleConfig.coordinatorEdgeWeight ?? 0.3)
+                + warmth * Number(roleConfig.coordinatorWarmthWeight ?? 0.2)
+                + this.clamp01(candidate?.lifeSim?.drives?.socialConnection || 0) * 0.08
+            )
+        };
+        const roleLabel = Object.entries(roleScores)
+            .sort((left, right) => (right[1] - left[1]) || left[0].localeCompare(right[0]))[0]?.[0] || 'carrier';
+        return {
+            roleLabel,
+            roleScores,
+            nearestBlockDistance,
+            blockProximity
+        };
+    }
+
     scoreBuildingHelperCandidate(source, candidate, zoneId = null, placement = null, blocks = []) {
         const config = this.getShadeBuildingCooperationConfig();
         const preference = config.projectPreference || {};
@@ -334,6 +385,14 @@ class CommunicationSystem {
         ));
         const objectInterest = this.clamp01(candidate?.lifeSim?.derived?.behaviorBiases?.objectInterest || 0);
         const distancePenalty = this.clamp01(distanceUnits / maxDistanceUnits) * Number(preference.distancePenaltyWeight ?? 0.1);
+        const roleProfile = this.getBuildingHelperRoleProfile(source, candidate, zoneId, blocks, {
+            candidateEdgeScore,
+            requesterEdgeScore,
+            requesterMemoryScore,
+            candidateMemoryScore,
+            followThroughScore,
+            objectInterest
+        });
         const score = this.clamp01(
             (candidateEdgeScore * Number(preference.candidateEdgeWeight ?? 0.42))
             + (requesterEdgeScore * Number(preference.requesterEdgeWeight ?? 0.18))
@@ -355,11 +414,39 @@ class CommunicationSystem {
             objectInterest,
             distanceUnits,
             distancePenalty,
+            roleLabel: roleProfile.roleLabel,
+            roleScores: roleProfile.roleScores,
+            nearestBlockDistance: roleProfile.nearestBlockDistance,
+            blockProximity: roleProfile.blockProximity,
             hasSharedProjectMemory: requesterMemoryScore > 0 || candidateMemoryScore > 0,
             reason: requesterMemoryScore > 0
                 ? 'prior-shared-project'
                 : (followThroughScore > 0.18 ? 'reliable-helper' : 'relationship-fit')
         };
+    }
+
+    selectBuildingHelperEntries(entries = [], maxHelpers = 2) {
+        const config = this.getShadeBuildingCooperationConfig();
+        const roleConfig = config.roleSelection || {};
+        if (roleConfig.enabled === false || maxHelpers <= 1) return entries.slice(0, maxHelpers);
+        const selected = [];
+        const remaining = [...entries];
+        while (selected.length < maxHelpers && remaining.length) {
+            let bestIndex = 0;
+            let bestScore = -Infinity;
+            for (let index = 0; index < remaining.length; index += 1) {
+                const entry = remaining[index];
+                const duplicateRole = selected.some(existing => existing.roleLabel === entry.roleLabel);
+                const diversityBoost = duplicateRole ? 0 : Number(roleConfig.diversityTieBreakWeight ?? 0.04);
+                const candidateScore = (entry.score || 0) + diversityBoost;
+                if (candidateScore > bestScore) {
+                    bestIndex = index;
+                    bestScore = candidateScore;
+                }
+            }
+            selected.push(remaining.splice(bestIndex, 1)[0]);
+        }
+        return selected;
     }
 
     getBuildingHelperCandidates(source, liveEntities = [], zoneId = null, placement = null, blocks = []) {
@@ -370,7 +457,7 @@ class CommunicationSystem {
         const minEdgeScore = Number(config.minHelperEdgeScore ?? 0.38);
         const preference = config.projectPreference || {};
         const memoryGateBoost = preference.enabled === false ? 0 : Number(preference.memoryGateBoost ?? 0.08);
-        return liveEntities
+        const entries = liveEntities
             .filter(candidate => candidate?.id && candidate.id !== source.id)
             .filter(candidate => this.getZoneId(candidate) === zoneId)
             .filter(candidate => !this.getCarriedBlockForEntity(candidate))
@@ -380,9 +467,9 @@ class CommunicationSystem {
             .filter(entry => this.isCompanionOrBetter(entry.candidate, source.id)
                 || entry.candidateEdgeScore >= minEdgeScore
                 || (entry.requesterMemoryScore + memoryGateBoost) >= minEdgeScore)
-            .sort((left, right) => (right.score - left.score) || (left.distanceUnits - right.distanceUnits))
-            .map(entry => entry.candidate)
-            .slice(0, Math.max(1, Math.round(Number(config.maxHelpers ?? 2))));
+            .sort((left, right) => (right.score - left.score) || (left.distanceUnits - right.distanceUnits));
+        return this.selectBuildingHelperEntries(entries, Math.max(1, Math.round(Number(config.maxHelpers ?? 2))))
+            .map(entry => entry.candidate);
     }
 
     updateShadeBuildingCooperation(gameState = gameCore?.gameState, currentFrame = 0, options = {}) {
@@ -444,6 +531,9 @@ class CommunicationSystem {
                     candidateEdgeScore: Number(entry.candidateEdgeScore.toFixed(3)),
                     requesterEdgeScore: Number(entry.requesterEdgeScore.toFixed(3)),
                     followThroughScore: Number(entry.followThroughScore.toFixed(3)),
+                    roleLabel: entry.roleLabel || 'carrier',
+                    roleScores: Object.fromEntries(Object.entries(entry.roleScores || {})
+                        .map(([role, value]) => [role, Number(Number(value || 0).toFixed(3))])),
                     reason: entry.reason
                 }))
             };

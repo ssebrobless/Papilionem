@@ -221,8 +221,13 @@ async function run() {
         }
       });
       const cooperationConfig = gameConfig.entities.block.shade.buildingCooperation;
+      const sharedProjectConfig = gameConfig.entities.block.shade.sharedProjects;
       const originalMaxHelpers = cooperationConfig.maxHelpers;
+      const originalAbandonAfterFrames = sharedProjectConfig.failureFeedback?.abandonAfterFrames;
       cooperationConfig.maxHelpers = 1;
+      if (sharedProjectConfig.failureFeedback) {
+        sharedProjectConfig.failureFeedback.abandonAfterFrames = 30;
+      }
 
       const baseBlock = spawnBlockAt(20, 15, 0);
       const requesterBlock = spawnBlockAt(21, 16, 0);
@@ -291,6 +296,11 @@ async function run() {
         alternativeScoreBeforeRequest,
         alternativeId: alternative.id,
         alternativeBlockId: alternativeBlock?.id || null
+      });
+      add('helper-preference-exposes-role-profile', !!preferredScore?.roleLabel
+        && !!preferredScore?.roleScores
+        && Object.keys(preferredScore.roleScores || {}).length >= 3, {
+        preferredScore
       });
 
       helper.checkBlockExperimentation?.(gameCore.gameState.blocks || []);
@@ -400,7 +410,76 @@ async function run() {
         })(), {
         projectId: requestEvent?.projectId || null
       });
+
+      const failureEdgeBefore = {
+        requesterToHelper: { ...(requester.lifeSim?.socialEdges?.[alternative.id] || {}) },
+        helperToRequester: { ...(alternative.lifeSim?.socialEdges?.[requester.id] || {}) }
+      };
+      const abandonedProject = objectSystem.recordShadeProjectRequest?.({
+        requesterId: requester.id,
+        helperIds: [alternative.id],
+        zoneId,
+        targetCell: cell(25, 18, 0),
+        shadeIntentScore: 0.82,
+        shadeProgress: 'needs-block'
+      });
+      const liveAbandonedProject = abandonedProject?.id
+        ? objectSystem.environmentProjects?.get?.(abandonedProject.id)
+        : null;
+      if (liveAbandonedProject) {
+        liveAbandonedProject.createdAtFrame = (gameCore.getCurrentFrame?.() || 0) - 360;
+      }
+      const timeoutResult = objectSystem.updateEnvironmentProjectTimeouts?.() || {};
+      const abandonedProjectAfter = abandonedProject?.id
+        ? objectSystem.getEnvironmentProject?.(abandonedProject.id)
+        : null;
+      const abandonedEvent = (eventBus.getHistory?.('environment:project-abandoned') || [])
+        .map(entry => entry?.data || entry)
+        .filter(event => event?.projectId === abandonedProject?.id)
+        .slice(-1)[0] || null;
+      const failureFeedbackEvent = (eventBus.getHistory?.('environment:project-failure-feedback') || [])
+        .map(entry => entry?.data || entry)
+        .filter(event => event?.projectId === abandonedProject?.id)
+        .slice(-1)[0] || null;
+      const requesterFailureMemory = (requester.lifeSim?.memories?.object || [])
+        .find(memory => memory?.metadata?.projectId === abandonedProject?.id
+          && memory?.tags?.includes?.('shared-project-abandoned')) || null;
+      const helperFailureMemory = (alternative.lifeSim?.memories?.object || [])
+        .find(memory => memory?.metadata?.projectId === abandonedProject?.id
+          && memory?.tags?.includes?.('shared-project-abandoned')) || null;
+      const failureEdgeAfter = {
+        requesterToHelper: { ...(requester.lifeSim?.socialEdges?.[alternative.id] || {}) },
+        helperToRequester: { ...(alternative.lifeSim?.socialEdges?.[requester.id] || {}) }
+      };
+      add('abandoned-project-times-out-with-failure-feedback', timeoutResult.abandoned >= 1
+        && abandonedProjectAfter?.status === 'abandoned'
+        && !!abandonedEvent
+        && !!failureFeedbackEvent
+        && !!requesterFailureMemory
+        && !!helperFailureMemory, {
+        timeoutResult,
+        abandonedProjectAfter,
+        abandonedEvent,
+        failureFeedbackEvent,
+        requesterFailureMemory,
+        helperFailureMemory
+      });
+      add('abandoned-project-softens-follow-through-without-new-schema', (failureEdgeAfter.requesterToHelper.followThroughScore || 0) < (failureEdgeBefore.requesterToHelper.followThroughScore || 0)
+        && (failureEdgeAfter.helperToRequester.followThroughScore || 0) < (failureEdgeBefore.helperToRequester.followThroughScore || 0)
+        && (failureEdgeAfter.requesterToHelper.historyTags || []).includes('shared-project-abandoned')
+        && (!saveSystem?.serializeState || (() => {
+          const snapshot = saveSystem.serializeState(gameCore.gameState);
+          const serializedObjects = JSON.stringify(snapshot?.foundations?.objects || {});
+          return !serializedObjects.includes(abandonedProject?.id || 'missing-abandoned-project-id');
+        })()), {
+        failureEdgeBefore,
+        failureEdgeAfter,
+        projectId: abandonedProject?.id || null
+      });
       cooperationConfig.maxHelpers = originalMaxHelpers;
+      if (sharedProjectConfig.failureFeedback) {
+        sharedProjectConfig.failureFeedback.abandonAfterFrames = originalAbandonAfterFrames;
+      }
 
       return assertions;
     });

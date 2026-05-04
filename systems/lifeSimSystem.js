@@ -2171,6 +2171,108 @@ class LifeSimSystem {
         return { memories, edgeUpdates };
     }
 
+    recordSharedProjectAbandonment(project = {}, gameState = gameCore?.gameState, options = {}) {
+        const config = gameConfig?.entities?.block?.shade?.sharedProjects?.failureFeedback || {};
+        if (config.enabled === false || !project?.id || !Array.isArray(gameState?.butterflies)) {
+            return { memories: [], edgeUpdates: [] };
+        }
+        const contributorEntries = Object.values(project.contributors || {}).filter(contributor => contributor?.id);
+        const participantIds = [...new Set([
+            project.createdById,
+            ...contributorEntries.map(contributor => contributor.id)
+        ].filter(Boolean))];
+        if (!participantIds.length) return { memories: [], edgeUpdates: [] };
+
+        const entitiesById = new Map((gameState.butterflies || [])
+            .filter(entity => entity?.id)
+            .map(entity => [entity.id, entity]));
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? 0;
+        const createdAtSeconds = this.simulationClockSeconds ?? null;
+        const memories = [];
+        const edgeUpdates = [];
+        const memoryStrength = this.clamp01(config.memoryStrength ?? 0.32);
+
+        for (const entityId of participantIds) {
+            const entity = entitiesById.get(entityId);
+            if (!entity?.lifeSim) continue;
+            const existing = (entity.lifeSim.memories?.object || []).find(memory =>
+                memory?.metadata?.projectId === project.id
+                && memory?.tags?.includes?.('shared-project-abandoned')
+            );
+            if (!existing) {
+                const memory = appendLifeMemory?.(entity, 'object', {
+                    subjectId: project.supportBlockId || project.id,
+                    valence: -0.22,
+                    strength: memoryStrength,
+                    createdAtSeconds,
+                    emotionalColoring: {
+                        failure: 0.28,
+                        agitation: 0.14,
+                        rejection: 0.08
+                    },
+                    tags: [
+                        'shared-project-abandoned',
+                        'shade-building-cooperation',
+                        'follow-through-gap'
+                    ],
+                    metadata: {
+                        projectId: project.id,
+                        projectType: project.type || 'environment',
+                        zoneId: project.zoneId || null,
+                        participantIds: [...participantIds],
+                        abandonedAtFrame: project.abandonedAtFrame || currentFrame,
+                        abandonedReason: options.reason || project.abandonedReason || 'timeout',
+                        blockIds: [...(project.blockIds || [])]
+                    }
+                });
+                if (memory) memories.push({ entityId: entity.id, memoryId: memory.id });
+            }
+        }
+
+        const requester = project.createdById ? entitiesById.get(project.createdById) : null;
+        const invitedHelpers = contributorEntries.filter(contributor =>
+            contributor.id !== project.createdById
+            && (contributor.roles || []).includes('invited-helper')
+            && (contributor.contributions || 0) <= 0
+        );
+        for (const helperEntry of invitedHelpers) {
+            const helper = entitiesById.get(helperEntry.id);
+            if (!requester?.id || !helper?.id) continue;
+            for (const [entity, partnerId] of [[requester, helper.id], [helper, requester.id]]) {
+                const edge = adjustLifeSocialEdge?.(entity, partnerId, {
+                    trust: -Math.abs(Number(config.trustPenalty ?? 0.006)),
+                    comfort: -Math.abs(Number(config.comfortPenalty ?? 0.006))
+                }, {
+                    updatedAtSeconds: createdAtSeconds,
+                    tag: 'shared-project-abandoned'
+                }) || ensureLifeSocialEdge?.(entity, partnerId);
+                if (!edge) continue;
+                edge.followThroughScore = this.clamp01((edge.followThroughScore || 0) - Math.abs(Number(config.followThroughPenalty ?? 0.015)));
+                edge.recentFriction = this.clamp01((edge.recentFriction || 0) + Math.abs(Number(config.frictionBoost ?? 0.012)));
+                edgeUpdates.push({
+                    entityId: entity.id,
+                    partnerId,
+                    trust: edge.trust || 0,
+                    comfort: edge.comfort || 0,
+                    followThroughScore: edge.followThroughScore || 0,
+                    recentFriction: edge.recentFriction || 0
+                });
+            }
+        }
+
+        eventBus?.emit?.('environment:project-failure-feedback', {
+            projectId: project.id,
+            type: project.type || 'environment',
+            zoneId: project.zoneId || null,
+            participantIds,
+            memoryCount: memories.length,
+            edgeUpdateCount: edgeUpdates.length,
+            reason: options.reason || project.abandonedReason || 'timeout',
+            currentFrame
+        });
+        return { memories, edgeUpdates };
+    }
+
     getCognitionSummary(entity) {
         const feelings = entity?.lifeSim?.derived?.derivedFeelings || {};
         const socialPackets = entity?.lifeSim?.memories?.social || [];

@@ -319,8 +319,11 @@ class ObjectSystem {
         const currentFrame = gameCore?.getCurrentFrame?.() ?? 0;
         if (existingId && this.environmentProjects.has(existingId)) {
             const existing = this.environmentProjects.get(existingId);
-            existing.updatedAtFrame = currentFrame;
-            return existing;
+            if (existing.status !== 'abandoned') {
+                existing.updatedAtFrame = currentFrame;
+                return existing;
+            }
+            this.projectKeyIndex.delete(projectKey);
         }
 
         const zoneId = data.zoneId || data.constructionPoint?.boardPos?.zoneId || null;
@@ -401,7 +404,7 @@ class ObjectSystem {
     }
 
     maybeCompleteEnvironmentProject(project) {
-        if (!project || project.status === 'completed') return project;
+        if (!project || project.status === 'completed' || project.status === 'abandoned') return project;
         const config = this.getSharedProjectConfig();
         const contributorCount = Object.values(project.contributors || {})
             .filter(contributor => (contributor?.contributions || 0) > 0)
@@ -428,6 +431,56 @@ class ObjectSystem {
             });
         }
         return project;
+    }
+
+    getSharedProjectFailureFeedbackConfig() {
+        const config = this.getSharedProjectConfig()?.failureFeedback || {};
+        return {
+            enabled: config.enabled !== false,
+            abandonAfterFrames: Math.max(300, Math.round(Number(config.abandonAfterFrames ?? 1800)))
+        };
+    }
+
+    abandonEnvironmentProject(project, reason = 'timeout') {
+        if (!project || project.status !== 'active') return null;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? 0;
+        project.status = 'abandoned';
+        project.abandonedAtFrame = currentFrame;
+        project.abandonedReason = reason;
+        project.updatedAtFrame = currentFrame;
+        const failureFeedback = lifeSimSystem?.recordSharedProjectAbandonment?.(project, gameCore?.gameState, { reason }) || null;
+        eventBus?.emit?.('environment:project-abandoned', {
+            projectId: project.id,
+            type: project.type,
+            zoneId: project.zoneId,
+            createdById: project.createdById || null,
+            invitedHelperIds: Object.values(project.contributors || {})
+                .filter(contributor => (contributor?.roles || []).includes('invited-helper'))
+                .map(contributor => contributor.id),
+            memoryCount: failureFeedback?.memories?.length || 0,
+            edgeUpdateCount: failureFeedback?.edgeUpdates?.length || 0,
+            reason,
+            currentFrame
+        });
+        return this.cloneProject(project);
+    }
+
+    updateEnvironmentProjectTimeouts() {
+        const config = this.getSharedProjectFailureFeedbackConfig();
+        if (!config.enabled) return { abandoned: 0, skipped: 'disabled' };
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? 0;
+        let abandoned = 0;
+        for (const project of this.environmentProjects.values()) {
+            if (project?.status !== 'active') continue;
+            const createdAtFrame = Number.isFinite(project.createdAtFrame) ? project.createdAtFrame : currentFrame;
+            const ageFrames = currentFrame - createdAtFrame;
+            const hasPlacement = (project.progress?.blockPlacements || 0) > 0;
+            if (hasPlacement || ageFrames < config.abandonAfterFrames) continue;
+            if (this.abandonEnvironmentProject(project, 'timeout-no-placement')) {
+                abandoned += 1;
+            }
+        }
+        return { abandoned };
     }
 
     recordShadeProjectRequest(data = {}) {
@@ -632,6 +685,7 @@ class ObjectSystem {
             this.registerObject(block, { type: 'block', carryable: true });
             this.syncEntityProfile(block);
         }
+        this.updateEnvironmentProjectTimeouts();
         this.updateActivityDirtPressure(gameState);
     }
 }
