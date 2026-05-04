@@ -1826,6 +1826,161 @@ class GameCore {
         return flower;
     }
 
+    convertFlowerToBlockMaterial(flower, butterfly = null, options = {}) {
+        const config = gameConfig?.entities?.flower?.flowerToBlock || {};
+        if (config.enabled === false || !flower || flower.lifecycleKind !== 'flower') return null;
+        const zoneId = this.getEntityZoneId(flower, flower.currentZoneId || butterfly?.currentZoneId || this.getFocusedZoneId());
+        if (!zoneId || !this.canSpawnBlocksInZone(zoneId)) {
+            return {
+                converted: false,
+                reason: !zoneId ? 'missing-zone' : 'training-no-blocks',
+                zoneId
+            };
+        }
+        if (flower.currentFeeder && flower.currentFeeder !== butterfly) {
+            return { converted: false, reason: 'flower-in-use', zoneId };
+        }
+
+        const renderer = typeof renderManager !== 'undefined' ? renderManager : null;
+        const sourceBoard = flower.boardPos && Number.isFinite(flower.boardPos.u) && Number.isFinite(flower.boardPos.v)
+            ? {
+                zoneId,
+                u: flower.boardPos.u,
+                v: flower.boardPos.v,
+                h: 0
+            }
+            : renderer?.screenToBoard?.(flower.x || 0, flower.y || 0, zoneId, 0);
+        if (!sourceBoard) return { converted: false, reason: 'missing-board-cell', zoneId };
+
+        const blockConfig = gameConfig?.entities?.block || {};
+        const candidateBlocks = this.getBlocksInZone(zoneId);
+        const requestedCell = {
+            zoneId,
+            u: sourceBoard.u,
+            v: sourceBoard.v,
+            h: 0,
+            candidateBlocks,
+            ignoreFlowerIds: [flower.id],
+            allowTrainingZoneBlocks: false
+        };
+        const accepted = this.structureSystem?.findNearestAcceptedCell?.(
+            requestedCell,
+            Math.max(0, Math.round(Number(config.maxSearchRadius ?? 3)))
+        ) || this.structureSystem?.acceptCellPlacement?.(requestedCell);
+        if (!accepted?.accepted) {
+            return {
+                converted: false,
+                reason: accepted?.reason || 'no-valid-block-cell',
+                zoneId,
+                sourceBoard
+            };
+        }
+
+        const point = renderer?.boardToScreen?.({
+            zoneId,
+            u: accepted.u,
+            v: accepted.v,
+            h: 0
+        }) || this.clampPlacementPointInZone(zoneId, flower.x || 0, flower.y || 0, 8);
+        if (!point) return { converted: false, reason: 'missing-screen-point', zoneId, cell: accepted };
+
+        objectSystem?.recordInteraction?.(flower.id, 'converted to block material', butterfly?.id || null, {
+            zoneId,
+            sourceFlowerId: flower.id,
+            flowerType: flower.flowerType || null,
+            targetCell: { zoneId, u: accepted.u, v: accepted.v, h: accepted.h || 0 }
+        });
+        const sourceFlowerId = flower.id;
+        const sourceFlowerType = flower.flowerType || null;
+        const sourcePetalColor = flower.petalColor || null;
+        this.removeFlowerFromGame(flower, 'converted-to-block-material');
+
+        const block = new Block(point.x, point.y, {
+            currentZoneId: zoneId,
+            renderWidth: blockConfig.renderWidth || 16,
+            renderHeight: blockConfig.renderHeight || 16,
+            boardPos: { zoneId, u: accepted.u, v: accepted.v, h: accepted.h || 0 },
+            stackIndex: accepted.h || 0,
+            lastPlacedMode: 'ground'
+        });
+        block.materialSource = {
+            kind: 'converted-flower',
+            sourceFlowerId,
+            flowerType: sourceFlowerType,
+            actorId: butterfly?.id || null,
+            convertedAtFrame: this.getCurrentFrame?.() ?? 0,
+            source: options.source || 'flower-to-block'
+        };
+        block.objectProfile.resourceTags = Array.from(new Set([
+            ...(block.objectProfile.resourceTags || []),
+            'converted-flower',
+            'shelter-material'
+        ]));
+        block.applyBoardCell?.({ accepted: true, zoneId, u: accepted.u, v: accepted.v, h: accepted.h || 0 }, {
+            requireAccepted: false
+        });
+        this.assignEntityToZone(block, zoneId);
+        this.gameState.blocks.push(block);
+        this.entityManager?.addEntity?.('blocks', block);
+        this.registerEntityWithFoundationSystems(block, 'block');
+        objectSystem?.recordInteraction?.(block.id, 'created from flower', butterfly?.id || null, {
+            zoneId,
+            sourceFlowerId,
+            flowerType: sourceFlowerType,
+            targetCell: { zoneId, u: accepted.u, v: accepted.v, h: accepted.h || 0 }
+        });
+
+        if (butterfly?.id) {
+            this.grantPollenCharges?.(butterfly, { id: sourceFlowerId, flowerType: sourceFlowerType }, {
+                reason: 'flower-to-block-conversion',
+                charges: Math.max(0, Math.round(Number(config.pollenCharges ?? 1)))
+            });
+            butterfly.lifeSim = butterfly.lifeSim || {};
+            butterfly.lifeSim.emotions = butterfly.lifeSim.emotions || {};
+            butterfly.lifeSim.emotions.exhaustion = Math.min(1, (butterfly.lifeSim.emotions.exhaustion || 0) + Number(config.exhaustionCost ?? 0.1));
+            butterfly.lifeSim.emotions.curiosity = Math.min(1, (butterfly.lifeSim.emotions.curiosity || 0) + Number(config.curiosityBoost ?? 0.04));
+            butterfly.lifeSim.emotions.significance = Math.min(1, (butterfly.lifeSim.emotions.significance || 0) + Number(config.significanceBoost ?? 0.045));
+            if (typeof appendLifeMemory === 'function') {
+                appendLifeMemory(butterfly, 'object', {
+                    subjectId: block.id,
+                    valence: 0.18,
+                    strength: 0.44,
+                    tags: ['flower', 'block', 'converted-flower', 'shelter-material', 'building-cost'],
+                    metadata: {
+                        zoneId,
+                        sourceFlowerId,
+                        flowerType: sourceFlowerType,
+                        blockId: block.id,
+                        pollenCharges: Math.max(0, Math.round(Number(config.pollenCharges ?? 1))),
+                        exhaustionCost: Number(config.exhaustionCost ?? 0.1),
+                        noFoodGain: true
+                    }
+                });
+            }
+        }
+
+        eventBus?.emit?.('building:flower-converted-to-block', {
+            butterflyId: butterfly?.id || null,
+            blockId: block.id,
+            sourceFlowerId,
+            flowerType: sourceFlowerType,
+            zoneId,
+            boardPos: { zoneId, u: accepted.u, v: accepted.v, h: accepted.h || 0 },
+            pollenCharges: Math.max(0, Math.round(Number(config.pollenCharges ?? 1))),
+            noFoodGain: true,
+            currentFrame: this.getCurrentFrame?.() ?? 0
+        });
+        this.particleSystem?.emitBurst?.(point.x, point.y - 4, sourcePetalColor || [150, 230, 180], 6);
+        return {
+            converted: true,
+            block,
+            zoneId,
+            sourceFlowerId,
+            flowerType: sourceFlowerType,
+            cell: { zoneId, u: accepted.u, v: accepted.v, h: accepted.h || 0 }
+        };
+    }
+
     scoreFlowerForReadabilityRetention(flower) {
         if (!flower) return -Infinity;
         let score = 0;

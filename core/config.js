@@ -549,6 +549,19 @@ const PAPILIONEM_BATTLE_ARENA = {
                 handoffMinDonorCharges: 2,
                 handoffRecipientMaxCharges: 0
             },
+            flowerToBlock: {
+                enabled: true,
+                minConversionScore: 0.55,
+                interactionRadius: 22,
+                cooldownFrames: 1200,
+                maxSearchRadius: 3,
+                pollenCharges: 1,
+                exhaustionCost: 0.1,
+                curiosityBoost: 0.04,
+                significanceBoost: 0.045,
+                autoCarry: true,
+                minUsefulBlocksPerZone: 4
+            },
             sectorGrid: {
                 cols: 4,
                 rows: 3

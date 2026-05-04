@@ -519,6 +519,7 @@ class Butterfly extends Entity {
         };
         this.targetFlower = null;
         this.targetCleanupPile = null;
+        this.targetFlowerToBlockId = null;
         this._decisionTraceCache = {
             frame: -1,
             trace: null,
@@ -590,6 +591,7 @@ class Butterfly extends Entity {
             carryingBlockId: null,
             placementTarget: null,
             buildingAssist: null,
+            materialSource: null,
             lastPlacementMode: 'ground',
             cooldownFrames: Math.floor(random(72, 156)),
             lastRelativeSize: 0,
@@ -1558,6 +1560,10 @@ class Butterfly extends Entity {
                 this.targetCleanupPile = null;
                 this.pickNewWanderTarget();
             }
+            return;
+        }
+
+        if (this.checkFlowerToBlockConversion(flowers, blocks || [])) {
             return;
         }
 
@@ -2826,6 +2832,7 @@ class Butterfly extends Entity {
                 'block',
                 'shelter-material',
                 placement.placementMode || 'placed-block',
+                ...(this.blockInteraction.materialSource === 'converted-flower' ? ['converted-flower', 'building-cost'] : []),
                 ...(shadeProgress ? ['shade', shadeProgress] : []),
                 ...(createsShade && shadeProgress !== 'creates-shade' ? ['creates-shade'] : [])
             ],
@@ -2840,6 +2847,8 @@ class Butterfly extends Entity {
                 createsShade,
                 shadeIntentSource: shadeIntent?.source || null,
                 targetStackHeight: shadeIntent?.targetStackHeight ?? null,
+                materialSource: this.blockInteraction.materialSource || block.materialSource?.kind || null,
+                sourceFlowerId: block.materialSource?.sourceFlowerId || null,
                 assistedRequesterId: buildingAssist?.requesterId || null,
                 assistSignalId: buildingAssist?.signalId || null
             }
@@ -2871,6 +2880,7 @@ class Butterfly extends Entity {
         this.blockInteraction.targetBlockId = null;
         this.blockInteraction.placementTarget = null;
         this.blockInteraction.buildingAssist = null;
+        this.blockInteraction.materialSource = null;
         this.blockInteraction.carryFrames = 0;
         const behaviorBiases = this.lifeSim?.derived?.behaviorBiases || {};
         const continuationBias = Math.max(
@@ -2916,6 +2926,7 @@ class Butterfly extends Entity {
         this.blockInteraction.targetBlockId = null;
         this.blockInteraction.placementTarget = null;
         this.blockInteraction.buildingAssist = null;
+        this.blockInteraction.materialSource = null;
         this.blockInteraction.carryFrames = 0;
         this.blockInteraction.cooldownFrames = Math.max(this.blockInteraction.cooldownFrames || 0, 72);
         return true;
@@ -2963,6 +2974,7 @@ class Butterfly extends Entity {
             this.blockInteraction.carryingBlockId = null;
             this.blockInteraction.placementTarget = null;
             this.blockInteraction.buildingAssist = null;
+            this.blockInteraction.materialSource = null;
             return;
         }
 
@@ -2998,6 +3010,7 @@ class Butterfly extends Entity {
             if (targetBlock?.carriedById && targetBlock.carriedById !== this.id) {
                 this.blockInteraction.targetBlockId = null;
                 this.blockInteraction.buildingAssist = null;
+                this.blockInteraction.materialSource = null;
                 this.blockInteraction.cooldownFrames = 120;
                 targetBlock = null;
             }
@@ -3091,6 +3104,7 @@ class Butterfly extends Entity {
         if (!targetBlock.canBeMovedBy?.(this)) {
             this.blockInteraction.targetBlockId = null;
             this.blockInteraction.buildingAssist = null;
+            this.blockInteraction.materialSource = null;
             this.blockInteraction.cooldownFrames = 96;
             return;
         }
@@ -3099,6 +3113,7 @@ class Butterfly extends Entity {
         if (!pickedUp) {
             this.blockInteraction.targetBlockId = null;
             this.blockInteraction.buildingAssist = null;
+            this.blockInteraction.materialSource = null;
             this.blockInteraction.cooldownFrames = 72;
             return;
         }
@@ -3216,6 +3231,132 @@ class Butterfly extends Entity {
             shadeIntentScore: outcome.shadeIntentScore ?? placement?.shadeIntentScore ?? null
         });
         return { helperEdge, requesterEdge };
+    }
+
+    getFlowerToBlockConfig() {
+        return gameConfig?.entities?.flower?.flowerToBlock || {};
+    }
+
+    getFlowerToBlockConversionScore(flowers = [], blocks = []) {
+        const config = this.getFlowerToBlockConfig();
+        const behaviorBiases = this.lifeSim?.derived?.behaviorBiases || {};
+        const objectInterest = Math.max(0, Math.min(1, behaviorBiases.objectInterest || 0));
+        const shelterSeeking = Math.max(0, Math.min(1, behaviorBiases.shelterSeeking || 0));
+        const rest = Math.max(0, Math.min(1, this.lifeSim?.drives?.rest || 0));
+        const exhaustion = Math.max(0, Math.min(1, this.lifeSim?.emotions?.exhaustion || 0));
+        const exploration = Math.max(0, Math.min(1, this.lifeSim?.drives?.exploration || 0));
+        const feedUrgency = Math.max(0, Math.min(1, behaviorBiases.feedUrgency || 0));
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+        const liveFlowers = (flowers || []).filter(flower => this.isFlowerAvailable(flower) && (flower.currentZoneId || null) === zoneId);
+        const zoneBlocks = (blocks || []).filter(block => block?.currentZoneId === zoneId && !block.carriedById);
+        const usefulBlockTarget = Math.max(0, Math.round(Number(config.minUsefulBlocksPerZone ?? 4)));
+        const materialNeed = usefulBlockTarget > 0
+            ? Math.max(0, (usefulBlockTarget - zoneBlocks.length) / usefulBlockTarget)
+            : 0;
+        const lowFlowerProtection = liveFlowers.length <= 1 ? 0.2 : 0;
+        return Math.max(0, Math.min(1,
+            shelterSeeking * 0.34
+            + objectInterest * 0.24
+            + rest * 0.16
+            + exhaustion * 0.16
+            + exploration * 0.08
+            + materialNeed * 0.2
+            - feedUrgency * 0.22
+            - lowFlowerProtection
+        ));
+    }
+
+    findFlowerToBlockTarget(flowers = [], blocks = []) {
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+        const candidates = (flowers || []).filter(flower =>
+            this.isFlowerAvailable(flower)
+            && (flower.currentZoneId || null) === zoneId
+            && !flower.currentFeeder
+        );
+        if (!candidates.length || !gameCore?.canSpawnBlocksInZone?.(zoneId)) return null;
+        const conversionScore = this.getFlowerToBlockConversionScore(flowers, blocks);
+        const config = this.getFlowerToBlockConfig();
+        const minScore = Math.max(0, Number(config.minConversionScore ?? 0.55));
+        if (conversionScore < minScore) return null;
+
+        return candidates
+            .slice()
+            .sort((left, right) => {
+                const scoreFlower = (flower) => {
+                    const distance = Math.hypot((flower.x || 0) - (this.x || 0), (flower.y || 0) - (this.y || 0));
+                    const recentPenalty = gameCore?.getEntityRecentAnchorPenalty?.(this, `flower-to-block:${flower.id}`) || 0;
+                    return conversionScore
+                        + Math.max(0, 0.5 - (distance / 180))
+                        - recentPenalty * 0.35;
+                };
+                return scoreFlower(right) - scoreFlower(left);
+            })[0] || null;
+    }
+
+    checkFlowerToBlockConversion(flowers = [], blocks = []) {
+        const config = this.getFlowerToBlockConfig();
+        if (config.enabled === false) return false;
+        if (this.state !== 'normal' || this.isSpawning || this.zoneTravel || this.pendingPollenDropTarget) return false;
+        if (this.blockInteraction?.carryingBlockId || this.getCarriedBlock(blocks)) return false;
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+        if (!zoneId || !gameCore?.canSpawnBlocksInZone?.(zoneId)) return false;
+
+        if (this.blockInteraction.cooldownFrames > 0) {
+            return false;
+        }
+
+        let targetFlower = this.targetFlowerToBlockId
+            ? (flowers || []).find(flower => flower?.id === this.targetFlowerToBlockId) || null
+            : null;
+        if (!targetFlower || !this.isFlowerAvailable(targetFlower) || targetFlower.currentFeeder) {
+            targetFlower = this.findFlowerToBlockTarget(flowers, blocks);
+            this.targetFlowerToBlockId = targetFlower?.id || null;
+        }
+        if (!targetFlower) return false;
+
+        this.targetFlower = null;
+        this.rememberDispersalAnchor(`flower-to-block:${targetFlower.id}`);
+        const distance = Math.hypot((targetFlower.x || 0) - (this.x || 0), (targetFlower.y || 0) - (this.y || 0));
+        const interactionRadius = Math.max(8, Number(config.interactionRadius ?? 22));
+        if (distance > interactionRadius) {
+            this.setMovementTargetFromScreen(targetFlower.x, targetFlower.y, 'flower-to-block', 4, 0, {
+                zoneId: targetFlower.currentZoneId || zoneId
+            });
+            return true;
+        }
+
+        const beforeHappiness = this.happiness;
+        const result = gameCore?.convertFlowerToBlockMaterial?.(targetFlower, this, {
+            source: 'butterfly-flower-to-block'
+        });
+        this.targetFlowerToBlockId = null;
+        this.movement.clearTarget('flower-to-block');
+        if (!result?.converted || !result.block) {
+            this.blockInteraction.cooldownFrames = Math.max(120, Math.round(Number(config.cooldownFrames ?? 1200) * 0.35));
+            this.pickNewWanderTarget();
+            return true;
+        }
+
+        const block = result.block;
+        if (config.autoCarry !== false && objectSystem?.pickupObject?.(block.id, this.id) && block.pickupBy?.(this)) {
+            this.blockInteraction.carryingBlockId = block.id;
+            this.blockInteraction.targetBlockId = null;
+            this.blockInteraction.placementTarget = null;
+            this.blockInteraction.materialSource = 'converted-flower';
+            this.blockInteraction.carryFrames = 0;
+            this.chooseBlockPlacementTarget(block, gameCore?.getBlocksInZone?.(zoneId) || blocks || []);
+        }
+        this.happiness = beforeHappiness;
+        this.blockInteraction.cooldownFrames = Math.max(this.blockInteraction.cooldownFrames || 0, Math.round(Number(config.cooldownFrames ?? 1200)));
+        eventBus?.emit?.('building:flower-to-block-accepted', {
+            butterflyId: this.id,
+            blockId: block.id,
+            sourceFlowerId: result.sourceFlowerId || null,
+            zoneId,
+            currentFrame: gameCore?.getCurrentFrame?.() ?? frameCount,
+            autoCarry: config.autoCarry !== false
+        });
+        return true;
     }
     
     checkFlowerSeeking(flowers) {
