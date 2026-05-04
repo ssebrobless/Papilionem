@@ -2873,6 +2873,7 @@ class Butterfly extends Entity {
                 blockId: block.id,
                 supportBlockId: placement.supportBlockId || null,
                 zoneId,
+                roleLabel: buildingAssist?.roleLabel || null,
                 boardPos: placement.boardPos || null,
                 constructionPoint: {
                     x: placement.x,
@@ -3041,6 +3042,7 @@ class Butterfly extends Entity {
                 ? this.findBuildingHelpBlockTarget(zoneBlocks, buildingHelp)
                 : null;
             if (helpBlock) {
+                const rolePreference = this.getBuildingHelpRolePreference(buildingHelp);
                 targetBlock = helpBlock;
                 this.blockInteraction.targetBlockId = targetBlock.id;
                 this.blockInteraction.buildingAssist = {
@@ -3050,7 +3052,9 @@ class Butterfly extends Entity {
                     supportBlockId: buildingHelp.metadata?.supportBlockId || null,
                     projectId: buildingHelp.metadata?.projectId || null,
                     shadeProgress: buildingHelp.metadata?.shadeProgress || null,
-                    shadeIntentScore: buildingHelp.metadata?.shadeIntentScore ?? null
+                    shadeIntentScore: buildingHelp.metadata?.shadeIntentScore ?? null,
+                    roleLabel: rolePreference.roleLabel || null,
+                    roleScores: rolePreference.roleScores || null
                 };
                 this.rememberDispersalAnchor(`block:${targetBlock.id}`);
                 this.setMovementTargetFromScreen(targetBlock.x, targetBlock.y, 'immediate', 5, 0, {
@@ -3062,6 +3066,8 @@ class Butterfly extends Entity {
                     signalId: buildingHelp.signalId,
                     blockId: targetBlock.id,
                     zoneId,
+                    roleLabel: rolePreference.roleLabel || null,
+                    roleScores: rolePreference.roleScores || null,
                     currentFrame: gameCore?.getCurrentFrame?.() ?? frameCount
                 });
             }
@@ -3170,6 +3176,15 @@ class Butterfly extends Entity {
         }) || null;
     }
 
+    getBuildingHelpRolePreference(helpSignal = null) {
+        const helperPreference = helpSignal?.metadata?.helperPreference || [];
+        const match = helperPreference.find(entry => entry?.helperId === this.id) || null;
+        return {
+            roleLabel: match?.roleLabel || 'carrier',
+            roleScores: match?.roleScores || null
+        };
+    }
+
     findBuildingHelpBlockTarget(zoneBlocks = [], helpSignal = null) {
         const metadata = helpSignal?.metadata || {};
         const config = gameConfig?.entities?.block?.shade?.buildingCooperation || {};
@@ -3180,6 +3195,7 @@ class Butterfly extends Entity {
             metadata.supportBlockId
         ].filter(Boolean));
         const maxDistanceUnits = Number(config.maxHelperBlockDistanceUnits ?? 5);
+        const roleLabel = this.getBuildingHelpRolePreference(helpSignal).roleLabel || 'carrier';
         let bestBlock = null;
         let bestScore = -Infinity;
         for (const block of zoneBlocks || []) {
@@ -3192,8 +3208,14 @@ class Butterfly extends Entity {
             const buildDistance = Number.isFinite(constructionPoint.x) && Number.isFinite(constructionPoint.y)
                 ? Math.hypot((block.x || 0) - constructionPoint.x, (block.y || 0) - constructionPoint.y)
                 : 0;
-            const score = Math.max(0, 1 - (helperDistanceUnits / Math.max(1, maxDistanceUnits)))
-                + Math.max(0, 0.42 - (buildDistance / 180));
+            const helperScore = Math.max(0, 1 - (helperDistanceUnits / Math.max(1, maxDistanceUnits)));
+            const buildScore = Math.max(0, 1 - (buildDistance / 220));
+            const roleWeights = roleLabel === 'builder'
+                ? { helper: 0.46, build: 0.74 }
+                : (roleLabel === 'coordinator'
+                    ? { helper: 0.58, build: 0.58 }
+                    : { helper: 0.78, build: 0.36 });
+            const score = (helperScore * roleWeights.helper) + (buildScore * roleWeights.build);
             if (score > bestScore) {
                 bestScore = score;
                 bestBlock = block;
@@ -3243,6 +3265,7 @@ class Butterfly extends Entity {
             projectId: buildingAssist.projectId || null,
             zoneId: placement?.zoneId || this.currentZoneId || null,
             currentFrame: gameCore?.getCurrentFrame?.() ?? frameCount,
+            roleLabel: buildingAssist.roleLabel || null,
             placementMode: placement?.placementMode || null,
             stackIndex: placement?.stackIndex ?? null,
             shadeProgress: outcome.shadeProgress || placement?.shadeProgress || null,
@@ -3256,6 +3279,7 @@ class Butterfly extends Entity {
             blockId: block?.id || null,
             supportBlockId: placement?.supportBlockId || buildingAssist.supportBlockId || null,
             zoneId: placement?.zoneId || this.currentZoneId || null,
+            roleLabel: buildingAssist.roleLabel || null,
             boardPos: placement?.boardPos || null,
             constructionPoint: {
                 x: placement?.x,

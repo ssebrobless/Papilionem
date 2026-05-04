@@ -424,6 +424,12 @@ class ObjectSystem {
                 type: project.type,
                 zoneId: project.zoneId,
                 contributorIds: Object.keys(project.contributors || {}),
+                contributorRoles: Object.fromEntries(Object.entries(project.contributors || {})
+                    .map(([id, contributor]) => [id, {
+                        roles: [...(contributor.roles || [])],
+                        roleLabel: contributor.metadata?.roleLabel || null,
+                        contributions: contributor.contributions || 0
+                    }])),
                 blockIds: [...(project.blockIds || [])],
                 memoryCount: socialPayoff?.memories?.length || 0,
                 edgeUpdateCount: socialPayoff?.edgeUpdates?.length || 0,
@@ -525,7 +531,8 @@ class ObjectSystem {
             blockId: data.blockId || null,
             supportBlockId: data.supportBlockId || project.supportBlockId || null,
             createsShade: data.createsShade === true,
-            shadeProgress: data.shadeProgress || null
+            shadeProgress: data.shadeProgress || null,
+            roleLabel: data.roleLabel || null
         });
     }
 
@@ -537,7 +544,8 @@ class ObjectSystem {
             requesterId: data.requesterId || null,
             blockId: data.blockId || null,
             createsShade: data.createsShade === true,
-            shadeProgress: data.shadeProgress || null
+            shadeProgress: data.shadeProgress || null,
+            roleLabel: data.roleLabel || null
         });
     }
 

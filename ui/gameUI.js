@@ -4391,6 +4391,15 @@ class GameUI {
         return targetLabels[0] || data?.targetLabel || targetIds[0] || null;
     }
 
+    formatProjectRoleGrounding(contributorRoles = null) {
+        if (!contributorRoles || typeof contributorRoles !== 'object') return '';
+        const roles = Object.values(contributorRoles)
+            .map(entry => entry?.roleLabel)
+            .filter(Boolean);
+        const uniqueRoles = [...new Set(roles)];
+        return uniqueRoles.length ? ` • roles: ${uniqueRoles.join(', ')}` : '';
+    }
+
     formatActivityEntry(entry) {
         const data = entry?.data || {};
         const event = entry?.event || 'event';
@@ -4486,7 +4495,7 @@ class GameUI {
                 null,
                 {
                     category: 'action',
-                    grounding: `${zoneLabel} • ${data?.memoryCount || 0} memories • ${data?.edgeUpdateCount || 0} bond updates`,
+                    grounding: `${zoneLabel} • ${data?.memoryCount || 0} memories • ${data?.edgeUpdateCount || 0} bond updates${this.formatProjectRoleGrounding(data?.contributorRoles)}`,
                     contextTags: ['shared work', 'shelter', 'cooperation']
                 }
             ),

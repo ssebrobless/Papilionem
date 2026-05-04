@@ -311,9 +311,12 @@ async function run() {
       add('helper-accepts-shared-project-help', helper.blockInteraction?.buildingAssist?.requesterId === requester.id
         && helper.blockInteraction?.buildingAssist?.projectId === requestEvent?.projectId
         && helper.blockInteraction?.carryingBlockId === helperBlock.id
+        && helper.blockInteraction?.buildingAssist?.roleLabel === preferredScore?.roleLabel
+        && acceptedEvent?.roleLabel === preferredScore?.roleLabel
         && !!acceptedEvent, {
         buildingAssist: helper.blockInteraction?.buildingAssist || null,
-        acceptedEvent
+        acceptedEvent,
+        preferredScore
       });
 
       const helperPlacement = helper.blockInteraction?.placementTarget || helper.chooseBlockPlacementTarget?.(helperBlock, gameCore.gameState.blocks || []);
@@ -338,6 +341,10 @@ async function run() {
       const completedEvent = (eventBus.getHistory?.('environment:project-completed') || [])
         .map(entry => entry?.data || entry)
         .filter(event => event?.projectId === requestEvent?.projectId)
+        .slice(-1)[0] || null;
+      const followthroughEvent = (eventBus.getHistory?.('building:cooperation-followthrough') || [])
+        .map(entry => entry?.data || entry)
+        .filter(event => event?.projectId === requestEvent?.projectId && event?.helperId === helper.id)
         .slice(-1)[0] || null;
       const socialPayoffEvent = (eventBus.getHistory?.('environment:project-social-payoff') || [])
         .map(entry => entry?.data || entry)
@@ -380,6 +387,14 @@ async function run() {
         && completedEvent.contributorIds?.includes?.(helper.id), {
         completedEvent
       });
+      add('helper-role-follows-into-project-events', followContribution?.metadata?.roleLabel === preferredScore?.roleLabel
+        && followthroughEvent?.roleLabel === preferredScore?.roleLabel
+        && completedEvent?.contributorRoles?.[helper.id]?.roleLabel === preferredScore?.roleLabel, {
+        preferredScore,
+        followContribution,
+        followthroughEvent,
+        completedContributorRole: completedEvent?.contributorRoles?.[helper.id] || null
+      });
       add('shared-project-completion-records-object-memories', !!socialPayoffEvent
         && completedEvent?.memoryCount >= 2
         && !!requesterMemory
@@ -399,7 +414,8 @@ async function run() {
       add('shared-project-completion-has-feed-line', !!formattedFeed?.line
         && /shared shade shelter/i.test(formattedFeed.line)
         && /memories/i.test(formattedFeed.grounding || '')
-        && /bond updates/i.test(formattedFeed.grounding || ''), {
+        && /bond updates/i.test(formattedFeed.grounding || '')
+        && /roles:/i.test(formattedFeed.grounding || ''), {
         formattedFeed
       });
       add('shared-projects-remain-runtime-only', !saveSystem?.serializeState
