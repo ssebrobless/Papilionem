@@ -603,6 +603,26 @@ const PAPILIONEM_BATTLE_ARENA = {
                     memoryStrength: 0.5,
                     reliefReward: 0.04,
                     significanceReward: 0.035
+                },
+                buildingCooperation: {
+                    enabled: true,
+                    minIntentScore: 0.45,
+                    askAfterCarryFrames: 6,
+                    requestCooldownFrames: 900,
+                    responseWindowFrames: 720,
+                    maxHelpers: 2,
+                    maxHelperDistanceUnits: 7,
+                    maxHelperBlockDistanceUnits: 5,
+                    minHelperEdgeScore: 0.38,
+                    requesterEdgeTrust: 0.012,
+                    requesterEdgeComfort: 0.014,
+                    requesterEdgeAdmiration: 0.006,
+                    helperEdgeTrust: 0.016,
+                    helperEdgeComfort: 0.018,
+                    helperEdgeAdmiration: 0.01,
+                    followThroughBoost: 0.04,
+                    mutualAttentionBoost: 0.05,
+                    warmthBoost: 0.04
                 }
             }
         },

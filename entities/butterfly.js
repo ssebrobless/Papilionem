@@ -589,6 +589,7 @@ class Butterfly extends Entity {
             targetBlockId: null,
             carryingBlockId: null,
             placementTarget: null,
+            buildingAssist: null,
             lastPlacementMode: 'ground',
             cooldownFrames: Math.floor(random(72, 156)),
             lastRelativeSize: 0,
@@ -2810,6 +2811,7 @@ class Butterfly extends Entity {
         const createsShade = shadeIntent?.createsShade === true || placement.createsShade === true;
         const shadeProgress = shadeIntent?.shadeProgress || placement.shadeProgress || null;
         const shadeConfig = gameConfig?.entities?.block?.shade?.buildingIntent || {};
+        const buildingAssist = this.blockInteraction.buildingAssist || null;
         this.lifeSim.emotions.curiosity = Math.min(1, (this.lifeSim.emotions.curiosity || 0) + 0.028);
         this.lifeSim.emotions.happiness = Math.min(1, (this.lifeSim.emotions.happiness || 0) + 0.018);
         if (createsShade) {
@@ -2837,7 +2839,9 @@ class Butterfly extends Entity {
                 shadeProgress,
                 createsShade,
                 shadeIntentSource: shadeIntent?.source || null,
-                targetStackHeight: shadeIntent?.targetStackHeight ?? null
+                targetStackHeight: shadeIntent?.targetStackHeight ?? null,
+                assistedRequesterId: buildingAssist?.requesterId || null,
+                assistSignalId: buildingAssist?.signalId || null
             }
         });
         if (createsShade || shadeProgress) {
@@ -2854,11 +2858,19 @@ class Butterfly extends Entity {
                 shadeIntentScore: shadeIntent?.intentScore ?? placement.shadeIntentScore ?? null
             });
         }
+        if (buildingAssist?.requesterId && (createsShade || shadeProgress)) {
+            this.recordBuildingAssistFollowThrough(buildingAssist, block, placement, {
+                shadeProgress,
+                createsShade,
+                shadeIntentScore: shadeIntent?.intentScore ?? placement.shadeIntentScore ?? null
+            });
+        }
         gameCore?.particleSystem?.emitBurst?.(block.x, block.y - 4, [88, 232, 208], 5);
 
         this.blockInteraction.carryingBlockId = null;
         this.blockInteraction.targetBlockId = null;
         this.blockInteraction.placementTarget = null;
+        this.blockInteraction.buildingAssist = null;
         this.blockInteraction.carryFrames = 0;
         const behaviorBiases = this.lifeSim?.derived?.behaviorBiases || {};
         const continuationBias = Math.max(
@@ -2903,6 +2915,7 @@ class Butterfly extends Entity {
         this.blockInteraction.carryingBlockId = null;
         this.blockInteraction.targetBlockId = null;
         this.blockInteraction.placementTarget = null;
+        this.blockInteraction.buildingAssist = null;
         this.blockInteraction.carryFrames = 0;
         this.blockInteraction.cooldownFrames = Math.max(this.blockInteraction.cooldownFrames || 0, 72);
         return true;
@@ -2949,6 +2962,7 @@ class Butterfly extends Entity {
             this.blockInteraction.targetBlockId = null;
             this.blockInteraction.carryingBlockId = null;
             this.blockInteraction.placementTarget = null;
+            this.blockInteraction.buildingAssist = null;
             return;
         }
 
@@ -2983,8 +2997,42 @@ class Butterfly extends Entity {
             targetBlock = zoneBlocks.find(block => block.id === this.blockInteraction.targetBlockId) || null;
             if (targetBlock?.carriedById && targetBlock.carriedById !== this.id) {
                 this.blockInteraction.targetBlockId = null;
+                this.blockInteraction.buildingAssist = null;
                 this.blockInteraction.cooldownFrames = 120;
                 targetBlock = null;
+            }
+        }
+
+        if (!targetBlock && this.blockInteraction.cooldownFrames === 0) {
+            const curiosity = this.lifeSim?.emotions?.curiosity || 0;
+            const exploration = this.lifeSim?.drives?.exploration || 0;
+            const buildingHelp = this.getRecentBuildingHelpSignal();
+            const helpBlock = buildingHelp
+                ? this.findBuildingHelpBlockTarget(zoneBlocks, buildingHelp)
+                : null;
+            if (helpBlock) {
+                targetBlock = helpBlock;
+                this.blockInteraction.targetBlockId = targetBlock.id;
+                this.blockInteraction.buildingAssist = {
+                    requesterId: buildingHelp.sourceId,
+                    signalId: buildingHelp.signalId,
+                    requestedAtFrame: buildingHelp.metadata?.requestedAtFrame ?? null,
+                    supportBlockId: buildingHelp.metadata?.supportBlockId || null,
+                    shadeProgress: buildingHelp.metadata?.shadeProgress || null,
+                    shadeIntentScore: buildingHelp.metadata?.shadeIntentScore ?? null
+                };
+                this.rememberDispersalAnchor(`block:${targetBlock.id}`);
+                this.setMovementTargetFromScreen(targetBlock.x, targetBlock.y, 'immediate', 5, 0, {
+                    zoneId: targetBlock.currentZoneId || this.getMovementZoneId()
+                });
+                eventBus?.emit?.('building:helper-accepted', {
+                    helperId: this.id,
+                    requesterId: buildingHelp.sourceId,
+                    signalId: buildingHelp.signalId,
+                    blockId: targetBlock.id,
+                    zoneId,
+                    currentFrame: gameCore?.getCurrentFrame?.() ?? frameCount
+                });
             }
         }
 
@@ -3042,6 +3090,7 @@ class Butterfly extends Entity {
         }
         if (!targetBlock.canBeMovedBy?.(this)) {
             this.blockInteraction.targetBlockId = null;
+            this.blockInteraction.buildingAssist = null;
             this.blockInteraction.cooldownFrames = 96;
             return;
         }
@@ -3049,6 +3098,7 @@ class Butterfly extends Entity {
         const pickedUp = objectSystem?.pickupObject?.(targetBlock.id, this.id);
         if (!pickedUp) {
             this.blockInteraction.targetBlockId = null;
+            this.blockInteraction.buildingAssist = null;
             this.blockInteraction.cooldownFrames = 72;
             return;
         }
@@ -3070,6 +3120,102 @@ class Butterfly extends Entity {
             }
         });
         gameCore?.particleSystem?.emitBurst?.(targetBlock.x, targetBlock.y - 4, [60, 220, 230], 4);
+    }
+
+    getRecentBuildingHelpSignal() {
+        const config = gameConfig?.entities?.block?.shade?.buildingCooperation || {};
+        if (config.enabled === false) return null;
+        const responseWindowFrames = Math.max(1, Math.round(Number(config.responseWindowFrames ?? 720)));
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        const recent = this.lifeSim?.communication?.recentReceived || [];
+        return recent.find(entry => {
+            const metadata = entry?.metadata || {};
+            if (metadata.reason !== 'shade-building-help') return false;
+            if (!entry?.sourceId || entry.sourceId === this.id) return false;
+            if (metadata.requestedAtFrame == null) return true;
+            return (currentFrame - metadata.requestedAtFrame) <= responseWindowFrames;
+        }) || null;
+    }
+
+    findBuildingHelpBlockTarget(zoneBlocks = [], helpSignal = null) {
+        const metadata = helpSignal?.metadata || {};
+        const config = gameConfig?.entities?.block?.shade?.buildingCooperation || {};
+        const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || null;
+        const constructionPoint = metadata.constructionPoint || {};
+        const ignoredIds = new Set([
+            metadata.carriedBlockId,
+            metadata.supportBlockId
+        ].filter(Boolean));
+        const maxDistanceUnits = Number(config.maxHelperBlockDistanceUnits ?? 5);
+        let bestBlock = null;
+        let bestScore = -Infinity;
+        for (const block of zoneBlocks || []) {
+            if (!block?.id || ignoredIds.has(block.id) || block.carriedById) continue;
+            if ((block.currentZoneId || null) !== zoneId) continue;
+            if (block.canBeMovedBy?.(this) === false) continue;
+            const helperDistanceUnits = communicationSystem?.getBoardDistanceBetween?.(this, block, zoneId)
+                ?? (Math.hypot((block.x || 0) - (this.x || 0), (block.y || 0) - (this.y || 0)) / 20);
+            if (helperDistanceUnits > maxDistanceUnits) continue;
+            const buildDistance = Number.isFinite(constructionPoint.x) && Number.isFinite(constructionPoint.y)
+                ? Math.hypot((block.x || 0) - constructionPoint.x, (block.y || 0) - constructionPoint.y)
+                : 0;
+            const score = Math.max(0, 1 - (helperDistanceUnits / Math.max(1, maxDistanceUnits)))
+                + Math.max(0, 0.42 - (buildDistance / 180));
+            if (score > bestScore) {
+                bestScore = score;
+                bestBlock = block;
+            }
+        }
+        return bestBlock;
+    }
+
+    recordBuildingAssistFollowThrough(buildingAssist, block, placement, outcome = {}) {
+        if (!buildingAssist?.requesterId || !this.id) return null;
+        const requester = communicationSystem?.getEntityById?.(buildingAssist.requesterId)
+            || (gameCore?.gameState?.butterflies || []).find(entry => entry?.id === buildingAssist.requesterId)
+            || null;
+        if (!requester?.id) return null;
+        const config = gameConfig?.entities?.block?.shade?.buildingCooperation || {};
+        const updatedAtSeconds = lifeSimSystem?.simulationClockSeconds ?? communicationSystem?.simulationClockSeconds ?? null;
+        const helperEdge = typeof adjustLifeSocialEdge === 'function'
+            ? adjustLifeSocialEdge(this, requester.id, {
+                trust: Number(config.helperEdgeTrust ?? 0.016),
+                comfort: Number(config.helperEdgeComfort ?? 0.018),
+                admiration: Number(config.helperEdgeAdmiration ?? 0.01)
+            }, {
+                updatedAtSeconds,
+                tag: 'shade-building-cooperation'
+            })
+            : ensureLifeSocialEdge?.(this, requester.id);
+        const requesterEdge = typeof adjustLifeSocialEdge === 'function'
+            ? adjustLifeSocialEdge(requester, this.id, {
+                trust: Number(config.requesterEdgeTrust ?? 0.012),
+                comfort: Number(config.requesterEdgeComfort ?? 0.014),
+                admiration: Number(config.requesterEdgeAdmiration ?? 0.006)
+            }, {
+                updatedAtSeconds,
+                tag: 'shade-building-cooperation'
+            })
+            : ensureLifeSocialEdge?.(requester, this.id);
+        for (const edge of [helperEdge, requesterEdge]) {
+            if (!edge) continue;
+            edge.followThroughScore = Math.min(1, (edge.followThroughScore || 0) + Number(config.followThroughBoost ?? 0.04));
+            edge.recentMutualAttention = Math.min(1, (edge.recentMutualAttention || 0) + Number(config.mutualAttentionBoost ?? 0.05));
+            edge.recentWarmth = Math.min(1, (edge.recentWarmth || 0) + Number(config.warmthBoost ?? 0.04));
+        }
+        eventBus?.emit?.('building:cooperation-followthrough', {
+            helperId: this.id,
+            requesterId: requester.id,
+            blockId: block?.id || null,
+            zoneId: placement?.zoneId || this.currentZoneId || null,
+            currentFrame: gameCore?.getCurrentFrame?.() ?? frameCount,
+            placementMode: placement?.placementMode || null,
+            stackIndex: placement?.stackIndex ?? null,
+            shadeProgress: outcome.shadeProgress || placement?.shadeProgress || null,
+            createsShade: outcome.createsShade === true || placement?.createsShade === true,
+            shadeIntentScore: outcome.shadeIntentScore ?? placement?.shadeIntentScore ?? null
+        });
+        return { helperEdge, requesterEdge };
     }
     
     checkFlowerSeeking(flowers) {

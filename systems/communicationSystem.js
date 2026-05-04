@@ -18,6 +18,7 @@ class CommunicationSystem {
         this.distressRecords = new Map();
         this.warningRecords = [];
         this.scoutOfferRecords = [];
+        this.buildingAidRecords = new Map();
         this.eventUnsubscribers = [];
         this.partnerSelectionHistory = new Map();
         this.causeLabelCooldowns = new Map();
@@ -66,6 +67,7 @@ class CommunicationSystem {
         this.distressRecords.clear();
         this.warningRecords = [];
         this.scoutOfferRecords = [];
+        this.buildingAidRecords.clear();
         this.simulationClockSeconds = 0;
         this.partnerSelectionHistory.clear();
         this.causeLabelCooldowns.clear();
@@ -154,6 +156,9 @@ class CommunicationSystem {
         }
         if (gameConfig?.world?.scoutDiscovery !== false) {
             this.updateScoutDiscovery(gameState, currentFrame);
+        }
+        if (gameConfig?.entities?.block?.shade?.buildingCooperation?.enabled !== false) {
+            this.updateShadeBuildingCooperation(gameState, currentFrame);
         }
         this.updateQueuedResponses(gameState);
     }
@@ -268,6 +273,121 @@ class CommunicationSystem {
             zoneId,
             reason: options.reason || 'reserve-food-sharing'
         });
+    }
+
+    getShadeBuildingCooperationConfig() {
+        return gameConfig?.entities?.block?.shade?.buildingCooperation || {};
+    }
+
+    getCarriedBlockForEntity(entity, gameState = gameCore?.gameState) {
+        if (!entity?.id) return null;
+        return (gameState?.blocks || []).find(block => block?.carriedById === entity.id) || null;
+    }
+
+    hasLooseBlockNearEntity(entity, blocks = [], zoneId = null, maxDistanceUnits = 5) {
+        return !!(blocks || []).find(block =>
+            block?.id
+            && !block.carriedById
+            && (block.currentZoneId || null) === zoneId
+            && this.getBoardDistanceBetween(entity, block, zoneId) <= maxDistanceUnits
+            && block.canBeMovedBy?.(entity) !== false
+        );
+    }
+
+    getBuildingHelperCandidates(source, liveEntities = [], zoneId = null, placement = null, blocks = []) {
+        if (!source?.id || !zoneId || !placement) return [];
+        const config = this.getShadeBuildingCooperationConfig();
+        const maxDistanceUnits = Number(config.maxHelperDistanceUnits ?? 7);
+        const maxBlockDistanceUnits = Number(config.maxHelperBlockDistanceUnits ?? 5);
+        const minEdgeScore = Number(config.minHelperEdgeScore ?? 0.38);
+        return liveEntities
+            .filter(candidate => candidate?.id && candidate.id !== source.id)
+            .filter(candidate => this.getZoneId(candidate) === zoneId)
+            .filter(candidate => !this.getCarriedBlockForEntity(candidate))
+            .filter(candidate => this.getBoardDistanceBetween(candidate, source, zoneId) <= maxDistanceUnits)
+            .filter(candidate => this.isCompanionOrBetter(candidate, source.id) || this.edgePriorityScore(candidate, source.id) >= minEdgeScore)
+            .filter(candidate => this.hasLooseBlockNearEntity(candidate, blocks, zoneId, maxBlockDistanceUnits))
+            .sort((left, right) => this.edgePriorityScore(right, source.id) - this.edgePriorityScore(left, source.id))
+            .slice(0, Math.max(1, Math.round(Number(config.maxHelpers ?? 2))));
+    }
+
+    updateShadeBuildingCooperation(gameState = gameCore?.gameState, currentFrame = 0, options = {}) {
+        const config = this.getShadeBuildingCooperationConfig();
+        if (config.enabled === false) return 0;
+        if (!options.force && (Math.max(0, Math.round(currentFrame || 0)) % 45) !== 0) return 0;
+        const blocks = gameState?.blocks || [];
+        const liveEntities = this.getLiveEntities(gameState).filter(entity => gameState?.butterflies?.includes?.(entity));
+        const minIntentScore = Number(config.minIntentScore ?? 0.45);
+        const askAfterCarryFrames = Math.max(0, Math.round(Number(config.askAfterCarryFrames ?? 6)));
+        const cooldownFrames = Math.max(1, Math.round(Number(config.requestCooldownFrames ?? 900)));
+        let emitted = 0;
+
+        for (const source of liveEntities) {
+            const carriedBlock = this.getCarriedBlockForEntity(source, gameState);
+            if (!carriedBlock) continue;
+            if ((source.blockInteraction?.carryFrames || 0) < askAfterCarryFrames) continue;
+            const zoneId = this.getZoneId(source) || carriedBlock.currentZoneId || null;
+            if (!zoneId) continue;
+            let placement = source.blockInteraction?.placementTarget || null;
+            if (!placement && structureSystem?.findPlacementTargetForBlock) {
+                placement = structureSystem.findPlacementTargetForBlock(source, carriedBlock, blocks);
+                if (placement && source.blockInteraction) {
+                    source.blockInteraction.placementTarget = placement;
+                }
+            }
+            const shadeIntent = placement?.shadeIntent || null;
+            if (!shadeIntent || shadeIntent.createsShade !== true || (shadeIntent.intentScore || 0) < minIntentScore) continue;
+            const requestKey = [
+                source.id,
+                placement.supportBlockId || 'ground',
+                Math.round(placement.boardPos?.u ?? placement.x ?? 0),
+                Math.round(placement.boardPos?.v ?? placement.y ?? 0)
+            ].join(':');
+            const lastFrame = this.buildingAidRecords.get(requestKey);
+            if (!options.force && Number.isFinite(lastFrame) && (currentFrame - lastFrame) < cooldownFrames) continue;
+            const helpers = this.getBuildingHelperCandidates(source, liveEntities, zoneId, placement, blocks);
+            if (!helpers.length) continue;
+            this.buildingAidRecords.set(requestKey, currentFrame);
+            const metadata = {
+                reason: 'shade-building-help',
+                requestedAtFrame: currentFrame,
+                requesterId: source.id,
+                carriedBlockId: carriedBlock.id,
+                supportBlockId: placement.supportBlockId || null,
+                constructionPoint: {
+                    x: placement.x,
+                    y: placement.y,
+                    boardPos: placement.boardPos ? { ...placement.boardPos } : null
+                },
+                shadeProgress: shadeIntent.shadeProgress || placement.shadeProgress || null,
+                shadeIntentScore: shadeIntent.intentScore || placement.shadeIntentScore || 0
+            };
+            this.emitCooperationSignal(source, {
+                signalType: 'guidance_signal',
+                intentFamily: 'social',
+                intentTags: ['guidance', 'coordination', 'cooperation', 'building', 'follow_through'],
+                phrase: 'Can you bring a block here? This shade will help us rest.',
+                targetIds: helpers.map(helper => helper.id),
+                zoneId,
+                blockId: carriedBlock.id,
+                reason: 'shade-building-help',
+                metadata,
+                durationSeconds: 4.5,
+                radiusUnits: Number(config.maxHelperDistanceUnits ?? 7)
+            });
+            eventBus?.emit?.('building:cooperation-requested', {
+                requesterId: source.id,
+                helperIds: helpers.map(helper => helper.id),
+                blockId: carriedBlock.id,
+                supportBlockId: placement.supportBlockId || null,
+                zoneId,
+                currentFrame,
+                shadeIntentScore: metadata.shadeIntentScore,
+                shadeProgress: metadata.shadeProgress
+            });
+            emitted += 1;
+        }
+        return emitted;
     }
 
     getCurrentFrame() {
