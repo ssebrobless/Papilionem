@@ -636,6 +636,12 @@ const PAPILIONEM_BATTLE_ARENA = {
                     followThroughBoost: 0.04,
                     mutualAttentionBoost: 0.05,
                     warmthBoost: 0.04
+                },
+                sharedProjects: {
+                    enabled: true,
+                    completionRequiresContributors: 2,
+                    completionRequiresPlacements: 1,
+                    maxActiveProjectsPerZone: 6
                 }
             }
         },

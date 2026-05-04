@@ -2857,11 +2857,28 @@ class Butterfly extends Entity {
             eventBus?.emit?.('building:shade-progress', {
                 butterflyId: this.id,
                 blockId: block.id,
+                projectId: buildingAssist?.projectId || placement.projectId || null,
                 zoneId,
                 currentFrame: gameCore?.getCurrentFrame?.() ?? frameCount,
                 placementMode: placement.placementMode || 'ground',
                 stackIndex: placement.stackIndex ?? 0,
                 supportBlockId: placement.supportBlockId || null,
+                shadeProgress,
+                createsShade,
+                shadeIntentScore: shadeIntent?.intentScore ?? placement.shadeIntentScore ?? null
+            });
+            objectSystem?.recordShadeProjectPlacement?.({
+                projectId: buildingAssist?.projectId || placement.projectId || null,
+                butterflyId: this.id,
+                blockId: block.id,
+                supportBlockId: placement.supportBlockId || null,
+                zoneId,
+                boardPos: placement.boardPos || null,
+                constructionPoint: {
+                    x: placement.x,
+                    y: placement.y,
+                    boardPos: placement.boardPos || null
+                },
                 shadeProgress,
                 createsShade,
                 shadeIntentScore: shadeIntent?.intentScore ?? placement.shadeIntentScore ?? null
@@ -3031,6 +3048,7 @@ class Butterfly extends Entity {
                     signalId: buildingHelp.signalId,
                     requestedAtFrame: buildingHelp.metadata?.requestedAtFrame ?? null,
                     supportBlockId: buildingHelp.metadata?.supportBlockId || null,
+                    projectId: buildingHelp.metadata?.projectId || null,
                     shadeProgress: buildingHelp.metadata?.shadeProgress || null,
                     shadeIntentScore: buildingHelp.metadata?.shadeIntentScore ?? null
                 };
@@ -3222,10 +3240,28 @@ class Butterfly extends Entity {
             helperId: this.id,
             requesterId: requester.id,
             blockId: block?.id || null,
+            projectId: buildingAssist.projectId || null,
             zoneId: placement?.zoneId || this.currentZoneId || null,
             currentFrame: gameCore?.getCurrentFrame?.() ?? frameCount,
             placementMode: placement?.placementMode || null,
             stackIndex: placement?.stackIndex ?? null,
+            shadeProgress: outcome.shadeProgress || placement?.shadeProgress || null,
+            createsShade: outcome.createsShade === true || placement?.createsShade === true,
+            shadeIntentScore: outcome.shadeIntentScore ?? placement?.shadeIntentScore ?? null
+        });
+        objectSystem?.recordShadeProjectFollowthrough?.({
+            projectId: buildingAssist.projectId || null,
+            helperId: this.id,
+            requesterId: requester.id,
+            blockId: block?.id || null,
+            supportBlockId: placement?.supportBlockId || buildingAssist.supportBlockId || null,
+            zoneId: placement?.zoneId || this.currentZoneId || null,
+            boardPos: placement?.boardPos || null,
+            constructionPoint: {
+                x: placement?.x,
+                y: placement?.y,
+                boardPos: placement?.boardPos || null
+            },
             shadeProgress: outcome.shadeProgress || placement?.shadeProgress || null,
             createsShade: outcome.createsShade === true || placement?.createsShade === true,
             shadeIntentScore: outcome.shadeIntentScore ?? placement?.shadeIntentScore ?? null

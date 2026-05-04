@@ -1,0 +1,343 @@
+const fs = require('fs');
+const path = require('path');
+const { chromium } = require('playwright');
+
+const ROOT = path.resolve(__dirname, '..');
+const OUTPUT_ROOT = path.join(ROOT, 'qa_screenshots', 'environment_shared_projects_audit');
+const URL = 'http://127.0.0.1:3000/';
+const STORAGE_KEYS = [
+  'papilionem-save-v2',
+  'papilionem-progression-v1',
+  'papilionem-accessibility-v1',
+  'papilionem-audit-setup-v1',
+  'papilionem-audit-reports-v1'
+];
+
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function stamp() {
+  return new Date().toISOString().replace(/[:.]/g, '-');
+}
+
+async function ensureServer(report) {
+  const reachable = await fetch(URL).then(() => true).catch(() => false);
+  if (reachable) {
+    report.server = { reused: true, pid: null };
+    return;
+  }
+  const { spawn } = require('child_process');
+  const serverProcess = spawn(process.execPath, ['server.js'], {
+    cwd: ROOT,
+    detached: true,
+    stdio: 'ignore'
+  });
+  serverProcess.unref();
+  report.server = { reused: false, pid: serverProcess.pid };
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const ok = await fetch(URL).then(() => true).catch(() => false);
+    if (ok) return;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  throw new Error('Server did not become reachable in time');
+}
+
+async function waitForGame(page) {
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForFunction(() => typeof gameCore !== 'undefined' && gameCore.isInitialized?.(), null, {
+    timeout: 30000
+  });
+}
+
+async function dismissTitle(page) {
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(1200);
+}
+
+async function resetBaseline(page) {
+  await page.evaluate((keys) => {
+    keys.forEach(key => window.localStorage.removeItem(key));
+    window.__PAPILIONEM_WORLD_RENDERMODE__ = 'sim-board';
+    window.localStorage.setItem('papilionem-world-rendermode', 'sim-board');
+  }, STORAGE_KEYS);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitForGame(page);
+  await dismissTitle(page);
+  await page.evaluate(async () => {
+    await gameCore.resetGame(true);
+    gameCore.focusZone?.('moss-hollow');
+  });
+  await page.waitForTimeout(700);
+}
+
+async function run() {
+  ensureDir(OUTPUT_ROOT);
+  const auditId = stamp();
+  const outputDir = path.join(OUTPUT_ROOT, auditId);
+  ensureDir(outputDir);
+
+  const report = {
+    auditId,
+    startedAt: new Date().toISOString(),
+    outputDir,
+    url: URL,
+    server: null,
+    pageErrors: [],
+    consoleErrors: [],
+    assertions: [],
+    overall: 'pending'
+  };
+
+  let browser;
+  try {
+    await ensureServer(report);
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+    await context.addInitScript(() => {
+      window.__PAPILIONEM_WORLD_RENDERMODE__ = 'sim-board';
+      window.localStorage.setItem('papilionem-world-rendermode', 'sim-board');
+    });
+    const page = await context.newPage();
+    page.on('pageerror', error => report.pageErrors.push(String(error)));
+    page.on('console', msg => {
+      if (msg.type() === 'error') report.consoleErrors.push(msg.text());
+    });
+    await page.goto(URL, { waitUntil: 'domcontentloaded' });
+    await waitForGame(page);
+    await dismissTitle(page);
+    await resetBaseline(page);
+
+    report.assertions = await page.evaluate(async () => {
+      const assertions = [];
+      const add = (id, pass, details = {}) => assertions.push({ id, pass: !!pass, details });
+      const zoneId = 'moss-hollow';
+      const cell = (u, v, h = 0) => ({ zoneId, u, v, h });
+      const screen = (u, v, h = 0) => renderManager.boardToScreen(cell(u, v, h));
+
+      const clearZone = () => {
+        objectSystem?.reset?.();
+        for (const flower of [...(gameCore.gameState.flowers || [])]) {
+          if (gameCore.getEntityZoneId(flower, null) === zoneId) {
+            gameCore.removeFlowerFromGame?.(flower, 'shared-projects-audit-reset');
+          }
+        }
+        for (const block of [...(gameCore.gameState.blocks || [])]) {
+          const blockCell = structureSystem.getBlockCell?.(block, { zoneId });
+          if (blockCell?.zoneId === zoneId) {
+            gameCore.entityManager?.removeEntity?.('blocks', block);
+            gameCore.unregisterEntityFromFoundationSystems?.(block);
+            gameCore.gameState.blocks = (gameCore.gameState.blocks || []).filter(entry => entry?.id !== block.id);
+          }
+        }
+      };
+
+      const spawnBlockAt = (u, v, h = 0, supportBlock = null) => {
+        const point = screen(u, v, h);
+        const block = gameCore.godSpawnBlock?.(zoneId, point.x, point.y);
+        block.supportBlockId = supportBlock?.id || null;
+        block.applyBoardCell?.({ accepted: true, zoneId, u, v, h }, { requireAccepted: false });
+        return block;
+      };
+
+      const moveButterflyToCell = (butterfly, u, v) => {
+        const point = screen(u, v, 0);
+        butterfly.currentZoneId = zoneId;
+        butterfly.lifeSim.lifecycle.currentZoneId = zoneId;
+        butterfly.x = point.x;
+        butterfly.y = point.y;
+        butterfly.boardPos = cell(u, v, 0);
+        butterfly.gridPos = { x: u, y: v };
+        butterfly.syncBoardPosFromScreen?.({ zoneId });
+      };
+
+      const ensureEdgePair = (left, right, values = {}) => {
+        const leftEdge = ensureLifeSocialEdge?.(left, right.id);
+        const rightEdge = ensureLifeSocialEdge?.(right, left.id);
+        Object.assign(leftEdge, values);
+        Object.assign(rightEdge, values);
+      };
+
+      clearZone();
+      const [requester, helper] = gameCore.gameState.butterflies || [];
+      if (!requester || !helper) {
+        add('audit-has-two-butterflies', false, { butterflyCount: (gameCore.gameState.butterflies || []).length });
+        return assertions;
+      }
+
+      moveButterflyToCell(requester, 20, 16);
+      moveButterflyToCell(helper, 22, 16);
+      requester.lifeSim.drives.rest = 0.88;
+      requester.lifeSim.emotions.exhaustion = 0.74;
+      requester.lifeSim.derived = requester.lifeSim.derived || {};
+      requester.lifeSim.derived.behaviorBiases = requester.lifeSim.derived.behaviorBiases || {};
+      requester.lifeSim.derived.behaviorBiases.shelterSeeking = 0.94;
+      requester.lifeSim.derived.behaviorBiases.objectInterest = 0.72;
+      helper.lifeSim.emotions.curiosity = 0.5;
+      helper.lifeSim.drives.exploration = 0.42;
+      helper.lifeSim.derived = helper.lifeSim.derived || {};
+      helper.lifeSim.derived.behaviorBiases = helper.lifeSim.derived.behaviorBiases || {};
+      helper.lifeSim.derived.behaviorBiases.objectInterest = 0.7;
+      helper.blockInteraction.cooldownFrames = 0;
+      requester.blockInteraction.cooldownFrames = 0;
+      ensureEdgePair(requester, helper, {
+        trust: 0.72,
+        comfort: 0.7,
+        attachment: 0.5,
+        admiration: 0.22,
+        bondTier: 'companion',
+        followThroughScore: 0.12,
+        recentWarmth: 0.12
+      });
+
+      const baseBlock = spawnBlockAt(20, 15, 0);
+      const requesterBlock = spawnBlockAt(21, 16, 0);
+      const helperBlock = spawnBlockAt(22, 16, 0);
+      requesterBlock.pickupBy?.(requester);
+      requester.blockInteraction.carryingBlockId = requesterBlock.id;
+      requester.blockInteraction.carryFrames = 12;
+      structureSystem.rebuild?.(gameCore.gameState);
+      structureSystem.lastRebuildSignature = structureSystem.buildRebuildSignature?.(gameCore.gameState);
+
+      const requesterPlacement = requester.chooseBlockPlacementTarget?.(requesterBlock, gameCore.gameState.blocks || []);
+      add('requester-has-shade-building-target', requesterPlacement?.shadeIntent?.createsShade === true, {
+        requesterPlacement
+      });
+
+      const emitted = communicationSystem.updateShadeBuildingCooperation?.(gameCore.gameState, gameCore.getCurrentFrame?.() || 0, { force: true });
+      const requestEvent = (eventBus.getHistory?.('building:cooperation-requested') || [])
+        .map(entry => entry?.data || entry)
+        .filter(event => event?.requesterId === requester.id)
+        .slice(-1)[0] || null;
+      const projectAfterRequest = requestEvent?.projectId
+        ? objectSystem.getEnvironmentProject?.(requestEvent.projectId)
+        : null;
+      const projectCreatedEvent = (eventBus.getHistory?.('environment:project-created') || [])
+        .map(entry => entry?.data || entry)
+        .filter(event => event?.projectId === requestEvent?.projectId)
+        .slice(-1)[0] || null;
+      const requestContributionEvent = (eventBus.getHistory?.('environment:project-contribution') || [])
+        .map(entry => entry?.data || entry)
+        .filter(event => event?.projectId === requestEvent?.projectId && event?.contributionType === 'project-request')
+        .slice(-1)[0] || null;
+
+      add('shared-project-created-from-building-request', emitted >= 1
+        && !!requestEvent?.projectId
+        && projectAfterRequest?.type === 'shadeShelter'
+        && projectAfterRequest?.status === 'active'
+        && !!projectCreatedEvent, {
+        emitted,
+        requestEvent,
+        projectAfterRequest,
+        projectCreatedEvent
+      });
+      add('requester-contributes-project-request', !!requestContributionEvent
+        && (projectAfterRequest?.contributors?.[requester.id]?.contributions || 0) >= 1, {
+        requestContributionEvent,
+        requesterContributor: projectAfterRequest?.contributors?.[requester.id] || null
+      });
+      add('helper-is-invited-but-not-yet-counted-as-progress', !!projectAfterRequest?.contributors?.[helper.id]
+        && (projectAfterRequest?.contributors?.[helper.id]?.roles || []).includes('invited-helper')
+        && (projectAfterRequest?.contributors?.[helper.id]?.contributions || 0) === 0, {
+        helperContributor: projectAfterRequest?.contributors?.[helper.id] || null
+      });
+
+      helper.checkBlockExperimentation?.(gameCore.gameState.blocks || []);
+      const acceptedEvent = (eventBus.getHistory?.('building:helper-accepted') || [])
+        .map(entry => entry?.data || entry)
+        .filter(event => event?.helperId === helper.id && event?.requesterId === requester.id)
+        .slice(-1)[0] || null;
+      add('helper-accepts-shared-project-help', helper.blockInteraction?.buildingAssist?.requesterId === requester.id
+        && helper.blockInteraction?.buildingAssist?.projectId === requestEvent?.projectId
+        && helper.blockInteraction?.carryingBlockId === helperBlock.id
+        && !!acceptedEvent, {
+        buildingAssist: helper.blockInteraction?.buildingAssist || null,
+        acceptedEvent
+      });
+
+      const helperPlacement = helper.blockInteraction?.placementTarget || helper.chooseBlockPlacementTarget?.(helperBlock, gameCore.gameState.blocks || []);
+      if (helperPlacement) {
+        helper.x = helperPlacement.x;
+        helper.y = helperPlacement.y;
+        helper.syncBoardPosFromScreen?.({ zoneId });
+      }
+      const placed = helper.placeCarriedBlock?.(helperBlock, zoneId);
+      structureSystem.rebuild?.(gameCore.gameState);
+      structureSystem.lastRebuildSignature = structureSystem.buildRebuildSignature?.(gameCore.gameState);
+
+      const completedProject = requestEvent?.projectId
+        ? objectSystem.getEnvironmentProject?.(requestEvent.projectId)
+        : null;
+      const shadeColumn = (structureSystem.getShadeColumnsForZoneProfile?.(structureSystem.getZoneProfileRef?.(zoneId)) || [])
+        .find(column => column.sourceBlockId === helperBlock.id) || null;
+      const placementContribution = (completedProject?.contributionLog || [])
+        .find(entry => entry?.contributorId === helper.id && entry?.contributionType === 'block-placement') || null;
+      const followContribution = (completedProject?.contributionLog || [])
+        .find(entry => entry?.contributorId === helper.id && entry?.contributionType === 'helper-followthrough') || null;
+      const completedEvent = (eventBus.getHistory?.('environment:project-completed') || [])
+        .map(entry => entry?.data || entry)
+        .filter(event => event?.projectId === requestEvent?.projectId)
+        .slice(-1)[0] || null;
+
+      add('helper-placement-completes-shade-project', placed === true
+        && !!shadeColumn
+        && completedProject?.status === 'completed'
+        && (completedProject?.progress?.blockPlacements || 0) >= 1
+        && completedProject?.progress?.createsShade === true, {
+        placed,
+        shadeColumn,
+        completedProject
+      });
+      add('shared-project-records-two-real-contributors', !!placementContribution
+        && !!followContribution
+        && (completedProject?.contributors?.[requester.id]?.contributions || 0) >= 1
+        && (completedProject?.contributors?.[helper.id]?.contributions || 0) >= 2, {
+        placementContribution,
+        followContribution,
+        requesterContributor: completedProject?.contributors?.[requester.id] || null,
+        helperContributor: completedProject?.contributors?.[helper.id] || null
+      });
+      add('project-completed-event-names-both-butterflies', !!completedEvent
+        && completedEvent.contributorIds?.includes?.(requester.id)
+        && completedEvent.contributorIds?.includes?.(helper.id), {
+        completedEvent
+      });
+      add('shared-projects-remain-runtime-only', !saveSystem?.serializeState
+        || (() => {
+          const snapshot = saveSystem.serializeState(gameCore.gameState);
+          const serializedObjects = JSON.stringify(snapshot?.foundations?.objects || {});
+          return !serializedObjects.includes(requestEvent?.projectId || 'missing-project-id');
+        })(), {
+        projectId: requestEvent?.projectId || null
+      });
+
+      return assertions;
+    });
+
+    report.overall = report.pageErrors.length === 0
+      && report.consoleErrors.length === 0
+      && report.assertions.every(assertion => assertion.pass)
+      ? 'pass'
+      : 'fail';
+  } catch (error) {
+    report.overall = 'error';
+    report.error = String(error?.stack || error);
+  } finally {
+    if (browser) await browser.close();
+    report.completedAt = new Date().toISOString();
+    report.reportPath = path.join(outputDir, 'report.json');
+    fs.writeFileSync(report.reportPath, JSON.stringify(report, null, 2));
+    console.log(JSON.stringify({
+      overall: report.overall,
+      reportPath: report.reportPath,
+      assertions: report.assertions.map(assertion => ({ id: assertion.id, pass: assertion.pass })),
+      pageErrors: report.pageErrors.length,
+      consoleErrors: report.consoleErrors.length
+    }, null, 2));
+    if (report.overall !== 'pass') {
+      process.exitCode = 1;
+    }
+  }
+}
+
+run();

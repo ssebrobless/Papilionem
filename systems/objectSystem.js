@@ -3,6 +3,8 @@ class ObjectSystem {
         this.objectState = new Map();
         this.objectsByCarrierId = new Map();
         this.lastActivityDirtFrameByZone = new Map();
+        this.environmentProjects = new Map();
+        this.projectKeyIndex = new Map();
         this.initialized = false;
     }
 
@@ -14,6 +16,8 @@ class ObjectSystem {
         this.objectState.clear();
         this.objectsByCarrierId.clear();
         this.lastActivityDirtFrameByZone.clear();
+        this.environmentProjects.clear();
+        this.projectKeyIndex.clear();
     }
 
     registerObject(entity, metadata = {}) {
@@ -237,6 +241,248 @@ class ObjectSystem {
             });
         }
         return true;
+    }
+
+    getSharedProjectConfig() {
+        return gameConfig?.entities?.block?.shade?.sharedProjects || {};
+    }
+
+    isSharedProjectEnabled() {
+        return this.getSharedProjectConfig()?.enabled !== false;
+    }
+
+    normalizeProjectCell(point = {}) {
+        const boardPos = point.boardPos || point;
+        if (!boardPos?.zoneId && !point.zoneId) return null;
+        return {
+            zoneId: boardPos.zoneId || point.zoneId,
+            u: Math.round(Number(boardPos.u ?? point.u ?? 0)),
+            v: Math.round(Number(boardPos.v ?? point.v ?? 0)),
+            h: Math.max(0, Math.round(Number(boardPos.h ?? point.h ?? 0)))
+        };
+    }
+
+    getShadeProjectKey(data = {}) {
+        const zoneId = data.zoneId || data.constructionPoint?.boardPos?.zoneId || null;
+        const cell = this.normalizeProjectCell(data.constructionPoint?.boardPos || data.boardPos || data.targetCell || data);
+        const support = data.supportBlockId || data.supportBlockID || null;
+        if (support) return `shadeShelter:${zoneId}:support:${support}`;
+        if (cell) return `shadeShelter:${cell.zoneId}:${cell.u}:${cell.v}:${cell.h}`;
+        return `shadeShelter:${zoneId}:unknown`;
+    }
+
+    createProjectId(type = 'project') {
+        return `${type}_${gameCore?.getCurrentFrame?.() ?? 0}_${this.environmentProjects.size + 1}`;
+    }
+
+    cloneProject(project) {
+        return project ? JSON.parse(JSON.stringify(project)) : null;
+    }
+
+    getEnvironmentProject(projectId) {
+        return this.cloneProject(this.environmentProjects.get(projectId));
+    }
+
+    getEnvironmentProjects(filter = {}) {
+        return [...this.environmentProjects.values()]
+            .filter(project => !filter.type || project.type === filter.type)
+            .filter(project => !filter.zoneId || project.zoneId === filter.zoneId)
+            .filter(project => !filter.status || project.status === filter.status)
+            .map(project => this.cloneProject(project));
+    }
+
+    ensureProjectContributor(project, contributorId, role = 'contributor', metadata = {}) {
+        if (!project || !contributorId) return null;
+        project.contributors = project.contributors || {};
+        const existing = project.contributors[contributorId] || {
+            id: contributorId,
+            roles: [],
+            contributions: 0,
+            firstAtFrame: gameCore?.getCurrentFrame?.() ?? 0,
+            lastAtFrame: gameCore?.getCurrentFrame?.() ?? 0,
+            metadata: {}
+        };
+        if (role && !existing.roles.includes(role)) existing.roles.push(role);
+        existing.lastAtFrame = gameCore?.getCurrentFrame?.() ?? 0;
+        existing.metadata = {
+            ...(existing.metadata || {}),
+            ...metadata
+        };
+        project.contributors[contributorId] = existing;
+        return existing;
+    }
+
+    ensureShadeShelterProject(data = {}) {
+        if (!this.isSharedProjectEnabled()) return null;
+        const projectKey = this.getShadeProjectKey(data);
+        const existingId = this.projectKeyIndex.get(projectKey);
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? 0;
+        if (existingId && this.environmentProjects.has(existingId)) {
+            const existing = this.environmentProjects.get(existingId);
+            existing.updatedAtFrame = currentFrame;
+            return existing;
+        }
+
+        const zoneId = data.zoneId || data.constructionPoint?.boardPos?.zoneId || null;
+        const activeInZone = [...this.environmentProjects.values()].filter(project =>
+            project.zoneId === zoneId && project.status === 'active'
+        );
+        const maxActive = Math.max(1, Math.round(Number(this.getSharedProjectConfig()?.maxActiveProjectsPerZone ?? 6)));
+        if (activeInZone.length >= maxActive) return null;
+
+        const cell = this.normalizeProjectCell(data.constructionPoint?.boardPos || data.boardPos || data.targetCell || data);
+        const project = {
+            id: this.createProjectId('shadeShelter'),
+            type: 'shadeShelter',
+            status: 'active',
+            projectKey,
+            zoneId,
+            targetCell: cell,
+            supportBlockId: data.supportBlockId || null,
+            createdById: data.requesterId || data.butterflyId || null,
+            createdAtFrame: currentFrame,
+            updatedAtFrame: currentFrame,
+            completedAtFrame: null,
+            requestedMaterials: { block: 2 },
+            progress: {
+                blockPlacements: 0,
+                helperResponses: 0,
+                shadeProgress: data.shadeProgress || null,
+                createsShade: false,
+                shadeIntentScore: data.shadeIntentScore ?? null
+            },
+            contributors: {},
+            contributionLog: [],
+            blockIds: []
+        };
+        this.environmentProjects.set(project.id, project);
+        this.projectKeyIndex.set(projectKey, project.id);
+        if (project.createdById) {
+            this.ensureProjectContributor(project, project.createdById, 'creator');
+        }
+        eventBus?.emit?.('environment:project-created', {
+            projectId: project.id,
+            type: project.type,
+            zoneId: project.zoneId,
+            createdById: project.createdById,
+            currentFrame
+        });
+        return project;
+    }
+
+    recordProjectContribution(projectId, contributorId, contributionType, metadata = {}) {
+        const project = this.environmentProjects.get(projectId);
+        if (!project || !contributorId) return null;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? 0;
+        const contributor = this.ensureProjectContributor(project, contributorId, contributionType || 'contributor', metadata);
+        contributor.contributions += 1;
+        contributor.lastAtFrame = currentFrame;
+        const entry = {
+            contributorId,
+            contributionType: contributionType || 'contribution',
+            atFrame: currentFrame,
+            metadata: { ...metadata }
+        };
+        project.contributionLog.push(entry);
+        if (project.contributionLog.length > 24) project.contributionLog.shift();
+        project.updatedAtFrame = currentFrame;
+        if (metadata.blockId && !project.blockIds.includes(metadata.blockId)) {
+            project.blockIds.push(metadata.blockId);
+        }
+        eventBus?.emit?.('environment:project-contribution', {
+            projectId,
+            contributorId,
+            contributionType: entry.contributionType,
+            zoneId: project.zoneId,
+            currentFrame
+        });
+        this.maybeCompleteEnvironmentProject(project);
+        return this.cloneProject(project);
+    }
+
+    maybeCompleteEnvironmentProject(project) {
+        if (!project || project.status === 'completed') return project;
+        const config = this.getSharedProjectConfig();
+        const contributorCount = Object.values(project.contributors || {})
+            .filter(contributor => (contributor?.contributions || 0) > 0)
+            .length;
+        const minContributors = Math.max(1, Math.round(Number(config.completionRequiresContributors ?? 2)));
+        const minPlacements = Math.max(1, Math.round(Number(config.completionRequiresPlacements ?? 1)));
+        const hasShade = project.progress?.createsShade === true || project.progress?.shadeProgress === 'creates-shade';
+        if (project.type === 'shadeShelter'
+            && hasShade
+            && contributorCount >= minContributors
+            && (project.progress?.blockPlacements || 0) >= minPlacements) {
+            project.status = 'completed';
+            project.completedAtFrame = gameCore?.getCurrentFrame?.() ?? 0;
+            eventBus?.emit?.('environment:project-completed', {
+                projectId: project.id,
+                type: project.type,
+                zoneId: project.zoneId,
+                contributorIds: Object.keys(project.contributors || {}),
+                blockIds: [...(project.blockIds || [])],
+                currentFrame: project.completedAtFrame
+            });
+        }
+        return project;
+    }
+
+    recordShadeProjectRequest(data = {}) {
+        const project = this.ensureShadeShelterProject(data);
+        if (!project) return null;
+        const requesterId = data.requesterId || data.butterflyId || data.createdById || null;
+        if (requesterId) {
+            this.recordProjectContribution(project.id, requesterId, 'project-request', {
+                signalId: data.signalId || null,
+                blockId: data.blockId || null,
+                supportBlockId: data.supportBlockId || project.supportBlockId || null,
+                shadeProgress: data.shadeProgress || null
+            });
+        }
+        for (const helperId of data.helperIds || []) {
+            this.ensureProjectContributor(project, helperId, 'invited-helper');
+        }
+        project.progress.shadeProgress = data.shadeProgress || project.progress.shadeProgress || null;
+        project.progress.shadeIntentScore = data.shadeIntentScore ?? project.progress.shadeIntentScore ?? null;
+        project.updatedAtFrame = gameCore?.getCurrentFrame?.() ?? 0;
+        return this.cloneProject(project);
+    }
+
+    findShadeProject(data = {}) {
+        const projectId = data.projectId || null;
+        if (projectId && this.environmentProjects.has(projectId)) {
+            return this.environmentProjects.get(projectId);
+        }
+        const key = this.getShadeProjectKey(data);
+        const indexed = this.projectKeyIndex.get(key);
+        return indexed ? this.environmentProjects.get(indexed) || null : null;
+    }
+
+    recordShadeProjectPlacement(data = {}) {
+        const project = this.findShadeProject(data) || this.ensureShadeShelterProject(data);
+        if (!project) return null;
+        project.progress.blockPlacements = Math.max(0, project.progress.blockPlacements || 0) + 1;
+        project.progress.shadeProgress = data.shadeProgress || project.progress.shadeProgress || null;
+        project.progress.createsShade = project.progress.createsShade === true || data.createsShade === true;
+        project.progress.shadeIntentScore = data.shadeIntentScore ?? project.progress.shadeIntentScore ?? null;
+        return this.recordProjectContribution(project.id, data.butterflyId || data.helperId || data.actorId, 'block-placement', {
+            blockId: data.blockId || null,
+            supportBlockId: data.supportBlockId || project.supportBlockId || null,
+            createsShade: data.createsShade === true,
+            shadeProgress: data.shadeProgress || null
+        });
+    }
+
+    recordShadeProjectFollowthrough(data = {}) {
+        const project = this.findShadeProject(data);
+        if (!project) return null;
+        project.progress.helperResponses = Math.max(0, project.progress.helperResponses || 0) + 1;
+        return this.recordProjectContribution(project.id, data.helperId || data.butterflyId || data.actorId, 'helper-followthrough', {
+            requesterId: data.requesterId || null,
+            blockId: data.blockId || null,
+            createsShade: data.createsShade === true,
+            shadeProgress: data.shadeProgress || null
+        });
     }
 
     serializeDurableState() {

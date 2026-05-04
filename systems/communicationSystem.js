@@ -362,6 +362,17 @@ class CommunicationSystem {
                 shadeProgress: shadeIntent.shadeProgress || placement.shadeProgress || null,
                 shadeIntentScore: shadeIntent.intentScore || placement.shadeIntentScore || 0
             };
+            const project = objectSystem?.recordShadeProjectRequest?.({
+                ...metadata,
+                requesterId: source.id,
+                helperIds: helpers.map(helper => helper.id),
+                blockId: carriedBlock.id,
+                supportBlockId: placement.supportBlockId || null,
+                zoneId
+            });
+            if (project?.id) {
+                metadata.projectId = project.id;
+            }
             this.emitCooperationSignal(source, {
                 signalType: 'guidance_signal',
                 intentFamily: 'social',
@@ -379,6 +390,7 @@ class CommunicationSystem {
                 requesterId: source.id,
                 helperIds: helpers.map(helper => helper.id),
                 blockId: carriedBlock.id,
+                projectId: project?.id || null,
                 supportBlockId: placement.supportBlockId || null,
                 zoneId,
                 currentFrame,
