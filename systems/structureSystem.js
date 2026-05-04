@@ -1761,6 +1761,89 @@ class StructureSystem {
         };
     }
 
+    getShadeBuildingIntentConfig() {
+        return this.getShadeConfig()?.buildingIntent || {};
+    }
+
+    isShadeBuildingIntentEnabled() {
+        return this.isBlockShadeEnabled() && this.getShadeBuildingIntentConfig().enabled !== false;
+    }
+
+    getShadeBuildingIntentForActor(actor) {
+        if (!actor || !this.isShadeBuildingIntentEnabled()) return 0;
+        const config = this.getShadeBuildingIntentConfig();
+        const lifeSim = actor.lifeSim || {};
+        const drives = lifeSim.drives || {};
+        const emotions = lifeSim.emotions || {};
+        const biases = lifeSim.derived?.behaviorBiases || {};
+        const weighted =
+            (biases.shelterSeeking || 0) * Number(config.shelterSeekingWeight ?? 0.42)
+            + (drives.rest || 0) * Number(config.restWeight ?? 0.25)
+            + (emotions.exhaustion || 0) * Number(config.exhaustionWeight ?? 0.22)
+            + (biases.objectInterest || 0) * Number(config.objectInterestWeight ?? 0.18)
+            + (drives.exploration || 0) * Number(config.explorationWeight ?? 0.1);
+        return this.clamp01(weighted);
+    }
+
+    describeShadeBuildingIntentForPlacement(actor, placement, zoneProfile, stack = null) {
+        if (!actor || !placement || !zoneProfile || !this.isShadeBuildingIntentEnabled()) return null;
+        const config = this.getShadeBuildingIntentConfig();
+        const intentScore = this.getShadeBuildingIntentForActor(actor);
+        const minStackHeight = Math.max(2, Math.round(this.getShadeConfig().minStackHeight || 2));
+        const targetStackHeight = Math.max(1, Math.round((placement.stackIndex || 0) + 1));
+        const createsShade = placement.placementMode === 'stacked' && targetStackHeight >= minStackHeight;
+        const shadeContext = this.getShadeContextForPoint(zoneProfile.zoneId, placement, { searchRadiusScale: 1.6 });
+        const extendsShade = createsShade !== true && shadeContext?.shadeCandidate === true;
+        const shadeProgress = createsShade
+            ? 'creates-shade'
+            : (extendsShade ? 'extends-shade' : (placement.placementMode === 'stacked' ? 'raises-stack' : 'neutral'));
+        const stackProgress = this.clamp01(targetStackHeight / Math.max(1, minStackHeight));
+        const shadeBonus = createsShade
+            ? Number(config.stackCompletionBonus ?? 0.7)
+            : (extendsShade ? Number(config.shadeExtensionBonus ?? 0.24) : 0);
+        const continuityBonus = placement.placementMode === 'stacked'
+            ? Number(config.stackContinuityBonus ?? 0.12) * stackProgress
+            : 0;
+        const score = intentScore * (shadeBonus + continuityBonus);
+        return {
+            enabled: true,
+            source: createsShade ? 'stack-completion' : (extendsShade ? 'shade-extension' : 'structure-continuity'),
+            intentScore,
+            score,
+            shadeProgress,
+            createsShade,
+            extendsShade,
+            targetStackHeight,
+            minStackHeight,
+            supportBlockId: placement.supportBlockId || stack?.topBlockId || stack?.baseBlockId || null,
+            shadeSourceBlockId: shadeContext?.shadeSourceBlockId || null
+        };
+    }
+
+    annotatePlacementWithShadeIntent(actor, placement, zoneProfile, stack = null) {
+        if (!placement) return placement;
+        const shadeIntent = this.describeShadeBuildingIntentForPlacement(actor, placement, zoneProfile, stack);
+        if (!shadeIntent) return placement;
+        return {
+            ...placement,
+            shadeIntent,
+            shadeIntentScore: shadeIntent.intentScore,
+            shadeProgress: shadeIntent.shadeProgress,
+            createsShade: shadeIntent.createsShade === true
+        };
+    }
+
+    scoreBlockPlacementTargetForActor(actor, placement, zoneProfile, stack = null) {
+        const config = this.getShadeBuildingIntentConfig();
+        const distancePenaltyScale = Number(config.distancePenaltyScale ?? 0.018);
+        const distance = actor && placement
+            ? Math.hypot((placement.x || 0) - (actor.x || 0), (placement.y || 0) - (actor.y || 0))
+            : 0;
+        const shadeIntent = this.describeShadeBuildingIntentForPlacement(actor, placement, zoneProfile, stack);
+        const shadeScore = shadeIntent?.score || 0;
+        return shadeScore - (distance * distancePenaltyScale);
+    }
+
     queryCollisionGeometry(zoneId, point, options = {}) {
         if (!zoneId || !point) return null;
         const cloneResults = options.cloneResults !== false;
@@ -2266,9 +2349,6 @@ class StructureSystem {
             if (!supportStack) {
                 return false;
             }
-            if (supportComponent && this.pointConflictsWithOpening(supportComponent, point, spacing)) {
-                return false;
-            }
             if (requestedStackIndex !== supportStack.height) {
                 return false;
             }
@@ -2453,27 +2533,42 @@ class StructureSystem {
                 candidateBlocks
             );
 
-        const nearestStack = stacks
+        const stackCandidates = stacks
+            .filter(stack => stack.height < this.getMaxStackHeight())
+            .map(stack => {
+                const stackedPlacement = {
+                    x: stack.x,
+                    y: stack.y,
+                    stackIndex: stack.height,
+                    supportBlockId: stack.topBlockId || stack.baseBlockId || null,
+                    placementMode: 'stacked',
+                    zoneId,
+                    componentId: stack.componentId || stack.component?.id || null,
+                    supportComponentId: stack.componentId || stack.component?.id || null
+                };
+                return {
+                    stack,
+                    placement: stackedPlacement,
+                    score: this.scoreBlockPlacementTargetForActor(butterfly, stackedPlacement, zoneProfile, stack)
+                };
+            })
+            .filter(candidate => this.validatePlacementTargetForBlock(butterfly, carriedBlock, candidate.placement, candidateBlocks))
+            .sort((left, right) => right.score - left.score);
+
+        const nearestStack = (stackCandidates[0]?.stack || stacks
             .slice()
             .sort((left, right) =>
                 Math.hypot((left.x || 0) - butterfly.x, (left.y || 0) - butterfly.y)
                 - Math.hypot((right.x || 0) - butterfly.x, (right.y || 0) - butterfly.y)
-            )[0] || null;
+            )[0]) || null;
 
-        if (nearestStack && nearestStack.height < this.getMaxStackHeight()) {
-            const stackedPlacement = {
-                x: nearestStack.x,
-                y: nearestStack.y,
-                stackIndex: nearestStack.height,
-                supportBlockId: nearestStack.topBlockId || nearestStack.baseBlockId || null,
-                placementMode: 'stacked',
-                zoneId,
-                componentId: nearestStack.componentId || nearestStack.component?.id || null,
-                supportComponentId: nearestStack.componentId || nearestStack.component?.id || null
-            };
-            if (this.validatePlacementTargetForBlock(butterfly, carriedBlock, stackedPlacement, candidateBlocks)) {
-                return stackedPlacement;
-            }
+        if (stackCandidates[0]) {
+            return this.annotatePlacementWithShadeIntent(
+                butterfly,
+                stackCandidates[0].placement,
+                zoneProfile,
+                stackCandidates[0].stack
+            );
         }
 
         const perimeterComponent = nearestStack?.component
@@ -2492,7 +2587,7 @@ class StructureSystem {
                 const clamped = gameCore?.clampPlacementPoint?.(proposed.x, proposed.y, blockUnit.clampPadding) || proposed;
                 if (!isClear(clamped, 'connected', 0, nearestStack?.baseBlockId || null, perimeterComponent.id)) continue;
                 return {
-                    ...this.normalizeBlockPlacementToCell({
+                    ...this.annotatePlacementWithShadeIntent(butterfly, this.normalizeBlockPlacementToCell({
                         x: clamped.x,
                         y: clamped.y,
                         stackIndex: 0,
@@ -2501,7 +2596,7 @@ class StructureSystem {
                         zoneId,
                         componentId: perimeterComponent.id,
                         supportComponentId: perimeterComponent.id
-                    }, carriedBlock, candidateBlocks, butterfly),
+                    }, carriedBlock, candidateBlocks, butterfly), zoneProfile, nearestStack),
                     stackIndex: 0,
                     supportBlockId: nearestStack?.baseBlockId || null,
                     placementMode: 'connected',
@@ -2525,7 +2620,7 @@ class StructureSystem {
             };
             if (!isClear(proposed, 'ground', 0, null, preferredComponent?.id || null)) continue;
             return {
-                ...this.normalizeBlockPlacementToCell({
+                ...this.annotatePlacementWithShadeIntent(butterfly, this.normalizeBlockPlacementToCell({
                     x: proposed.x,
                     y: proposed.y,
                     stackIndex: 0,
@@ -2533,7 +2628,7 @@ class StructureSystem {
                     placementMode: 'ground',
                     zoneId,
                     componentId: preferredComponent?.id || null
-                }, carriedBlock, candidateBlocks, butterfly),
+                }, carriedBlock, candidateBlocks, butterfly), zoneProfile, null),
                 stackIndex: 0,
                 supportBlockId: null,
                 placementMode: 'ground',

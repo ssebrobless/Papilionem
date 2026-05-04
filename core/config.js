@@ -588,7 +588,22 @@ const PAPILIONEM_BATTLE_ARENA = {
                 restDriveBoost: 0.12,
                 reliefBoost: 0.1,
                 exhaustionRecovery: 0.01,
-                shelterSeekingBoost: 0.18
+                shelterSeekingBoost: 0.18,
+                buildingIntent: {
+                    enabled: true,
+                    stackCompletionBonus: 0.7,
+                    shadeExtensionBonus: 0.24,
+                    stackContinuityBonus: 0.12,
+                    distancePenaltyScale: 0.018,
+                    shelterSeekingWeight: 0.42,
+                    restWeight: 0.25,
+                    exhaustionWeight: 0.22,
+                    objectInterestWeight: 0.18,
+                    explorationWeight: 0.1,
+                    memoryStrength: 0.5,
+                    reliefReward: 0.04,
+                    significanceReward: 0.035
+                }
             }
         },
 

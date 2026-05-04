@@ -2806,21 +2806,54 @@ class Butterfly extends Entity {
         );
         if (!placed) return false;
 
+        const shadeIntent = placement.shadeIntent || null;
+        const createsShade = shadeIntent?.createsShade === true || placement.createsShade === true;
+        const shadeProgress = shadeIntent?.shadeProgress || placement.shadeProgress || null;
+        const shadeConfig = gameConfig?.entities?.block?.shade?.buildingIntent || {};
         this.lifeSim.emotions.curiosity = Math.min(1, (this.lifeSim.emotions.curiosity || 0) + 0.028);
         this.lifeSim.emotions.happiness = Math.min(1, (this.lifeSim.emotions.happiness || 0) + 0.018);
+        if (createsShade) {
+            this.lifeSim.emotions.relief = Math.min(1, (this.lifeSim.emotions.relief || 0) + Number(shadeConfig.reliefReward ?? 0.04));
+            this.lifeSim.emotions.significance = Math.min(1, (this.lifeSim.emotions.significance || 0) + Number(shadeConfig.significanceReward ?? 0.035));
+        }
         appendLifeMemory(this, 'object', {
             subjectId: block.id,
-            valence: 0.24,
-            strength: 0.42,
-            tags: ['block', 'shelter-material', placement.placementMode || 'placed-block'],
+            valence: createsShade ? 0.32 : 0.24,
+            strength: createsShade ? Number(shadeConfig.memoryStrength ?? 0.5) : 0.42,
+            tags: [
+                'block',
+                'shelter-material',
+                placement.placementMode || 'placed-block',
+                ...(shadeProgress ? ['shade', shadeProgress] : []),
+                ...(createsShade && shadeProgress !== 'creates-shade' ? ['creates-shade'] : [])
+            ],
             metadata: {
                 zoneId,
                 relativeSize: this.blockInteraction.lastRelativeSize,
                 placementMode: placement.placementMode || 'ground',
                 stackIndex: placement.stackIndex ?? 0,
-                supportBlockId: placement.supportBlockId || null
+                supportBlockId: placement.supportBlockId || null,
+                shadeIntentScore: shadeIntent?.intentScore ?? placement.shadeIntentScore ?? null,
+                shadeProgress,
+                createsShade,
+                shadeIntentSource: shadeIntent?.source || null,
+                targetStackHeight: shadeIntent?.targetStackHeight ?? null
             }
         });
+        if (createsShade || shadeProgress) {
+            eventBus?.emit?.('building:shade-progress', {
+                butterflyId: this.id,
+                blockId: block.id,
+                zoneId,
+                currentFrame: gameCore?.getCurrentFrame?.() ?? frameCount,
+                placementMode: placement.placementMode || 'ground',
+                stackIndex: placement.stackIndex ?? 0,
+                supportBlockId: placement.supportBlockId || null,
+                shadeProgress,
+                createsShade,
+                shadeIntentScore: shadeIntent?.intentScore ?? placement.shadeIntentScore ?? null
+            });
+        }
         gameCore?.particleSystem?.emitBurst?.(block.x, block.y - 4, [88, 232, 208], 5);
 
         this.blockInteraction.carryingBlockId = null;
