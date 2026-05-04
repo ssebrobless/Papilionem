@@ -3208,13 +3208,16 @@ class Butterfly extends Entity {
             const buildDistance = Number.isFinite(constructionPoint.x) && Number.isFinite(constructionPoint.y)
                 ? Math.hypot((block.x || 0) - constructionPoint.x, (block.y || 0) - constructionPoint.y)
                 : 0;
-            const helperScore = Math.max(0, 1 - (helperDistanceUnits / Math.max(1, maxDistanceUnits)));
+            const helperDistancePx = Math.hypot((block.x || 0) - (this.x || 0), (block.y || 0) - (this.y || 0));
+            const maxDistancePx = communicationSystem?.radiusUnitsToPixels?.(maxDistanceUnits, zoneId)
+                || Math.max(80, maxDistanceUnits * 20);
+            const helperScore = Math.max(0, 1 - (helperDistancePx / Math.max(1, maxDistancePx)));
             const buildScore = Math.max(0, 1 - (buildDistance / 220));
             const roleWeights = roleLabel === 'builder'
-                ? { helper: 0.46, build: 0.74 }
+                ? { helper: 0.25, build: 0.95 }
                 : (roleLabel === 'coordinator'
                     ? { helper: 0.58, build: 0.58 }
-                    : { helper: 0.78, build: 0.36 });
+                    : { helper: 1, build: 0 });
             const score = (helperScore * roleWeights.helper) + (buildScore * roleWeights.build);
             if (score > bestScore) {
                 bestScore = score;

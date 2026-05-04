@@ -303,6 +303,75 @@ async function run() {
         preferredScore
       });
 
+      const roleProbeHelperPoint = screen(16, 16, 0);
+      helper.x = roleProbeHelperPoint.x;
+      helper.y = roleProbeHelperPoint.y;
+      helper.syncBoardPosFromScreen?.({ zoneId });
+      const roleProbeConstructionPoint = screen(20, 16, 1);
+      const makeProbeBlock = (id, point) => {
+        return {
+          id,
+          x: point.x,
+          y: point.y,
+          currentZoneId: zoneId,
+          carriedById: null,
+          canBeMovedBy: () => true
+        };
+      };
+      const roleProbeBlocks = {
+        nearHelper: makeProbeBlock('role-probe-near-helper', { x: roleProbeHelperPoint.x + 6, y: roleProbeHelperPoint.y }),
+        middle: makeProbeBlock('role-probe-middle', {
+          x: (roleProbeHelperPoint.x + roleProbeConstructionPoint.x) / 2,
+          y: (roleProbeHelperPoint.y + roleProbeConstructionPoint.y) / 2
+        }),
+        nearBuild: makeProbeBlock('role-probe-near-build', { x: roleProbeConstructionPoint.x, y: roleProbeConstructionPoint.y })
+      };
+      const roleProbeBaseSignal = {
+        sourceId: requester.id,
+        signalId: 'role-probe-signal',
+        metadata: {
+          reason: 'shade-building-help',
+          requestedAtFrame: gameCore.getCurrentFrame?.() || 0,
+          supportBlockId: baseBlock.id,
+          constructionPoint: {
+            ...roleProbeConstructionPoint,
+            boardPos: cell(20, 16, 1)
+          }
+        }
+      };
+      const roleProbeTarget = (roleLabel) => helper.findBuildingHelpBlockTarget?.(
+        Object.values(roleProbeBlocks),
+        {
+          ...roleProbeBaseSignal,
+          metadata: {
+            ...roleProbeBaseSignal.metadata,
+            helperPreference: [{
+              helperId: helper.id,
+              roleLabel,
+              roleScores: { builder: roleLabel === 'builder' ? 1 : 0, carrier: roleLabel === 'carrier' ? 1 : 0, coordinator: roleLabel === 'coordinator' ? 1 : 0 }
+            }]
+          }
+        }
+      );
+      const builderTarget = roleProbeTarget('builder');
+      const carrierTarget = roleProbeTarget('carrier');
+      const coordinatorTarget = roleProbeTarget('coordinator');
+      add('role-coverage-builder-and-carrier-target-different-blocks', builderTarget?.id === roleProbeBlocks.nearBuild.id
+        && carrierTarget?.id
+        && carrierTarget?.id !== roleProbeBlocks.nearBuild.id
+        && builderTarget?.id !== carrierTarget?.id, {
+        builderTargetId: builderTarget?.id || null,
+        carrierTargetId: carrierTarget?.id || null,
+        probeBlockIds: Object.fromEntries(Object.entries(roleProbeBlocks).map(([label, block]) => [label, block.id]))
+      });
+      add('role-coverage-coordinator-has-actionable-target', !!coordinatorTarget?.id
+        && Object.values(roleProbeBlocks).some(block => block.id === coordinatorTarget.id), {
+        coordinatorTargetId: coordinatorTarget?.id || null,
+        probeBlockIds: Object.fromEntries(Object.entries(roleProbeBlocks).map(([label, block]) => [label, block.id]))
+      });
+
+      moveButterflyToCell(helper, 22, 16);
+
       helper.checkBlockExperimentation?.(gameCore.gameState.blocks || []);
       const acceptedEvent = (eventBus.getHistory?.('building:helper-accepted') || [])
         .map(entry => entry?.data || entry)

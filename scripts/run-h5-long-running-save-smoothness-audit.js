@@ -483,9 +483,11 @@ async function run() {
         const traveler = (state.butterflies || [])
           .find(entity => entity?.id && !entity.zoneTravel && !entity.isSpawning) || null;
         const sourceZoneId = traveler?.currentZoneId || traveler?.lifeSim?.lifecycle?.currentZoneId || null;
-        const targetZoneId = (gameCore.getZoneIds?.() || []).find(zoneId => zoneId !== sourceZoneId) || null;
+        const targetZoneId = (gameCore.getZoneIds?.() || [])
+          .filter(zoneId => zoneId !== sourceZoneId)
+          .find(zoneId => gameCore.buildZoneTravelRoute?.(sourceZoneId, zoneId)?.edgeMode) || null;
         if (!sourceZoneId || !targetZoneId || !traveler?.id) {
-          return { ok: false, reason: 'missing-travel-fixture' };
+          return { ok: false, reason: 'missing-edge-travel-fixture', travelerId: traveler?.id || null, sourceZoneId, targetZoneId };
         }
         gameCore.focusZone?.(sourceZoneId);
         const started = !!gameCore.startZoneTravel?.(traveler, targetZoneId, 'h5-travel-retest');

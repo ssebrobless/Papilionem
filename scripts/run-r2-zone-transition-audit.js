@@ -312,22 +312,36 @@ async function run() {
 
         const openingPoint = shelter.openingProfile.outerPoint;
         const interiorPoint = shelter.interiorPoint;
+        const openingTransitionTargets = [
+          shelter.openingProfile.innerPoint,
+          shelter.entryPoint,
+          interiorPoint
+        ].filter(point => point && Number.isFinite(point.x) && Number.isFinite(point.y));
         const wallPoint = { x: wallStack.x, y: wallStack.y };
 
         butterfly.x = openingPoint.x;
         butterfly.y = openingPoint.y;
         butterfly.gridPos = gridManager.screenToIso(butterfly.x, butterfly.y);
         const openingContext = structureSystem.getSpatialContextForEntity(butterfly, gameState);
-        const openingAllowed = gameCore.isScreenPointBlockedForButterfly(
-          interiorPoint.x,
-          interiorPoint.y,
-          butterfly,
-          {
-            zoneId,
-            fromX: openingPoint.x,
-            fromY: openingPoint.y
+        let openingAllowed = true;
+        let openingTransitionTarget = null;
+        for (const target of openingTransitionTargets) {
+          const blocked = gameCore.isScreenPointBlockedForButterfly(
+            target.x,
+            target.y,
+            butterfly,
+            {
+              zoneId,
+              fromX: openingPoint.x,
+              fromY: openingPoint.y
+            }
+          );
+          if (blocked === false) {
+            openingAllowed = false;
+            openingTransitionTarget = target;
+            break;
           }
-        );
+        }
 
         butterfly.x = interiorPoint.x;
         butterfly.y = interiorPoint.y;
@@ -357,6 +371,7 @@ async function run() {
           openingContext,
           interiorContext,
           openingAllowed,
+          openingTransitionTarget,
           wallBlocked
         };
       });
