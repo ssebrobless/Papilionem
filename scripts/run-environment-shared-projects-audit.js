@@ -278,6 +278,23 @@ async function run() {
         .map(entry => entry?.data || entry)
         .filter(event => event?.projectId === requestEvent?.projectId)
         .slice(-1)[0] || null;
+      const socialPayoffEvent = (eventBus.getHistory?.('environment:project-social-payoff') || [])
+        .map(entry => entry?.data || entry)
+        .filter(event => event?.projectId === requestEvent?.projectId)
+        .slice(-1)[0] || null;
+      const requesterMemory = (requester.lifeSim?.memories?.object || [])
+        .find(memory => memory?.metadata?.projectId === requestEvent?.projectId
+          && memory?.tags?.includes?.('shared-project-completion')) || null;
+      const helperMemory = (helper.lifeSim?.memories?.object || [])
+        .find(memory => memory?.metadata?.projectId === requestEvent?.projectId
+          && memory?.tags?.includes?.('shared-project-completion')) || null;
+      const helperEdge = helper.lifeSim?.socialEdges?.[requester.id] || {};
+      const requesterEdge = requester.lifeSim?.socialEdges?.[helper.id] || {};
+      const formattedFeed = gameUI?.formatActivityEntry?.({
+        event: 'environment:project-completed',
+        data: completedEvent || {},
+        timestamp: Date.now()
+      }) || null;
 
       add('helper-placement-completes-shade-project', placed === true
         && !!shadeColumn
@@ -301,6 +318,28 @@ async function run() {
         && completedEvent.contributorIds?.includes?.(requester.id)
         && completedEvent.contributorIds?.includes?.(helper.id), {
         completedEvent
+      });
+      add('shared-project-completion-records-object-memories', !!socialPayoffEvent
+        && completedEvent?.memoryCount >= 2
+        && !!requesterMemory
+        && !!helperMemory, {
+        socialPayoffEvent,
+        completedEvent,
+        requesterMemory,
+        helperMemory
+      });
+      add('shared-project-completion-strengthens-social-edges', (helperEdge.historyTags || []).includes('shared-project-completion')
+        && (requesterEdge.historyTags || []).includes('shared-project-completion')
+        && (helperEdge.followThroughScore || 0) > 0.16
+        && (requesterEdge.followThroughScore || 0) > 0.16, {
+        helperEdge,
+        requesterEdge
+      });
+      add('shared-project-completion-has-feed-line', !!formattedFeed?.line
+        && /shared shade shelter/i.test(formattedFeed.line)
+        && /memories/i.test(formattedFeed.grounding || '')
+        && /bond updates/i.test(formattedFeed.grounding || ''), {
+        formattedFeed
       });
       add('shared-projects-remain-runtime-only', !saveSystem?.serializeState
         || (() => {

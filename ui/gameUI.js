@@ -3833,6 +3833,7 @@ class GameUI {
             GameEvents?.OBJECT_DROPPED || 'object:dropped',
             GameEvents?.OBJECT_DELIVERED || 'object:delivered',
             'object:placed',
+            'environment:project-completed',
             GameEvents?.BATTLE_ACTION_OCCURRED || 'battle:actionOccurred'
         ]);
 
@@ -4180,6 +4181,7 @@ class GameUI {
         if (candidateIds.includes(targetId)) return true;
         if (Array.isArray(data?.butterflyIds) && data.butterflyIds.includes(targetId)) return true;
         if (Array.isArray(data?.targetIds) && data.targetIds.includes(targetId)) return true;
+        if (Array.isArray(data?.contributorIds) && data.contributorIds.includes(targetId)) return true;
         return false;
     }
 
@@ -4409,6 +4411,12 @@ class GameUI {
         );
         const sourceLabel = this.getEntityDisplayName(this.getButterflyById(data?.sourceId), data?.sourceId || 'Butterfly');
         const targetLabel = this.getEntityDisplayName(this.getButterflyById(data?.targetId), data?.targetId || 'Butterfly');
+        const contributorLabels = Array.isArray(data?.contributorIds)
+            ? data.contributorIds
+                .slice(0, 3)
+                .map(id => this.getEntityDisplayName(this.getButterflyById(id), id))
+                .filter(Boolean)
+            : [];
         const countLabel = Array.isArray(data?.butterflyIds) ? data.butterflyIds.length : 0;
         const zoneLabel = this.getZoneDisplayName(data?.zoneId || data?.toZoneId || data?.focusedZoneId);
         const formattedButterflyState = this.formatButterflyStateFeedEntry(time, data);
@@ -4469,6 +4477,19 @@ class GameUI {
                     grounding: `${zoneLabel} • ${data?.objectType === 'block' ? 'material placement' : 'object placement'}`
                 }
             ),
+            ['environment:project-completed']: this.formatFeedActionLine(
+                time,
+                contributorLabels.length ? contributorLabels.join(' + ') : 'Butterflies',
+                data?.type === 'shadeShelter'
+                    ? 'Finished a shared shade shelter.'
+                    : 'Finished a shared project.',
+                null,
+                {
+                    category: 'action',
+                    grounding: `${zoneLabel} • ${data?.memoryCount || 0} memories • ${data?.edgeUpdateCount || 0} bond updates`,
+                    contextTags: ['shared work', 'shelter', 'cooperation']
+                }
+            ),
             [GameEvents?.BATTLE_ACTION_OCCURRED || 'battle:actionOccurred']: this.formatBattleFeedEntry(time, data)
         };
 
@@ -4488,6 +4509,7 @@ class GameUI {
             [GameEvents?.OBJECT_DROPPED || 'object:dropped']: 'action',
             [GameEvents?.OBJECT_DELIVERED || 'object:delivered']: 'action',
             ['object:placed']: 'action',
+            ['environment:project-completed']: 'action',
             [GameEvents?.BATTLE_ACTION_OCCURRED || 'battle:actionOccurred']: 'action'
         };
 
@@ -4499,6 +4521,7 @@ class GameUI {
             data?.listenerId,
             data?.sourceId,
             data?.targetId,
+            ...(Array.isArray(data?.contributorIds) ? data.contributorIds : []),
             data?.subtype,
             data?.to,
             data?.label,

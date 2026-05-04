@@ -641,7 +641,18 @@ const PAPILIONEM_BATTLE_ARENA = {
                     enabled: true,
                     completionRequiresContributors: 2,
                     completionRequiresPlacements: 1,
-                    maxActiveProjectsPerZone: 6
+                    maxActiveProjectsPerZone: 6,
+                    socialPayoff: {
+                        enabled: true,
+                        memoryStrength: 0.62,
+                        trustBoost: 0.008,
+                        comfortBoost: 0.01,
+                        admirationBoost: 0.006,
+                        attachmentBoost: 0.003,
+                        followThroughBoost: 0.02,
+                        mutualAttentionBoost: 0.025,
+                        warmthBoost: 0.02
+                    }
                 }
             }
         },

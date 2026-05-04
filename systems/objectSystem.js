@@ -415,12 +415,15 @@ class ObjectSystem {
             && (project.progress?.blockPlacements || 0) >= minPlacements) {
             project.status = 'completed';
             project.completedAtFrame = gameCore?.getCurrentFrame?.() ?? 0;
+            const socialPayoff = lifeSimSystem?.recordSharedProjectCompletion?.(project, gameCore?.gameState) || null;
             eventBus?.emit?.('environment:project-completed', {
                 projectId: project.id,
                 type: project.type,
                 zoneId: project.zoneId,
                 contributorIds: Object.keys(project.contributors || {}),
                 blockIds: [...(project.blockIds || [])],
+                memoryCount: socialPayoff?.memories?.length || 0,
+                edgeUpdateCount: socialPayoff?.edgeUpdates?.length || 0,
                 currentFrame: project.completedAtFrame
             });
         }
