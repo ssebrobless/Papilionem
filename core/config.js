@@ -635,7 +635,18 @@ const PAPILIONEM_BATTLE_ARENA = {
                     helperEdgeAdmiration: 0.01,
                     followThroughBoost: 0.04,
                     mutualAttentionBoost: 0.05,
-                    warmthBoost: 0.04
+                    warmthBoost: 0.04,
+                    projectPreference: {
+                        enabled: true,
+                        candidateEdgeWeight: 0.5,
+                        requesterEdgeWeight: 0.18,
+                        requesterMemoryWeight: 0.12,
+                        candidateMemoryWeight: 0.04,
+                        followThroughWeight: 0.08,
+                        objectInterestWeight: 0.06,
+                        distancePenaltyWeight: 0.1,
+                        memoryGateBoost: 0.04
+                    }
                 },
                 sharedProjects: {
                     enabled: true,

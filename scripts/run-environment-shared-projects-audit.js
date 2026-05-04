@@ -159,14 +159,15 @@ async function run() {
       };
 
       clearZone();
-      const [requester, helper] = gameCore.gameState.butterflies || [];
-      if (!requester || !helper) {
-        add('audit-has-two-butterflies', false, { butterflyCount: (gameCore.gameState.butterflies || []).length });
+      const [requester, helper, alternative] = gameCore.gameState.butterflies || [];
+      if (!requester || !helper || !alternative) {
+        add('audit-has-three-butterflies', false, { butterflyCount: (gameCore.gameState.butterflies || []).length });
         return assertions;
       }
 
       moveButterflyToCell(requester, 20, 16);
       moveButterflyToCell(helper, 22, 16);
+      moveButterflyToCell(alternative, 23, 16);
       requester.lifeSim.drives.rest = 0.88;
       requester.lifeSim.emotions.exhaustion = 0.74;
       requester.lifeSim.derived = requester.lifeSim.derived || {};
@@ -180,19 +181,53 @@ async function run() {
       helper.lifeSim.derived.behaviorBiases.objectInterest = 0.7;
       helper.blockInteraction.cooldownFrames = 0;
       requester.blockInteraction.cooldownFrames = 0;
+      alternative.lifeSim.derived = alternative.lifeSim.derived || {};
+      alternative.lifeSim.derived.behaviorBiases = alternative.lifeSim.derived.behaviorBiases || {};
+      alternative.lifeSim.derived.behaviorBiases.objectInterest = 0.72;
+      alternative.blockInteraction.cooldownFrames = 0;
       ensureEdgePair(requester, helper, {
-        trust: 0.72,
-        comfort: 0.7,
-        attachment: 0.5,
-        admiration: 0.22,
+        trust: 0.5,
+        comfort: 0.48,
+        attachment: 0.34,
+        admiration: 0.16,
         bondTier: 'companion',
-        followThroughScore: 0.12,
+        followThroughScore: 0.18,
         recentWarmth: 0.12
       });
+      ensureEdgePair(requester, alternative, {
+        trust: 0.58,
+        comfort: 0.54,
+        attachment: 0.36,
+        admiration: 0.18,
+        bondTier: 'companion',
+        followThroughScore: 0.08,
+        recentWarmth: 0.08
+      });
+      appendLifeMemory?.(requester, 'object', {
+        subjectId: 'prior-shade-project',
+        valence: 0.45,
+        strength: 0.86,
+        createdAtSeconds: lifeSimSystem?.simulationClockSeconds ?? null,
+        emotionalColoring: { attachment: 0.24, relief: 0.2, significance: 0.18 },
+        tags: ['shared-project-completion', 'shade-building-cooperation', 'shelter-use'],
+        metadata: {
+          projectId: 'prior-shade-project',
+          projectType: 'shadeShelter',
+          zoneId,
+          contributorIds: [requester.id, helper.id],
+          completedAtFrame: Math.max(0, (gameCore.getCurrentFrame?.() || 0) - 120),
+          createsShade: true,
+          blockIds: []
+        }
+      });
+      const cooperationConfig = gameConfig.entities.block.shade.buildingCooperation;
+      const originalMaxHelpers = cooperationConfig.maxHelpers;
+      cooperationConfig.maxHelpers = 1;
 
       const baseBlock = spawnBlockAt(20, 15, 0);
       const requesterBlock = spawnBlockAt(21, 16, 0);
       const helperBlock = spawnBlockAt(22, 16, 0);
+      const alternativeBlock = spawnBlockAt(23, 16, 0);
       requesterBlock.pickupBy?.(requester);
       requester.blockInteraction.carryingBlockId = requesterBlock.id;
       requester.blockInteraction.carryFrames = 12;
@@ -203,6 +238,8 @@ async function run() {
       add('requester-has-shade-building-target', requesterPlacement?.shadeIntent?.createsShade === true, {
         requesterPlacement
       });
+      const preferredScoreBeforeRequest = communicationSystem.scoreBuildingHelperCandidate?.(requester, helper, zoneId, requesterPlacement, gameCore.gameState.blocks || []);
+      const alternativeScoreBeforeRequest = communicationSystem.scoreBuildingHelperCandidate?.(requester, alternative, zoneId, requesterPlacement, gameCore.gameState.blocks || []);
 
       const emitted = communicationSystem.updateShadeBuildingCooperation?.(gameCore.gameState, gameCore.getCurrentFrame?.() || 0, { force: true });
       const requestEvent = (eventBus.getHistory?.('building:cooperation-requested') || [])
@@ -240,6 +277,20 @@ async function run() {
         && (projectAfterRequest?.contributors?.[helper.id]?.roles || []).includes('invited-helper')
         && (projectAfterRequest?.contributors?.[helper.id]?.contributions || 0) === 0, {
         helperContributor: projectAfterRequest?.contributors?.[helper.id] || null
+      });
+      const preferenceScores = requestEvent?.helperPreference || [];
+      const preferredScore = preferenceScores.find(entry => entry.helperId === helper.id) || null;
+      add('prior-project-memory-selects-preferred-helper', requestEvent?.helperIds?.[0] === helper.id
+        && !requestEvent?.helperIds?.includes?.(alternative.id)
+        && preferredScore?.requesterMemoryScore > 0
+        && preferredScore?.reason === 'prior-shared-project'
+        && preferredScoreBeforeRequest?.score > alternativeScoreBeforeRequest?.score, {
+        requestEvent,
+        preferredScore,
+        preferredScoreBeforeRequest,
+        alternativeScoreBeforeRequest,
+        alternativeId: alternative.id,
+        alternativeBlockId: alternativeBlock?.id || null
       });
 
       helper.checkBlockExperimentation?.(gameCore.gameState.blocks || []);
@@ -349,6 +400,7 @@ async function run() {
         })(), {
         projectId: requestEvent?.projectId || null
       });
+      cooperationConfig.maxHelpers = originalMaxHelpers;
 
       return assertions;
     });

@@ -294,20 +294,94 @@ class CommunicationSystem {
         );
     }
 
+    getSharedProjectPartnerMemoryScore(entity, partnerId, currentFrame = this.getCurrentFrame()) {
+        if (!entity?.id || !partnerId) return 0;
+        const memories = entity.lifeSim?.memories?.object || [];
+        let best = 0;
+        for (const memory of memories) {
+            if (!memory?.tags?.includes?.('shared-project-completion')) continue;
+            const contributorIds = memory.metadata?.contributorIds || [];
+            if (!contributorIds.includes(partnerId)) continue;
+            const completedAtFrame = Number(memory.metadata?.completedAtFrame);
+            const ageFrames = Number.isFinite(completedAtFrame)
+                ? Math.max(0, currentFrame - completedAtFrame)
+                : 900;
+            const recency = 1 / (1 + (ageFrames / 7200));
+            best = Math.max(best, this.clamp01(memory.strength || 0.35) * recency);
+        }
+        return this.clamp01(best);
+    }
+
+    scoreBuildingHelperCandidate(source, candidate, zoneId = null, placement = null, blocks = []) {
+        const config = this.getShadeBuildingCooperationConfig();
+        const preference = config.projectPreference || {};
+        const currentFrame = this.getCurrentFrame();
+        const maxDistanceUnits = Math.max(1, Number(config.maxHelperDistanceUnits ?? 7));
+        const distanceUnits = this.getBoardDistanceBetween(candidate, source, zoneId);
+        const candidateEdgeScore = this.edgePriorityScore(candidate, source.id);
+        const requesterEdgeScore = this.edgePriorityScore(source, candidate.id);
+        const requesterMemoryScore = preference.enabled === false
+            ? 0
+            : this.getSharedProjectPartnerMemoryScore(source, candidate.id, currentFrame);
+        const candidateMemoryScore = preference.enabled === false
+            ? 0
+            : this.getSharedProjectPartnerMemoryScore(candidate, source.id, currentFrame);
+        const candidateEdge = candidate?.lifeSim?.socialEdges?.[source.id] || {};
+        const sourceEdge = source?.lifeSim?.socialEdges?.[candidate.id] || {};
+        const followThroughScore = this.clamp01(Math.max(
+            candidateEdge.followThroughScore || 0,
+            sourceEdge.followThroughScore || 0
+        ));
+        const objectInterest = this.clamp01(candidate?.lifeSim?.derived?.behaviorBiases?.objectInterest || 0);
+        const distancePenalty = this.clamp01(distanceUnits / maxDistanceUnits) * Number(preference.distancePenaltyWeight ?? 0.1);
+        const score = this.clamp01(
+            (candidateEdgeScore * Number(preference.candidateEdgeWeight ?? 0.42))
+            + (requesterEdgeScore * Number(preference.requesterEdgeWeight ?? 0.18))
+            + (requesterMemoryScore * Number(preference.requesterMemoryWeight ?? 0.24))
+            + (candidateMemoryScore * Number(preference.candidateMemoryWeight ?? 0.08))
+            + (followThroughScore * Number(preference.followThroughWeight ?? 0.12))
+            + (objectInterest * Number(preference.objectInterestWeight ?? 0.06))
+            - distancePenalty
+        );
+        return {
+            candidate,
+            id: candidate?.id || null,
+            score,
+            candidateEdgeScore,
+            requesterEdgeScore,
+            requesterMemoryScore,
+            candidateMemoryScore,
+            followThroughScore,
+            objectInterest,
+            distanceUnits,
+            distancePenalty,
+            hasSharedProjectMemory: requesterMemoryScore > 0 || candidateMemoryScore > 0,
+            reason: requesterMemoryScore > 0
+                ? 'prior-shared-project'
+                : (followThroughScore > 0.18 ? 'reliable-helper' : 'relationship-fit')
+        };
+    }
+
     getBuildingHelperCandidates(source, liveEntities = [], zoneId = null, placement = null, blocks = []) {
         if (!source?.id || !zoneId || !placement) return [];
         const config = this.getShadeBuildingCooperationConfig();
         const maxDistanceUnits = Number(config.maxHelperDistanceUnits ?? 7);
         const maxBlockDistanceUnits = Number(config.maxHelperBlockDistanceUnits ?? 5);
         const minEdgeScore = Number(config.minHelperEdgeScore ?? 0.38);
+        const preference = config.projectPreference || {};
+        const memoryGateBoost = preference.enabled === false ? 0 : Number(preference.memoryGateBoost ?? 0.08);
         return liveEntities
             .filter(candidate => candidate?.id && candidate.id !== source.id)
             .filter(candidate => this.getZoneId(candidate) === zoneId)
             .filter(candidate => !this.getCarriedBlockForEntity(candidate))
             .filter(candidate => this.getBoardDistanceBetween(candidate, source, zoneId) <= maxDistanceUnits)
-            .filter(candidate => this.isCompanionOrBetter(candidate, source.id) || this.edgePriorityScore(candidate, source.id) >= minEdgeScore)
             .filter(candidate => this.hasLooseBlockNearEntity(candidate, blocks, zoneId, maxBlockDistanceUnits))
-            .sort((left, right) => this.edgePriorityScore(right, source.id) - this.edgePriorityScore(left, source.id))
+            .map(candidate => this.scoreBuildingHelperCandidate(source, candidate, zoneId, placement, blocks))
+            .filter(entry => this.isCompanionOrBetter(entry.candidate, source.id)
+                || entry.candidateEdgeScore >= minEdgeScore
+                || (entry.requesterMemoryScore + memoryGateBoost) >= minEdgeScore)
+            .sort((left, right) => (right.score - left.score) || (left.distanceUnits - right.distanceUnits))
+            .map(entry => entry.candidate)
             .slice(0, Math.max(1, Math.round(Number(config.maxHelpers ?? 2))));
     }
 
@@ -347,6 +421,7 @@ class CommunicationSystem {
             if (!options.force && Number.isFinite(lastFrame) && (currentFrame - lastFrame) < cooldownFrames) continue;
             const helpers = this.getBuildingHelperCandidates(source, liveEntities, zoneId, placement, blocks);
             if (!helpers.length) continue;
+            const helperScores = helpers.map(helper => this.scoreBuildingHelperCandidate(source, helper, zoneId, placement, blocks));
             this.buildingAidRecords.set(requestKey, currentFrame);
             const metadata = {
                 reason: 'shade-building-help',
@@ -360,7 +435,17 @@ class CommunicationSystem {
                     boardPos: placement.boardPos ? { ...placement.boardPos } : null
                 },
                 shadeProgress: shadeIntent.shadeProgress || placement.shadeProgress || null,
-                shadeIntentScore: shadeIntent.intentScore || placement.shadeIntentScore || 0
+                shadeIntentScore: shadeIntent.intentScore || placement.shadeIntentScore || 0,
+                helperPreference: helperScores.map(entry => ({
+                    helperId: entry.id,
+                    score: Number(entry.score.toFixed(3)),
+                    requesterMemoryScore: Number(entry.requesterMemoryScore.toFixed(3)),
+                    candidateMemoryScore: Number(entry.candidateMemoryScore.toFixed(3)),
+                    candidateEdgeScore: Number(entry.candidateEdgeScore.toFixed(3)),
+                    requesterEdgeScore: Number(entry.requesterEdgeScore.toFixed(3)),
+                    followThroughScore: Number(entry.followThroughScore.toFixed(3)),
+                    reason: entry.reason
+                }))
             };
             const project = objectSystem?.recordShadeProjectRequest?.({
                 ...metadata,
@@ -395,7 +480,8 @@ class CommunicationSystem {
                 zoneId,
                 currentFrame,
                 shadeIntentScore: metadata.shadeIntentScore,
-                shadeProgress: metadata.shadeProgress
+                shadeProgress: metadata.shadeProgress,
+                helperPreference: metadata.helperPreference
             });
             emitted += 1;
         }
