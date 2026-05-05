@@ -20,6 +20,56 @@ function timestampLabel() {
   return new Date().toISOString().replace(/[:.]/g, '-');
 }
 
+function classifyDialoguePhrase(phrase = '') {
+  const text = String(phrase || '').toLowerCase();
+  const systemLike = /\b(?:grid|cell|zone|map|target|packet|frame|affordance|runtime|telemetry|covered-edge|hard edge)\b/.test(text);
+  const atmospheric = /\b(?:air|atmosphere|pressure|echo|light shifted|shifted|settles?|garden feels different|feels lighter here)\b/.test(text);
+  const taskDirected = /\b(?:follow|move|turn|route|path|edge|side|safe|unsafe|danger|back away|stay clear|watch|remember|line|bring|place|clean|pollen|flower|block)\b/.test(text);
+  const relationshipDirected = /\b(?:i|you|we|me|us|with you|beside me|stay close|heard you|holding up|matter|trust|feel|glad|near|together)\b/.test(text);
+  const primary = systemLike
+    ? 'system-like'
+    : (atmospheric && !taskDirected && !relationshipDirected)
+      ? 'atmospheric'
+      : relationshipDirected
+        ? 'relationship-directed'
+        : taskDirected
+          ? 'task-directed'
+          : atmospheric
+            ? 'atmospheric'
+            : 'unclear';
+  return {
+    phrase,
+    primary,
+    systemLike,
+    atmospheric,
+    taskDirected,
+    relationshipDirected
+  };
+}
+
+function summarizeDialogueClassification(phrases = []) {
+  const classified = phrases.map(classifyDialoguePhrase);
+  const counts = classified.reduce((acc, entry) => {
+    acc[entry.primary] = (acc[entry.primary] || 0) + 1;
+    if (entry.systemLike) acc.systemLike = (acc.systemLike || 0) + 1;
+    if (entry.atmospheric) acc.atmospheric = (acc.atmospheric || 0) + 1;
+    return acc;
+  }, {});
+  const total = Math.max(1, classified.length);
+  const humanDirected = (counts['relationship-directed'] || 0) + (counts['task-directed'] || 0);
+  return {
+    total: classified.length,
+    counts,
+    humanDirectedShare: humanDirected / total,
+    atmosphericShare: (counts.atmospheric || 0) / total,
+    systemLikeCount: counts.systemLike || 0,
+    flaggedSamples: classified
+      .filter(entry => entry.systemLike || entry.primary === 'atmospheric')
+      .slice(0, 8),
+    classifiedSamples: classified.slice(0, 20)
+  };
+}
+
 async function ensureServer(report) {
   const reachable = await fetch(URL).then(() => true).catch(() => false);
   if (reachable) {
@@ -180,14 +230,14 @@ async function run() {
         'teaching_signal'
       ];
       const basePhrases = [
-        'stay close while the air settles.',
+        'stay close while we slow down.',
         'I heard you, and I am staying near.',
         'follow my turn toward the open side.',
         'watch how this path changes.',
         'keep close a little longer.',
         'do not take that sharp edge yet.',
         'breathe with me for a moment.',
-        'the quieter route is this way.',
+        'the safer route is this way.',
         'I will hold this line with you.',
         'remember the safe rhythm here.'
       ];
@@ -210,6 +260,29 @@ async function run() {
         });
         communicationSystem.emitDialogue(dialogue, [target]);
       }
+
+      const productionPhraseSamples = [
+        { subtype: 'explain', signalType: 'teaching_signal' },
+        { subtype: 'reassure', signalType: 'calming_signal' },
+        { subtype: 'warn', signalType: 'warning_signal' },
+        { subtype: 'shared_observation', signalType: 'acknowledgement_signal' },
+        { subtype: 'direct_move', signalType: 'guidance_signal' },
+        { subtype: 'check_in', signalType: 'acknowledgement_signal' }
+      ].map((sample, index) => {
+        const source = butterflies[index % butterflies.length];
+        const target = butterflies[(index + 1) % butterflies.length];
+        const phrase = communicationSystem.composeDialoguePhrase(source, sample.signalType, zoneId, {
+          intentProfile: {
+            subtype: sample.subtype,
+            intentTags: sample.subtype === 'warn' ? ['warning'] : ['social']
+          },
+          recipients: [target],
+          targetCount: 1,
+          targetLabel: target.displayName,
+          talkMode: 'single_target'
+        });
+        return { ...sample, phrase };
+      });
 
       for (let tick = 0; tick < 1200; tick += 1) {
         sleepSystem?.update?.(state, 0.25);
@@ -293,11 +366,17 @@ async function run() {
         inspectWhyCoverage: inspected.filter(entry => entry.hasWhy).length / Math.max(1, inspected.length),
         inspectFeelingPacketCoverage: inspected.filter(entry => entry.activeSocialPacketCount > 0 && entry.strongestFeelingWithPacket).length
           / Math.max(1, inspected.filter(entry => entry.activeSocialPacketCount > 0).length),
+        phrases,
+        productionPhraseSamples,
         lastFeedPresentation: gameUI.buildFeedDomState(state),
         lastInspectPresentation: gameUI.buildInspectDomState(state)
       };
     });
 
+    details.phraseClassification = summarizeDialogueClassification(details.phrases || []);
+    details.productionPhraseClassification = summarizeDialogueClassification(
+      (details.productionPhraseSamples || []).map(sample => sample.phrase)
+    );
     report.screenshots.push(await saveShot(page, outputDir, 'aa6-expression-feed-inspect'));
     report.details = details;
     report.assertions = [
@@ -336,6 +415,36 @@ async function run() {
         pass: details.causeLabelFeedCoverage.labeledLastPacketFeedCount >= 5,
         observed: details.causeLabelFeedCoverage,
         expected: '>= 5 of the last 10 packet-backed feed entries'
+      },
+      {
+        id: 'dialogue-human-directed-share',
+        pass: details.phraseClassification.humanDirectedShare >= 0.7,
+        observed: details.phraseClassification,
+        expected: '>= 70% relationship-directed or task-directed dialogue'
+      },
+      {
+        id: 'dialogue-atmospheric-share',
+        pass: details.phraseClassification.atmosphericShare <= 0.15,
+        observed: details.phraseClassification,
+        expected: '<= 15% atmospheric dialogue'
+      },
+      {
+        id: 'dialogue-system-like-language',
+        pass: details.phraseClassification.systemLikeCount === 0,
+        observed: details.phraseClassification.flaggedSamples,
+        expected: '0 system-like dialogue phrases'
+      },
+      {
+        id: 'production-template-human-language',
+        pass:
+          details.productionPhraseClassification.humanDirectedShare >= 0.7
+          && details.productionPhraseClassification.atmosphericShare <= 0.15
+          && details.productionPhraseClassification.systemLikeCount === 0,
+        observed: {
+          samples: details.productionPhraseSamples,
+          classification: details.productionPhraseClassification
+        },
+        expected: 'production composeDialoguePhrase samples stay >=70% human-directed, <=15% atmospheric, 0 system-like'
       },
       {
         id: 'no-page-console-errors',

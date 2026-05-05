@@ -3249,6 +3249,8 @@ class CommunicationSystem {
 
     maybePrefixAddress(source, text, context = {}) {
         if (!text || context.talkMode !== 'single_target' || !context.addressName) return text;
+        const escapedName = String(context.addressName).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        if (new RegExp(`^${escapedName}\\s*,\\s*`, 'i').test(text)) return text;
         const shouldPrefix = ['court', 'reassure', 'warn', 'direct_move', 'direct_place', 'acknowledge']
             .concat(['check_in', 'quiet_companionship', 'small_praise', 'soft_repair', 'light_irritation'])
             .includes(context.intentSubtype)
@@ -3311,12 +3313,12 @@ class CommunicationSystem {
                         ? pick([
                             `the ${lexicon.route} changes first`,
                             `the ${lexicon.landmark} tells you where to move`,
-                            `the ${lexicon.space} shifts before it looks wrong`
+                            `the route starts closing before it looks blocked`
                         ], 'core-low')
                         : pick([
                             `the ${lexicon.route} changes before the rest of the ${lexicon.space}`,
                             `the ${lexicon.landmark} tells you where the safer line opens`,
-                            `the change in the ${lexicon.atmosphere} starts before the ground looks different`
+                            `the safe opening appears before the ground looks different`
                         ], 'core'),
                     band === 'exceptional'
                         ? pick([
@@ -3344,13 +3346,13 @@ class CommunicationSystem {
                     band === 'below_average'
                         ? pick([
                             'you are alright',
-                            `this ${crowdWord} is settling`,
+                            'we can slow down now',
                             'nothing is chasing us now'
                         ], 'core-low')
                         : pick([
-                            `this part of the ${lexicon.space} is steady enough for you to breathe again`,
-                            `the pressure in the ${lexicon.atmosphere} has already dropped`,
-                            `nothing urgent is moving through this side of the ${lexicon.space}`
+                            'you can breathe; I am staying with you',
+                            'the danger has passed for now',
+                            'nothing here is chasing us right now'
                         ], 'core'),
                     band === 'exceptional'
                         ? pick([
@@ -3379,12 +3381,12 @@ class CommunicationSystem {
                         ? pick([
                             'something feels wrong there',
                             `that side is off`,
-                            `the air changed too fast`
+                            `that side feels risky`
                         ], 'core-low')
                         : pick([
-                            `the ${lexicon.atmosphere} shifted too sharply for that to be harmless`,
-                            `the pattern there is breaking unevenly`,
-                            `something in that part of the ${lexicon.space} does not feel stable`
+                            `I do not trust that side yet`,
+                            `that route is getting too tight`,
+                            `that area does not look safe yet`
                         ], 'core'),
                     band === 'exceptional'
                         ? pick([
@@ -3396,7 +3398,7 @@ class CommunicationSystem {
                             ? pick([
                                 'give it one more moment',
                                 'wait before you commit to that line',
-                                'let the pattern settle first'
+                                'let the danger show itself before you move'
                             ], 'detail-mid')
                             : null)
                 ];
@@ -3559,20 +3561,20 @@ class CommunicationSystem {
                 parts = [
                     pick([
                         'look at this for a second',
-                        'the garden feels different right here',
+                        'I wanted to show you this spot',
                         'do you notice this too',
-                        'this side of the garden changed'
+                        'this side feels calmer with you here'
                     ], 'opener'),
                     band === 'below_average'
                         ? pick([
-                            `the ${lexicon.atmosphere} feels lighter here`,
+                            `it feels easier to stay here`,
                             `the ${lexicon.route} is calmer on this side`,
                             `everything slowed down a little`
                         ], 'core-low')
                         : pick([
-                            `the ${lexicon.atmosphere} shifted before we even crossed the ${lexicon.route}`,
+                            `I noticed this place before we crossed the ${lexicon.route}`,
                             `this edge of the ${lexicon.space} is calmer than the rest of it`,
-                            `the whole feeling of this place changes near the ${lexicon.landmark}`
+                            `I like noticing this with you near the ${lexicon.landmark}`
                         ], 'core'),
                     band === 'exceptional'
                         ? pick([
@@ -3886,7 +3888,7 @@ class CommunicationSystem {
                     pick([
                         `the ${lexicon.route} changes before the rest of the ${lexicon.space}`,
                         `the ${lexicon.landmark} marks the safer line`,
-                        `the shift starts in the ${lexicon.atmosphere} before it reaches the ground`
+                        `the safe opening appears before the ground looks different`
                     ], 'reply-core')
                 ];
             } else if (stance === 'comfort_back') {

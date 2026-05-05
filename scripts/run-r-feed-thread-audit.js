@@ -21,6 +21,11 @@ function stamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
 }
 
+function isSystemLikeDialogue(phrase = '') {
+  return /\b(?:grid|cell|zone|map|target|packet|frame|affordance|runtime|telemetry|covered-edge|hard edge)\b/i
+    .test(String(phrase || ''));
+}
+
 async function ensureServer(report) {
   const reachable = await fetch(URL).then(() => true).catch(() => false);
   if (reachable) {
@@ -202,13 +207,13 @@ async function seedFeedScenario(page) {
       return communicationSystem.emitDialogue(dialogue, [target]);
     };
 
-    emit(left, right, 0, 'acknowledgement_signal', 'social', ['companionship', 'warmth'], 'Stay with me near the grid.');
+    emit(left, right, 0, 'acknowledgement_signal', 'social', ['companionship', 'warmth'], 'Stay with me on this side.');
     emit(right, left, 800, 'acknowledgement_signal', 'social', ['companionship', 'warmth'], 'I am staying close.');
     emit(left, right, 1600, 'acknowledgement_signal', 'social', ['companionship', 'shared_attention'], 'Watch the edge with me.');
     emit(right, left, 2400, 'acknowledgement_signal', 'social', ['companionship', 'agreement'], 'I see it too.');
-    emit(left, right, 2600, 'teaching_signal', 'teaching', ['teaching'], 'Line up one cell at a time.');
+    emit(left, right, 2600, 'teaching_signal', 'teaching', ['teaching'], 'Move one step at a time.');
     emit(right, left, 7000, 'calming_signal', 'care', ['comfort'], 'Take a breath here.');
-    emit(left, right, 7800, 'guidance_signal', 'guidance', ['warning', 'guidance'], 'Back away from that hard edge.');
+    emit(left, right, 7800, 'guidance_signal', 'guidance', ['warning', 'guidance'], 'Back away from that wall.');
     emit(right, left, 8600, 'guidance_signal', 'guidance', ['warning', 'agreement'], 'I will move back.');
 
     eventBus.emit(GameEvents.BUTTERFLY_STATE_CHANGED, {
@@ -302,6 +307,7 @@ async function run() {
           || (entry.contextTags || []).some(tag => /social motive/i.test(tag))
           || (entry.grounding || '').includes('social motive')
         ) || null;
+        const talkPhrases = talkThreads.flatMap(entry => entry.threadLines || []).map(line => line.phrase).filter(Boolean);
         const warningEntries = entries.filter(entry => entry.category === 'warning');
         const warningTriggerEvents = eventBus.getHistory(GameEvents.BUTTERFLY_STATE_CHANGED)
           .filter(entry => entry?.data?.threatSignalId || entry?.data?.dangerMemoryId || entry?.data?.safetyAvoidanceTrigger);
@@ -326,6 +332,7 @@ async function run() {
             referencedMemoryPacketId: entry.referencedMemoryPacketId,
             causeLabel: entry.causeLabel
           })),
+          talkPhrases,
           warningCount: warningEntries.length,
           warningTriggerCount: warningTriggerEvents.length,
           warningEntries
@@ -335,6 +342,7 @@ async function run() {
       const buttonIds = details.buttons.map(button => button.id);
       const canonicalButtons = JSON.stringify(buttonIds) === JSON.stringify(['talk', 'action', 'learn', 'warning', 'system']);
       const canonicalCategories = details.categories.every(category => ['talk', 'action', 'learn', 'warning', 'system'].includes(category));
+      const systemLikePhrases = (details.talkPhrases || []).filter(isSystemLikeDialogue);
       return {
         pass:
           canonicalButtons
@@ -346,9 +354,13 @@ async function run() {
           && /social motive/i.test(`${details.socialThread.grounding || ''} ${(details.socialThread.contextTags || []).join(' ')}`)
           && /trust|comfort|admiration|follow-through|warmth|attention/i.test(details.socialThread.consequenceTail || details.socialThread.detail || '')
           && details.causeLabelCount >= 1
+          && systemLikePhrases.length === 0
           && details.warningCount === details.warningTriggerCount
           && details.warningCount === 1,
-        details
+        details: {
+          ...details,
+          systemLikePhrases
+        }
       };
     });
 

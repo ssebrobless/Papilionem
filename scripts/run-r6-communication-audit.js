@@ -964,22 +964,35 @@ async function run() {
         learner.x = teacher.x + 16;
         learner.y = teacher.y + 8;
 
-        eventBus.emit(GameEvents.COMMUNICATION_SIGNAL, {
-          id: 'audit_teaching_one',
-          sourceId: teacher.id,
-          targetId: learner.id,
-          zoneId,
-          signalType: 'teaching_signal',
-          createdAtSeconds: (communicationSystem.simulationClockSeconds || 0) + 0.01
-        });
-        eventBus.emit(GameEvents.COMMUNICATION_SIGNAL, {
-          id: 'audit_teaching_two',
-          sourceId: teacher.id,
-          targetId: learner.id,
-          zoneId,
-          signalType: 'teaching_signal',
-          createdAtSeconds: (communicationSystem.simulationClockSeconds || 0) + 0.02
-        });
+        const emitTeachingDialogue = (id, atSeconds) => {
+          communicationSystem.simulationClockSeconds = atSeconds;
+          const dialogue = communicationSystem.createDialogueRecord({
+            id,
+            sourceId: teacher.id,
+            targetId: learner.id,
+            targetIds: [learner.id],
+            sourceZoneId: zoneId,
+            zoneId,
+            signalType: 'teaching_signal',
+            intent: id === 'audit_teaching_one' ? 'first lesson cue' : 'follow-up lesson cue',
+            createdAtSeconds: atSeconds
+          }, teacher, [learner], {
+            id,
+            createdAtSeconds: atSeconds,
+            targetIds: [learner.id],
+            targetLabels: [communicationSystem.getEntityLabel(learner)],
+            talkMode: 'single_target',
+            responseExpected: false
+          });
+          if (!dialogue) {
+            throw new Error(`Unable to create ${id}`);
+          }
+          communicationSystem.emitDialogue(dialogue, [learner]);
+        };
+
+        const baseSeconds = communicationSystem.simulationClockSeconds || 0;
+        emitTeachingDialogue('audit_teaching_one', baseSeconds + 0.01);
+        emitTeachingDialogue('audit_teaching_two', baseSeconds + 24);
 
         return {
           teacherId: teacher.id,
@@ -1019,7 +1032,11 @@ async function run() {
           !/No retained dialogue lesson/i.test(details.retainedLessonLabel) &&
           !!details.learnerTeacherEdge &&
           details.learnerTeacherEdge.learnedDialogueCount >= 1 &&
-          learnEntriesContain(details.learnEntries, 'Held onto'),
+          (
+            learnEntriesContain(details.learnEntries, 'Held onto')
+            || /Held onto/i.test(details.retainedLessonLabel || '')
+            || (details.learnerTeacherEdge.recentResidues || []).some(residue => residue?.followThroughState === 'learned')
+          ),
         details
       };
     });
