@@ -280,7 +280,9 @@ function compareValueMetrics(mlOn, mlOff) {
       evaluated: Number.isFinite(onLatency) && Number.isFinite(offLatency),
       details: {
         mlOnSamples: mlOn.valueMetricInputs?.targetAcquisitionSampleCount || 0,
-        mlOffSamples: mlOff.valueMetricInputs?.targetAcquisitionSampleCount || 0
+        mlOffSamples: mlOff.valueMetricInputs?.targetAcquisitionSampleCount || 0,
+        mlOnDiagnostics: mlOn.valueMetricInputs?.targetAcquisitionDiagnostics || {},
+        mlOffDiagnostics: mlOff.valueMetricInputs?.targetAcquisitionDiagnostics || {}
       }
     },
     {
@@ -523,6 +525,8 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
           activeTargetKey: null,
           activeTargetStartFrame: null,
           acquisitions: [],
+          abandonedTargetDurations: [],
+          openTargetDurationFrames: 0,
           topSamples: 0,
           totalSamples: 0,
           zoneSamples: {},
@@ -566,7 +570,12 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
         if (target) {
           const targetKey = `${target.zoneId || zoneId}:${Math.round(target.u * 10) / 10}:${Math.round(target.v * 10) / 10}`;
           if (stats.activeTargetKey !== targetKey) {
-            if (stats.activeTargetKey != null) stats.targetChangeCount += 1;
+            if (stats.activeTargetKey != null) {
+              stats.targetChangeCount += 1;
+              if (stats.activeTargetStartFrame != null) {
+                stats.abandonedTargetDurations.push(Math.max(0, absoluteFrame - stats.activeTargetStartFrame));
+              }
+            }
             stats.activeTargetKey = targetKey;
             stats.activeTargetStartFrame = absoluteFrame;
           }
@@ -665,8 +674,31 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
     const totalSamples = allStats.reduce((sum, stats) => sum + (stats.totalSamples || 0), 0);
     const totalNearTarget = allStats.reduce((sum, stats) => sum + (stats.nearTargetSteps || 0), 0);
     const totalJitterFlips = allStats.reduce((sum, stats) => sum + (stats.jitterFlips || 0), 0);
+    for (const stats of allStats) {
+      if (stats.activeTargetStartFrame != null) {
+        stats.openTargetDurationFrames = Math.max(0, (startFrame + frameCount) - stats.activeTargetStartFrame);
+      }
+    }
+    const abandonedTargetDurations = allStats.flatMap(stats => stats.abandonedTargetDurations || []);
+    const openTargetDurations = allStats
+      .map(stats => stats.openTargetDurationFrames || 0)
+      .filter(value => value > 0);
+    const targetAcquisitionDiagnostics = {
+      acquiredTargetCount: acquisitionFrames.length,
+      abandonedTargetCount: abandonedTargetDurations.length,
+      averageAbandonedFrames: abandonedTargetDurations.length
+        ? Number((abandonedTargetDurations.reduce((sum, value) => sum + value, 0) / abandonedTargetDurations.length).toFixed(2))
+        : null,
+      maxAbandonedFrames: abandonedTargetDurations.length ? Math.max(...abandonedTargetDurations) : 0,
+      openTargetCount: openTargetDurations.length,
+      averageOpenTargetFrames: openTargetDurations.length
+        ? Number((openTargetDurations.reduce((sum, value) => sum + value, 0) / openTargetDurations.length).toFixed(2))
+        : null,
+      maxOpenTargetFrames: openTargetDurations.length ? Math.max(...openTargetDurations) : 0
+    };
     const entityMovementDiagnostics = allStats.map(stats => {
       const acquisitions = stats.acquisitions || [];
+      const abandoned = stats.abandonedTargetDurations || [];
       return {
         id: stats.id,
         name: stats.name,
@@ -684,6 +716,11 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
         averageAcquisitionFrames: acquisitions.length
           ? Number((acquisitions.reduce((sum, value) => sum + value, 0) / acquisitions.length).toFixed(2))
           : null,
+        abandonedTargetCount: abandoned.length,
+        averageAbandonedFrames: abandoned.length
+          ? Number((abandoned.reduce((sum, value) => sum + value, 0) / abandoned.length).toFixed(2))
+          : null,
+        openTargetDurationFrames: stats.openTargetDurationFrames || 0,
         targetChangeCount: stats.targetChangeCount || 0,
         nearTargetStepCount: stats.nearTargetSteps || 0,
         jitterFlipCount: stats.jitterFlips || 0
@@ -711,6 +748,7 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
         ? Number((acquisitionFrames.reduce((sum, value) => sum + value, 0) / acquisitionFrames.length).toFixed(2))
         : null,
       targetAcquisitionSampleCount: acquisitionFrames.length,
+      targetAcquisitionDiagnostics,
       topEdgeFraction: totalSamples ? Number((totalTopSamples / totalSamples).toFixed(4)) : null,
       topEdgeSampleCount: totalSamples,
       zoneTopEdgeFractions,
