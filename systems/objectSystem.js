@@ -605,6 +605,17 @@ class ObjectSystem {
         );
     }
 
+    isCleanupGardenWaste(flower) {
+        return flower?.isCleanupObject?.() || flower?.lifecycleKind === 'dirt-pile';
+    }
+
+    getZoneCleanupObjects(zoneId, gameState = gameCore?.gameState) {
+        return (gameState?.flowers || []).filter(flower =>
+            this.isCleanupGardenWaste(flower)
+            && this.getEntityZoneId(flower, null) === zoneId
+        );
+    }
+
     getActivityDirtBoardPoint(zoneId, zoneIndex = 0, currentFrame = 0) {
         const config = zoneSystem?.getBoardConfigForZone?.(zoneId) || {};
         const width = Math.max(8, Math.round(config.widthUnits || 28));
@@ -650,11 +661,13 @@ class ObjectSystem {
         if (!config.enabled || !gameState) return { spawned: 0, skipped: 'disabled' };
         const currentFrame = gameCore?.getCurrentFrame?.() ?? gameState.currentFrame ?? 0;
         const zones = gameCore?.getZoneIds?.() || [];
-        const totalPiles = (gameState.flowers || []).filter(flower => flower?.lifecycleKind === 'dirt-pile').length;
-        if (totalPiles >= config.maxTotalPiles) return { spawned: 0, skipped: 'total-cap', totalPiles };
+        const totalCleanupObjects = (gameState.flowers || []).filter(flower => this.isCleanupGardenWaste(flower)).length;
+        if (totalCleanupObjects >= config.maxTotalPiles) {
+            return { spawned: 0, skipped: 'total-cap', totalPiles: totalCleanupObjects, totalCleanupObjects };
+        }
         let spawned = 0;
         zones.forEach((zoneId, zoneIndex) => {
-            if (spawned || totalPiles + spawned >= config.maxTotalPiles) return;
+            if (spawned || totalCleanupObjects + spawned >= config.maxTotalPiles) return;
             const lastFrame = this.lastActivityDirtFrameByZone.get(zoneId) ?? -Infinity;
             if (currentFrame - lastFrame < config.intervalFrames) return;
             const activeButterflies = (gameState.butterflies || []).filter(entity =>
@@ -666,7 +679,7 @@ class ObjectSystem {
                 && !entity.zoneTravel
             );
             if (activeButterflies.length < config.minActiveButterflies) return;
-            const zonePiles = this.getZoneDirtPiles(zoneId, gameState);
+            const zonePiles = this.getZoneCleanupObjects(zoneId, gameState);
             if (zonePiles.length >= config.maxPilesPerZone) return;
             const cleanupPressure = activeButterflies.reduce((sum, entity) => {
                 const drives = entity.lifeSim?.drives || {};

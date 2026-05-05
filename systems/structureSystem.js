@@ -500,9 +500,10 @@ class StructureSystem {
                 const reason = lifecycleKind === 'dirt-pile'
                     ? 'occupied-by-dirt-pile'
                     : lifecycleKind === 'reserve-food-ball'
-                        ? 'occupied-by-reserve-food'
+                        ? (flower.isReserveFoodDepleted?.() ? 'occupied-by-reserve-husk' : 'occupied-by-reserve-food')
                         : 'occupied-by-flower';
-                occupants.push({ type: lifecycleKind, id: flower.id, entity: flower, cell, reason });
+                const type = reason === 'occupied-by-reserve-husk' ? 'depleted-reserve-food' : lifecycleKind;
+                occupants.push({ type, id: flower.id, entity: flower, cell, reason });
             }
         }
 

@@ -495,7 +495,11 @@ async function run() {
           reserveId,
           reserveStillExists,
           subtype: reserveFood?.objectProfile?.subtype || null,
-          resourceTags: reserveFood?.objectProfile?.resourceTags || []
+          resourceTags: reserveFood?.objectProfile?.resourceTags || [],
+          acceptedSubtypes: ['reserve-food-ball', 'depleted-reserve-food'],
+          lifecycleOutcome: reserveFood?.objectProfile?.subtype === 'depleted-reserve-food'
+            ? 'depleted-husk'
+            : 'stable-reserve'
         },
         cleanup: {
           pileId,
@@ -523,7 +527,7 @@ async function run() {
       && assertions.decay?.dirtPiles === 4
       && assertions.decay?.freshBatchFlowers === 0
       && assertions.reserve?.reserveStillExists === true
-      && assertions.reserve?.subtype === 'reserve-food-ball'
+      && ['reserve-food-ball', 'depleted-reserve-food'].includes(assertions.reserve?.subtype)
       && assertions.cleanup?.pileCleaned === true
       && assertions.cleanupFloor?.pass === true
       && assertions.cleanupOrganic?.pass === true

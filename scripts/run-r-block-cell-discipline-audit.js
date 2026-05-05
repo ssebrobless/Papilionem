@@ -306,6 +306,100 @@ async function run() {
         }
         return lane;
       })();
+      const gardenObjectOccupancy = await (async () => {
+        const lane = {
+          id: 'garden-object-occupancy',
+          pass: false,
+          zoneId: 'moss-hollow',
+          probes: []
+        };
+        try {
+          await gameCore.resetGame(true);
+          const zoneId = lane.zoneId;
+          gameCore.focusZone?.(zoneId);
+          const spawnAtCell = (u, v, options = {}) => {
+            const screen = renderManager?.boardToScreen?.({ zoneId, u, v, h: 0 }) || null;
+            if (!screen) throw new Error(`Unable to project garden object cell ${u},${v}`);
+            const flower = gameCore.spawnFlowerAt(zoneId, screen.x, screen.y, {
+              exactPoint: true,
+              preferredPoint: screen,
+              ignoreZoneFlowerCap: true,
+              allowFlowerOverlap: true,
+              persistentUntilConsumed: true,
+              resourceOrigin: options.resourceOrigin || 'block-cell-occupancy-audit'
+            });
+            if (!flower) throw new Error(`Unable to spawn garden object at ${u},${v}`);
+            flower.boardPos = { zoneId, u, v, h: 0 };
+            flower.currentZoneId = zoneId;
+            flower.syncDebugGridPos?.();
+            objectSystem?.syncEntityProfile?.(flower);
+            return flower;
+          };
+          const probeCell = (label, u, v, expectedReason, expectedType = null) => {
+            const result = structureSystem.acceptCellPlacement({
+              zoneId,
+              u,
+              v,
+              h: 0,
+              block: { id: `audit-probe-${label}` },
+              candidateBlocks: []
+            });
+            lane.probes.push({
+              label,
+              accepted: result?.accepted === true,
+              reason: result?.reason || null,
+              occupants: result?.occupants || [],
+              expectedReason,
+              expectedType,
+              pass: result?.accepted === false
+                && result?.reason === expectedReason
+                && (!expectedType || (result?.occupants || []).some(occupant => occupant.type === expectedType))
+            });
+          };
+
+          spawnAtCell(6, 6, { resourceOrigin: 'block-cell-flower-audit' });
+          probeCell('flower', 6, 6, 'occupied-by-flower', 'flower');
+
+          const dirtFlower = spawnAtCell(7, 6, { resourceOrigin: 'block-cell-dirt-audit' });
+          gameCore.transformFlowerToDirtPile?.(dirtFlower, { source: 'block-cell-occupancy-audit' });
+          probeCell('dirt-pile', 7, 6, 'occupied-by-dirt-pile', 'dirt-pile');
+
+          const reserveFlower = spawnAtCell(8, 6, { resourceOrigin: 'block-cell-reserve-audit' });
+          const reserveFood = gameCore.convertFlowerToReserveFood?.(reserveFlower, null, { source: 'block-cell-occupancy-audit' });
+          probeCell('reserve-food', 8, 6, 'occupied-by-reserve-food', 'reserve-food-ball');
+
+          const huskFlower = spawnAtCell(9, 6, { resourceOrigin: 'block-cell-husk-audit' });
+          const reserveHusk = gameCore.convertFlowerToReserveFood?.(huskFlower, null, { source: 'block-cell-occupancy-audit' });
+          if (reserveHusk?.id) {
+            objectSystem?.recordInteraction?.(reserveHusk.id, 'seeded depleted reserve husk', null, {
+              zoneId,
+              reserveFoodUseCount: 6,
+              reserveFoodMaxUses: 6,
+              reserveFoodDepleted: true
+            });
+            reserveHusk.refreshLifecycleObjectProfile?.();
+          }
+          probeCell('reserve-husk', 9, 6, 'occupied-by-reserve-husk', 'depleted-reserve-food');
+
+          gameCore.gameState.pendingPollenPlantings = gameCore.gameState.pendingPollenPlantings || [];
+          gameCore.gameState.pendingPollenPlantings.push({
+            id: 'audit-pollen-patch',
+            zoneId,
+            boardPos: { zoneId, u: 10, v: 6, h: 0 },
+            x: 0,
+            y: 0
+          });
+          probeCell('pollen-patch', 10, 6, 'occupied-by-pollen-patch', 'pollen-patch');
+
+          lane.pass = lane.probes.length === 5 && lane.probes.every(probe => probe.pass);
+        } catch (error) {
+          lane.error = {
+            message: error?.message || String(error),
+            stack: error?.stack || null
+          };
+        }
+        return lane;
+      })();
 
       return {
         blockCount: blocks.length,
@@ -317,6 +411,7 @@ async function run() {
         duplicateProbe,
         trainingProbeCreated: !!trainingProbe,
         blockStackRoundtrip,
+        gardenObjectOccupancy,
         snapFlag: gameConfig.entities.block.snapToCellInt
       };
     });
@@ -339,6 +434,7 @@ async function run() {
         details.duplicateProbe?.reason === 'duplicate-cell' &&
         details.trainingProbeCreated === false &&
         details.blockStackRoundtrip?.pass === true &&
+        details.gardenObjectOccupancy?.pass === true &&
         report.pageErrors.length === 0 &&
         report.consoleErrors.length === 0
     };
