@@ -3734,6 +3734,104 @@ class CommunicationSystem {
         };
     }
 
+    isConversationContinuityDialogueEnabled() {
+        return gameConfig?.expression?.conversationContinuityDialogue?.enabled !== false;
+    }
+
+    getConversationContinuityConfig() {
+        const config = gameConfig?.expression?.conversationContinuityDialogue || {};
+        return {
+            enabled: config.enabled !== false,
+            minAgeSeconds: Math.max(0, Number(config.minAgeSeconds ?? 18)),
+            maxAgeSeconds: Math.max(30, Number(config.maxAgeSeconds ?? 420)),
+            maxPrefixCharacters: Math.max(24, Number(config.maxPrefixCharacters ?? 78))
+        };
+    }
+
+    getConversationContinuitySource(speaker, listener = null) {
+        if (!speaker?.lifeSim?.communication || !listener?.id) return null;
+        const config = this.getConversationContinuityConfig();
+        if (config.enabled === false) return null;
+
+        const currentSeconds = Number.isFinite(this.simulationClockSeconds)
+            ? this.simulationClockSeconds
+            : ((this.getCurrentFrame?.() || 0) / 60);
+        const partnerId = listener.id;
+        const recentDialogue = this.getRecentPartnerDialogue(speaker, partnerId);
+        const recentResidue = this.getRecentPartnerResidue(speaker, partnerId);
+        const recentLesson = this.getLatestRetainedLesson(speaker, partnerId);
+        const atSeconds = Number(recentResidue?.createdAtSeconds ?? recentLesson?.atSeconds ?? recentDialogue?.atSeconds);
+        if (!Number.isFinite(atSeconds)) return null;
+        const ageSeconds = Math.max(0, currentSeconds - atSeconds);
+        if (ageSeconds < config.minAgeSeconds || ageSeconds > config.maxAgeSeconds) return null;
+
+        return {
+            partnerId,
+            partnerLabel: this.getKnownName(speaker, listener, { includeSex: false }),
+            residue: recentResidue || null,
+            lesson: recentLesson || null,
+            recentDialogue: recentDialogue || null,
+            ageSeconds
+        };
+    }
+
+    getConversationContinuityPrefix(source = {}) {
+        const residueType = source.residue?.type || null;
+        const lesson = source.lesson || null;
+        const recent = source.recentDialogue || null;
+        const partnerLabel = this.stripSexSuffix(source.partnerLabel || 'you');
+        if (lesson?.label) {
+            return `I kept thinking about what you showed me, ${partnerLabel}`;
+        }
+        const byResidue = {
+            'shared-calm': `I kept thinking about that quiet moment with you, ${partnerLabel}`,
+            'warm-company': `I kept thinking about how it felt to stay near you, ${partnerLabel}`,
+            'shared-observation': `I kept thinking about what we noticed together, ${partnerLabel}`,
+            'playful-banter': `I am still smiling about what you said earlier, ${partnerLabel}`,
+            'small-praise': `I carried that praise with me, ${partnerLabel}`,
+            'mutual-courtship': `I kept thinking about that closeness between us, ${partnerLabel}`,
+            'warming-courtship': `I kept thinking about that closeness between us, ${partnerLabel}`,
+            'gentle-rejection': `I have been careful with how that landed between us, ${partnerLabel}`,
+            'light-friction': `I have been trying not to let that rough moment grow, ${partnerLabel}`,
+            'accepted-repair': `I kept thinking about how we softened that, ${partnerLabel}`,
+            'repair-offer': `I kept thinking about how we could soften that, ${partnerLabel}`,
+            'protective-warning': `I kept thinking about your warning, ${partnerLabel}`,
+            'held-guidance': `I kept thinking about your guidance, ${partnerLabel}`,
+            'retained-lesson': `I kept thinking about what you taught me, ${partnerLabel}`,
+            'agreement': `I kept thinking about what we agreed on, ${partnerLabel}`
+        };
+        if (byResidue[residueType]) return byResidue[residueType];
+        if (recent?.direction === 'incoming') return `I kept thinking about what you said earlier, ${partnerLabel}`;
+        return `I kept thinking about our last talk, ${partnerLabel}`;
+    }
+
+    composeConversationContinuityPhrase(speaker, listener = null, options = {}) {
+        if (!this.isConversationContinuityDialogueEnabled()) return null;
+        if (options.responseTo) return null;
+        if (!speaker?.id || !listener?.id) return null;
+        const basePhrase = String(options.basePhrase || '').trim();
+        if (!basePhrase) return null;
+        const source = this.getConversationContinuitySource(speaker, listener);
+        if (!source) return null;
+        const config = this.getConversationContinuityConfig();
+        const prefix = this.getConversationContinuityPrefix(source);
+        const clippedPrefix = prefix.length > config.maxPrefixCharacters
+            ? `${prefix.slice(0, config.maxPrefixCharacters - 3)}...`
+            : prefix;
+        return {
+            phrase: this.joinMemoryReferencePhrase(clippedPrefix, basePhrase),
+            continuityType: source.lesson ? 'retainedLesson' : (source.residue?.type || 'recentDialogue'),
+            referencedResidueType: source.residue?.type || null,
+            referencedDialogueId: source.recentDialogue?.id || null,
+            referencedLessonId: source.lesson?.id || null,
+            partnerId: source.partnerId,
+            partnerLabel: source.partnerLabel || null,
+            ageSeconds: Number(source.ageSeconds.toFixed(2)),
+            causeLabel: 'earlier talk',
+            phraseTemplateId: `continuity:${source.lesson ? 'retainedLesson' : (source.residue?.type || 'recentDialogue')}`
+        };
+    }
+
     joinMemoryReferencePhrase(prefix = '', basePhrase = '') {
         const cleanPrefix = String(prefix || '').replace(/\s+/g, ' ').trim();
         const cleanBase = String(basePhrase || '').replace(/\s+/g, ' ').trim();
@@ -5265,7 +5363,13 @@ class CommunicationSystem {
             basePhrase: phrase,
             gameState: gameCore?.gameState
         });
-        const renderedPhrase = memoryReference?.phrase || phrase;
+        const continuityReference = memoryReference
+            ? null
+            : this.composeConversationContinuityPhrase(source, recipients[0] || null, {
+                basePhrase: phrase,
+                responseTo: overrides.responseTo || null
+            });
+        const renderedPhrase = memoryReference?.phrase || continuityReference?.phrase || phrase;
         if (memoryReference?.referencedMemoryPacketId) {
             metadata.referencedMemoryPacketId = memoryReference.referencedMemoryPacketId;
             metadata.referencedMemoryFamily = memoryReference.referencedMemoryFamily || null;
@@ -5273,8 +5377,19 @@ class CommunicationSystem {
             metadata.referencedPartnerId = memoryReference.referencedPartnerId || null;
             metadata.referencedPartnerLabel = memoryReference.referencedPartnerLabel || null;
             metadata.causeLabel = memoryReference.causeLabel || null;
+        } else if (continuityReference) {
+            metadata.conversationContinuity = true;
+            metadata.continuityType = continuityReference.continuityType || null;
+            metadata.referencedResidueType = continuityReference.referencedResidueType || null;
+            metadata.referencedDialogueId = continuityReference.referencedDialogueId || null;
+            metadata.referencedLessonId = continuityReference.referencedLessonId || null;
+            metadata.referencedPartnerId = continuityReference.partnerId || null;
+            metadata.referencedPartnerLabel = continuityReference.partnerLabel || null;
+            metadata.continuityAgeSeconds = continuityReference.ageSeconds;
+            metadata.causeLabel = continuityReference.causeLabel || null;
         }
         const phraseTemplateId = memoryReference?.phraseTemplateId
+            || continuityReference?.phraseTemplateId
             || overrides.phraseTemplateId
             || signal?.phraseTemplateId
             || `${signal?.signalType || 'speech'}:${intentSubtype || intentProfile.subtype || 'general'}`;

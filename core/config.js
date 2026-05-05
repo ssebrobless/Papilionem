@@ -1053,6 +1053,12 @@ const PAPILIONEM_BATTLE_ARENA = {
             minEdgeComposite: 0.35,
             maxPrefixCharacters: 72
         },
+        conversationContinuityDialogue: {
+            enabled: true,
+            minAgeSeconds: 18,
+            maxAgeSeconds: 420,
+            maxPrefixCharacters: 78
+        },
         languagePolish: {
             modernSlangEnabled: false
         },
