@@ -1,0 +1,129 @@
+{
+  "id": "seed-ml-value-top-edge-organic",
+  "seed": 1707,
+  "world": {
+    "focusedZoneId": "moss-hollow",
+    "renderMode": "sim-board"
+  },
+  "entities": [
+    {
+      "id": "moss-top-1",
+      "name": "Aster",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 2, "h": 0 },
+      "drives": { "exploration": 0.68, "socialConnection": 0.58, "resourceControl": 0.42 },
+      "emotions": { "curiosity": 0.62, "attachment": 0.38 },
+      "derived": { "migration": { "travelTargetZoneId": "ivy-cloister" } }
+    },
+    {
+      "id": "moss-top-2",
+      "name": "Briar",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "moss-hollow", "u": 14, "v": 3, "h": 0 },
+      "drives": { "exploration": 0.56, "socialConnection": 0.66, "rest": 0.34 },
+      "emotions": { "curiosity": 0.48, "attachment": 0.54 },
+      "derived": { "migration": { "travelTargetZoneId": "pool-heart" } }
+    },
+    {
+      "id": "moss-mid-1",
+      "name": "Clover",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "moss-hollow", "u": 16, "v": 16, "h": 0 },
+      "drives": { "resourceControl": 0.62, "socialConnection": 0.44 },
+      "emotions": { "curiosity": 0.34 },
+      "derived": { "migration": { "travelTargetZoneId": "sun-court" } }
+    },
+    {
+      "id": "moss-mid-2",
+      "name": "Dawn",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "moss-hollow", "u": 21, "v": 18, "h": 0 },
+      "drives": { "exploration": 0.46, "caregiving": 0.54 },
+      "emotions": { "relief": 0.42 },
+      "derived": { "migration": { "travelTargetZoneId": "moss-hollow" } }
+    },
+    {
+      "id": "ivy-1",
+      "name": "Iris",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 18, "h": 0 },
+      "drives": { "socialConnection": 0.72, "exploration": 0.35 },
+      "emotions": { "attachment": 0.66 },
+      "derived": { "migration": { "travelTargetZoneId": "pool-heart" } }
+    },
+    {
+      "id": "ivy-2",
+      "name": "Juniper",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "ivy-cloister", "u": 20, "v": 22, "h": 0 },
+      "drives": { "exploration": 0.58, "statusExpression": 0.38 },
+      "emotions": { "curiosity": 0.52 },
+      "derived": { "migration": { "travelTargetZoneId": "moss-hollow" } }
+    },
+    {
+      "id": "pool-1",
+      "name": "Kite",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "pool-heart", "u": 12, "v": 18, "h": 0 },
+      "drives": { "rest": 0.58, "socialConnection": 0.48 },
+      "emotions": { "relief": 0.46 },
+      "derived": { "migration": { "travelTargetZoneId": "ivy-cloister" } }
+    },
+    {
+      "id": "pool-2",
+      "name": "Lumen",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "pool-heart", "u": 22, "v": 24, "h": 0 },
+      "drives": { "resourceControl": 0.52, "exploration": 0.44 },
+      "emotions": { "curiosity": 0.4 },
+      "derived": { "migration": { "travelTargetZoneId": "sun-court" } }
+    },
+    {
+      "id": "sun-1",
+      "name": "Mira",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "sun-court", "u": 11, "v": 18, "h": 0 },
+      "drives": { "statusExpression": 0.62, "exploration": 0.5 },
+      "emotions": { "significance": 0.54 },
+      "derived": { "migration": { "travelTargetZoneId": "moss-hollow" } }
+    },
+    {
+      "id": "sun-2",
+      "name": "Nettle",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "sun-court", "u": 19, "v": 20, "h": 0 },
+      "drives": { "exploration": 0.52, "socialConnection": 0.4 },
+      "emotions": { "curiosity": 0.47 },
+      "derived": { "migration": { "travelTargetZoneId": "pool-heart" } }
+    },
+    {
+      "id": "ivy-3",
+      "name": "Orchid",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "ivy-cloister", "u": 24, "v": 16, "h": 0 },
+      "drives": { "caregiving": 0.6, "socialConnection": 0.64 },
+      "emotions": { "attachment": 0.58 },
+      "derived": { "migration": { "travelTargetZoneId": "moss-hollow" } }
+    },
+    {
+      "id": "pool-3",
+      "name": "Pollen",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "pool-heart", "u": 18, "v": 14, "h": 0 },
+      "drives": { "resourceControl": 0.56, "socialConnection": 0.5 },
+      "emotions": { "curiosity": 0.42 },
+      "derived": { "migration": { "travelTargetZoneId": "ivy-cloister" } }
+    }
+  ],
+  "edges": [
+    { "source": "moss-top-1", "target": "moss-top-2", "values": { "trust": 0.74, "comfort": 0.66, "attachment": 0.58, "bondTier": "companion", "coTimeSeconds": 800 } },
+    { "source": "moss-top-2", "target": "moss-top-1", "values": { "trust": 0.72, "comfort": 0.64, "attachment": 0.56, "bondTier": "companion", "coTimeSeconds": 800 } },
+    { "source": "ivy-1", "target": "pool-1", "values": { "trust": 0.68, "comfort": 0.62, "attachment": 0.6, "bondTier": "companion", "coTimeSeconds": 650 } },
+    { "source": "pool-1", "target": "ivy-1", "values": { "trust": 0.66, "comfort": 0.6, "attachment": 0.58, "bondTier": "companion", "coTimeSeconds": 650 } },
+    { "source": "sun-1", "target": "sun-2", "values": { "trust": 0.24, "comfort": 0.2, "attachment": 0.12, "bondTier": "acquaintance", "coTimeSeconds": 80 } }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 12 },
+    { "type": "ml_runtime" }
+  ]
+}

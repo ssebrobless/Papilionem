@@ -15,8 +15,12 @@ const STORAGE_KEYS = [
 const VALUE_FRAME_COUNT = 7200;
 const VALUE_SAMPLE_INTERVAL = 15;
 const CADENCE_FACTOR = Math.max(1, Math.round(Number(process.env.PAPILIONEM_ML_CADENCE_FACTOR || 1)));
-const POLICY_ARG_INDEX = process.argv.indexOf('--policy');
-const POLICY_ARG = POLICY_ARG_INDEX >= 0 ? process.argv[POLICY_ARG_INDEX + 1] : null;
+function getArgValue(flag, fallback = null) {
+  const index = process.argv.indexOf(flag);
+  return index >= 0 ? process.argv[index + 1] : fallback;
+}
+const POLICY_ARG = getArgValue('--policy');
+const FIXTURE_ARG = getArgValue('--fixture');
 const VALUE_THRESHOLDS = {
   chiSquareMotiveDistinctness: 3.84,
   policyDisagreementRate: 0.1,
@@ -42,6 +46,15 @@ function resolvePolicyArtifactPath(policyArg = POLICY_ARG) {
 
 function toBrowserPolicyPath(artifactPath = resolvePolicyArtifactPath()) {
   return path.relative(ROOT, artifactPath).replace(/\\/g, '/');
+}
+
+function loadFixture(fixtureArg = FIXTURE_ARG) {
+  if (!fixtureArg) return null;
+  const fixturePath = path.isAbsolute(fixtureArg) ? fixtureArg : path.join(ROOT, fixtureArg);
+  return {
+    path: fixturePath,
+    scenario: JSON.parse(fs.readFileSync(fixturePath, 'utf8'))
+  };
 }
 
 async function ensureServer(report) {
@@ -338,13 +351,110 @@ function summarizeValueDiagnostics(scenario = {}) {
   };
 }
 
-async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_FACTOR, policyBrowserPath = toBrowserPolicyPath()) {
+async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_FACTOR, policyBrowserPath = toBrowserPolicyPath(), fixtureScenario = null) {
   await restoreStorageSnapshot(page, storageSnapshot);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await waitForGame(page);
   await dismissTitle(page);
 
-  await page.evaluate(async ({ useMl, cadenceFactor, policyPath }) => {
+  await page.evaluate(async ({ useMl, cadenceFactor, policyPath, fixture }) => {
+    function boardToScreen(boardPos) {
+      return renderManager?.boardToScreen?.({
+        zoneId: boardPos.zoneId,
+        u: boardPos.u,
+        v: boardPos.v,
+        h: boardPos.h || 0
+      }) || null;
+    }
+
+    function setEntityBoardPos(entity, boardPos) {
+      const screen = boardToScreen(boardPos);
+      if (!entity || !screen) return false;
+      entity.currentZoneId = boardPos.zoneId;
+      entity.lifeSim = entity.lifeSim || {};
+      entity.lifeSim.lifecycle = entity.lifeSim.lifecycle || {};
+      entity.lifeSim.lifecycle.currentZoneId = boardPos.zoneId;
+      entity.boardPos = {
+        zoneId: boardPos.zoneId,
+        u: boardPos.u,
+        v: boardPos.v,
+        h: boardPos.h || 0
+      };
+      entity.x = screen.x;
+      entity.y = screen.y;
+      entity.syncDebugGridPos?.();
+      gameCore.assignEntityToZone?.(entity, boardPos.zoneId);
+      return true;
+    }
+
+    function ensureEdge(source, target, values = {}) {
+      if (!source?.id || !target?.id) return null;
+      const edge = typeof ensureLifeSocialEdge === 'function'
+        ? ensureLifeSocialEdge(source, target.id)
+        : ((source.lifeSim.socialEdges = source.lifeSim.socialEdges || {})[target.id] = source.lifeSim.socialEdges[target.id] || {});
+      Object.assign(edge, values);
+      return edge;
+    }
+
+    async function applyFixture(scenario) {
+      if (!scenario) return null;
+      const seed = Number(scenario.seed);
+      if (Number.isFinite(seed)) {
+        if (typeof randomSeed === 'function') randomSeed(seed);
+        if (typeof noiseSeed === 'function') noiseSeed(seed);
+      }
+      await gameCore.resetGame?.(true);
+      if (Number.isFinite(seed)) {
+        if (typeof randomSeed === 'function') randomSeed(seed);
+        if (typeof noiseSeed === 'function') noiseSeed(seed);
+      }
+      const specs = (scenario.entities || []).filter(spec => (spec.type || 'butterfly') === 'butterfly');
+      if (gameConfig?.entities) {
+        gameConfig.entities.maxButterflies = Math.max(gameConfig.entities.maxButterflies || 0, specs.length);
+      }
+      const focusedZoneId = scenario.world?.focusedZoneId || specs[0]?.boardPos?.zoneId || 'ivy-cloister';
+      gameCore.focusZone?.(focusedZoneId);
+      while ((gameCore.getGameState()?.butterflies || []).length < specs.length) {
+        const index = gameCore.getGameState()?.butterflies?.length || 0;
+        const point = boardToScreen({ zoneId: focusedZoneId, u: 8 + index, v: 8, h: 0 }) || { x: 320, y: 240 };
+        gameCore.godSpawnButterfly?.(point.x, point.y);
+      }
+      const state = gameCore.getGameState();
+      const aliases = {};
+      specs.forEach((spec, index) => {
+        const entity = (state.butterflies || [])[index];
+        if (!entity) return;
+        aliases[spec.id] = entity.id;
+        entity.name = spec.name || entity.name;
+        setEntityBoardPos(entity, spec.boardPos || { zoneId: focusedZoneId, u: 8 + index, v: 8, h: 0 });
+        if (spec.traits && entity.lifeSim) entity.lifeSim.traits = { ...(entity.lifeSim.traits || {}), ...spec.traits };
+        if (spec.drives && entity.lifeSim) entity.lifeSim.drives = { ...(entity.lifeSim.drives || {}), ...spec.drives };
+        if (spec.emotions && entity.lifeSim) entity.lifeSim.emotions = { ...(entity.lifeSim.emotions || {}), ...spec.emotions };
+        if (spec.derived && entity.lifeSim) entity.lifeSim.derived = { ...(entity.lifeSim.derived || {}), ...spec.derived };
+      });
+      for (const edgeSpec of scenario.edges || []) {
+        const sourceId = aliases[edgeSpec.source] || edgeSpec.source;
+        const targetId = aliases[edgeSpec.target] || edgeSpec.target;
+        const source = (state.butterflies || []).find(entity => entity.id === sourceId);
+        const target = (state.butterflies || []).find(entity => entity.id === targetId);
+        ensureEdge(source, target, edgeSpec.values || {});
+      }
+      state.currentFrame = 0;
+      if (gameCore?.gameState) gameCore.gameState.currentFrame = 0;
+      eventBus?.clearHistory?.();
+      communicationSystem?.reset?.();
+      lifeSimSystem?.reset?.();
+      structureSystem?.update?.(state, 0);
+      objectSystem?.update?.(state);
+      return {
+        id: scenario.id || null,
+        seed: scenario.seed || null,
+        butterflyCount: (state.butterflies || []).length,
+        focusedZoneId
+      };
+    }
+
+    const fixtureSummary = await applyFixture(fixture);
     gameConfig.ml = gameConfig.ml || {};
     gameConfig.ml.policyArtifactPath = policyPath;
     gameConfig.ml.useModelInference = !!useMl;
@@ -362,7 +472,8 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
     mlInferenceSystem.modelConfig.cadenceFactor = gameConfig.ml.cadenceFactor;
     mlInferenceSystem.modelConfig.policyArtifactPath = policyPath;
     await mlInferenceSystem.loadModelArtifact(true);
-  }, { useMl: mlOn, cadenceFactor, policyPath: policyBrowserPath });
+    window.__PAPILIONEM_ML_VALUE_FIXTURE_SUMMARY__ = fixtureSummary;
+  }, { useMl: mlOn, cadenceFactor, policyPath: policyBrowserPath, fixture: fixtureScenario });
 
   await page.waitForFunction(() => {
     const state = gameCore?.getGameState?.();
@@ -611,6 +722,7 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
 
     return {
       label: useMl ? 'ml-on' : 'ml-off',
+      fixtureSummary: window.__PAPILIONEM_ML_VALUE_FIXTURE_SUMMARY__ || null,
       cadenceFactor,
       useModelInference: !!mlInferenceSystem.modelConfig.useModelInference,
       runtimeSummary: mlInferenceSystem.getRuntimeSummary?.() || null,
@@ -645,6 +757,7 @@ async function run() {
     consoleErrors: [],
     server: null,
     policyArtifactPath: resolvePolicyArtifactPath(),
+    fixture: null,
     scenarios: [],
     checks: [],
     overall: 'pending'
@@ -669,9 +782,18 @@ async function run() {
     await waitForGame(page);
 
     const storageSnapshot = await captureStorageSnapshot(page);
+    const fixture = loadFixture();
+    report.fixture = fixture
+      ? {
+          path: fixture.path,
+          id: fixture.scenario?.id || null,
+          seed: fixture.scenario?.seed || null,
+          entityCount: Array.isArray(fixture.scenario?.entities) ? fixture.scenario.entities.length : 0
+        }
+      : null;
     const policyBrowserPath = toBrowserPolicyPath(resolvePolicyArtifactPath());
-    const mlOn = await runScenario(page, true, storageSnapshot, CADENCE_FACTOR, policyBrowserPath);
-    const mlOff = await runScenario(page, false, storageSnapshot, CADENCE_FACTOR, policyBrowserPath);
+    const mlOn = await runScenario(page, true, storageSnapshot, CADENCE_FACTOR, policyBrowserPath, fixture?.scenario || null);
+    const mlOff = await runScenario(page, false, storageSnapshot, CADENCE_FACTOR, policyBrowserPath, fixture?.scenario || null);
     await restoreStorageSnapshot(page, storageSnapshot);
     const valueMetrics = compareValueMetrics(mlOn, mlOff);
     report.scenarios.push(mlOn, mlOff);
