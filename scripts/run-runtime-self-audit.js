@@ -386,7 +386,7 @@ async function main() {
         const labels = (state.mlInspectRows || []).map(row => row.label);
         const pathRow = (state.mlInspectRows || []).find(row => row.label === 'Path')?.value || '';
         const whyRow = (state.mlInspectRows || []).find(row => row.label === 'Why')?.value || '';
-        return state.mlRuntime?.modelVersionId === 'm4-garden-policy-v1' &&
+        return state.mlRuntime?.modelVersionId === 'm8-garden-policy-protected-slower' &&
           state.mlRuntime?.featureSchemaVersion === 'm4-feature-schema-v1' &&
           state.mlRuntime?.traceSchemaVersion === 'm4-trace-schema-v1' &&
           state.mlRuntime?.featureContract?.groupCount === 15 &&

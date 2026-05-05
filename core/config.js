@@ -905,10 +905,10 @@ const PAPILIONEM_BATTLE_ARENA = {
 
     ml: {
         runtime: 'local-static-policy',
-        modelVersionId: 'm4-garden-policy-v1',
+        modelVersionId: 'm8-garden-policy-protected-slower',
         featureSchemaVersion: 'm4-feature-schema-v1',
         traceSchemaVersion: 'm4-trace-schema-v1',
-        policyArtifactPath: 'assets/ml/m4-garden-policy.json',
+        policyArtifactPath: 'assets/ml/m8-garden-policy.json',
         policyArtifactFormat: 'linear-policy-json',
         useModelInference: true,
         cadenceFactor: 2,

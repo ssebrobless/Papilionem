@@ -81,7 +81,7 @@ function getTraceChosenLabel(trace = null, policyName = '') {
 }
 
 function resolvePolicyArtifactPath(policyArg = POLICY_ARG) {
-  if (!policyArg) return path.join(ROOT, 'assets', 'ml', 'm7-garden-policy.json');
+  if (!policyArg) return path.join(ROOT, 'assets', 'ml', 'm8-garden-policy.json');
   return path.isAbsolute(policyArg) ? policyArg : path.join(ROOT, policyArg);
 }
 
@@ -361,6 +361,7 @@ async function run() {
     const { artifactPath: expectedArtifactPath, artifact: expectedArtifact } = loadPolicyArtifact();
     const expectedPolicyFamilies = Object.keys(expectedArtifact?.policies || {});
     report.policyArtifactPath = expectedArtifactPath;
+    report.expectedModelVersionId = expectedArtifact?.modelVersionId || null;
     await resetBaseline(page, toBrowserPolicyPath(expectedArtifactPath));
 
     await phase(page, report, outputDir, '01-artifact-contract-and-runtime', async () => {
@@ -569,7 +570,7 @@ async function run() {
           state?.roundNumber >= 1 &&
           state?.selectedInference?.battleSource === 'ml' &&
           ['engage', 'support', 'focusWeakTarget', 'stabilize', 'retreat'].includes(state?.selectedInference?.battleLabel) &&
-          state?.runtime?.artifactSummary?.modelVersionId === 'm7-garden-policy-v1',
+          state?.runtime?.artifactSummary?.modelVersionId === (expectedArtifact?.modelVersionId || 'm7-garden-policy-v1'),
         details: state
       };
     });
