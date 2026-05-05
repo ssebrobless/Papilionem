@@ -3150,7 +3150,13 @@ class CommunicationSystem {
         } else if (packet.kind === 'loyaltyChoice') {
             const chosen = this.getMemoryReferenceLabel({ partnerId: packet.chosenPartnerId }, speaker, null, options.gameState || gameCore?.gameState);
             const rejected = this.getMemoryReferenceLabel({ partnerId: packet.rejectedPartnerId }, speaker, null, options.gameState || gameCore?.gameState);
-            if (chosen && rejected) prefix = `I chose ${chosen} over ${rejected}, and I still feel that pull.`;
+            if (chosen && rejected) {
+                const chosenBase = this.stripSexSuffix(chosen);
+                const rejectedBase = this.stripSexSuffix(rejected);
+                prefix = chosenBase && rejectedBase && chosenBase === rejectedBase
+                    ? 'I made a hard choice between two familiar pulls, and I still feel it.'
+                    : `I chose ${chosen} over ${rejected}, and I still feel that pull.`;
+            }
         } else if (packet.anchor === 'pride') {
             prefix = `That ${reason} still steadies me.`;
             templateId = 'memory:outcome:prideAnchor';
@@ -3592,6 +3598,40 @@ class CommunicationSystem {
                                 'I would rather ask than assume',
                                 'it helps to know where you stand',
                                 'I wanted to hear your read'
+                            ], 'detail-mid')
+                            : null)
+                ];
+                break;
+            case 'cleanup_care':
+                parts = [
+                    pick([
+                        'there are dirt piles building up',
+                        'this ground needs cleaning before we plant here',
+                        'we should clear this mess before it spreads',
+                        'the piles are taking space we could use'
+                    ], 'opener'),
+                    band === 'below_average'
+                        ? pick([
+                            'help me clean it',
+                            'we need the space',
+                            'this will help everyone'
+                        ], 'core-low')
+                        : pick([
+                            'help me clear them so the next flowers have room',
+                            'if we clean this together, the ground will be easier to use',
+                            'the sooner we clear it, the sooner this place can feed us again'
+                        ], 'core'),
+                    band === 'exceptional'
+                        ? pick([
+                            'I do not want the whole zone to become harder for everyone just because we ignored it',
+                            'this is the kind of small work that keeps a place livable',
+                            'clean ground gives us more choices later'
+                        ], 'detail')
+                        : (band === 'above_average'
+                            ? pick([
+                                'it is easier if we split the work',
+                                'that gives us room to plant again',
+                                'this is worth doing before we rest'
                             ], 'detail-mid')
                             : null)
                 ];
