@@ -6,13 +6,34 @@ const { buildC2TraceCorpus } = require('./build-c2-trace-corpus');
 const ROOT = path.resolve(__dirname, '..');
 const POLICY_FAMILIES = ['actionFamily', 'targetPreference', 'signalChoice', 'riskPosture', 'autobattlePosture'];
 const BASE_ARTIFACT_PATH = path.join(ROOT, 'assets', 'ml', 'm4-garden-policy.json');
-const OUTPUT_ARTIFACT_PATH = path.join(ROOT, 'assets', 'ml', 'm7-garden-policy.json');
 const OUTPUT_ROOT = path.join(ROOT, 'qa_screenshots', 'm7_policy_training');
+function getArgValue(flag, fallback = null) {
+  const index = process.argv.indexOf(flag);
+  if (index < 0 || index + 1 >= process.argv.length) return fallback;
+  return process.argv[index + 1];
+}
+
+function resolveOutputArtifactPath() {
+  const configured = getArgValue('--output-artifact');
+  if (!configured) return path.join(ROOT, 'assets', 'ml', 'm7-garden-policy.json');
+  return path.isAbsolute(configured) ? configured : path.join(ROOT, configured);
+}
+
+const OUTPUT_ARTIFACT_PATH = resolveOutputArtifactPath();
+const MODEL_VERSION_ID = getArgValue('--model-version', 'm7-garden-policy-v1');
 const HOLDOUT_SEEDS = [1101, 2202, 3303, 4404, 5505];
+function getNumericArgValue(flag, fallback) {
+  const value = Number(getArgValue(flag, fallback));
+  return Number.isFinite(value) ? value : fallback;
+}
+
 const TRAINING_OPTIONS = Object.freeze({
-  lambda: 0.08,
-  learningRate: 0.06,
-  epochs: 900,
+  lambda: getNumericArgValue('--lambda', 0.08),
+  learningRate: getNumericArgValue('--learning-rate', 0.06),
+  epochs: Math.max(1, Math.round(getNumericArgValue('--epochs', 900))),
+  protectedEpochs: Math.max(1, Math.round(getNumericArgValue('--protected-epochs', 1800))),
+  protectedLearningRate: getNumericArgValue('--protected-learning-rate', 0.12),
+  protectedLambda: getNumericArgValue('--protected-lambda', 0.01),
   protectVsHeuristicPolicies: ['signalChoice', 'autobattlePosture']
 });
 
@@ -157,7 +178,7 @@ function splitRecordsByScenario(records = [], seed = 1) {
 function buildCandidateArtifact(baseArtifact, records, metadata = {}) {
   const candidate = {
     ...baseArtifact,
-    modelVersionId: 'm7-garden-policy-v1',
+    modelVersionId: MODEL_VERSION_ID,
     trainedFrom: 'b6-balanced-c2-trace-corpus-heldout-ridge-linear-v1',
     training: {
       trainer: 'scripts/train-m7-garden-policy.js',
@@ -281,9 +302,11 @@ function collectFeatureNames(records = [], basePolicy = null) {
 
 function trainPolicy(basePolicy, records, policyName, options = {}) {
   const protectedPolicy = (options.protectVsHeuristicPolicies || []).includes(policyName);
-  const lambda = protectedPolicy ? 0.01 : Number(options.lambda ?? 0.05);
-  const learningRate = protectedPolicy ? 0.12 : Number(options.learningRate ?? 0.08);
-  const epochs = protectedPolicy ? 1800 : Math.max(1, Math.round(Number(options.epochs ?? 700)));
+  const lambda = protectedPolicy ? Number(options.protectedLambda ?? 0.01) : Number(options.lambda ?? 0.05);
+  const learningRate = protectedPolicy ? Number(options.protectedLearningRate ?? 0.12) : Number(options.learningRate ?? 0.08);
+  const epochs = protectedPolicy
+    ? Math.max(1, Math.round(Number(options.protectedEpochs ?? 1800)))
+    : Math.max(1, Math.round(Number(options.epochs ?? 700)));
   const labels = [...(basePolicy.labels || [])];
   const featureNames = collectFeatureNames(records, basePolicy);
   const examples = records
