@@ -237,20 +237,44 @@ function computeGriefRecovery(samples = []) {
       if (packet.kind !== 'bereavement') continue;
       const id = packet.id || `${packet.entityId}:${packet.partnerId}:${packet.createdAtFrame || packet.lostAtFrame}`;
       if (!griefById.has(id)) griefById.set(id, []);
-      griefById.get(id).push({ frame: sample.frame || 0, intensity: packet.intensity ?? 0 });
+      griefById.get(id).push({
+        frame: sample.frame || 0,
+        intensity: packet.intensity ?? 0,
+        decayFrames: packet.decayFrames ?? null,
+        reunionAtFrame: Number.isFinite(packet.reunionAtFrame) ? packet.reunionAtFrame : null
+      });
     }
   }
   const decayRates = [];
-  for (const values of griefById.values()) {
+  const skippedPackets = [];
+  for (const [packetId, values] of griefById.entries()) {
     if (values.length < 2) continue;
     const first = values[0];
     const last = values[values.length - 1];
+    const hasRecoveryOpportunity = values.some(entry => Number.isFinite(entry.reunionAtFrame))
+      || values.some(entry => Number.isFinite(entry.decayFrames) && entry.decayFrames <= 600)
+      || last.intensity < first.intensity;
+    if (!hasRecoveryOpportunity) {
+      skippedPackets.push({
+        packetId,
+        reason: 'no-reunion-or-active-recovery-window',
+        firstFrame: first.frame,
+        lastFrame: last.frame,
+        intensity: first.intensity,
+        decayFrames: first.decayFrames
+      });
+      continue;
+    }
     const frames = Math.max(1, last.frame - first.frame);
     decayRates.push(Math.max(0, (first.intensity - last.intensity) / frames));
   }
   return {
     packetCount: griefById.size,
-    meanDecayPerFrame: mean(decayRates)
+    recoveryOpportunityCount: decayRates.length,
+    skippedPacketCount: skippedPackets.length,
+    skippedPackets,
+    meanDecayPerFrame: mean(decayRates),
+    sourcePath: 'sample-series:bereavement-packets:reunion-or-active-recovery-only'
   };
 }
 
@@ -324,8 +348,15 @@ function evaluateBands(metrics = {}) {
       pass: metrics.griefRecovery.meanDecayPerFrame == null
         || (metrics.griefRecovery.meanDecayPerFrame >= 0.001 && metrics.griefRecovery.meanDecayPerFrame <= 0.01),
       observed: metrics.griefRecovery.meanDecayPerFrame,
-      expected: '0.001..0.01 per frame, or null if no grief packets',
-      residual: metrics.griefRecovery.meanDecayPerFrame == null
+      expected: '0.001..0.01 per frame, or null if no grief recovery opportunity occurred',
+      residual: metrics.griefRecovery.meanDecayPerFrame == null,
+      diagnostic: {
+        packetCount: metrics.griefRecovery.packetCount,
+        recoveryOpportunityCount: metrics.griefRecovery.recoveryOpportunityCount,
+        skippedPacketCount: metrics.griefRecovery.skippedPacketCount,
+        skippedPackets: metrics.griefRecovery.skippedPackets,
+        sourcePath: metrics.griefRecovery.sourcePath
+      }
     },
     {
       id: 'witnessed-affection-rate',
