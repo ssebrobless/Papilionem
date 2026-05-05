@@ -347,6 +347,8 @@ function summarizeValueDiagnostics(scenario = {}) {
     zoneTopEdgeFractions: inputs.zoneTopEdgeFractions || {},
     migrationTargetCounts: inputs.migrationTargetCounts || {},
     migrationTargetSourceCounts: inputs.migrationTargetSourceCounts || {},
+    migrationIntentCounts: inputs.migrationIntentCounts || {},
+    migrationAffordanceCounts: inputs.migrationAffordanceCounts || {},
     routeDiagnostics: inputs.routeDiagnostics || {},
     meanDistinctZonesPerEntity: distinctZones.length
       ? Number((distinctZones.reduce((sum, value) => sum + value, 0) / distinctZones.length).toFixed(4))
@@ -571,6 +573,8 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
     const movementStats = {};
     const migrationTargetCounts = {};
     const migrationTargetSourceCounts = {};
+    const migrationIntentCounts = {};
+    const migrationAffordanceCounts = {};
     const zoneTopEdgeSamples = {};
     const routeDiagnostics = {};
     const getBoardPos = (entity) => {
@@ -616,6 +620,8 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
           zoneTopSamples: {},
           migrationTargetCounts: {},
           migrationTargetSourceCounts: {},
+          migrationIntentCounts: {},
+          migrationAffordanceCounts: {},
           targetChangeCount: 0,
           nearTargetSteps: 0,
           jitterFlips: 0
@@ -650,6 +656,12 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
         migrationTargetSourceCounts[migrationTargetSource] = (migrationTargetSourceCounts[migrationTargetSource] || 0) + 1;
         stats.migrationTargetCounts[migrationTarget] = (stats.migrationTargetCounts[migrationTarget] || 0) + 1;
         stats.migrationTargetSourceCounts[migrationTargetSource] = (stats.migrationTargetSourceCounts[migrationTargetSource] || 0) + 1;
+        const travelIntent = migration.travelIntent || 'none';
+        const affordanceKey = migration.affordancePull?.affordanceKey || 'none';
+        migrationIntentCounts[travelIntent] = (migrationIntentCounts[travelIntent] || 0) + 1;
+        migrationAffordanceCounts[affordanceKey] = (migrationAffordanceCounts[affordanceKey] || 0) + 1;
+        stats.migrationIntentCounts[travelIntent] = (stats.migrationIntentCounts[travelIntent] || 0) + 1;
+        stats.migrationAffordanceCounts[affordanceKey] = (stats.migrationAffordanceCounts[affordanceKey] || 0) + 1;
         if (migrationTarget && migrationTarget !== 'none' && migrationTarget !== zoneId) {
           const routeKey = `${zoneId}->${migrationTarget}`;
           const route = gameCore.buildSimBoardZoneTravelRoute?.(zoneId, migrationTarget) || null;
@@ -816,6 +828,8 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
         zoneTopSamples: stats.zoneTopSamples || {},
         migrationTargetCounts: stats.migrationTargetCounts || {},
         migrationTargetSourceCounts: stats.migrationTargetSourceCounts || {},
+        migrationIntentCounts: stats.migrationIntentCounts || {},
+        migrationAffordanceCounts: stats.migrationAffordanceCounts || {},
         acquisitionSampleCount: acquisitions.length,
         averageAcquisitionFrames: acquisitions.length
           ? Number((acquisitions.reduce((sum, value) => sum + value, 0) / acquisitions.length).toFixed(2))
@@ -848,6 +862,8 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
       edgeChurnPerMinute: Number((edgeChurnTotal / Math.max(0.001, durationMinutes)).toFixed(4)),
       migrationTargetCounts,
       migrationTargetSourceCounts,
+      migrationIntentCounts,
+      migrationAffordanceCounts,
       routeDiagnostics,
       targetAcquisitionLatencyFrames: acquisitionFrames.length
         ? Number((acquisitionFrames.reduce((sum, value) => sum + value, 0) / acquisitionFrames.length).toFixed(2))
