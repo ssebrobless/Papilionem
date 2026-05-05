@@ -289,6 +289,49 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
       return edge;
     };
 
+    const resetFixtureSocialState = entity => {
+      if (!entity?.lifeSim) return;
+      entity.lifeSim.socialEdges = {};
+      entity.lifeSim.memories = {
+        social: [],
+        outcome: [],
+        place: []
+      };
+      entity.lifeSim.communication = {
+        ...(entity.lifeSim.communication || {}),
+        recentDialogues: [],
+        recentConversations: [],
+        recentResidues: [],
+        retainedLessons: [],
+        pendingUtterances: [],
+        activeConversation: null
+      };
+    };
+
+    let fixturePopulationLimit = null;
+    const removeFixtureEntity = entity => {
+      if (!entity?.id) return;
+      gameCore.entityManager?.removeEntity?.('butterflies', entity);
+      gameCore.unregisterEntityFromFoundationSystems?.(entity);
+      gameCore.rosterSystem?.unregisterButterfly?.(entity.id, state);
+      for (const survivor of state.butterflies || []) {
+        if (survivor?.lifeSim?.socialEdges) {
+          delete survivor.lifeSim.socialEdges[entity.id];
+        }
+      }
+    };
+    const enforceFixturePopulationLimit = () => {
+      if (!Number.isFinite(fixturePopulationLimit) || fixturePopulationLimit <= 0) return 0;
+      let removed = 0;
+      while ((state.butterflies || []).length > fixturePopulationLimit) {
+        const entity = state.butterflies.pop();
+        removeFixtureEntity(entity);
+        removed += 1;
+      }
+      gameCore.butterflyStore?.adoptArray?.(state.butterflies);
+      return removed;
+    };
+
     const ensureButterflies = (count, zoneId) => {
       const limit = Math.max(gameConfig?.entities?.maxButterflies || 0, count);
       if (gameConfig?.entities) gameConfig.entities.maxButterflies = limit;
@@ -356,6 +399,18 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
         entitySpecs.filter(spec => (spec.type || 'butterfly') === 'butterfly').length,
         fixture.world?.focusedZoneId || 'ivy-cloister'
       );
+      if (gameConfig?.entities) {
+        const explicitMax = Number(fixture.world?.maxButterflies);
+        if (Number.isFinite(explicitMax) && explicitMax > 0) {
+          gameConfig.entities.maxButterflies = Math.max(1, Math.round(explicitMax));
+        } else if (fixture.world?.lockButterflyPopulation === true) {
+          gameConfig.entities.maxButterflies = Math.max(1, entitySpecs.filter(spec => (spec.type || 'butterfly') === 'butterfly').length);
+        }
+      }
+      if (fixture.world?.lockButterflyPopulation === true) {
+        fixturePopulationLimit = Math.max(1, entitySpecs.filter(spec => (spec.type || 'butterfly') === 'butterfly').length);
+        enforceFixturePopulationLimit();
+      }
       let butterflyIndex = 0;
       for (const spec of entitySpecs) {
         if ((spec.type || 'butterfly') !== 'butterfly') continue;
@@ -363,6 +418,9 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
         butterflyIndex += 1;
         if (!entity) continue;
         aliases.set(spec.id, entity.id);
+        if (fixture.world?.resetFixtureSocialState !== false) {
+          resetFixtureSocialState(entity);
+        }
         if (spec.name) entity.displayName = spec.name;
         setEntityBoardPos(entity, spec.boardPos || { zoneId: fixture.world?.focusedZoneId || 'ivy-cloister', u: 8, v: 8, h: 0 });
         if (spec.traits && entity.lifeSim) entity.lifeSim.traits = { ...(entity.lifeSim.traits || {}), ...spec.traits };
@@ -417,11 +475,14 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
       for (const action of fixture.actions || []) {
         executeFixtureAction(action);
       }
+      const populationLimitRemovals = enforceFixturePopulationLimit();
       return {
         applied: true,
         id: fixture.id || null,
         aliases: Object.fromEntries(aliases.entries()),
-        expected: fixture.longSoakExpected || null
+        expected: fixture.longSoakExpected || null,
+        populationLimit: Number.isFinite(fixturePopulationLimit) ? fixturePopulationLimit : null,
+        populationLimitRemovals
       };
     };
 
@@ -487,6 +548,7 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
     sample(0);
     for (let frame = 1; frame <= totalFrames; frame += 1) {
       gameCore.update();
+      enforceFixturePopulationLimit();
       while (nextScheduledAction < scheduledActions.length && scheduledActions[nextScheduledAction].frame <= frame) {
         executeFixtureAction(scheduledActions[nextScheduledAction]);
         nextScheduledAction += 1;

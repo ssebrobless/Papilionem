@@ -228,9 +228,7 @@ function computeBondChurn(samples = [], durationSeconds = 1, cognitionEvents = [
   const sampleDirectionCounts = countTransitionsByDirection(pairTransitions);
   const sampleTransitionsPerMinute = transitions / Math.max(1, durationSeconds / 60);
   const eventTransitionsPerMinute = relationshipArcEvents.transitionsPerMinute;
-  const primaryTransitionsPerMinute = relationshipArcEvents.eventCount > 0
-    ? eventTransitionsPerMinute
-    : sampleTransitionsPerMinute;
+  const primaryTransitionsPerMinute = sampleTransitionsPerMinute;
   return {
     transitions,
     transitionsPerMinute: sampleTransitionsPerMinute,
@@ -239,9 +237,7 @@ function computeBondChurn(samples = [], durationSeconds = 1, cognitionEvents = [
     sampleRegressionTransitionsPerMinute: sampleDirectionCounts.regression / Math.max(1, durationSeconds / 60),
     sampleLateralTransitionsPerMinute: sampleDirectionCounts.lateral / Math.max(1, durationSeconds / 60),
     primaryTransitionsPerMinute,
-    primarySourcePath: relationshipArcEvents.eventCount > 0
-      ? relationshipArcEvents.sourcePath
-      : 'sample-series:bondTier',
+    primarySourcePath: 'sample-series:bondTier',
     sampleDirectionCounts,
     pairTransitions,
     sampleTopChurnPairs,

@@ -954,7 +954,7 @@ const PAPILIONEM_BATTLE_ARENA = {
                     companionPromotionHoldFrames: 3600,
                     bondedPromotionHoldFrames: 7200
                 },
-                sharedSuccess: { trust: 0.04, comfort: 0.04, attachment: 0.045, coTimeSeconds: 180 },
+                sharedSuccess: { trust: 0.024, comfort: 0.024, attachment: 0.028, coTimeSeconds: 45 },
                 conflict: { trust: -0.04, comfort: -0.035, attachment: -0.025, resentment: 0.045 },
                 absence: { comfort: -0.025, attachment: -0.02 },
                 rivalry: { trust: -0.025, comfort: -0.02, rivalry: 0.025 },

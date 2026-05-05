@@ -315,6 +315,25 @@ function runScenarioInBrowser(scenario) {
     return edge;
   }
 
+  function resetFixtureSocialState(entity) {
+    if (!entity?.lifeSim) return;
+    entity.lifeSim.socialEdges = {};
+    entity.lifeSim.memories = {
+      social: [],
+      outcome: [],
+      place: []
+    };
+    entity.lifeSim.communication = {
+      ...(entity.lifeSim.communication || {}),
+      recentDialogues: [],
+      recentConversations: [],
+      recentResidues: [],
+      retainedLessons: [],
+      pendingUtterances: [],
+      activeConversation: null
+    };
+  }
+
   function advanceCognition(seconds = 1) {
     const frames = Math.max(1, Math.round(seconds * 60));
     state.currentFrame = Math.max(state.currentFrame || 0, gameCore.getCurrentFrame?.() || 0) + frames;
@@ -409,12 +428,23 @@ function runScenarioInBrowser(scenario) {
     entitySpecs.filter(spec => (spec.type || 'butterfly') === 'butterfly').length,
     scenario.world?.focusedZoneId || 'ivy-cloister'
   );
+  if (gameConfig?.entities) {
+    const explicitMax = Number(scenario.world?.maxButterflies);
+    if (Number.isFinite(explicitMax) && explicitMax > 0) {
+      gameConfig.entities.maxButterflies = Math.max(1, Math.round(explicitMax));
+    } else if (scenario.world?.lockButterflyPopulation === true) {
+      gameConfig.entities.maxButterflies = Math.max(1, entitySpecs.filter(spec => (spec.type || 'butterfly') === 'butterfly').length);
+    }
+  }
 
   for (const spec of entitySpecs) {
     if ((spec.type || 'butterfly') !== 'butterfly') continue;
     const entity = (state.butterflies || [])[aliases.size] || null;
     if (!entity) continue;
     aliases.set(spec.id, entity.id);
+    if (scenario.world?.resetFixtureSocialState !== false) {
+      resetFixtureSocialState(entity);
+    }
     setEntityBoardPos(entity, spec.boardPos || { zoneId: scenario.world?.focusedZoneId || 'ivy-cloister', u: 8, v: 8, h: 0 });
     if (spec.traits && entity.lifeSim) {
       entity.lifeSim.traits = { ...(entity.lifeSim.traits || {}), ...spec.traits };

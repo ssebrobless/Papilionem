@@ -2,7 +2,7 @@
   "id": "seed-society-soak-organic",
   "seed": 1201,
   "durationSeconds": 360,
-  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board" },
+  "world": { "focusedZoneId": "ivy-cloister", "renderMode": "sim-board", "lockButterflyPopulation": true, "maxButterflies": 12 },
   "entities": [
     { "id": "a", "name": "Aster", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 10, "h": 0 }, "drives": { "socialConnection": 0.82, "caregiving": 0.72 } },
     { "id": "b", "name": "Briar", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 11, "v": 10, "h": 0 }, "drives": { "socialConnection": 0.78, "caregiving": 0.62 } },
