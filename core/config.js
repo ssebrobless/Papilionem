@@ -554,7 +554,11 @@ const PAPILIONEM_BATTLE_ARENA = {
                 handoffScarcityWeight: 0.25,
                 plantSearchRadiusUnits: 2,
                 bloomMinDistance: 0,
-                bloomRetryFrames: 30
+                bloomRetryFrames: 30,
+                compostEnabled: true,
+                compostTtlFrames: 3600,
+                compostPreferenceBonus: 2.5,
+                compostBloomFrameMultiplier: 0.5
             },
             flowerToBlock: {
                 enabled: true,

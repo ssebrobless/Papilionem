@@ -61,6 +61,7 @@ class GameCore {
             nextHybridId: 1,
             pendingOffspringReservations: 0,
             pendingPollenPlantings: [],
+            cleanupCompostPatches: [],
             timeScale: gameConfig?.simulation?.defaultTimeScale || 1,
             focusedZoneId: null,
             viewMode: 'focused-garden',
@@ -3512,6 +3513,79 @@ class GameCore {
         return gameConfig?.entities?.flower?.pollenPropagation || {};
     }
 
+    pruneCleanupCompostPatches(currentFrame = this.getCurrentFrame?.() || 0) {
+        if (!Array.isArray(this.gameState.cleanupCompostPatches)) {
+            this.gameState.cleanupCompostPatches = [];
+            return [];
+        }
+        this.gameState.cleanupCompostPatches = this.gameState.cleanupCompostPatches.filter(patch =>
+            patch
+            && Number.isFinite(patch.expiresAtFrame)
+            && patch.expiresAtFrame > currentFrame
+        );
+        return this.gameState.cleanupCompostPatches;
+    }
+
+    getCleanupCompostPatchForCell(zoneId, u, v, currentFrame = this.getCurrentFrame?.() || 0) {
+        if (!zoneId) return null;
+        const patches = this.pruneCleanupCompostPatches(currentFrame);
+        const cellU = Math.round(Number(u) || 0);
+        const cellV = Math.round(Number(v) || 0);
+        return patches.find(patch =>
+            patch.zoneId === zoneId
+            && Math.round(Number(patch.u) || 0) === cellU
+            && Math.round(Number(patch.v) || 0) === cellV
+        ) || null;
+    }
+
+    recordCleanupCompostPatch(cleanedObject, butterfly = null, options = {}) {
+        const config = this.getPollenPropagationConfig();
+        if (config.enabled === false || config.compostEnabled === false || !cleanedObject?.id) return null;
+        const zoneId = this.getEntityZoneId(cleanedObject, cleanedObject.currentZoneId || null);
+        const boardPos = cleanedObject.boardPos && Number.isFinite(cleanedObject.boardPos.u) && Number.isFinite(cleanedObject.boardPos.v)
+            ? cleanedObject.boardPos
+            : renderManager?.screenToBoard?.(cleanedObject.x || 0, cleanedObject.y || 0, zoneId, 0);
+        if (!zoneId || !boardPos) return null;
+        const cell = structureSystem?.normalizeObjectCell?.(zoneId, boardPos.u, boardPos.v, 0) || {
+            zoneId,
+            u: Math.round(boardPos.u),
+            v: Math.round(boardPos.v),
+            h: 0
+        };
+        const currentFrame = this.getCurrentFrame?.() || 0;
+        const ttlFrames = Math.max(1, Math.round(Number(config.compostTtlFrames ?? 3600)));
+        const patches = this.pruneCleanupCompostPatches(currentFrame);
+        const existingIndex = patches.findIndex(patch =>
+            patch.zoneId === zoneId
+            && patch.u === cell.u
+            && patch.v === cell.v
+        );
+        const patch = {
+            id: `compost:${zoneId}:${cell.u}:${cell.v}:${currentFrame}`,
+            zoneId,
+            u: cell.u,
+            v: cell.v,
+            h: 0,
+            sourceObjectId: cleanedObject.id,
+            cleanerId: butterfly?.id || null,
+            cleanupKind: options.cleanupKind || cleanedObject.getCleanupObjectKind?.() || 'cleanup',
+            createdAtFrame: currentFrame,
+            expiresAtFrame: currentFrame + ttlFrames
+        };
+        if (existingIndex >= 0) {
+            patches[existingIndex] = patch;
+        } else {
+            patches.push(patch);
+        }
+        if (typeof eventBus !== 'undefined') {
+            eventBus.emit('ecology:cleanup-compost-created', {
+                ...patch,
+                currentFrame
+            });
+        }
+        return patch;
+    }
+
     ensureButterflyPollenInventory(butterfly) {
         if (!butterfly?.id) return null;
         const config = this.getPollenPropagationConfig();
@@ -3764,6 +3838,12 @@ class GameCore {
             }
             candidates.sort((left, right) => left.distance - right.distance);
             for (const candidate of candidates) {
+                const compostPatch = this.getCleanupCompostPatchForCell(zoneId, candidate.u, candidate.v);
+                candidate.compostPatchId = compostPatch?.id || null;
+                candidate.score = candidate.distance - (compostPatch ? Number(config.compostPreferenceBonus ?? 2.5) : 0);
+            }
+            candidates.sort((left, right) => left.score - right.score || left.distance - right.distance);
+            for (const candidate of candidates) {
                 const occupancy = structureSystem?.canOccupyBoardCell?.({
                     zoneId,
                     u: candidate.u,
@@ -3777,7 +3857,8 @@ class GameCore {
                 butterfly.pendingPollenDropTarget = {
                     x: screen.x,
                     y: screen.y,
-                    zoneId
+                    zoneId,
+                    compostPatchId: candidate.compostPatchId || null
                 };
                 return butterfly.pendingPollenDropTarget;
             }
@@ -3806,6 +3887,7 @@ class GameCore {
         const zoneId = target.zoneId || this.getEntityZoneId(butterfly, this.getFocusedZoneId());
         const planting = this.queuePollenPlanting(butterfly.id, zoneId, target.x, target.y, {
             source: 'pollen-drop',
+            compostPatchId: target.compostPatchId || null,
             framesRemaining: Math.max(1, Math.round(this.getPollenPropagationConfig().bloomFrames ?? 1200))
         });
         if (!planting) {
@@ -3820,7 +3902,9 @@ class GameCore {
                 plantingId: planting.id,
                 zoneId,
                 boardPos: planting.boardPos || null,
-                source: planting.source
+                source: planting.source,
+                compostPatchId: planting.compostPatchId || null,
+                compostBoosted: planting.compostBoosted === true
             });
         }
         return true;
@@ -3839,6 +3923,9 @@ class GameCore {
             h: 0
         };
         const plantingId = `${butterflyId || 'unknown'}:pollen:${zoneId}:${cell.u}:${cell.v}:${this.getCurrentFrame?.() || 0}`;
+        const compostPatch = options.compostPatchId
+            ? this.pruneCleanupCompostPatches().find(patch => patch.id === options.compostPatchId) || null
+            : this.getCleanupCompostPatchForCell(zoneId, cell.u, cell.v);
         const occupancy = structureSystem?.canOccupyBoardCell?.({
             zoneId,
             u: cell.u,
@@ -3855,8 +3942,11 @@ class GameCore {
             x: center.x,
             y: center.y,
             boardPos: cell,
-            framesRemaining: options.framesRemaining || Math.max(1, Math.round(this.getPollenPropagationConfig().bloomFrames ?? 1200)),
-            source: options.source || 'pollen-drop'
+            framesRemaining: Math.max(1, Math.round((options.framesRemaining || Math.max(1, Math.round(this.getPollenPropagationConfig().bloomFrames ?? 1200)))
+                * (compostPatch ? Number(this.getPollenPropagationConfig().compostBloomFrameMultiplier ?? 0.5) : 1))),
+            source: options.source || 'pollen-drop',
+            compostPatchId: compostPatch?.id || null,
+            compostBoosted: !!compostPatch
         };
         this.gameState.pendingPollenPlantings.push(planting);
         if (typeof eventBus !== 'undefined') {
@@ -3865,7 +3955,9 @@ class GameCore {
                 y: point.y,
                 zoneId,
                 sourceId: butterflyId || null,
-                source: planting.source
+                source: planting.source,
+                compostPatchId: planting.compostPatchId || null,
+                compostBoosted: planting.compostBoosted === true
             });
         }
         return planting;
@@ -3873,6 +3965,7 @@ class GameCore {
 
     updatePollenPlantings() {
         if (!Array.isArray(this.gameState.pendingPollenPlantings) || !this.gameState.pendingPollenPlantings.length) return;
+        this.pruneCleanupCompostPatches();
         for (let i = this.gameState.pendingPollenPlantings.length - 1; i >= 0; i--) {
             const planting = this.gameState.pendingPollenPlantings[i];
             planting.framesRemaining--;
@@ -3900,8 +3993,13 @@ class GameCore {
                         plantingId: planting.id,
                         butterflyId: planting.butterflyId || null,
                         zoneId: planting.zoneId,
-                        boardPos: planting.boardPos || null
+                        boardPos: planting.boardPos || null,
+                        compostPatchId: planting.compostPatchId || null,
+                        compostBoosted: planting.compostBoosted === true
                     });
+                }
+                if (planting.compostPatchId && Array.isArray(this.gameState.cleanupCompostPatches)) {
+                    this.gameState.cleanupCompostPatches = this.gameState.cleanupCompostPatches.filter(patch => patch.id !== planting.compostPatchId);
                 }
                 this.gameState.pendingPollenPlantings.splice(i, 1);
             } else {
@@ -7038,6 +7136,7 @@ class GameCore {
             this.gameState.flowers = [];
             this.gameState.blocks = [];
             this.gameState.pendingPollenPlantings = [];
+            this.gameState.cleanupCompostPatches = [];
             this.butterflyStore?.adoptArray(this.gameState.butterflies);
 
             if (resetProgression) {

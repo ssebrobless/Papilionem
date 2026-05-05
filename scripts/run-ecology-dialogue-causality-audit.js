@@ -183,14 +183,16 @@ async function run() {
         pollenFollowThrough: [],
         reserveFoodUsed: [],
         shadeRestArrived: [],
-        cleanupObjectCleaned: []
+        cleanupObjectCleaned: [],
+        cleanupCompostCreated: []
       };
       const unsubscribers = [
         eventBus.on?.('pollen:sprinkle', event => ecologyEventAccumulator.pollenFollowThrough.push(event)),
         eventBus.on?.('pollen:bloomed', event => ecologyEventAccumulator.pollenFollowThrough.push(event)),
         eventBus.on?.('ecology:reserve-food-used', event => ecologyEventAccumulator.reserveFoodUsed.push(event)),
         eventBus.on?.('ecology:shade-rest-arrived', event => ecologyEventAccumulator.shadeRestArrived.push(event)),
-        eventBus.on?.('ecology:cleanup-object-cleaned', event => ecologyEventAccumulator.cleanupObjectCleaned.push(event))
+        eventBus.on?.('ecology:cleanup-object-cleaned', event => ecologyEventAccumulator.cleanupObjectCleaned.push(event)),
+        eventBus.on?.('ecology:cleanup-compost-created', event => ecologyEventAccumulator.cleanupCompostCreated.push(event))
       ].filter(Boolean);
 
       const zoneId = 'moss-hollow';
@@ -310,6 +312,7 @@ async function run() {
         butterfly.syncDebugGridPos?.();
       });
 
+      let compostProbeResult = null;
       if (!unforcedMode) {
         for (let sample = 0; sample < 6; sample += 1) {
           communicationSystem.updateEcologyWorkCommunication?.(gameCore.gameState, 90 * (sample + 1), {
@@ -318,6 +321,40 @@ async function run() {
             maxSignals: 4
           });
           gameCore.update?.();
+        }
+        const compostPatch = (gameCore.gameState?.cleanupCompostPatches || []).find(patch => patch?.zoneId === zoneId) || null;
+        const probe = butterflies[0] || null;
+        if (compostPatch && probe) {
+          const probeBoard = { zoneId, u: Math.max(0, compostPatch.u - 1), v: compostPatch.v, h: 0 };
+          const probeScreen = renderManager.boardToScreen(probeBoard);
+          probe.currentZoneId = zoneId;
+          probe.lifeSim.lifecycle.currentZoneId = zoneId;
+          probe.boardPos = probeBoard;
+          probe.x = probeScreen.x;
+          probe.y = probeScreen.y - (probe.shadowOffset || 0);
+          probe.pendingPollenDropTarget = null;
+          probe.pollenInventory = {
+            charges: 1,
+            maxCharges: 2,
+            expiresAtFrame: gameCore.getCurrentFrame?.() + 7200,
+            sourceFlowerTypes: ['audit-compost'],
+            lastUpdatedFrame: gameCore.getCurrentFrame?.() || 0
+          };
+          const target = gameCore.planPollenDropTarget?.(probe) || null;
+          const completed = gameCore.completePollenDrop?.(probe) === true;
+          const bloomFrames = Math.max(1, Math.round(Number(gameConfig?.entities?.flower?.pollenPropagation?.bloomFrames || 1200)
+            * Number(gameConfig?.entities?.flower?.pollenPropagation?.compostBloomFrameMultiplier || 0.5)));
+          for (let frame = 0; frame <= bloomFrames + 5; frame += 1) {
+            gameCore.update?.();
+          }
+          compostProbeResult = {
+            patchId: compostPatch.id || null,
+            targetCompostPatchId: target?.compostPatchId || null,
+            plannedOnAnyCompost: !!target?.compostPatchId,
+            plannedOnCompost: !!target?.compostPatchId && target.compostPatchId === compostPatch.id,
+            completed,
+            bloomFrames
+          };
         }
       }
 
@@ -347,13 +384,15 @@ async function run() {
           const pollenPlantings = Array.isArray(gameCore.gameState?.pendingPollenPlantings)
             ? gameCore.gameState.pendingPollenPlantings.length
             : 0;
-          const pollenFollowThroughEvents = ecologyEventAccumulator.pollenFollowThrough.length;
+          const pollenFollowThroughEventList = ecologyEventAccumulator.pollenFollowThrough;
+          const pollenFollowThroughEvents = pollenFollowThroughEventList.length;
           const reserveState = reserveFood?.id && objectSystem?.getObjectState
             ? objectSystem.getObjectState(reserveFood.id)
             : null;
           const reserveFoodUseEvents = ecologyEventAccumulator.reserveFoodUsed;
           const shadeRestArrivalEvents = ecologyEventAccumulator.shadeRestArrived;
           const cleanupObjectCleanedEvents = ecologyEventAccumulator.cleanupObjectCleaned;
+          const cleanupCompostCreatedEvents = ecologyEventAccumulator.cleanupCompostCreated;
           const reserveFoodUseEventCount = Math.max(
             0,
             ...reserveFoodUseEvents
@@ -418,9 +457,14 @@ async function run() {
             cleanedSeedDirtPiles: Math.max(0, dirtPileIds.length - remainingSeedDirt),
             cleanupObjectCleanedEventCount: cleanupObjectCleanedEvents.length,
             cleanupObjectCleanedSamples: cleanupObjectCleanedEvents.slice(-8),
+            cleanupCompostCreatedEventCount: cleanupCompostCreatedEvents.length,
+            cleanupCompostCreatedSamples: cleanupCompostCreatedEvents.slice(-6),
             cleanupTargetingCount: cleanupTargets,
             pendingPollenPlantings: pollenPlantings,
             pollenFollowThroughEventCount: pollenFollowThroughEvents,
+            compostBoostedSprinkleCount: pollenFollowThroughEventList.filter(event => event?.compostBoosted === true && !event?.flowerId).length,
+            compostBoostedBloomCount: pollenFollowThroughEventList.filter(event => event?.compostBoosted === true && event?.flowerId).length,
+            compostProbeResult,
             pollenCarriers,
             reserveFoodTouched: reservePostSetupInteractions > 0,
             reserveFoodInteractionCount: reservePostSetupInteractions,
@@ -609,6 +653,26 @@ async function run() {
           reserveHuskCleaned: !!report.followThrough.reserveHuskCleaned,
           reserveHuskCleanupEventCount: report.followThrough.reserveHuskCleanupEventCount || 0,
           cleanupObjectCleanedEventCount: report.followThrough.cleanupObjectCleanedEventCount || 0
+        }
+      });
+      report.checks.push({
+        name: 'cleanup-compost-created-observed',
+        pass: (report.followThrough.cleanupCompostCreatedEventCount || 0) >= 1,
+        details: {
+          cleanupCompostCreatedEventCount: report.followThrough.cleanupCompostCreatedEventCount || 0,
+          cleanupCompostCreatedSamples: report.followThrough.cleanupCompostCreatedSamples || []
+        }
+      });
+      report.checks.push({
+        name: 'compost-pollen-boost-observed',
+        pass: report.followThrough.compostProbeResult?.plannedOnAnyCompost === true
+          && report.followThrough.compostProbeResult?.completed === true
+          && (report.followThrough.compostBoostedSprinkleCount || 0) >= 1
+          && (report.followThrough.compostBoostedBloomCount || 0) >= 1,
+        details: {
+          compostProbeResult: report.followThrough.compostProbeResult || null,
+          compostBoostedSprinkleCount: report.followThrough.compostBoostedSprinkleCount || 0,
+          compostBoostedBloomCount: report.followThrough.compostBoostedBloomCount || 0
         }
       });
       report.checks.push({

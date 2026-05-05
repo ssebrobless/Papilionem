@@ -326,6 +326,7 @@ class Flower extends Entity {
                 cleanupKind,
                 currentFrame: this.cleanedAtFrame
             });
+            gameCore?.recordCleanupCompostPatch?.(this, butterfly, { cleanupKind });
             gameCore?.removeFlowerFromGame?.(this, cleanupKind === 'depleted-reserve-food' ? 'reserve-husk-cleaned' : 'dirt-pile-cleaned');
             return true;
         }
