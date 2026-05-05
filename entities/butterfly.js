@@ -855,6 +855,10 @@ class Butterfly extends Entity {
         // Activity modifiers
         if (this.movement.targetType === 'goal') speed = this.speeds.seeking;
         if (this.movement.targetType === 'meander') speed = this.speeds.meander;
+        if (this.movement.targetType === 'cleanup') {
+            const cleanupUrgency = Math.max(0, Math.min(1, behaviorBiases.objectInterest || 0));
+            speed = this.speeds.meander * (1.05 + (cleanupUrgency * 0.18));
+        }
         
         // Happiness modifier (only if not in special state)
         if (this.happiness > this.baselineHappiness) {

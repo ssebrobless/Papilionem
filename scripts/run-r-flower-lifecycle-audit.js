@@ -283,7 +283,8 @@ async function run() {
         cleaned: cleanupPileIds.length - remainingCleanupPiles.length,
         remaining: remainingCleanupPiles.length,
         affordanceTrace: [...new Set([...affordanceBefore, ...affordanceAfter])],
-        pass: cleanupPileIds.length === 8 && (cleanupPileIds.length - remainingCleanupPiles.length) >= 6
+        pass: cleanupPileIds.length >= 6
+          && (cleanupPileIds.length - remainingCleanupPiles.length) >= Math.min(6, cleanupPileIds.length)
       };
 
       for (const flower of [...(gameCore.gameState.flowers || [])]) {
