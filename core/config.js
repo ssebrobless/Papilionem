@@ -1145,6 +1145,7 @@ const PAPILIONEM_BATTLE_ARENA = {
             routeDurationFrames: 60,
             arrivalSettleFrames: 42,
             exitDurationFrames: 42,
+            simBoardArrivalInteriorUnits: 6.8,
             overcrowdingBias: 0.62,
             mismatchThreshold: 0.14,
             maxConcurrentTravelers: 3,

@@ -2436,7 +2436,8 @@ class GameCore {
         };
         const departureOffscreenBoard = this.offsetBoardPoint(exitMidpoint, exit.flightVector, 1.15);
         const arrivalOffscreenBoard = this.offsetBoardPoint(arrivalMidpoint, reciprocalVector, 1.15);
-        const arrivalInteriorBoard = this.offsetBoardPoint(arrivalMidpoint, reciprocalVector, -3.2);
+        const arrivalInteriorUnits = Math.max(3.2, Number(this.getMigrationBalance().simBoardArrivalInteriorUnits || 6.8));
+        const arrivalInteriorBoard = this.offsetBoardPoint(arrivalMidpoint, reciprocalVector, -arrivalInteriorUnits);
 
         const departureEdge = this.boardPointToScreen(sourceZoneId, exitMidpoint);
         const departureOffscreen = this.boardPointToScreen(sourceZoneId, departureOffscreenBoard);
