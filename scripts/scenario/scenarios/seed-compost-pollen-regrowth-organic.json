@@ -1,0 +1,53 @@
+{
+  "id": "seed-compost-pollen-regrowth-organic",
+  "seed": 1505,
+  "world": {
+    "focusedZoneId": "moss-hollow",
+    "renderMode": "sim-board",
+    "disableFlowerDecay": true,
+    "enableEcologyCommunication": true
+  },
+  "entities": [
+    {
+      "id": "cleaner",
+      "name": "Mira",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "moss-hollow", "u": 9, "v": 12, "h": 0 },
+      "drives": { "selfMaintenance": 0.86, "caregiving": 0.82, "resourceControl": 0.78, "socialConnection": 0.66 },
+      "emotions": { "curiosity": 0.62, "attachment": 0.48 },
+      "derived": { "behaviorBiases": { "objectInterest": 0.86, "followThroughDrive": 0.78, "socialConfidence": 0.64 } }
+    },
+    {
+      "id": "partner",
+      "name": "Aster",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 13, "h": 0 },
+      "drives": { "caregiving": 0.7, "resourceControl": 0.62, "socialConnection": 0.8 },
+      "emotions": { "attachment": 0.66, "curiosity": 0.44 },
+      "derived": { "behaviorBiases": { "objectInterest": 0.72, "followThroughDrive": 0.7, "socialConfidence": 0.72 } }
+    }
+  ],
+  "edges": [
+    { "source": "cleaner", "target": "partner", "values": { "trust": 0.82, "comfort": 0.78, "attachment": 0.7, "bondTier": "companion", "coTimeSeconds": 980 } },
+    { "source": "partner", "target": "cleaner", "values": { "trust": 0.8, "comfort": 0.76, "attachment": 0.68, "bondTier": "companion", "coTimeSeconds": 980 } }
+  ],
+  "objects": [
+    { "id": "spent-ground", "type": "dirt-pile", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 12, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "cleanup_object", "name": "cleanup-creates-fertile-ground", "source": "cleaner", "object": "spent-ground" },
+    { "type": "assert_ecology_event_count", "name": "compost-created-from-cleanup", "eventType": "ecology:cleanup-compost-created", "zoneId": "moss-hollow", "min": 1 },
+    { "type": "grant_pollen", "name": "cleaner-receives-pollen-charge", "source": "cleaner", "charges": 1, "color": "#f2c94c", "expiresInFrames": 7200 },
+    { "type": "plan_pollen_drop", "name": "pollen-target-prefers-compost", "source": "cleaner", "requireCompost": true },
+    { "type": "complete_pollen_drop", "name": "pollen-drop-completes-on-compost", "source": "cleaner" },
+    { "type": "assert_ecology_event_count", "name": "compost-boosted-sprinkle", "eventType": "pollen:sprinkle", "compostBoosted": true, "zoneId": "moss-hollow", "min": 1 },
+    { "type": "step_simulation", "frames": 650 },
+    { "type": "assert_ecology_event_count", "name": "compost-boosted-bloom", "eventType": "pollen:bloomed", "compostBoosted": true, "zoneId": "moss-hollow", "min": 1 },
+    { "type": "step_simulation", "frames": 90 }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 2 },
+    { "type": "object_count", "kind": "flower", "min": 1 },
+    { "type": "ecology_event_count", "name": "compost-loop-event-chain", "eventType": "pollen:bloomed", "compostBoosted": true, "zoneId": "moss-hollow", "min": 1 }
+  ]
+}

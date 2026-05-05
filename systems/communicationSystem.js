@@ -769,6 +769,9 @@ class CommunicationSystem {
             if (!partner) continue;
             const charges = Math.max(0, Math.round(Number(source.pollenInventory?.charges || 0)));
             const pendingPollen = !!source.pendingPollenDropTarget;
+            const compostPatchCount = Array.isArray(gameState?.cleanupCompostPatches)
+                ? gameState.cleanupCompostPatches.filter(patch => patch?.zoneId === zoneId).length
+                : 0;
             const zoneFlowers = (gameState?.flowers || []).filter(flower => this.getZoneId(flower) === zoneId);
             const dirtPileCount = zoneFlowers.filter(flower => flower?.lifecycleKind === 'dirt-pile').length;
             const reserveHuskCount = zoneFlowers.filter(flower =>
@@ -797,21 +800,26 @@ class CommunicationSystem {
                 && this.canEmitEcologyWorkSignal(source, 'pollen', currentFrame, cooldownFrames)) {
                 opportunities.push({
                     lane: 'pollen',
-                    score: 0.52 + Math.min(0.18, charges * 0.06) + (pendingPollen ? 0.12 : 0),
+                    score: 0.52
+                        + Math.min(0.18, charges * 0.06)
+                        + (pendingPollen ? 0.12 : 0)
+                        + (compostPatchCount > 0 ? 0.12 : 0),
                     allowDuringMigration: false,
                     emit: () => {
                         this.emitCooperationSignal(source, {
                             signalType: 'guidance_signal',
                             intentFamily: 'task',
                             intentTags: ['guidance', 'coordination', 'pollen', 'planting', 'companionship'],
-                            phrase: this.composePollenWorkPhrase(source, charges),
+                            phrase: this.composePollenWorkPhrase(source, charges, { compostPatchCount }),
                             targetIds: [partner.id],
                             zoneId,
                             reason: 'pollen-planting-help',
                             metadata: {
                                 reason: 'pollen-planting-help',
                                 pollenCharges: charges,
-                                pendingPollenDrop: pendingPollen
+                                pendingPollenDrop: pendingPollen,
+                                compostPatchCount,
+                                hasCompostPatch: compostPatchCount > 0
                             }
                         });
                         this.markEcologyWorkSignal(source, 'pollen', currentFrame);
@@ -922,9 +930,17 @@ class CommunicationSystem {
         return emitted;
     }
 
-    composePollenWorkPhrase(entity, charges = 0) {
+    composePollenWorkPhrase(entity, charges = 0, options = {}) {
         const zoneId = this.getZoneId(entity);
         const hasExtra = Math.max(0, Math.round(Number(charges || 0))) > 1;
+        const hasCompost = Math.max(0, Math.round(Number(options.compostPatchCount || 0))) > 0;
+        if (hasCompost) {
+            return this.pickDialogueCandidate([
+                'The cleaned ground is ready. Help me plant this pollen there',
+                'That cleared square can bloom faster if we use this pollen now',
+                'The composted spot will take the pollen well. Come help me place it'
+            ], entity, 'ecology:pollen-compost-work', zoneId);
+        }
         return this.pickDialogueCandidate(hasExtra
             ? [
                 'I am carrying extra pollen. Help me choose where to plant it',

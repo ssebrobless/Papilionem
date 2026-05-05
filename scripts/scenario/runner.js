@@ -259,6 +259,14 @@ function runScenarioInBrowser(scenario) {
     assertions.push({ name, pass: !!pass, details });
   }
 
+  function cloneEvent(data) {
+    try {
+      return JSON.parse(JSON.stringify(data || {}));
+    } catch (_error) {
+      return data || {};
+    }
+  }
+
   function boardToScreen(boardPos) {
     return renderManager?.boardToScreen?.({
       zoneId: boardPos.zoneId,
@@ -291,6 +299,11 @@ function runScenarioInBrowser(scenario) {
   function getEntity(ref) {
     const id = aliases.get(ref) || ref;
     return (state.butterflies || []).find(entity => entity.id === id) || null;
+  }
+
+  function getObject(ref) {
+    const id = aliases.get(ref) || ref;
+    return [...(state.flowers || []), ...(state.blocks || [])].find(entity => entity?.id === id) || null;
   }
 
   function ensureEdge(source, target, values = {}) {
@@ -481,14 +494,24 @@ function runScenarioInBrowser(scenario) {
   communicationSystem?.reset?.();
   lifeSimSystem?.reset?.();
   const scenarioCognitionLog = [];
+  const scenarioEcologyLog = [];
   const unsubscribeScenarioCognition = eventBus?.on?.('cognition:triggered', data => {
-    try {
-      scenarioCognitionLog.push(JSON.parse(JSON.stringify(data || {})));
-    } catch (_error) {
-      scenarioCognitionLog.push(data || {});
-    }
+    scenarioCognitionLog.push(cloneEvent(data));
     if (scenarioCognitionLog.length > 2000) scenarioCognitionLog.shift();
   });
+  const ecologyEventTypes = [
+    'ecology:cleanup-object-cleaned',
+    'ecology:cleanup-compost-created',
+    'pollen:sprinkle',
+    'pollen:bloomed',
+    'pollen:planted'
+  ];
+  const unsubscribeScenarioEcology = ecologyEventTypes
+    .map(type => eventBus?.on?.(type, data => {
+      scenarioEcologyLog.push({ type, ...cloneEvent(data) });
+      if (scenarioEcologyLog.length > 2000) scenarioEcologyLog.shift();
+    }))
+    .filter(Boolean);
 
   for (const action of scenario.actions || []) {
     const sourceId = aliases.get(action.source) || action.source;
@@ -561,6 +584,49 @@ function runScenarioInBrowser(scenario) {
     }
     if (action.type === 'set_drives' && source?.lifeSim?.drives) {
       Object.assign(source.lifeSim.drives, action.values || {});
+    }
+    if (action.type === 'grant_pollen' && source) {
+      const currentFrame = gameCore.getCurrentFrame?.() || state.currentFrame || 0;
+      const charges = Math.max(0, Math.round(Number(action.charges || 1)));
+      source.pollenInventory = {
+        charges,
+        maxCharges: Math.max(charges, Math.round(Number(action.maxCharges || 2))),
+        expiresAtFrame: currentFrame + Math.max(1, Math.round(Number(action.expiresInFrames || 7200))),
+        sourceFlowerTypes: [action.color || action.sourceFlowerId || 'scenario-pollen'],
+        lastUpdatedFrame: currentFrame
+      };
+      addAssertion(action.name || 'grant_pollen', source.pollenInventory.charges === charges, {
+        source: action.source,
+        charges: source.pollenInventory.charges
+      });
+    }
+    if (action.type === 'plan_pollen_drop' && source) {
+      const target = gameCore.planPollenDropTarget?.(source) || null;
+      source.__scenarioLastPollenTarget = target ? cloneEvent(target) : null;
+      const requiresCompost = action.requireCompost === true || action.require_compost === true;
+      const pass = !!target && (!requiresCompost || !!target.compostPatchId);
+      addAssertion(action.name || 'plan_pollen_drop', pass, {
+        source: action.source,
+        target,
+        requiresCompost
+      });
+    }
+    if (action.type === 'complete_pollen_drop' && source) {
+      const completed = gameCore.completePollenDrop?.(source) === true;
+      addAssertion(action.name || 'complete_pollen_drop', completed, {
+        source: action.source,
+        lastTarget: source.__scenarioLastPollenTarget || null
+      });
+    }
+    if (action.type === 'cleanup_object' && source) {
+      const object = getObject(action.object || action.target);
+      const cleaned = object?.tryCleanupDirtPile?.([source]) === true;
+      addAssertion(action.name || 'cleanup_object', cleaned, {
+        source: action.source,
+        object: action.object || action.target || null,
+        objectId: object?.id || null,
+        cleanupKind: object?.getCleanupObjectKind?.() || object?.lifecycleKind || null
+      });
     }
     if (action.type === 'set_movement_target' && source?.movement) {
       const target = action.boardPos || null;
@@ -698,6 +764,26 @@ function runScenarioInBrowser(scenario) {
         min: action.min ?? null,
         max: action.max ?? null,
         kind: action.kind || null
+      });
+    }
+    if (action.type === 'assert_ecology_event_count') {
+      const matches = scenarioEcologyLog.filter(event => {
+        if (action.eventType && event.type !== action.eventType) return false;
+        if (typeof action.compostBoosted === 'boolean' && event.compostBoosted !== action.compostBoosted) return false;
+        if (action.zoneId && event.zoneId !== action.zoneId) return false;
+        if (action.object && event.objectId !== (aliases.get(action.object) || action.object)) return false;
+        if (action.source && event.sourceId !== (aliases.get(action.source) || action.source)) return false;
+        return true;
+      });
+      const min = Number.isFinite(action.min) ? action.min : 1;
+      const max = Number.isFinite(action.max) ? action.max : null;
+      addAssertion(action.name || 'assert_ecology_event_count', matches.length >= min && (max === null || matches.length <= max), {
+        eventType: action.eventType || null,
+        compostBoosted: typeof action.compostBoosted === 'boolean' ? action.compostBoosted : null,
+        actual: matches.length,
+        min,
+        max,
+        samples: matches.slice(-5)
       });
     }
   }
@@ -898,6 +984,25 @@ function runScenarioInBrowser(scenario) {
         scenarioCognitionEventCount: scenarioCognitionLog.length,
         recentCognitionEvents: cognitionEvents.slice(-8)
       });
+    } else if (assertion.type === 'ecology_event_count') {
+      const matches = scenarioEcologyLog.filter(event => {
+        if (assertion.eventType && event.type !== assertion.eventType) return false;
+        if (typeof assertion.compostBoosted === 'boolean' && event.compostBoosted !== assertion.compostBoosted) return false;
+        if (assertion.zoneId && event.zoneId !== assertion.zoneId) return false;
+        if (assertion.object && event.objectId !== (aliases.get(assertion.object) || assertion.object)) return false;
+        if (assertion.source && event.sourceId !== (aliases.get(assertion.source) || assertion.source)) return false;
+        return true;
+      });
+      const min = Number.isFinite(assertion.min) ? assertion.min : 1;
+      const max = Number.isFinite(assertion.max) ? assertion.max : null;
+      addAssertion(assertion.name || 'ecology_event_count', matches.length >= min && (max === null || matches.length <= max), {
+        eventType: assertion.eventType || null,
+        compostBoosted: typeof assertion.compostBoosted === 'boolean' ? assertion.compostBoosted : null,
+        actual: matches.length,
+        min,
+        max,
+        samples: matches.slice(-5)
+      });
     } else if (assertion.type === 'edge_min') {
       const entity = getEntity(assertion.entity);
       const target = getEntity(assertion.target);
@@ -973,6 +1078,7 @@ function runScenarioInBrowser(scenario) {
   }
 
   unsubscribeScenarioCognition?.();
+  unsubscribeScenarioEcology.forEach(unsubscribe => unsubscribe?.());
   return {
     assertions,
     summary: {
