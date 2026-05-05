@@ -43,8 +43,7 @@
     { "id": "flower-c", "type": "flower", "boardPos": { "zoneId": "pool-heart", "u": 11, "v": 19, "h": 0 } }
   ],
   "actions": [
-    { "type": "witness_affection", "source": "a", "targets": ["b"], "affectionIntensity": 0.86, "intentTags": ["comfort", "companionship", "warmth"], "phrase": "I am glad you are here." },
-    { "type": "step_simulation", "frames": 120 }
+    { "type": "step_simulation", "frames": 1260 }
   ],
   "longSoakActions": [
     { "atSeconds": 120, "type": "set_edge", "source": "j", "target": "k", "values": { "trust": 0.38, "comfort": 0.34, "attachment": 0.24, "rivalry": 0.24, "resentment": 0.12, "bondTier": "familiar", "coTimeSeconds": 420 } },
@@ -59,7 +58,8 @@
   },
   "assertions": [
     { "type": "entity_count", "min": 12 },
-    { "type": "object_count", "kind": "dirt-pile", "min": 3 },
+    { "type": "dialogue_count", "min": 1 },
+    { "type": "cognition_event_count", "name": "ambient-social-witnessed-affection-event", "kind": "witnessedAffection", "entity": "c", "trigger": "dialogueWitnessed", "min": 1 },
     { "type": "memory_packet", "entity": "c", "family": "social", "kind": "witnessedAffection", "min": 1 }
   ]
 }

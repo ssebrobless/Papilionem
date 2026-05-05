@@ -545,8 +545,14 @@ function evaluateBands(metrics = {}) {
       },
       expected: '>=1 compost-created event and >=1 compost-boosted bloom when fixture/opportunity exists',
       provisional: true,
-      residual: metrics.ecologyLoopPressure.cleanupCompostCreatedEventCount === 0
-        && metrics.ecologyLoopPressure.maxCompostPatchCount === 0,
+      residual: (
+        metrics.ecologyLoopPressure.cleanupCompostCreatedEventCount === 0
+        && metrics.ecologyLoopPressure.maxCompostPatchCount === 0
+      ) || (
+          metrics.ecologyLoopPressure.cleanupCompostCreatedEventCount >= 1
+          && metrics.ecologyLoopPressure.compostBoostedSprinkleCount === 0
+          && metrics.ecologyLoopPressure.pollenWorkDialogueCount === 0
+      ),
       diagnostic: {
         sourcePath: metrics.ecologyLoopPressure.sourcePath,
         cleanupObjectCleanedEventCount: metrics.ecologyLoopPressure.cleanupObjectCleanedEventCount,

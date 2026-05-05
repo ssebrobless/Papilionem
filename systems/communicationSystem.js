@@ -20,6 +20,8 @@ class CommunicationSystem {
         this.scoutOfferRecords = [];
         this.buildingAidRecords = new Map();
         this.ecologyWorkSignalFrames = new Map();
+        this.ambientSocialSignalFrames = new Map();
+        this.ambientSocialEnabledAtFrame = 0;
         this.eventUnsubscribers = [];
         this.partnerSelectionHistory = new Map();
         this.causeLabelCooldowns = new Map();
@@ -70,6 +72,8 @@ class CommunicationSystem {
         this.scoutOfferRecords = [];
         this.buildingAidRecords.clear();
         this.ecologyWorkSignalFrames.clear();
+        this.ambientSocialSignalFrames.clear();
+        this.startAmbientSocialQuietWindow('reset');
         this.simulationClockSeconds = 0;
         this.partnerSelectionHistory.clear();
         this.causeLabelCooldowns.clear();
@@ -158,6 +162,9 @@ class CommunicationSystem {
         }
         if (gameConfig?.world?.scoutDiscovery !== false) {
             this.updateScoutDiscovery(gameState, currentFrame);
+        }
+        if (gameConfig?.communication?.ambientSocial?.enabled !== false) {
+            this.updateAmbientSocialCommunication(gameState, currentFrame);
         }
         if (gameConfig?.entities?.block?.shade?.buildingCooperation?.enabled !== false) {
             this.updateShadeBuildingCooperation(gameState, currentFrame);
@@ -585,6 +592,138 @@ class CommunicationSystem {
 
     getEcologyCommunicationConfig() {
         return gameConfig?.cognition?.ecologyCommunication || {};
+    }
+
+    getAmbientSocialConfig() {
+        return gameConfig?.communication?.ambientSocial || {};
+    }
+
+    getAmbientSocialCooldownKey(sourceId, targetId) {
+        return [sourceId, targetId].filter(Boolean).sort().join(':');
+    }
+
+    startAmbientSocialQuietWindow(reason = 'reset') {
+        const config = this.getAmbientSocialConfig();
+        const quietFrames = Math.max(0, Math.round(Number(config.initialQuietFrames ?? 900)));
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? 0;
+        this.ambientSocialEnabledAtFrame = currentFrame + quietFrames;
+        return {
+            reason,
+            enabledAtFrame: this.ambientSocialEnabledAtFrame
+        };
+    }
+
+    hasAmbientWitnessOpportunity(source, target, zoneId, liveEntities = [], config = this.getAmbientSocialConfig()) {
+        if (!source?.id || !target?.id || !zoneId) return false;
+        const minWitnessRank = this.getBondRank(config.minWitnessBondTier || 'companion');
+        const maxDistance = Number(config.maxWitnessDistanceUnits ?? 8);
+        return liveEntities.some(witness => {
+            if (!witness?.id || witness.id === source.id || witness.id === target.id) return false;
+            if (this.getZoneId(witness) !== zoneId) return false;
+            const edgeToSource = witness.lifeSim?.socialEdges?.[source.id] || {};
+            if (this.getBondRank(edgeToSource) < minWitnessRank) return false;
+            return this.getBoardDistanceBetween(witness, source, zoneId) <= maxDistance;
+        });
+    }
+
+    scoreAmbientSocialPair(source, target, zoneId, liveEntities = [], currentFrame = 0, config = this.getAmbientSocialConfig()) {
+        if (!source?.id || !target?.id || source.id === target.id || !zoneId) return null;
+        if (source.state && source.state !== 'normal') return null;
+        if (source.zoneTravel || target.zoneTravel) return null;
+        if (source.lifeSim?.communication?.activeSignal || target.lifeSim?.communication?.activeSignal) return null;
+        if (this.getZoneId(target) !== zoneId) return null;
+        const edge = source.lifeSim?.socialEdges?.[target.id] || {};
+        const targetEdge = target.lifeSim?.socialEdges?.[source.id] || {};
+        const minBondRank = this.getBondRank(config.minBondTier || 'bonded');
+        const bondRank = Math.max(this.getBondRank(edge), this.getBondRank(targetEdge));
+        if (bondRank < minBondRank) return null;
+        const distance = this.getBoardDistanceBetween(source, target, zoneId);
+        if (distance > Number(config.maxPairDistanceUnits ?? 4)) return null;
+        const cooldownKey = this.getAmbientSocialCooldownKey(source.id, target.id);
+        const lastFrame = this.ambientSocialSignalFrames.get(cooldownKey);
+        const cooldownFrames = Math.max(60, Math.round(Number(config.cooldownFrames ?? 2400)));
+        if (Number.isFinite(lastFrame) && (currentFrame - lastFrame) < cooldownFrames) return null;
+        const socialDrive = this.clamp01(source.lifeSim?.drives?.socialConnection || 0);
+        const affection = this.clamp01(Math.max(edge.attachment || 0, targetEdge.attachment || 0));
+        const comfort = this.clamp01(Math.max(edge.comfort || 0, targetEdge.comfort || 0));
+        const warmth = this.clamp01(Math.max(edge.recentWarmth || 0, targetEdge.recentWarmth || 0));
+        const witnessOpportunity = this.hasAmbientWitnessOpportunity(source, target, zoneId, liveEntities, config);
+        const score = (bondRank / 3) * 0.32
+            + socialDrive * 0.18
+            + affection * 0.2
+            + comfort * 0.16
+            + warmth * 0.08
+            + (witnessOpportunity ? Number(config.witnessOpportunityBoost ?? 0.18) : 0)
+            - Math.min(0.12, distance * 0.02);
+        return {
+            source,
+            target,
+            zoneId,
+            score,
+            cooldownKey,
+            witnessOpportunity,
+            affectionIntensity: this.clamp01(0.58 + affection * 0.18 + comfort * 0.12 + (witnessOpportunity ? 0.08 : 0))
+        };
+    }
+
+    updateAmbientSocialCommunication(gameState = gameCore?.gameState, currentFrame = 0, options = {}) {
+        const config = this.getAmbientSocialConfig();
+        if (config.enabled === false) return 0;
+        const interval = Math.max(1, Math.round(Number(config.intervalFrames ?? 600)));
+        if (!options.force && currentFrame < (this.ambientSocialEnabledAtFrame || 0)) return 0;
+        if (!options.force && (Math.max(0, Math.round(currentFrame || 0)) % interval) !== 0) return 0;
+        const liveEntities = this.getLiveEntities(gameState).filter(entity => gameState?.butterflies?.includes?.(entity));
+        const opportunities = [];
+        for (const source of liveEntities) {
+            const zoneId = this.getZoneId(source);
+            if (!zoneId) continue;
+            for (const target of liveEntities) {
+                const scored = this.scoreAmbientSocialPair(source, target, zoneId, liveEntities, currentFrame, config);
+                if (scored && scored.score >= Number(config.minScore ?? 0.78)) opportunities.push(scored);
+            }
+        }
+        opportunities.sort((left, right) => right.score - left.score || left.source.id.localeCompare(right.source.id));
+        const maxSignals = Math.max(1, Math.round(Number(options.maxSignals ?? config.maxSignalsPerUpdate ?? 1)));
+        let emitted = 0;
+        for (const opportunity of opportunities) {
+            if (emitted >= maxSignals) break;
+            const dialogue = this.emitCooperationSignal(opportunity.source, {
+                signalType: 'acknowledgement_signal',
+                intentFamily: 'social',
+                intentTags: ['comfort', 'companionship', 'warmth'],
+                phrase: this.composeAmbientSocialPhrase(opportunity.source, opportunity.target, opportunity),
+                targetIds: [opportunity.target.id],
+                zoneId: opportunity.zoneId,
+                reason: 'ambient-social-affection',
+                metadata: {
+                    reason: 'ambient-social-affection',
+                    affectionIntensity: opportunity.affectionIntensity,
+                    witnessOpportunity: opportunity.witnessOpportunity
+                }
+            });
+            if (!dialogue) continue;
+            this.ambientSocialSignalFrames.set(opportunity.cooldownKey, currentFrame);
+            emitted += 1;
+        }
+        return emitted;
+    }
+
+    composeAmbientSocialPhrase(source, target, opportunity = {}) {
+        const zoneId = this.getZoneId(source);
+        const targetLabel = target ? this.getEntityLabel(target).replace(/\s*\([^)]*\)\s*$/, '') : 'you';
+        const devoted = opportunity.affectionIntensity >= 0.78;
+        const phrases = devoted
+            ? [
+                `Stay close a little longer, ${targetLabel}. I feel steadier with you here.`,
+                `I noticed you stayed near me, ${targetLabel}. That matters to me.`,
+                `It is easier to settle when you are beside me.`
+            ]
+            : [
+                `I am glad you are here with me.`,
+                `This place feels easier with you beside me.`,
+                `Stay near me a moment. I like knowing you are close.`
+            ];
+        return this.pickDialogueCandidate(phrases, source, 'ambient-social-affection', zoneId);
     }
 
     canEmitEcologyWorkSignal(source, lane, currentFrame, cooldownFrames) {
@@ -6768,6 +6907,7 @@ class CommunicationSystem {
         this.simulationClockSeconds = serialized?.simulationClockSeconds || 0;
         this.history = Array.isArray(serialized?.history) ? JSON.parse(JSON.stringify(serialized.history)) : [];
         this.dialogueHistory = Array.isArray(serialized?.dialogueHistory) ? JSON.parse(JSON.stringify(serialized.dialogueHistory)) : [];
+        this.startAmbientSocialQuietWindow('deserialize');
         this.activeSignals.clear();
         for (const signal of serialized?.activeSignals || []) {
             if (!signal?.sourceId) continue;

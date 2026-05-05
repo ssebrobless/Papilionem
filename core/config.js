@@ -1196,6 +1196,19 @@ const PAPILIONEM_BATTLE_ARENA = {
     },
 
     communication: {
+        ambientSocial: {
+            enabled: true,
+            intervalFrames: 1200,
+            cooldownFrames: 5400,
+            initialQuietFrames: 900,
+            maxSignalsPerUpdate: 1,
+            minBondTier: 'bonded',
+            minWitnessBondTier: 'companion',
+            maxPairDistanceUnits: 4,
+            maxWitnessDistanceUnits: 8,
+            minScore: 0.78,
+            witnessOpportunityBoost: 0.18
+        },
         partnerSelection: {
             recencyPressure: true,
             recencyWindowSeconds: 180,

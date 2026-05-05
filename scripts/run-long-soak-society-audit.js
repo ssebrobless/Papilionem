@@ -150,6 +150,36 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
         : []
     });
 
+    const installDialogueSubscriber = () => {
+      if (typeof eventBus === 'undefined' || typeof eventBus.on !== 'function') {
+        return { attached: false, reason: 'eventBus-unavailable' };
+      }
+      if (typeof window.__LONG_SOAK_DIALOGUE_UNSUB__ === 'function') {
+        try { window.__LONG_SOAK_DIALOGUE_UNSUB__(); } catch (_error) {}
+      }
+      window.__LONG_SOAK_DIALOGUE_LOG__ = [];
+      window.__LONG_SOAK_DIALOGUE_DROPPED__ = 0;
+      const eventName = GameEvents?.DIALOGUE_SPOKEN || 'communication:dialogueSpoken';
+      window.__LONG_SOAK_DIALOGUE_UNSUB__ = eventBus.on(eventName, data => {
+        const log = window.__LONG_SOAK_DIALOGUE_LOG__ || [];
+        log.push(data);
+        if (log.length > 20000) {
+          log.shift();
+          window.__LONG_SOAK_DIALOGUE_DROPPED__ = (window.__LONG_SOAK_DIALOGUE_DROPPED__ || 0) + 1;
+        }
+        window.__LONG_SOAK_DIALOGUE_LOG__ = log;
+      });
+      return { attached: true, eventName };
+    };
+
+    const flushDialogueSubscriber = () => ({
+      attached: typeof window.__LONG_SOAK_DIALOGUE_UNSUB__ === 'function',
+      dropped: Number(window.__LONG_SOAK_DIALOGUE_DROPPED__ || 0),
+      events: Array.isArray(window.__LONG_SOAK_DIALOGUE_LOG__)
+        ? JSON.parse(JSON.stringify(window.__LONG_SOAK_DIALOGUE_LOG__))
+        : []
+    });
+
     const installEcologySubscriber = () => {
       if (typeof eventBus === 'undefined' || typeof eventBus.on !== 'function') {
         return { attached: false, reason: 'eventBus-unavailable' };
@@ -195,6 +225,13 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
         window.__LONG_SOAK_COGNITION_UNSUB__();
       }
       window.__LONG_SOAK_COGNITION_UNSUB__ = null;
+    };
+
+    const uninstallDialogueSubscriber = () => {
+      if (typeof window.__LONG_SOAK_DIALOGUE_UNSUB__ === 'function') {
+        try { window.__LONG_SOAK_DIALOGUE_UNSUB__(); } catch (_error) {}
+      }
+      window.__LONG_SOAK_DIALOGUE_UNSUB__ = null;
     };
 
     const uninstallEcologySubscriber = () => {
@@ -389,6 +426,7 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
     };
 
     const subscriber = installCognitionSubscriber();
+    const dialogueSubscriber = installDialogueSubscriber();
     const ecologySubscriber = installEcologySubscriber();
     const fixtureResult = applyFixture(fixtureSpec);
     const totalFrames = Math.max(1, Math.round(seconds * 60));
@@ -463,8 +501,10 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
     const dialogues = JSON.parse(JSON.stringify(communicationSystem?.dialogueHistory || []));
     const runtimeSummary = mlInferenceSystem?.getRuntimeSummary?.() || null;
     const cognitionSubscriber = flushCognitionSubscriber();
+    const dialogueSubscriberState = flushDialogueSubscriber();
     const ecologySubscriberState = flushEcologySubscriber();
     uninstallCognitionSubscriber();
+    uninstallDialogueSubscriber();
     uninstallEcologySubscriber();
     gameConfig.ml.useModelInference = previousMl;
     mlInferenceSystem?.deserializeDurableState?.({ modelConfig: gameConfig.ml });
@@ -479,6 +519,13 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
         dropped: cognitionSubscriber.dropped,
         eventCount: cognitionSubscriber.events.length
       },
+      dialogueSubscriber: {
+        attached: !!dialogueSubscriber.attached,
+        eventName: dialogueSubscriber.eventName || null,
+        dropped: dialogueSubscriberState.dropped,
+        eventCount: dialogueSubscriberState.events.length,
+        finalHistoryCount: dialogues.length
+      },
       ecologySubscriber: {
         attached: !!ecologySubscriber.attached,
         eventNames: ecologySubscriber.eventNames || [],
@@ -488,7 +535,8 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
       cognitionEvents: cognitionSubscriber.events,
       ecologyEvents: ecologySubscriberState.events,
       samples,
-      dialogues,
+      dialogues: dialogueSubscriberState.events.length ? dialogueSubscriberState.events : dialogues,
+      dialogueHistorySnapshot: dialogues,
       runtimeSummary
     };
   }, {
@@ -625,6 +673,7 @@ async function run() {
       rawPath: mlOn.rawPath,
       fixture: mlOnRaw.fixture || null,
       cognitionSubscriber: mlOnRaw.cognitionSubscriber || null,
+      dialogueSubscriber: mlOnRaw.dialogueSubscriber || null,
       ecologySubscriber: mlOnRaw.ecologySubscriber || null,
       metrics: mlOn.metrics,
       checks: mlOn.checks,
@@ -645,6 +694,7 @@ async function run() {
         rawPath: heuristic.rawPath,
         fixture: heuristicRaw.fixture || null,
         cognitionSubscriber: heuristicRaw.cognitionSubscriber || null,
+        dialogueSubscriber: heuristicRaw.dialogueSubscriber || null,
         ecologySubscriber: heuristicRaw.ecologySubscriber || null,
         metrics: heuristic.metrics,
         checks: heuristic.checks,
