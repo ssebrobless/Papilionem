@@ -159,15 +159,16 @@ async function run() {
       };
 
       clearZone();
-      const [requester, helper, alternative] = gameCore.gameState.butterflies || [];
-      if (!requester || !helper || !alternative) {
-        add('audit-has-three-butterflies', false, { butterflyCount: (gameCore.gameState.butterflies || []).length });
+      const [requester, helper, alternative, roleCoordinator] = gameCore.gameState.butterflies || [];
+      if (!requester || !helper || !alternative || !roleCoordinator) {
+        add('audit-has-four-butterflies', false, { butterflyCount: (gameCore.gameState.butterflies || []).length });
         return assertions;
       }
 
       moveButterflyToCell(requester, 20, 16);
       moveButterflyToCell(helper, 22, 16);
-      moveButterflyToCell(alternative, 23, 16);
+      moveButterflyToCell(alternative, 25, 18);
+      moveButterflyToCell(roleCoordinator, 18, 20);
       requester.lifeSim.drives.rest = 0.88;
       requester.lifeSim.emotions.exhaustion = 0.74;
       requester.lifeSim.derived = requester.lifeSim.derived || {};
@@ -183,25 +184,41 @@ async function run() {
       requester.blockInteraction.cooldownFrames = 0;
       alternative.lifeSim.derived = alternative.lifeSim.derived || {};
       alternative.lifeSim.derived.behaviorBiases = alternative.lifeSim.derived.behaviorBiases || {};
-      alternative.lifeSim.derived.behaviorBiases.objectInterest = 0.72;
+      alternative.lifeSim.drives.exploration = 0.08;
+      alternative.lifeSim.derived.behaviorBiases.objectInterest = 0.04;
       alternative.blockInteraction.cooldownFrames = 0;
+      roleCoordinator.lifeSim.drives.socialConnection = 0.94;
+      roleCoordinator.lifeSim.drives.exploration = 0.08;
+      roleCoordinator.lifeSim.derived = roleCoordinator.lifeSim.derived || {};
+      roleCoordinator.lifeSim.derived.behaviorBiases = roleCoordinator.lifeSim.derived.behaviorBiases || {};
+      roleCoordinator.lifeSim.derived.behaviorBiases.objectInterest = 0.04;
+      roleCoordinator.blockInteraction.cooldownFrames = 0;
       ensureEdgePair(requester, helper, {
-        trust: 0.5,
-        comfort: 0.48,
+        trust: 0.62,
+        comfort: 0.6,
         attachment: 0.34,
         admiration: 0.16,
         bondTier: 'companion',
-        followThroughScore: 0.18,
+        followThroughScore: 0.72,
         recentWarmth: 0.12
       });
       ensureEdgePair(requester, alternative, {
-        trust: 0.58,
-        comfort: 0.54,
-        attachment: 0.36,
-        admiration: 0.18,
+        trust: 0.66,
+        comfort: 0.5,
+        attachment: 0.22,
+        admiration: 0.08,
         bondTier: 'companion',
-        followThroughScore: 0.08,
-        recentWarmth: 0.08
+        followThroughScore: 0.95,
+        recentWarmth: 0.04
+      });
+      ensureEdgePair(requester, roleCoordinator, {
+        trust: 0.74,
+        comfort: 0.7,
+        attachment: 0.34,
+        admiration: 0.2,
+        bondTier: 'companion',
+        followThroughScore: 0.12,
+        recentWarmth: 0.72
       });
       appendLifeMemory?.(requester, 'object', {
         subjectId: 'prior-shade-project',
@@ -232,7 +249,6 @@ async function run() {
       const baseBlock = spawnBlockAt(20, 15, 0);
       const requesterBlock = spawnBlockAt(21, 16, 0);
       const helperBlock = spawnBlockAt(22, 16, 0);
-      const alternativeBlock = spawnBlockAt(23, 16, 0);
       requesterBlock.pickupBy?.(requester);
       requester.blockInteraction.carryingBlockId = requesterBlock.id;
       requester.blockInteraction.carryFrames = 12;
@@ -240,6 +256,39 @@ async function run() {
       structureSystem.lastRebuildSignature = structureSystem.buildRebuildSignature?.(gameCore.gameState);
 
       const requesterPlacement = requester.chooseBlockPlacementTarget?.(requesterBlock, gameCore.gameState.blocks || []);
+      const roleDiversityBlocks = [baseBlock, requesterBlock, helperBlock];
+      const roleDiversityEntries = [helper, alternative, roleCoordinator]
+        .map(candidate => communicationSystem.scoreBuildingHelperCandidate?.(requester, candidate, zoneId, requesterPlacement, roleDiversityBlocks))
+        .filter(Boolean);
+      const roleDiversitySelected = communicationSystem.selectBuildingHelperEntries?.(roleDiversityEntries, 3) || [];
+      const roleDiversityLabels = roleDiversitySelected.map(entry => entry.roleLabel).filter(Boolean);
+      add('organic-real-block-role-diversity-covers-three-roles', ['builder', 'carrier', 'coordinator'].every(role => roleDiversityLabels.includes(role)), {
+        roleDiversityLabels,
+        roleDiversityEntries: roleDiversityEntries.map(entry => ({
+          id: entry.id,
+          roleLabel: entry.roleLabel,
+          score: Number(entry.score.toFixed(3)),
+          roleScores: entry.roleScores
+        })),
+        blockIds: roleDiversityBlocks.map(block => block.id)
+      });
+      moveButterflyToCell(alternative, 23, 16);
+      moveButterflyToCell(roleCoordinator, 18, 16);
+      alternative.lifeSim.drives.exploration = 0.42;
+      alternative.lifeSim.derived.behaviorBiases.objectInterest = 0.72;
+      ensureEdgePair(requester, alternative, {
+        trust: 0.42,
+        comfort: 0.38,
+        attachment: 0.22,
+        admiration: 0.08,
+        bondTier: 'companion',
+        followThroughScore: 0.08,
+        recentWarmth: 0.04
+      });
+      const alternativeBlock = spawnBlockAt(23, 16, 0);
+      const coordinatorBlock = spawnBlockAt(18, 16, 0);
+      structureSystem.rebuild?.(gameCore.gameState);
+      structureSystem.lastRebuildSignature = structureSystem.buildRebuildSignature?.(gameCore.gameState);
       add('requester-has-shade-building-target', requesterPlacement?.shadeIntent?.createsShade === true, {
         requesterPlacement
       });
@@ -387,6 +436,17 @@ async function run() {
         acceptedEvent,
         preferredScore
       });
+      const helperInspectState = gameUI?.buildInspectDetailDomState?.(helper, gameCore.gameState) || null;
+      const workBondSection = (helperInspectState?.sections || []).find(section => section?.id === 'workAndBonds') || null;
+      const requesterInspectLabel = gameUI?.getEntityDisplayName?.(requester, requester.id) || requester.displayName || requester.id;
+      add('inspect-surfaces-active-shared-work-role', !!workBondSection
+        && (workBondSection.lines || []).some(line => new RegExp(`\\b${preferredScore?.roleLabel || 'helper'}\\b`, 'i').test(line))
+        && (workBondSection.lines || []).some(line => /shared work|project/i.test(line))
+        && (workBondSection.lines || []).some(line => new RegExp(requesterInspectLabel, 'i').test(line)), {
+        workBondSection,
+        preferredScore,
+        requesterLabel: requesterInspectLabel
+      });
 
       const helperPlacement = helper.blockInteraction?.placementTarget || helper.chooseBlockPlacementTarget?.(helperBlock, gameCore.gameState.blocks || []);
       if (helperPlacement) {
@@ -480,12 +540,16 @@ async function run() {
         helperEdge,
         requesterEdge
       });
+      const helperFeedLabel = gameUI?.getEntityDisplayName?.(helper, helper.id) || helper.displayName || helper.id;
       add('shared-project-completion-has-feed-line', !!formattedFeed?.line
         && /shared shade shelter/i.test(formattedFeed.line)
         && /memories/i.test(formattedFeed.grounding || '')
         && /bond updates/i.test(formattedFeed.grounding || '')
-        && /roles:/i.test(formattedFeed.grounding || ''), {
-        formattedFeed
+        && /roles:/i.test(formattedFeed.grounding || '')
+        && new RegExp(`${helperFeedLabel}.*${preferredScore?.roleLabel || 'helper'}`, 'i').test(formattedFeed.grounding || '')
+        && !!gameUI?.buildFeedContextFooter?.(formattedFeed), {
+        formattedFeed,
+        helperFeedLabel
       });
       add('shared-projects-remain-runtime-only', !saveSystem?.serializeState
         || (() => {

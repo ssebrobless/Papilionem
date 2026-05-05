@@ -859,6 +859,8 @@ class GameUI {
             relationshipSummary,
             mlSummary
         }).map(line => this.normalizePresentationText(line));
+        const workAndBondLines = this.buildWorkAndBondInspectLines(target, gameState, communicationSummary)
+            .map(line => this.normalizePresentationText(line));
         const foodReserveCount = (gameState?.flowers || []).filter(flower =>
             flower?.lifecycleKind === 'reserve-food-ball'
             && (!zoneId || !flower.currentZoneId || flower.currentZoneId === zoneId)
@@ -884,6 +886,11 @@ class GameUI {
                     title: whyThisMoment.title,
                     lines: whyThisMoment.lines
                 } : null,
+                {
+                    id: 'workAndBonds',
+                    title: 'Work + Bonds',
+                    lines: workAndBondLines
+                },
                 {
                     id: 'current',
                     title: 'Current Read',
@@ -1661,7 +1668,10 @@ class GameUI {
     }
 
     buildFeedContextFooter(entry = {}) {
-        if (entry?.category !== 'talk') return null;
+        if (entry?.category !== 'talk') {
+            const grounding = this.normalizePresentationText(entry?.grounding || '');
+            return grounding || null;
+        }
         const contextTags = Array.isArray(entry?.contextTags)
             ? entry.contextTags.map(tag => this.normalizePresentationText(tag)).filter(Boolean)
             : [];
@@ -1674,6 +1684,90 @@ class GameUI {
             : null;
         const footer = [textureText || null, visibleContext, turnText].filter(Boolean).join(' · ');
         return footer || null;
+    }
+
+    formatProjectRoleLabel(roleLabel = '') {
+        const normalized = String(roleLabel || '').trim();
+        const labels = {
+            builder: 'builder',
+            carrier: 'carrier',
+            coordinator: 'coordinator'
+        };
+        return labels[normalized] || normalized || 'helper';
+    }
+
+    formatProjectRoleReason(roleLabel = '') {
+        const normalized = String(roleLabel || '').trim();
+        if (normalized === 'builder') return 'aiming for the shelter point';
+        if (normalized === 'carrier') return 'bringing usable material';
+        if (normalized === 'coordinator') return 'keeping the shared work aligned';
+        return 'helping the shared work';
+    }
+
+    formatProjectRoleGrounding(contributorRoles = null) {
+        if (!contributorRoles || typeof contributorRoles !== 'object') return '';
+        const rolePairs = Object.entries(contributorRoles)
+            .map(([id, entry]) => {
+                if (!entry?.roleLabel) return null;
+                const role = this.formatProjectRoleLabel(entry.roleLabel);
+                if (!role) return null;
+                const name = this.getEntityDisplayName(this.getButterflyById(id), id);
+                return name ? `${name} ${role}` : role;
+            })
+            .filter(Boolean);
+        if (rolePairs.length) {
+            return ` • roles: ${rolePairs.slice(0, 4).join(', ')}`;
+        }
+        const roles = Object.values(contributorRoles)
+            .map(entry => entry?.roleLabel)
+            .filter(Boolean)
+            .map(role => this.formatProjectRoleLabel(role));
+        const uniqueRoles = [...new Set(roles)];
+        return uniqueRoles.length ? ` • roles: ${uniqueRoles.join(', ')}` : '';
+    }
+
+    buildWorkAndBondInspectLines(target, gameState = null, communicationSummary = null) {
+        if (!target?.id) return [];
+        const lines = [];
+        const blockState = target.blockInteraction || {};
+        const assist = blockState.buildingAssist || null;
+        const requester = assist?.requesterId ? this.getButterflyById(assist.requesterId) : null;
+        const requesterLabel = requester ? this.getEntityDisplayName(requester, assist.requesterId) : null;
+        if (assist) {
+            const role = this.formatProjectRoleLabel(assist.roleLabel || 'helper');
+            lines.push(this.normalizePresentationText(`Shared work ${role} for ${requesterLabel || 'another butterfly'} | ${this.formatProjectRoleReason(role)}`));
+            lines.push(this.normalizePresentationText(`Project ${assist.projectId || 'active'} | ${assist.shadeProgress || 'shade help'} | block ${blockState.carryingBlockId || blockState.targetBlockId || 'seeking'}`));
+        } else if (blockState.carryingBlockId || blockState.targetBlockId || blockState.placementTarget) {
+            const placement = blockState.placementTarget || {};
+            const mode = placement.createsShade ? 'building shade' : (placement.placementMode || 'moving material');
+            lines.push(this.normalizePresentationText(`Object work ${mode} | block ${blockState.carryingBlockId || blockState.targetBlockId || 'targeted'}`));
+        }
+
+        const projects = typeof objectSystem !== 'undefined' && objectSystem?.environmentProjects
+            ? Array.from(objectSystem.environmentProjects.values())
+            : [];
+        const activeProject = projects.find(project =>
+            project?.status === 'active' && project?.contributors?.[target.id]
+        ) || null;
+        const contributor = activeProject?.contributors?.[target.id] || null;
+        if (activeProject && contributor) {
+            const roles = [...new Set([
+                contributor.metadata?.roleLabel,
+                ...(contributor.roles || [])
+            ].filter(Boolean).map(role => this.formatProjectRoleLabel(role)))];
+            lines.push(this.normalizePresentationText(`Active project ${activeProject.type || 'shared work'} | ${roles.join(', ') || 'helper'} | contributions ${contributor.contributions || 0}`));
+        }
+
+        const relationship = communicationSummary?.relationship || null;
+        const partnerId = relationship?.partnerId || null;
+        const edge = partnerId ? target.lifeSim?.socialEdges?.[partnerId] || null : null;
+        if (relationship) {
+            const tags = Array.isArray(edge?.historyTags) ? edge.historyTags.slice(0, 2) : [];
+            const tagText = tags.length ? ` | reasons ${tags.map(tag => this.normalizePresentationText(tag)).join(', ')}` : '';
+            lines.push(this.normalizePresentationText(`Bond ${relationship.partnerLabel || partnerId || 'partner'} | ${relationship.pairTextureLabel || 'steady'} | follow-through ${relationship.followThrough || 0}${tagText}`));
+        }
+
+        return lines.slice(0, 4);
     }
 
     buildSocialLensInspectLines({
@@ -4389,15 +4483,6 @@ class GameUI {
             return `${Math.max(targetLabels.length, targetIds.length)} butterflies`;
         }
         return targetLabels[0] || data?.targetLabel || targetIds[0] || null;
-    }
-
-    formatProjectRoleGrounding(contributorRoles = null) {
-        if (!contributorRoles || typeof contributorRoles !== 'object') return '';
-        const roles = Object.values(contributorRoles)
-            .map(entry => entry?.roleLabel)
-            .filter(Boolean);
-        const uniqueRoles = [...new Set(roles)];
-        return uniqueRoles.length ? ` • roles: ${uniqueRoles.join(', ')}` : '';
     }
 
     formatActivityEntry(entry) {
