@@ -3928,6 +3928,10 @@ class GameUI {
             GameEvents?.OBJECT_DELIVERED || 'object:delivered',
             'object:placed',
             'environment:project-completed',
+            'pollen:handoff',
+            'pollen:planted',
+            'pollen:bloomed',
+            'pollen:expired',
             GameEvents?.BATTLE_ACTION_OCCURRED || 'battle:actionOccurred'
         ]);
 
@@ -4505,6 +4509,7 @@ class GameUI {
         );
         const sourceLabel = this.getEntityDisplayName(this.getButterflyById(data?.sourceId), data?.sourceId || 'Butterfly');
         const targetLabel = this.getEntityDisplayName(this.getButterflyById(data?.targetId), data?.targetId || 'Butterfly');
+        const recipientLabel = this.getEntityDisplayName(this.getButterflyById(data?.recipientId), data?.recipientId || 'Butterfly');
         const contributorLabels = Array.isArray(data?.contributorIds)
             ? data.contributorIds
                 .slice(0, 3)
@@ -4584,6 +4589,50 @@ class GameUI {
                     contextTags: ['shared work', 'shelter', 'cooperation']
                 }
             ),
+            ['pollen:handoff']: this.formatFeedActionLine(
+                time,
+                sourceLabel,
+                `Passed pollen to ${recipientLabel}.`,
+                null,
+                {
+                    category: 'action',
+                    grounding: `${zoneLabel} • shared planting`,
+                    contextTags: ['pollen', 'handoff', 'cooperation']
+                }
+            ),
+            ['pollen:planted']: this.formatFeedActionLine(
+                time,
+                butterflyLabel,
+                'Planted pollen for a new flower.',
+                null,
+                {
+                    category: 'action',
+                    grounding: `${zoneLabel} • reserved grid cell`,
+                    contextTags: ['pollen', 'planting', 'garden work']
+                }
+            ),
+            ['pollen:bloomed']: this.formatFeedActionLine(
+                time,
+                'Garden',
+                'A planted flower bloomed.',
+                null,
+                {
+                    category: 'action',
+                    grounding: `${zoneLabel} • pollen patch matured`,
+                    contextTags: ['pollen', 'flower', 'ecology']
+                }
+            ),
+            ['pollen:expired']: this.formatFeedActionLine(
+                time,
+                butterflyLabel,
+                'Lost unused pollen.',
+                null,
+                {
+                    category: 'action',
+                    grounding: `${zoneLabel} • pollen faded`,
+                    contextTags: ['pollen', 'expiry']
+                }
+            ),
             [GameEvents?.BATTLE_ACTION_OCCURRED || 'battle:actionOccurred']: this.formatBattleFeedEntry(time, data)
         };
 
@@ -4604,6 +4653,10 @@ class GameUI {
             [GameEvents?.OBJECT_DELIVERED || 'object:delivered']: 'action',
             ['object:placed']: 'action',
             ['environment:project-completed']: 'action',
+            ['pollen:handoff']: 'action',
+            ['pollen:planted']: 'action',
+            ['pollen:bloomed']: 'action',
+            ['pollen:expired']: 'action',
             [GameEvents?.BATTLE_ACTION_OCCURRED || 'battle:actionOccurred']: 'action'
         };
 

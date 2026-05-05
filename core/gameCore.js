@@ -3858,6 +3858,15 @@ class GameCore {
             });
             if (flower) {
                 this.particleSystem?.emitBurst?.(flower.x, flower.y, [255, 232, 170], 10);
+                if (typeof eventBus !== 'undefined') {
+                    eventBus.emit('pollen:bloomed', {
+                        flowerId: flower.id,
+                        plantingId: planting.id,
+                        butterflyId: planting.butterflyId || null,
+                        zoneId: planting.zoneId,
+                        boardPos: planting.boardPos || null
+                    });
+                }
             }
             this.gameState.pendingPollenPlantings.splice(i, 1);
         }

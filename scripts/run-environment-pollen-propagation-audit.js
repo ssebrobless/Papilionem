@@ -113,7 +113,7 @@ async function run() {
       const add = (id, pass, details = {}) => assertions.push({ id, pass: !!pass, details });
       const zoneId = 'moss-hollow';
       const events = [];
-      const eventNames = ['pollen:charged', 'pollen:charge-consumed', 'pollen:planted', 'pollen:handoff', 'pollen:expired'];
+      const eventNames = ['pollen:charged', 'pollen:charge-consumed', 'pollen:planted', 'pollen:handoff', 'pollen:bloomed', 'pollen:expired'];
       for (const eventName of eventNames) {
         eventBus.on(eventName, payload => events.push({ eventName, payload }));
       }
@@ -259,7 +259,17 @@ async function run() {
           && (flower.lifecycleKind || 'flower') === 'flower';
       });
       add('pollen-patch-blooms-into-flower-at-reserved-cell', !!bloomedFlower, {
-        flowerId: bloomedFlower?.id || null
+        flowerId: bloomedFlower?.id || null,
+        bloomedEvents: countEvents('pollen:bloomed')
+      });
+
+      gameUI.activityLogCache = { key: null, entries: [] };
+      const feedEntries = gameUI.getRecentActivityEntries?.() || [];
+      const feedLines = feedEntries.map(entry => entry?.line || '').filter(Boolean);
+      add('feed-surfaces-pollen-cooperation-language', feedLines.some(line => /passed pollen to/i.test(line))
+        && feedLines.some(line => /planted pollen for a new flower/i.test(line))
+        && feedLines.some(line => /planted flower bloomed/i.test(line)), {
+        feedLines: feedLines.slice(-12)
       });
 
       const reserveCell = findOpenCell(22, 15);
