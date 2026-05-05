@@ -1653,7 +1653,9 @@ class GameCore {
         });
         const preferredPoint = options.preferredPoint
             || (Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null);
-        const minDistance = options.minDistance || gameConfig?.entities?.flower?.spawnMinDistance || 40;
+        const minDistance = Number.isFinite(options.minDistance)
+            ? Math.max(0, options.minDistance)
+            : (gameConfig?.entities?.flower?.spawnMinDistance || 40);
         const maxAttempts = options.maxAttempts || 30;
         const exactPoint = !!options.exactPoint;
         const normalFlowerCount = zoneFlowers.filter(flower =>
@@ -3635,6 +3637,17 @@ class GameCore {
             donorInventory.sourceFlowerTypes = [];
             source.pendingPollenDropTarget = null;
         }
+        const recipientDropTarget = options.planRecipientDrop === false
+            ? null
+            : this.planPollenDropTarget(recipient);
+        if (recipientDropTarget
+            && recipient.state === 'normal'
+            && !recipient.zoneTravel
+            && typeof recipient.setMovementTargetFromScreen === 'function') {
+            recipient.setMovementTargetFromScreen(recipientDropTarget.x, recipientDropTarget.y, 'immediate', 8, 0.04, {
+                zoneId: recipientDropTarget.zoneId || this.getEntityZoneId(recipient, recipient.currentZoneId || null)
+            });
+        }
         if (typeof eventBus !== 'undefined') {
             eventBus.emit('pollen:handoff', {
                 sourceId: source.id,
@@ -3643,6 +3656,13 @@ class GameCore {
                 sourceRemainingCharges: donorInventory.charges,
                 recipientCharges: recipientInventory.charges,
                 flowerType: handedType,
+                recipientDropTarget: recipientDropTarget
+                    ? {
+                        zoneId: recipientDropTarget.zoneId || null,
+                        x: recipientDropTarget.x,
+                        y: recipientDropTarget.y
+                    }
+                    : null,
                 reason: options.reason || 'social-handoff'
             });
         }
@@ -3693,6 +3713,40 @@ class GameCore {
         if (!butterfly?.id) return null;
         if (!this.hasUsablePollenCharge(butterfly)) return null;
         const zoneId = this.getEntityZoneId(butterfly, this.getFocusedZoneId());
+        const config = this.getPollenPropagationConfig();
+        const currentBoard = butterfly.ensureBoardPos?.() || butterfly.boardPos || null;
+        const searchRadius = Math.max(1, Math.round(Number(config.plantSearchRadiusUnits ?? 2)));
+        if (currentBoard?.zoneId && currentBoard.zoneId === zoneId) {
+            const originU = Math.round(currentBoard.u || 0);
+            const originV = Math.round(currentBoard.v || 0);
+            const candidates = [];
+            for (let du = -searchRadius; du <= searchRadius; du += 1) {
+                for (let dv = -searchRadius; dv <= searchRadius; dv += 1) {
+                    const distance = Math.hypot(du, dv);
+                    if (distance < 0.5 || distance > searchRadius) continue;
+                    candidates.push({ u: originU + du, v: originV + dv, distance });
+                }
+            }
+            candidates.sort((left, right) => left.distance - right.distance);
+            for (const candidate of candidates) {
+                const occupancy = structureSystem?.canOccupyBoardCell?.({
+                    zoneId,
+                    u: candidate.u,
+                    v: candidate.v,
+                    h: 0,
+                    occupantType: 'pollen-patch'
+                });
+                if (occupancy && !occupancy.accepted) continue;
+                const screen = renderManager?.boardToScreen?.({ zoneId, u: candidate.u, v: candidate.v, h: 0 });
+                if (!screen) continue;
+                butterfly.pendingPollenDropTarget = {
+                    x: screen.x,
+                    y: screen.y,
+                    zoneId
+                };
+                return butterfly.pendingPollenDropTarget;
+            }
+        }
         const point = this.findValidFlowerPosition(this.getFlowersInZone(zoneId), zoneId, {
             minDistance: 42,
             maxAttempts: 24
@@ -3793,12 +3847,13 @@ class GameCore {
             const bloomPoint = planting.boardPos && renderManager?.boardToScreen
                 ? (renderManager.boardToScreen(planting.boardPos) || { x: planting.x, y: planting.y })
                 : { x: planting.x, y: planting.y };
+            const config = this.getPollenPropagationConfig();
             const flower = this.spawnFlowerAt(planting.zoneId, bloomPoint.x, bloomPoint.y, {
                 candidateFlowers: zoneFlowers,
                 preferredPoint: bloomPoint,
                 exactPoint: true,
                 maxAttempts: 16,
-                minDistance: 38,
+                minDistance: Number.isFinite(config.bloomMinDistance) ? config.bloomMinDistance : 0,
                 ignoreObjectIds: [planting.id].filter(Boolean)
             });
             if (flower) {

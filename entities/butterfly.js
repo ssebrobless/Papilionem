@@ -859,6 +859,9 @@ class Butterfly extends Entity {
             const cleanupUrgency = Math.max(0, Math.min(1, behaviorBiases.objectInterest || 0));
             speed = this.speeds.meander * (1.05 + (cleanupUrgency * 0.18));
         }
+        if (this.pendingPollenDropTarget && this.movement.targetType === 'immediate') {
+            speed = Math.max(speed, this.speeds.meander * 1.08);
+        }
         
         // Happiness modifier (only if not in special state)
         if (this.happiness > this.baselineHappiness) {
@@ -1457,6 +1460,9 @@ class Butterfly extends Entity {
             this.boardPos = this.clampBoardTarget(target, zoneId);
             this.applyScreenFromBoardPos(this.boardPos);
             this.recordDispersalVisit();
+            if (this.pendingPollenDropTarget) {
+                gameCore?.completePollenDrop?.(this);
+            }
             this.movement.clearTarget();
             if (this.state === 'normal') {
                 this.timers.wander.current = 0;
@@ -1535,6 +1541,20 @@ class Butterfly extends Entity {
         const { flowers, blocks } = gameState;
         const displayConfidence = this.lifeSim?.derived?.behaviorBiases?.displayConfidence || 0;
         const socialConfidence = this.lifeSim?.derived?.behaviorBiases?.socialConfidence || 0;
+
+        if (this.pendingPollenDropTarget) {
+            if (!this.movement.target || this.movement.targetType !== 'immediate') {
+                this.setMovementTargetFromScreen(
+                    this.pendingPollenDropTarget.x,
+                    this.pendingPollenDropTarget.y,
+                    'immediate',
+                    8,
+                    0.04,
+                    { zoneId: this.pendingPollenDropTarget.zoneId || this.getMovementZoneId() }
+                );
+            }
+            return;
+        }
         
         if (
             this.timers.postFeedingCooldown === 0 &&

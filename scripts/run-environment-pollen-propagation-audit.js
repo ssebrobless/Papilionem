@@ -172,6 +172,7 @@ async function run() {
         add('audit-has-two-butterflies', false, { butterflyCount: butterflies.length });
         return assertions;
       }
+      gameCore.gameState.butterflies = [donor, recipient];
       removeZoneFlowers();
       donor.currentZoneId = zoneId;
       recipient.currentZoneId = zoneId;
@@ -179,6 +180,12 @@ async function run() {
       Object.assign(recipient, screen(19, 14));
       donor.boardPos = cell(18, 14, 0);
       recipient.boardPos = cell(19, 14, 0);
+      donor.state = 'normal';
+      recipient.state = 'normal';
+      donor.zoneTravel = null;
+      recipient.zoneTravel = null;
+      donor.movement?.clearTarget?.();
+      recipient.movement?.clearTarget?.();
       donor.pollenInventory = null;
       recipient.pollenInventory = null;
 
@@ -192,6 +199,8 @@ async function run() {
       });
 
       gameCore.grantPollenCharges?.(donor, feedingFlower, { charges: 2, reason: 'audit-top-up' });
+      donor.pendingPollenDropTarget = null;
+      donor.movement?.clearTarget?.();
       const maxed = gameCore.ensureButterflyPollenInventory?.(donor);
       add('pollen-charges-cap-at-two', maxed?.charges === 2, { charges: maxed?.charges || 0, maxCharges: maxed?.maxCharges || 0 });
 
@@ -202,28 +211,41 @@ async function run() {
       add('pollen-handoff-transfers-one-charge', handed === true
         && donorAfterHandoff?.charges === 1
         && recipientAfterHandoff?.charges === 1
+        && !!recipient.pendingPollenDropTarget
         && countEvents('pollen:handoff') === handoffBefore + 1, {
         donorCharges: donorAfterHandoff?.charges || 0,
         recipientCharges: recipientAfterHandoff?.charges || 0,
+        recipientDropTarget: recipient.pendingPollenDropTarget || null,
         handoffEvents: countEvents('pollen:handoff')
       });
 
-      clearCell(21, 15);
-      donor.pendingPollenDropTarget = { ...screen(21, 15), zoneId };
       const pendingBefore = (gameCore.gameState.pendingPollenPlantings || []).length;
-      const planted = gameCore.completePollenDrop?.(donor);
+      const plantedBefore = countEvents('pollen:planted');
+      let recipientPlanting = null;
+      for (let frame = 0; frame < 6000 && !recipientPlanting; frame += 1) {
+        gameCore.update();
+        recipientPlanting = (gameCore.gameState.pendingPollenPlantings || []).find(entry =>
+          entry?.butterflyId === recipient.id
+        ) || null;
+      }
       const pendingAfter = (gameCore.gameState.pendingPollenPlantings || []).length;
-      const donorAfterPlant = gameCore.ensureButterflyPollenInventory?.(donor);
-      const planting = (gameCore.gameState.pendingPollenPlantings || [])[pendingAfter - 1] || null;
-      add('planting-consumes-one-charge-and-reserves-cell', planted === true
-        && pendingAfter === pendingBefore + 1
-        && donorAfterPlant?.charges === 0
-        && planting?.boardPos?.u === 21
-        && planting?.boardPos?.v === 15
-        && countEvents('pollen:planted') >= 1, {
+      const recipientAfterPlant = gameCore.ensureButterflyPollenInventory?.(recipient);
+      const planting = recipientPlanting;
+      const recipientTargetBoard = recipient.getMovementTargetBoardPos?.() || null;
+      const recipientBoard = recipient.ensureBoardPos?.() || recipient.boardPos || null;
+      add('handoff-recipient-travels-and-plants-pollen', countEvents('pollen:planted') === plantedBefore + 1
+        && pendingAfter >= pendingBefore + 1
+        && recipientAfterPlant?.charges === 0
+        && planting?.butterflyId === recipient.id, {
         pendingBefore,
         pendingAfter,
-        donorCharges: donorAfterPlant?.charges || 0,
+        recipientCharges: recipientAfterPlant?.charges || 0,
+        recipientId: recipient.id,
+        recipientBoard,
+        recipientTargetBoard,
+        recipientPendingTarget: recipient.pendingPollenDropTarget || null,
+        recipientTargetType: recipient.movement?.targetType || null,
+        distanceToTarget: recipient.getDistanceToMovementTarget?.() ?? null,
         planting: planting ? { id: planting.id, boardPos: planting.boardPos, framesRemaining: planting.framesRemaining } : null
       });
 
@@ -233,7 +255,7 @@ async function run() {
       }
       const bloomedFlower = (gameCore.gameState.flowers || []).find(flower => {
         const objectCell = structureSystem.getEntityObjectCell?.(flower, { zoneId, h: 0 });
-        return objectCell?.zoneId === zoneId && objectCell.u === 21 && objectCell.v === 15
+        return objectCell?.zoneId === planting?.zoneId && objectCell.u === planting?.boardPos?.u && objectCell.v === planting?.boardPos?.v
           && (flower.lifecycleKind || 'flower') === 'flower';
       });
       add('pollen-patch-blooms-into-flower-at-reserved-cell', !!bloomedFlower, {
