@@ -21,6 +21,7 @@ function getArgValue(flag, fallback = null) {
 }
 const POLICY_ARG = getArgValue('--policy');
 const FIXTURE_ARG = getArgValue('--fixture');
+const REPEAT_COUNT = Math.max(1, Math.round(Number(getArgValue('--repeat', 1))));
 const VALUE_THRESHOLDS = {
   chiSquareMotiveDistinctness: 3.84,
   policyDisagreementRate: 0.1,
@@ -350,6 +351,86 @@ function summarizeValueDiagnostics(scenario = {}) {
       ? Number((distinctZones.reduce((sum, value) => sum + value, 0) / distinctZones.length).toFixed(4))
       : 0,
     entityCount: entities.length
+  };
+}
+
+function mean(values = []) {
+  const finite = values.filter(Number.isFinite);
+  if (!finite.length) return null;
+  return finite.reduce((sum, value) => sum + value, 0) / finite.length;
+}
+
+function standardDeviation(values = []) {
+  const finite = values.filter(Number.isFinite);
+  if (finite.length < 2) return 0;
+  const avg = mean(finite);
+  const variance = finite.reduce((sum, value) => sum + ((value - avg) ** 2), 0) / finite.length;
+  return Math.sqrt(variance);
+}
+
+function roundMetric(value) {
+  return Number.isFinite(value) ? Number(value.toFixed(4)) : null;
+}
+
+function aggregateValueMetricRuns(valueRuns = []) {
+  const metricNames = valueRuns[0]?.valueMetrics?.metrics?.map(metric => metric.name) || [];
+  const metrics = metricNames.map(name => {
+    const rows = valueRuns
+      .map(run => run.valueMetrics.metrics.find(metric => metric.name === name))
+      .filter(Boolean);
+    const values = rows.map(row => Number.isFinite(row.value) ? row.value : null).filter(Number.isFinite);
+    const mlOnValues = rows.map(row => Number.isFinite(row.mlOn) ? row.mlOn : null).filter(Number.isFinite);
+    const mlOffValues = rows.map(row => Number.isFinite(row.mlOff) ? row.mlOff : null).filter(Number.isFinite);
+    const ratioValues = rows.map(row => Number.isFinite(row.ratio) ? row.ratio : null).filter(Number.isFinite);
+    const passCount = rows.filter(row => row.meetsThreshold === true).length;
+    const evaluatedCount = rows.filter(row => row.evaluated !== false).length;
+    return {
+      name,
+      repeatCount: rows.length,
+      evaluatedCount,
+      passCount,
+      passRate: rows.length ? Number((passCount / rows.length).toFixed(4)) : 0,
+      meetsThreshold: rows.length > 0 && passCount === rows.length,
+      evaluated: evaluatedCount > 0,
+      threshold: rows[0]?.threshold || null,
+      valueMean: roundMetric(mean(values)),
+      valueStdDev: roundMetric(standardDeviation(values)),
+      mlOnMean: roundMetric(mean(mlOnValues)),
+      mlOnStdDev: roundMetric(standardDeviation(mlOnValues)),
+      mlOffMean: roundMetric(mean(mlOffValues)),
+      mlOffStdDev: roundMetric(standardDeviation(mlOffValues)),
+      ratioMean: roundMetric(mean(ratioValues)),
+      ratioStdDev: roundMetric(standardDeviation(ratioValues)),
+      runValues: rows.map((row, index) => ({
+        iteration: valueRuns[index]?.iteration || index + 1,
+        value: row.value ?? null,
+        mlOn: row.mlOn ?? null,
+        mlOff: row.mlOff ?? null,
+        ratio: row.ratio ?? null,
+        meetsThreshold: row.meetsThreshold
+      }))
+    };
+  });
+  return {
+    frameCount: VALUE_FRAME_COUNT,
+    sampleInterval: VALUE_SAMPLE_INTERVAL,
+    repeatCount: valueRuns.length,
+    thresholds: VALUE_THRESHOLDS,
+    metrics,
+    metricsEvaluated: metrics.filter(metric => metric.evaluated).length,
+    metricsMeetingThreshold: metrics.filter(metric => metric.meetsThreshold).length,
+    runReport: valueRuns.map(run => ({
+      iteration: run.iteration,
+      metricsMeetingThreshold: run.valueMetrics.metricsMeetingThreshold,
+      metrics: run.valueMetrics.metrics.map(metric => ({
+        name: metric.name,
+        value: metric.value ?? null,
+        mlOn: metric.mlOn ?? null,
+        mlOff: metric.mlOff ?? null,
+        ratio: metric.ratio ?? null,
+        meetsThreshold: metric.meetsThreshold
+      }))
+    }))
   };
 }
 
@@ -790,6 +871,7 @@ async function run() {
     startedAt: new Date().toISOString(),
     url: URL,
     cadenceFactor: CADENCE_FACTOR,
+    repeatCount: REPEAT_COUNT,
     outputDir,
     pageErrors: [],
     consoleErrors: [],
@@ -830,50 +912,72 @@ async function run() {
         }
       : null;
     const policyBrowserPath = toBrowserPolicyPath(resolvePolicyArtifactPath());
-    const mlOn = await runScenario(page, true, storageSnapshot, CADENCE_FACTOR, policyBrowserPath, fixture?.scenario || null);
-    const mlOff = await runScenario(page, false, storageSnapshot, CADENCE_FACTOR, policyBrowserPath, fixture?.scenario || null);
+    const valueRuns = [];
+    for (let iteration = 1; iteration <= REPEAT_COUNT; iteration += 1) {
+      const mlOn = await runScenario(page, true, storageSnapshot, CADENCE_FACTOR, policyBrowserPath, fixture?.scenario || null);
+      const mlOff = await runScenario(page, false, storageSnapshot, CADENCE_FACTOR, policyBrowserPath, fixture?.scenario || null);
+      const valueMetrics = compareValueMetrics(mlOn, mlOff);
+      report.scenarios.push({ iteration, ...mlOn }, { iteration, ...mlOff });
+      valueRuns.push({ iteration, mlOn, mlOff, valueMetrics });
+    }
     await restoreStorageSnapshot(page, storageSnapshot);
-    const valueMetrics = compareValueMetrics(mlOn, mlOff);
-    report.scenarios.push(mlOn, mlOff);
+    const valueMetrics = REPEAT_COUNT === 1
+      ? valueRuns[0].valueMetrics
+      : aggregateValueMetricRuns(valueRuns);
+    report.valueMetricRuns = valueRuns.map(run => ({
+      iteration: run.iteration,
+      valueMetrics: run.valueMetrics,
+      mlOnFixtureSummary: run.mlOn.fixtureSummary,
+      mlOffFixtureSummary: run.mlOff.fixtureSummary
+    }));
     report.valueMetrics = valueMetrics;
 
     report.checks.push({
       name: 'ml-on-loads-static-policy-and-produces-ml-decisions',
-      pass: !!mlOn.runtimeSummary?.modelLoaded
-        && (mlOn.policySourceCounts.ml || 0) > 0
-        && (mlOn.rowSummary.sourceCounts.ml || 0) > 0
-        && !mlOn.runtimeSummary?.lastLoadError
-        && !mlOn.runtimeSummary?.lastInferenceError,
+      pass: valueRuns.every(run => !!run.mlOn.runtimeSummary?.modelLoaded
+        && (run.mlOn.policySourceCounts.ml || 0) > 0
+        && (run.mlOn.rowSummary.sourceCounts.ml || 0) > 0
+        && !run.mlOn.runtimeSummary?.lastLoadError
+        && !run.mlOn.runtimeSummary?.lastInferenceError),
       details: {
-        loadedPolicies: mlOn.runtimeSummary?.loadedPolicies || [],
-        policySourceCounts: mlOn.policySourceCounts,
-        rowSourceCounts: mlOn.rowSummary.sourceCounts,
-        lastLoadError: mlOn.runtimeSummary?.lastLoadError || null,
-        lastInferenceError: mlOn.runtimeSummary?.lastInferenceError || null
+        runs: valueRuns.map(run => ({
+          iteration: run.iteration,
+          loadedPolicies: run.mlOn.runtimeSummary?.loadedPolicies || [],
+          policySourceCounts: run.mlOn.policySourceCounts,
+          rowSourceCounts: run.mlOn.rowSummary.sourceCounts,
+          lastLoadError: run.mlOn.runtimeSummary?.lastLoadError || null,
+          lastInferenceError: run.mlOn.runtimeSummary?.lastInferenceError || null
+        }))
       }
     });
     report.checks.push({
       name: 'ml-off-stays-on-heuristic-fallback',
-      pass: mlOff.useModelInference === false
-        && !mlOff.runtimeSummary?.modelLoaded
-        && (mlOff.policySourceCounts.ml || 0) === 0
-        && (mlOff.rowSummary.sourceCounts.ml || 0) === 0
-        && ((mlOff.policySourceCounts['heuristic-fallback'] || 0) > 0 || (mlOff.rowSummary.sourceCounts['heuristic-fallback'] || 0) > 0),
+      pass: valueRuns.every(run => run.mlOff.useModelInference === false
+        && !run.mlOff.runtimeSummary?.modelLoaded
+        && (run.mlOff.policySourceCounts.ml || 0) === 0
+        && (run.mlOff.rowSummary.sourceCounts.ml || 0) === 0
+        && ((run.mlOff.policySourceCounts['heuristic-fallback'] || 0) > 0 || (run.mlOff.rowSummary.sourceCounts['heuristic-fallback'] || 0) > 0)),
       details: {
-        modelLoaded: mlOff.runtimeSummary?.modelLoaded,
-        policySourceCounts: mlOff.policySourceCounts,
-        rowSourceCounts: mlOff.rowSummary.sourceCounts
+        runs: valueRuns.map(run => ({
+          iteration: run.iteration,
+          modelLoaded: run.mlOff.runtimeSummary?.modelLoaded,
+          policySourceCounts: run.mlOff.policySourceCounts,
+          rowSourceCounts: run.mlOff.rowSummary.sourceCounts
+        }))
       }
     });
     report.checks.push({
       name: 'outcome-window-row-coverage-at-least-80-percent',
-      pass: mlOn.rowSummary.dueEntryCount > 0
-        && mlOff.rowSummary.dueEntryCount > 0
-        && mlOn.rowSummary.populatedRatio >= 0.8
-        && mlOff.rowSummary.populatedRatio >= 0.8,
+      pass: valueRuns.every(run => run.mlOn.rowSummary.dueEntryCount > 0
+        && run.mlOff.rowSummary.dueEntryCount > 0
+        && run.mlOn.rowSummary.populatedRatio >= 0.8
+        && run.mlOff.rowSummary.populatedRatio >= 0.8),
       details: {
-        mlOn: mlOn.rowSummary,
-        mlOff: mlOff.rowSummary
+        runs: valueRuns.map(run => ({
+          iteration: run.iteration,
+          mlOn: run.mlOn.rowSummary,
+          mlOff: run.mlOff.rowSummary
+        }))
       }
     });
     report.checks.push({
@@ -891,7 +995,7 @@ async function run() {
       details: valueMetrics
     });
 
-    fs.writeFileSync(path.join(outputDir, 'side-by-side.json'), JSON.stringify({ mlOn, mlOff, valueMetrics }, null, 2));
+    fs.writeFileSync(path.join(outputDir, 'side-by-side.json'), JSON.stringify({ valueRuns, valueMetrics }, null, 2));
     report.overall = report.checks.every(check => check.pass) ? 'pass' : 'fail';
   } catch (error) {
     report.overall = 'fail';
