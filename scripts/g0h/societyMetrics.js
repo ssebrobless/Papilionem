@@ -79,15 +79,36 @@ function computeRelationshipArcEventChurn(cognitionEvents = [], durationSeconds 
   const events = (cognitionEvents || []).filter(event => event?.kind === 'relationshipArcEvent');
   const eventTransitions = events.map(event => ({
     pairKey: event.entityId && event.partnerId ? `${event.entityId}->${event.partnerId}` : null,
+    canonicalPairKey: event.entityId && event.partnerId
+      ? [event.entityId, event.partnerId].sort().join('<->')
+      : null,
     fromTier: event.fromTier || event.previousTier || null,
     toTier: event.toTier || event.newTier || null,
     atFrame: event.currentFrame ?? null,
     arcReasons: event.arcReasons || []
   }));
+  const canonicalTransitions = [];
+  const canonicalSeen = new Set();
+  for (const transition of eventTransitions) {
+    const timeBucket = Number.isFinite(transition.atFrame)
+      ? Math.floor(transition.atFrame / 900)
+      : 0;
+    const key = [
+      transition.canonicalPairKey || transition.pairKey || 'unknown',
+      transition.fromTier || 'unknown',
+      transition.toTier || 'unknown',
+      timeBucket
+    ].join('|');
+    if (canonicalSeen.has(key)) continue;
+    canonicalSeen.add(key);
+    canonicalTransitions.push(transition);
+  }
   return {
     eventCount: eventTransitions.length,
-    transitionsPerMinute: eventTransitions.length / Math.max(1, durationSeconds / 60),
+    canonicalEventCount: canonicalTransitions.length,
+    transitionsPerMinute: canonicalTransitions.length / Math.max(1, durationSeconds / 60),
     eventTransitions,
+    canonicalTransitions,
     sourcePath: 'event-subscription:cognition:triggered:relationshipArcEvent'
   };
 }
@@ -119,10 +140,17 @@ function computeBondChurn(samples = [], durationSeconds = 1, cognitionEvents = [
   const relationshipArcEvents = computeRelationshipArcEventChurn(cognitionEvents, durationSeconds);
   const sampleTransitionsPerMinute = transitions / Math.max(1, durationSeconds / 60);
   const eventTransitionsPerMinute = relationshipArcEvents.transitionsPerMinute;
+  const primaryTransitionsPerMinute = relationshipArcEvents.eventCount > 0
+    ? eventTransitionsPerMinute
+    : sampleTransitionsPerMinute;
   return {
     transitions,
     transitionsPerMinute: sampleTransitionsPerMinute,
     combinedTransitionsPerMinute: Math.max(sampleTransitionsPerMinute, eventTransitionsPerMinute),
+    primaryTransitionsPerMinute,
+    primarySourcePath: relationshipArcEvents.eventCount > 0
+      ? relationshipArcEvents.sourcePath
+      : 'sample-series:bondTier',
     pairTransitions,
     relationshipArcEvents,
     sourcePath: 'sample-series:bondTier + event-subscription:relationshipArcEvent'
@@ -273,12 +301,14 @@ function evaluateBands(metrics = {}) {
     },
     {
       id: 'bond-churn',
-      pass: metrics.bondChurn.combinedTransitionsPerMinute >= 0.25 && metrics.bondChurn.combinedTransitionsPerMinute <= 2.0,
-      observed: metrics.bondChurn.combinedTransitionsPerMinute,
+      pass: metrics.bondChurn.primaryTransitionsPerMinute >= 0.25 && metrics.bondChurn.primaryTransitionsPerMinute <= 2.0,
+      observed: metrics.bondChurn.primaryTransitionsPerMinute,
       expected: '0.25..2.0 transitions/min',
       provisional: true,
       diagnostic: {
+        primarySourcePath: metrics.bondChurn.primarySourcePath,
         sampleTransitionsPerMinute: metrics.bondChurn.transitionsPerMinute,
+        combinedTransitionsPerMinute: metrics.bondChurn.combinedTransitionsPerMinute,
         relationshipArcEventTransitionsPerMinute: metrics.bondChurn.relationshipArcEvents?.transitionsPerMinute || 0,
         relationshipArcEventCount: metrics.bondChurn.relationshipArcEvents?.eventCount || 0
       }
