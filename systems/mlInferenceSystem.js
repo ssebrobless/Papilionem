@@ -881,6 +881,18 @@ class MlInferenceSystem {
             followThrough?.protectScore || 0
         ));
         const localFieldPressure = this.clamp01(localSignalField?.totalPressure || 0);
+        const pollenCharges = Math.max(0, Math.round(Number(entity?.pollenInventory?.charges || 0)));
+        const hasPendingPollenDrop = !!entity?.pendingPollenDropTarget;
+        const derivedObjectFocusType = hasPendingPollenDrop || pollenCharges > 0
+            ? 'pollen'
+            : (lifeSim.objectAwareness?.focusType || 'none');
+        const derivedObjectAffordance = hasPendingPollenDrop
+            ? 'plant'
+            : (lifeSim.objectAwareness?.currentAffordance || 'observe');
+        const derivedCarryingType = pollenCharges > 0
+            ? 'pollen'
+            : (entity?.blockInteraction?.carryingBlockId ? 'block' : (lifeSim.objectAwareness?.carryingType || 'none'));
+        const pollenFamiliarity = Math.max(lifeSim.objectAwareness?.pollenFamiliarity || 0, pollenCharges > 0 ? 0.72 : 0);
 
         const groups = {
             identity: {
@@ -958,11 +970,11 @@ class MlInferenceSystem {
                 calmedByCursor: !!lifeSim.playerInteraction?.calmedByCursor
             },
             objectAwareness: {
-                focusType: lifeSim.objectAwareness?.focusType || 'none',
-                currentAffordance: lifeSim.objectAwareness?.currentAffordance || 'observe',
-                carryingType: lifeSim.objectAwareness?.carryingType || 'none',
+                focusType: this.resolveCategoryValue(derivedObjectFocusType, 'focusType', 'none'),
+                currentAffordance: this.resolveCategoryValue(derivedObjectAffordance, 'affordance', 'observe'),
+                carryingType: this.resolveCategoryValue(derivedCarryingType, 'carryingType', 'none'),
                 flowerFamiliarity: lifeSim.objectAwareness?.flowerFamiliarity || 0,
-                pollenFamiliarity: lifeSim.objectAwareness?.pollenFamiliarity || 0,
+                pollenFamiliarity,
                 eggFamiliarity: lifeSim.objectAwareness?.eggFamiliarity || 0,
                 blockFamiliarity: lifeSim.objectAwareness?.blockFamiliarity || 0,
                 shelterConfidence: lifeSim.objectAwareness?.shelterConfidence || 0
@@ -2393,6 +2405,17 @@ class MlInferenceSystem {
             .filter(([, value]) => Number.isFinite(Number(value)))
             .sort((left, right) => Number(right[1]) - Number(left[1]))[0]?.[0] || null;
         const currentFamily = entity?.state || lifeSim.objectAwareness?.currentAffordance || 'normal';
+        const pollenCharges = Math.max(0, Math.round(Number(entity?.pollenInventory?.charges || 0)));
+        const hasPendingPollenDrop = !!entity?.pendingPollenDropTarget;
+        const outcomeFocusType = hasPendingPollenDrop || pollenCharges > 0
+            ? 'pollen'
+            : (lifeSim.objectAwareness?.focusType || null);
+        const outcomeAffordance = hasPendingPollenDrop
+            ? 'plant'
+            : (lifeSim.objectAwareness?.currentAffordance || null);
+        const outcomeCarryingType = pollenCharges > 0
+            ? 'pollen'
+            : (entity?.blockInteraction?.carryingBlockId ? 'block' : (lifeSim.objectAwareness?.carryingType || null));
 
         return {
             schemaVersion: 'p8-outcome-window-v1',
@@ -2408,9 +2431,11 @@ class MlInferenceSystem {
                 retainedFamily: !entry?.action || currentFamily === entry.action
             },
             object: {
-                focusType: lifeSim.objectAwareness?.focusType || null,
-                affordance: lifeSim.objectAwareness?.currentAffordance || null,
-                carryingType: entity?.blockInteraction?.carryingBlockId ? 'block' : null
+                focusType: outcomeFocusType,
+                affordance: outcomeAffordance,
+                carryingType: outcomeCarryingType,
+                pollenCharges,
+                pendingPollenDrop: hasPendingPollenDrop
             },
             social: {
                 activeContext: social.activeContext || null,
