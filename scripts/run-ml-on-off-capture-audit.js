@@ -347,6 +347,7 @@ function summarizeValueDiagnostics(scenario = {}) {
     zoneTopEdgeFractions: inputs.zoneTopEdgeFractions || {},
     migrationTargetCounts: inputs.migrationTargetCounts || {},
     migrationTargetSourceCounts: inputs.migrationTargetSourceCounts || {},
+    routeDiagnostics: inputs.routeDiagnostics || {},
     meanDistinctZonesPerEntity: distinctZones.length
       ? Number((distinctZones.reduce((sum, value) => sum + value, 0) / distinctZones.length).toFixed(4))
       : 0,
@@ -571,6 +572,7 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
     const migrationTargetCounts = {};
     const migrationTargetSourceCounts = {};
     const zoneTopEdgeSamples = {};
+    const routeDiagnostics = {};
     const getBoardPos = (entity) => {
       const board = entity?.ensureBoardPos?.() || entity?.boardPos || null;
       if (board && Number.isFinite(board.u) && Number.isFinite(board.v)) return board;
@@ -648,6 +650,27 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
         migrationTargetSourceCounts[migrationTargetSource] = (migrationTargetSourceCounts[migrationTargetSource] || 0) + 1;
         stats.migrationTargetCounts[migrationTarget] = (stats.migrationTargetCounts[migrationTarget] || 0) + 1;
         stats.migrationTargetSourceCounts[migrationTargetSource] = (stats.migrationTargetSourceCounts[migrationTargetSource] || 0) + 1;
+        if (migrationTarget && migrationTarget !== 'none' && migrationTarget !== zoneId) {
+          const routeKey = `${zoneId}->${migrationTarget}`;
+          const route = gameCore.buildSimBoardZoneTravelRoute?.(zoneId, migrationTarget) || null;
+          const targetDepth = Math.max(1, getDepthUnits(migrationTarget));
+          const arrivalTargetBoard = route?.arrivalTargetBoardPos || null;
+          const arrivalBoard = route?.arrivalBoardPos || null;
+          routeDiagnostics[routeKey] = routeDiagnostics[routeKey] || {
+            routeKey,
+            sourceZoneId: zoneId,
+            targetZoneId: migrationTarget,
+            sampleCount: 0,
+            routeAvailable: !!route,
+            exitId: route?.exitId || null,
+            direction: route?.direction || null,
+            arrivalBoardPos: arrivalBoard,
+            arrivalTargetBoardPos: arrivalTargetBoard,
+            arrivalTargetTopBand: !!(arrivalTargetBoard && arrivalTargetBoard.v < targetDepth * 0.15),
+            targetDepthUnits: targetDepth
+          };
+          routeDiagnostics[routeKey].sampleCount += 1;
+        }
         if (target) {
           const targetKey = `${target.zoneId || zoneId}:${Math.round(target.u * 10) / 10}:${Math.round(target.v * 10) / 10}`;
           if (stats.activeTargetKey !== targetKey) {
@@ -825,6 +848,7 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
       edgeChurnPerMinute: Number((edgeChurnTotal / Math.max(0.001, durationMinutes)).toFixed(4)),
       migrationTargetCounts,
       migrationTargetSourceCounts,
+      routeDiagnostics,
       targetAcquisitionLatencyFrames: acquisitionFrames.length
         ? Number((acquisitionFrames.reduce((sum, value) => sum + value, 0) / acquisitionFrames.length).toFixed(2))
         : null,
