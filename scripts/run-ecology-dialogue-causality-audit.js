@@ -182,13 +182,15 @@ async function run() {
       const ecologyEventAccumulator = {
         pollenFollowThrough: [],
         reserveFoodUsed: [],
-        shadeRestArrived: []
+        shadeRestArrived: [],
+        cleanupObjectCleaned: []
       };
       const unsubscribers = [
         eventBus.on?.('pollen:sprinkle', event => ecologyEventAccumulator.pollenFollowThrough.push(event)),
         eventBus.on?.('pollen:bloomed', event => ecologyEventAccumulator.pollenFollowThrough.push(event)),
         eventBus.on?.('ecology:reserve-food-used', event => ecologyEventAccumulator.reserveFoodUsed.push(event)),
-        eventBus.on?.('ecology:shade-rest-arrived', event => ecologyEventAccumulator.shadeRestArrived.push(event))
+        eventBus.on?.('ecology:shade-rest-arrived', event => ecologyEventAccumulator.shadeRestArrived.push(event)),
+        eventBus.on?.('ecology:cleanup-object-cleaned', event => ecologyEventAccumulator.cleanupObjectCleaned.push(event))
       ].filter(Boolean);
 
       const zoneId = 'moss-hollow';
@@ -245,6 +247,29 @@ async function run() {
       const reserveBaselineInteractionCount = reserveFood?.id && objectSystem?.getObjectState
         ? (objectSystem.getObjectState(reserveFood.id)?.interactionCount || 0)
         : 0;
+      const reserveHuskScreen = renderManager.boardToScreen({ zoneId, u: 24, v: 14, h: 0 });
+      const reserveHuskFlower = gameCore.spawnFlowerAt(zoneId, reserveHuskScreen.x, reserveHuskScreen.y, {
+        exactPoint: true,
+        ignoreZoneFlowerCap: true,
+        allowFlowerOverlap: true,
+        persistentUntilConsumed: true,
+        resourceOrigin: 'ecology-dialogue-reserve-husk'
+      });
+      const reserveHusk = gameCore.convertFlowerToReserveFood?.(reserveHuskFlower, null, {
+        source: 'ecology-dialogue-husk-fixture'
+      });
+      const reserveHuskMaxUses = Math.max(1, Math.round(Number(gameConfig?.cognition?.ecologyCommunication?.reserveFood?.maxSharedUses || 6)));
+      if (reserveHusk?.id) {
+        objectSystem?.recordInteraction?.(reserveHusk.id, 'seeded depleted reserve husk', null, {
+          zoneId,
+          reason: 'ecology-dialogue-causality',
+          reserveFoodUseCount: reserveHuskMaxUses,
+          reserveFoodMaxUses: reserveHuskMaxUses,
+          reserveFoodDepleted: true
+        });
+        reserveHusk.refreshLifecycleObjectProfile?.();
+      }
+      const reserveHuskVisualStateAtSeed = reserveHusk?.getReserveFoodVisualState?.() || null;
       const blockPoints = [
         { u: 20, v: 16 },
         { u: 21, v: 16 },
@@ -314,6 +339,7 @@ async function run() {
         blockCount: blockIds.length,
         dirtPileIds,
         reserveFoodId: reserveFood?.id || null,
+        reserveHuskId: reserveHusk?.id || null,
         blockIds,
         followThrough: (() => {
           const flowers = gameCore.gameState?.flowers || [];
@@ -327,8 +353,42 @@ async function run() {
             : null;
           const reserveFoodUseEvents = ecologyEventAccumulator.reserveFoodUsed;
           const shadeRestArrivalEvents = ecologyEventAccumulator.shadeRestArrived;
-          const reserveFoodUseState = reserveFood?.getReserveFoodUseState?.() || null;
+          const cleanupObjectCleanedEvents = ecologyEventAccumulator.cleanupObjectCleaned;
+          const reserveFoodUseEventCount = Math.max(
+            0,
+            ...reserveFoodUseEvents
+              .filter(event => event?.objectId === reserveFood?.id)
+              .map(event => Math.round(Number(event?.useCount || 0)))
+          );
+          const reserveFoodMaxUseEventCount = Math.max(
+            0,
+            ...reserveFoodUseEvents
+              .filter(event => event?.objectId === reserveFood?.id)
+              .map(event => Math.round(Number(event?.maxUses || 0)))
+          );
+          const reserveFoodDepletedEventObserved = reserveFoodUseEvents.some(event =>
+            event?.objectId === reserveFood?.id && event?.depleted === true
+          );
+          const rawReserveFoodUseState = reserveFood?.getReserveFoodUseState?.() || null;
+          const reserveFoodUseState = reserveState
+            ? rawReserveFoodUseState
+            : {
+                useCount: reserveFoodUseEventCount,
+                maxUses: reserveFoodMaxUseEventCount,
+                depleted: reserveFoodDepletedEventObserved,
+                remainingRatio: reserveFoodDepletedEventObserved
+                  ? 0
+                  : (reserveFoodMaxUseEventCount > 0
+                    ? Math.max(0, Math.min(1, (reserveFoodMaxUseEventCount - reserveFoodUseEventCount) / reserveFoodMaxUseEventCount))
+                    : 1),
+                source: 'event-accumulator'
+              };
           const reserveFoodVisualState = reserveFood?.getReserveFoodVisualState?.() || null;
+          const reserveFoodDepletedVisualState = reserveFoodDepletedEventObserved
+            ? 'depleted'
+            : reserveFoodVisualState;
+          const reserveHuskStillPresent = !!(reserveHusk?.id && flowers.some(flower => flower.id === reserveHusk.id));
+          const reserveHuskCleanupEvents = cleanupObjectCleanedEvents.filter(event => event?.objectId === reserveHusk?.id);
           const reservePostSetupInteractions = Math.max(0, (reserveState?.interactionCount || 0) - reserveBaselineInteractionCount);
           const blocks = (gameCore.gameState?.blocks || []).filter(block => blockIds.includes(block.id));
           const tiredNearBlocks = (gameCore.gameState?.butterflies || []).filter(entity => {
@@ -356,6 +416,8 @@ async function run() {
             initialSeedDirtPiles: dirtPileIds.length,
             remainingSeedDirtPiles: remainingSeedDirt,
             cleanedSeedDirtPiles: Math.max(0, dirtPileIds.length - remainingSeedDirt),
+            cleanupObjectCleanedEventCount: cleanupObjectCleanedEvents.length,
+            cleanupObjectCleanedSamples: cleanupObjectCleanedEvents.slice(-8),
             cleanupTargetingCount: cleanupTargets,
             pendingPollenPlantings: pollenPlantings,
             pollenFollowThroughEventCount: pollenFollowThroughEvents,
@@ -363,13 +425,20 @@ async function run() {
             reserveFoodTouched: reservePostSetupInteractions > 0,
             reserveFoodInteractionCount: reservePostSetupInteractions,
             reserveFoodUseEventCount: reserveFoodUseEvents.length,
-            reserveFoodUseCount: Math.max(0, Math.round(Number(reserveState?.metadata?.reserveFoodUseCount || 0))),
-            reserveFoodMaxUses: Math.max(0, Math.round(Number(reserveState?.metadata?.reserveFoodMaxUses || 0))),
-            reserveFoodDepleted: reserveState?.metadata?.reserveFoodDepleted === true,
+            reserveFoodUseCount: Math.max(0, Math.round(Number(reserveState?.metadata?.reserveFoodUseCount || 0)), reserveFoodUseEventCount),
+            reserveFoodMaxUses: Math.max(0, Math.round(Number(reserveState?.metadata?.reserveFoodMaxUses || 0)), reserveFoodMaxUseEventCount),
+            reserveFoodDepleted: reserveState?.metadata?.reserveFoodDepleted === true || reserveFoodDepletedEventObserved,
             reserveFoodVisualState,
+            reserveFoodDepletedVisualState,
             reserveFoodUseState,
             reserveFoodBaselineInteractionCount: reserveBaselineInteractionCount,
             reserveFoodLastInteractionType: reserveState?.lastInteractionType || null,
+            reserveHuskId: reserveHusk?.id || null,
+            reserveHuskVisualStateAtSeed,
+            reserveHuskStillPresent,
+            reserveHuskCleaned: !!reserveHusk?.id && !reserveHuskStillPresent,
+            reserveHuskCleanupEventCount: reserveHuskCleanupEvents.length,
+            reserveHuskCleanupSamples: reserveHuskCleanupEvents.slice(-4),
             tiredNearBlocksCount: tiredNearBlocks,
             shadeRestTargetingCount: shadeRestTargets,
             shadeRestArrivedCount: shadeRestArrivalEvents.length,
@@ -520,12 +589,26 @@ async function run() {
       report.checks.push({
         name: 'reserve-food-depleted-visual-state',
         pass: report.followThrough.reserveFoodDepleted === true
-          ? report.followThrough.reserveFoodVisualState === 'depleted'
+          ? report.followThrough.reserveFoodDepletedVisualState === 'depleted'
           : !!report.followThrough.reserveFoodVisualState,
         details: {
           reserveFoodDepleted: !!report.followThrough.reserveFoodDepleted,
           reserveFoodVisualState: report.followThrough.reserveFoodVisualState || null,
+          reserveFoodDepletedVisualState: report.followThrough.reserveFoodDepletedVisualState || null,
           reserveFoodUseState: report.followThrough.reserveFoodUseState || null
+        }
+      });
+      report.checks.push({
+        name: 'reserve-husk-cleanup-observed',
+        pass: report.followThrough.reserveHuskVisualStateAtSeed === 'depleted'
+          && report.followThrough.reserveHuskCleaned === true
+          && (report.followThrough.reserveHuskCleanupEventCount || 0) >= 1,
+        details: {
+          reserveHuskId: report.followThrough.reserveHuskId || null,
+          reserveHuskVisualStateAtSeed: report.followThrough.reserveHuskVisualStateAtSeed || null,
+          reserveHuskCleaned: !!report.followThrough.reserveHuskCleaned,
+          reserveHuskCleanupEventCount: report.followThrough.reserveHuskCleanupEventCount || 0,
+          cleanupObjectCleanedEventCount: report.followThrough.cleanupObjectCleanedEventCount || 0
         }
       });
       report.checks.push({

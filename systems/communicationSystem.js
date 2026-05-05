@@ -771,6 +771,12 @@ class CommunicationSystem {
             const pendingPollen = !!source.pendingPollenDropTarget;
             const zoneFlowers = (gameState?.flowers || []).filter(flower => this.getZoneId(flower) === zoneId);
             const dirtPileCount = zoneFlowers.filter(flower => flower?.lifecycleKind === 'dirt-pile').length;
+            const reserveHuskCount = zoneFlowers.filter(flower =>
+                flower?.isReserveFoodBall?.() && flower?.isReserveFoodDepleted?.()
+            ).length;
+            const cleanupObjectCount = zoneFlowers.filter(flower =>
+                flower?.isCleanupObject?.() || flower?.lifecycleKind === 'dirt-pile'
+            ).length;
             const careDrive = this.clamp01(source.lifeSim?.drives?.caregiving || 0);
             const reserveFood = zoneFlowers.find(flower => {
                 if (!(flower?.isReserveFoodBall?.() || flower?.lifecycleKind === 'reserve-food-ball')) return false;
@@ -874,12 +880,12 @@ class CommunicationSystem {
             }
 
             if (config.cleanup?.enabled !== false
-                && dirtPileCount > 0
+                && cleanupObjectCount > 0
                 && careDrive >= 0.58
                 && this.canEmitEcologyWorkSignal(source, 'cleanup', currentFrame, cooldownFrames)) {
                 opportunities.push({
                     lane: 'cleanup',
-                    score: 0.5 + careDrive * 0.34 + Math.min(0.16, dirtPileCount * 0.025),
+                    score: 0.5 + careDrive * 0.34 + Math.min(0.16, cleanupObjectCount * 0.025),
                     allowDuringMigration: false,
                     emit: () => {
                         this.emitCooperationSignal(source, {
@@ -892,7 +898,9 @@ class CommunicationSystem {
                             reason: 'cleanup-help',
                             metadata: {
                                 reason: 'cleanup-help',
-                                dirtPileCount
+                                dirtPileCount,
+                                reserveHuskCount,
+                                cleanupObjectCount
                             }
                         });
                         this.markEcologyWorkSignal(source, 'cleanup', currentFrame);
@@ -952,6 +960,7 @@ class CommunicationSystem {
         const zoneId = this.getZoneId(entity);
         return this.pickDialogueCandidate([
             'The dirt piles are taking space we could use. Help me clear them',
+            'The spent food husks are taking space we could plant. Help me clear them',
             'This ground needs cleaning before we plant here. Will you work with me?',
             'If we clear these piles together, this place can feed us again'
         ], entity, 'ecology:cleanup-work', zoneId);

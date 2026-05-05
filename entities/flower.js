@@ -149,14 +149,17 @@ class Flower extends Entity {
             });
         }
         if (this.lifecycleKind === 'reserve-food-ball') {
+            const depleted = this.isReserveFoodDepleted?.() === true;
             return createObjectProfile({
                 entityType: 'flower-lifecycle',
-                subtype: 'reserve-food-ball',
-                resourceTags: ['food-reserve', 'nectar', 'garden-object'],
+                subtype: depleted ? 'depleted-reserve-food' : 'reserve-food-ball',
+                resourceTags: depleted
+                    ? ['garden-object', 'spent-food-reserve', 'cleanup']
+                    : ['food-reserve', 'nectar', 'garden-object'],
                 carryable: false,
-                consumable: true,
+                consumable: !depleted,
                 occupancyState: 'normal',
-                lifecycleStage: 'stable'
+                lifecycleStage: depleted ? 'depleted' : 'stable'
             });
         }
         return createObjectProfile({
@@ -180,12 +183,15 @@ class Flower extends Entity {
             profile.carryable = false;
             profile.lifecycleStage = 'decayed';
         } else if (this.lifecycleKind === 'reserve-food-ball') {
+            const depleted = this.isReserveFoodDepleted();
             profile.entityType = 'flower-lifecycle';
-            profile.subtype = 'reserve-food-ball';
-            profile.resourceTags = ['food-reserve', 'nectar', 'garden-object'];
-            profile.consumable = true;
+            profile.subtype = depleted ? 'depleted-reserve-food' : 'reserve-food-ball';
+            profile.resourceTags = depleted
+                ? ['garden-object', 'spent-food-reserve', 'cleanup']
+                : ['food-reserve', 'nectar', 'garden-object'];
+            profile.consumable = !depleted;
             profile.carryable = false;
-            profile.lifecycleStage = 'stable';
+            profile.lifecycleStage = depleted ? 'depleted' : 'stable';
         } else {
             profile.entityType = 'flower';
             profile.subtype = this.flowerType;
@@ -236,6 +242,16 @@ class Flower extends Entity {
         return this.getReserveFoodUseState().depleted;
     }
 
+    isCleanupObject() {
+        return this.isDirtPile() || (this.isReserveFoodBall() && this.isReserveFoodDepleted());
+    }
+
+    getCleanupObjectKind() {
+        if (this.isReserveFoodBall() && this.isReserveFoodDepleted()) return 'depleted-reserve-food';
+        if (this.isDirtPile()) return 'dirt-pile';
+        return null;
+    }
+
     getReserveFoodVisualState() {
         const state = this.getReserveFoodUseState();
         if (state.depleted) return 'depleted';
@@ -260,7 +276,8 @@ class Flower extends Entity {
     }
 
     tryCleanupDirtPile(butterflies = []) {
-        if (!this.isDirtPile()) return false;
+        if (!this.isCleanupObject()) return false;
+        const cleanupKind = this.getCleanupObjectKind();
         const radius = Math.max(8, gameConfig?.entities?.flower?.pileCleanupRadius || 24);
         const boardRadius = Math.max(0.35, gameConfig?.entities?.flower?.pileCleanupBoardRadius || 0.85);
         const driveThreshold = Math.max(0, gameConfig?.entities?.flower?.pileCleanupSelfMaintenance || 0.56);
@@ -284,21 +301,32 @@ class Flower extends Entity {
             const pixelAdjacent = Math.hypot((butterfly.x || 0) - this.x, (butterfly.y || 0) - this.y) <= radius;
             if (!boardAdjacent && !pixelAdjacent) continue;
             this.cleanedAtFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
-            objectSystem?.recordInteraction?.(this.id, 'cleaned dirt pile', butterfly.id, {
-                zoneId: this.currentZoneId || null
+            objectSystem?.recordInteraction?.(this.id, cleanupKind === 'depleted-reserve-food' ? 'cleaned reserve husk' : 'cleaned dirt pile', butterfly.id, {
+                zoneId: this.currentZoneId || null,
+                cleanupKind
             });
             if (typeof appendLifeMemory === 'function') {
                 appendLifeMemory(butterfly, 'object', {
                     subjectId: this.id,
                     valence: 0.12,
                     strength: 0.28,
-                    tags: ['soiled-place', 'cleanup', 'garden-object'],
+                    tags: cleanupKind === 'depleted-reserve-food'
+                        ? ['spent-food-reserve', 'cleanup', 'garden-object']
+                        : ['soiled-place', 'cleanup', 'garden-object'],
                     metadata: {
-                        zoneId: this.currentZoneId || null
+                        zoneId: this.currentZoneId || null,
+                        cleanupKind
                     }
                 });
             }
-            gameCore?.removeFlowerFromGame?.(this, 'dirt-pile-cleaned');
+            eventBus?.emit?.('ecology:cleanup-object-cleaned', {
+                objectId: this.id,
+                butterflyId: butterfly.id,
+                zoneId: this.currentZoneId || null,
+                cleanupKind,
+                currentFrame: this.cleanedAtFrame
+            });
+            gameCore?.removeFlowerFromGame?.(this, cleanupKind === 'depleted-reserve-food' ? 'reserve-husk-cleaned' : 'dirt-pile-cleaned');
             return true;
         }
         return false;

@@ -3646,7 +3646,7 @@ class Butterfly extends Entity {
     getDirtPilesInCurrentZone(flowers = []) {
         const zoneId = this.getMovementZoneId();
         return (flowers || []).filter(flower =>
-            flower?.lifecycleKind === 'dirt-pile'
+            (flower?.isCleanupObject?.() || flower?.lifecycleKind === 'dirt-pile')
             && (!zoneId || !flower.currentZoneId || flower.currentZoneId === zoneId)
         );
     }
