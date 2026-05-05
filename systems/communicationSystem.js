@@ -618,6 +618,118 @@ class CommunicationSystem {
             .sort((left, right) => right.score - left.score)[0]?.candidate || null;
     }
 
+    applyReserveFoodFollowThrough(source, partner, reserveFood, zoneId = null) {
+        const config = this.getEcologyCommunicationConfig()?.reserveFood || {};
+        if (config.followThroughEnabled === false || !source?.id || !reserveFood?.id) return false;
+        const recipient = [source, partner].filter(Boolean)
+            .sort((left, right) => {
+                const leftNeed = Math.max(
+                    this.clamp01(left.lifeSim?.drives?.selfMaintenance || 0),
+                    this.clamp01(left.lifeSim?.drives?.resourceControl || 0),
+                    this.clamp01(left.lifeSim?.emotions?.exhaustion || 0)
+                );
+                const rightNeed = Math.max(
+                    this.clamp01(right.lifeSim?.drives?.selfMaintenance || 0),
+                    this.clamp01(right.lifeSim?.drives?.resourceControl || 0),
+                    this.clamp01(right.lifeSim?.emotions?.exhaustion || 0)
+                );
+                return rightNeed - leftNeed;
+            })[0] || source;
+        const recorded = objectSystem?.recordInteraction?.(reserveFood.id, 'shared reserve food', source.id, {
+            recipientId: recipient.id || null,
+            zoneId,
+            reason: 'reserve-food-planning'
+        });
+        if (!recorded) return false;
+
+        if (recipient.lifeSim?.drives) {
+            recipient.lifeSim.drives.selfMaintenance = this.clamp01(
+                (recipient.lifeSim.drives.selfMaintenance || 0) - Number(config.selfMaintenanceRelief ?? 0.08)
+            );
+            recipient.lifeSim.drives.resourceControl = this.clamp01(
+                (recipient.lifeSim.drives.resourceControl || 0) - Number(config.resourceRelief ?? 0.06)
+            );
+        }
+        if (recipient.lifeSim?.emotions) {
+            recipient.lifeSim.emotions.exhaustion = this.clamp01(
+                (recipient.lifeSim.emotions.exhaustion || 0) - Number(config.exhaustionRelief ?? 0.03)
+            );
+            recipient.lifeSim.emotions.relief = this.clamp01(
+                (recipient.lifeSim.emotions.relief || 0) + Number(config.reliefBoost ?? 0.05)
+            );
+        }
+        eventBus?.emit?.('ecology:reserve-food-used', {
+            objectId: reserveFood.id,
+            sourceId: source.id,
+            recipientId: recipient.id || null,
+            zoneId,
+            currentFrame: this.getCurrentFrame()
+        });
+        return true;
+    }
+
+    getNearestShadeRestBlock(source, blocks = [], zoneId = null) {
+        if (!source?.boardPos) return null;
+        const sourceBoard = source.boardPos;
+        return blocks
+            .filter(block => block?.id && this.getZoneId(block) === zoneId)
+            .filter(block => Number.isFinite(block.boardPos?.u) && Number.isFinite(block.boardPos?.v))
+            .map(block => ({
+                block,
+                distance: Math.hypot((block.boardPos.u || 0) - (sourceBoard.u || 0), (block.boardPos.v || 0) - (sourceBoard.v || 0))
+            }))
+            .sort((left, right) => left.distance - right.distance)[0]?.block || null;
+    }
+
+    applyShadeRestFollowThrough(source, partner, blocks = [], zoneId = null) {
+        const config = this.getEcologyCommunicationConfig()?.shadeRest || {};
+        if (config.followThroughEnabled === false || !source?.id) return false;
+        const block = this.getNearestShadeRestBlock(source, blocks, zoneId);
+        if (!block?.id) return false;
+        const currentFrame = this.getCurrentFrame();
+        const durationFrames = Math.max(300, Math.round(Number(config.targetDurationFrames ?? 2400)));
+        const boardPos = {
+            zoneId,
+            u: Number(block.boardPos?.u || 0) + 0.35,
+            v: Number(block.boardPos?.v || 0) + 0.35,
+            h: 0
+        };
+        const targetScreen = renderManager?.boardToScreen?.(boardPos)
+            || (Number.isFinite(block.x) && Number.isFinite(block.y) ? { x: block.x, y: block.y } : null);
+        if (!targetScreen) return false;
+        const target = {
+            reason: 'shade-rest-help',
+            blockId: block.id,
+            boardPos,
+            x: targetScreen.x,
+            y: targetScreen.y,
+            expiresAtFrame: currentFrame + durationFrames
+        };
+        for (const entity of [source, partner].filter(Boolean)) {
+            if (!entity?.id || this.getZoneId(entity) !== zoneId) continue;
+            entity.ecologyRestTarget = { ...target };
+            entity.setMovementTargetFromScreen?.(
+                target.x,
+                target.y,
+                'immediate',
+                Math.max(1, Math.round(Number(config.movementPriority ?? 7))),
+                Number(config.movementWobble ?? 0.04),
+                { zoneId }
+            );
+        }
+        if (partner?.id) {
+            sleepSystem?.requestSleepAssist?.(source.id, partner.id, 'shade-rest', Number(config.sleepAssistStrength ?? 0.16));
+        }
+        eventBus?.emit?.('ecology:shade-rest-targeted', {
+            sourceId: source.id,
+            partnerId: partner?.id || null,
+            blockId: block.id,
+            zoneId,
+            currentFrame
+        });
+        return true;
+    }
+
     updateEcologyWorkCommunication(gameState = gameCore?.gameState, currentFrame = 0, options = {}) {
         const config = this.getEcologyCommunicationConfig();
         if (config.enabled === false) return 0;
@@ -685,6 +797,7 @@ class CommunicationSystem {
                         reserveFoodId: reserveFood.id || null
                     }
                 });
+                this.applyReserveFoodFollowThrough(source, partner, reserveFood, zoneId);
                 this.markEcologyWorkSignal(source, 'reserve-food', currentFrame);
                 emitted += 1;
                 continue;
@@ -712,6 +825,7 @@ class CommunicationSystem {
                         blockCount: blocksInZone.length
                     }
                 });
+                this.applyShadeRestFollowThrough(source, partner, blocksInZone, zoneId);
                 this.markEcologyWorkSignal(source, 'shade-rest', currentFrame);
                 emitted += 1;
                 continue;

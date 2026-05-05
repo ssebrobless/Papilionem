@@ -2470,6 +2470,16 @@ class Butterfly extends Entity {
         const zoneId = this.currentZoneId || this.lifeSim?.lifecycle?.currentZoneId || gameCore?.getFocusedZoneId?.();
         const socialTargets = this.getSocialFollowThroughTargets(zoneId);
         const followThrough = socialTargets.followThrough || null;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        const ecologyRestTarget = this.ecologyRestTarget
+            && this.ecologyRestTarget.reason === 'shade-rest-help'
+            && (this.ecologyRestTarget.expiresAtFrame || 0) >= currentFrame
+            && (this.ecologyRestTarget.boardPos?.zoneId || zoneId) === zoneId
+            ? this.ecologyRestTarget
+            : null;
+        if (this.ecologyRestTarget && !ecologyRestTarget && (this.ecologyRestTarget.expiresAtFrame || 0) < currentFrame) {
+            this.ecologyRestTarget = null;
+        }
         const isProjectedNearEntity = (entity, screenPoint) => {
             if (!entity || !screenPoint) return false;
             const groundY = (entity.y || 0) + (entity.shadowOffset || 0);
@@ -2503,6 +2513,12 @@ class Butterfly extends Entity {
             }
             return null;
         };
+        const ecologyRestPreferredPoint = ecologyRestTarget
+            ? {
+                x: ecologyRestTarget.x,
+                y: ecologyRestTarget.y
+            }
+            : null;
         const socialAnchorCandidates = {
             protect: (socialTargets.protectPartner && (followThrough?.protectScore || 0) >= 0.28)
                 ? { partner: socialTargets.protectPartner, mode: 'protect', score: followThrough.protectScore || 0, spreadX: 20, spreadY: 16 }
@@ -2578,16 +2594,24 @@ class Butterfly extends Entity {
                 )
             }
             : null;
+        const directEcologyRestBoardTarget = this.isBoardMovementWorld() && ecologyRestTarget?.boardPos
+            ? this.clampBoardTarget({
+                ...ecologyRestTarget.boardPos,
+                u: (ecologyRestTarget.boardPos.u || 0) + random(-0.22, 0.22),
+                v: (ecologyRestTarget.boardPos.v || 0) + random(-0.22, 0.22),
+                h: 0
+            }, zoneId)
+            : null;
 
         // Golden butterflies move much more erratically and frequently
         if (this.personalityType === 'golden') {
-            const targetPoint = (directSocialGridTarget || directSocialBoardTarget) ? null : gameCore?.findBestButterflyWanderPoint?.(this, zoneId, {
+            const targetPoint = (directEcologyRestBoardTarget || directSocialGridTarget || directSocialBoardTarget) ? null : gameCore?.findBestButterflyWanderPoint?.(this, zoneId, {
                 candidateCount: 10,
                 localHop: { min: 18, max: 42 },
                 preferOpenSpace: preferWideOpenSpace,
-                preferredPoint: socialPreferredPoint,
-                preferredPointBonus: preferSocialAnchor ? 0.34 : 0.24,
-                preferredDistanceScale: preferSocialAnchor ? 140 : 180,
+                preferredPoint: ecologyRestPreferredPoint || socialPreferredPoint,
+                preferredPointBonus: ecologyRestPreferredPoint ? 0.46 : (preferSocialAnchor ? 0.34 : 0.24),
+                preferredDistanceScale: ecologyRestPreferredPoint ? 96 : (preferSocialAnchor ? 140 : 180),
                 avoidPoints: socialAvoidPoints,
                 avoidRadius: socialAvoidance >= 0.42 ? 118 : 92,
                 avoidWeight: socialAvoidance >= 0.42 ? 0.4 : 0.28,
@@ -2597,7 +2621,15 @@ class Butterfly extends Entity {
                 this.gridPos.x + cos(random(TWO_PI)) * random(2, 4) * wanderScale,
                 this.gridPos.y + sin(random(TWO_PI)) * random(2, 4) * wanderScale
             );
-            if (directSocialBoardTarget) {
+            if (directEcologyRestBoardTarget) {
+                this.movement.setBoardTarget(
+                    directEcologyRestBoardTarget.u,
+                    directEcologyRestBoardTarget.v,
+                    'meander',
+                    1,
+                    0.04
+                );
+            } else if (directSocialBoardTarget) {
                 this.movement.setBoardTarget(
                     directSocialBoardTarget.u,
                     directSocialBoardTarget.v,
@@ -2625,15 +2657,17 @@ class Butterfly extends Entity {
                 ? structureSystem?.getPreferredShelterPointForEntity?.(this, zoneId)
                 : null;
             const stronglyPreferShelter = !!shelterPoint && (prefersShelterTarget || shelterSeeking > 0.84);
-            const effectivePreferredPoint = socialPreferredPoint || shelterPoint;
+            const effectivePreferredPoint = ecologyRestPreferredPoint || socialPreferredPoint || shelterPoint;
             const targetPoint = (stronglyPreferShelter ? shelterPoint : null)
                 || gameCore?.findBestButterflyWanderPoint?.(this, zoneId, {
                     padding: targetInset,
                     preferredPoint: effectivePreferredPoint,
-                    preferredPointBonus: preferSocialAnchor
+                    preferredPointBonus: ecologyRestPreferredPoint
+                        ? 0.5
+                        : (preferSocialAnchor
                         ? (socialAnchor?.mode === 'protect' ? 0.4 : socialAnchor?.mode === 'imitate' ? 0.34 : 0.36)
-                        : (!!shelterPoint ? 0.24 : 0.22),
-                    preferredDistanceScale: preferSocialAnchor ? 132 : 180,
+                        : (!!shelterPoint ? 0.24 : 0.22)),
+                    preferredDistanceScale: ecologyRestPreferredPoint ? 96 : (preferSocialAnchor ? 132 : 180),
                     avoidPoints: socialAvoidPoints,
                     avoidRadius: socialAvoidance >= 0.42 ? 124 : 96,
                     avoidWeight: socialAvoidance >= 0.42 ? 0.42 : 0.3,
@@ -2645,7 +2679,15 @@ class Butterfly extends Entity {
                 || shelterPoint
                 || gameCore?.getRandomZonePoint?.(zoneId, targetInset)
                 || gridManager.isoToScreen(random(3, gridManager.bounds.maxX - 3), random(3, gridManager.bounds.maxY - 3));
-            if (directSocialBoardTarget) {
+            if (directEcologyRestBoardTarget) {
+                this.movement.setBoardTarget(
+                    directEcologyRestBoardTarget.u,
+                    directEcologyRestBoardTarget.v,
+                    'meander',
+                    1,
+                    0.04
+                );
+            } else if (directSocialBoardTarget) {
                 this.movement.setBoardTarget(
                     directSocialBoardTarget.u,
                     directSocialBoardTarget.v,
@@ -2666,6 +2708,7 @@ class Butterfly extends Entity {
             }
             this.timers.wander.duration = ((random(300, 600) / this.traits.jitteriness) / Math.max(0.75, wanderScale))
                 * (crowdPressure > 0.44 ? 0.6 : 1)
+                * (ecologyRestPreferredPoint ? 0.58 : 1)
                 * (preferSocialAnchor ? 0.72 : 1)
                 * (socialAvoidance >= 0.36 ? 0.82 : 1);
         }

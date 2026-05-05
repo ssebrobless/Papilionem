@@ -982,8 +982,22 @@ const PAPILIONEM_BATTLE_ARENA = {
             maxSignalsPerUpdate: 1,
             cleanup: { enabled: true },
             pollen: { enabled: true },
-            reserveFood: { enabled: true },
-            shadeRest: { enabled: true }
+            reserveFood: {
+                enabled: true,
+                followThroughEnabled: true,
+                selfMaintenanceRelief: 0.08,
+                resourceRelief: 0.06,
+                exhaustionRelief: 0.03,
+                reliefBoost: 0.05
+            },
+            shadeRest: {
+                enabled: true,
+                followThroughEnabled: true,
+                targetDurationFrames: 2400,
+                movementPriority: 7,
+                movementWobble: 0.04,
+                sleepAssistStrength: 0.16
+            }
         },
         grief: {
             enabled: true,

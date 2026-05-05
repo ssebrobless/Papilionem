@@ -329,6 +329,10 @@ async function run() {
           const cleanupTargets = (gameCore.gameState?.butterflies || []).filter(entity =>
             entity.movement?.targetType === 'cleanup' || entity.targetCleanupPile
           ).length;
+          const shadeRestTargets = (gameCore.gameState?.butterflies || []).filter(entity =>
+            entity.ecologyRestTarget?.reason === 'shade-rest-help'
+              && (entity.ecologyRestTarget.expiresAtFrame || 0) >= (gameCore.getCurrentFrame?.() || 0)
+          ).length;
           const pollenCarriers = (gameCore.gameState?.butterflies || []).filter(entity =>
             Math.max(0, Math.round(Number(entity.pollenInventory?.charges || 0))) > 0
           ).length;
@@ -343,7 +347,8 @@ async function run() {
             reserveFoodInteractionCount: reservePostSetupInteractions,
             reserveFoodBaselineInteractionCount: reserveBaselineInteractionCount,
             reserveFoodLastInteractionType: reserveState?.lastInteractionType || null,
-            tiredNearBlocksCount: tiredNearBlocks
+            tiredNearBlocksCount: tiredNearBlocks,
+            shadeRestTargetingCount: shadeRestTargets
           };
         })(),
         dialogueHistory: JSON.parse(JSON.stringify(communicationSystem.dialogueHistory || []))
@@ -436,8 +441,27 @@ async function run() {
       cleanup: (report.followThrough.cleanedSeedDirtPiles || 0) > 0 || (report.followThrough.cleanupTargetingCount || 0) > 0 ? 'observed' : 'residual',
       pollen: (report.followThrough.pendingPollenPlantings || 0) > 0 || (report.followThrough.pollenCarriers || 0) > 0 ? 'observed' : 'residual',
       reserveFood: report.followThrough.reserveFoodTouched ? 'observed' : 'residual',
-      shadeRest: (report.followThrough.tiredNearBlocksCount || 0) > 0 ? 'observed' : 'residual'
+      shadeRest: (report.followThrough.tiredNearBlocksCount || 0) > 0 || (report.followThrough.shadeRestTargetingCount || 0) > 0 ? 'observed' : 'residual'
     };
+    if (laneChecksAreBlocking) {
+      report.checks.push({
+        name: 'reserve-food-follow-through-observed',
+        pass: report.followThroughVerdict.reserveFood === 'observed',
+        details: {
+          reserveFoodTouched: !!report.followThrough.reserveFoodTouched,
+          reserveFoodInteractionCount: report.followThrough.reserveFoodInteractionCount || 0,
+          reserveFoodLastInteractionType: report.followThrough.reserveFoodLastInteractionType || null
+        }
+      });
+      report.checks.push({
+        name: 'shade-rest-follow-through-observed',
+        pass: report.followThroughVerdict.shadeRest === 'observed',
+        details: {
+          tiredNearBlocksCount: report.followThrough.tiredNearBlocksCount || 0,
+          shadeRestTargetingCount: report.followThrough.shadeRestTargetingCount || 0
+        }
+      });
+    }
 
     report.overall = report.checks.every(check => check.pass) ? 'pass' : 'fail';
   } catch (error) {
@@ -457,7 +481,8 @@ async function run() {
       followThroughVerdict: report.followThroughVerdict || null,
       reportPath,
       checks: report.checks.map(check => ({ name: check.name, pass: check.pass })),
-      ecologyDialogue: report.ecologyDialogue || null
+      ecologyDialogue: report.ecologyDialogue || null,
+      followThrough: report.followThrough || null
     }, null, 2));
     if (report.overall !== 'pass') process.exitCode = 1;
   }
