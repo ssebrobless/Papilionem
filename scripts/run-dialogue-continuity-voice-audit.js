@@ -344,7 +344,11 @@ async function run() {
       pass: report.continuity?.ok === true
         && continuityMetadata.conversationContinuity === true
         && /kept thinking|earlier|quiet moment|last talk/i.test(continuityPhrase)
-        && /earlier talk/i.test(continuityMetadata.causeLabel || ''),
+        && /earlier talk/i.test(continuityMetadata.causeLabel || '')
+        && (report.continuity?.feedTalk || []).some(entry =>
+          entry.conversationContinuity === true
+          && /earlier talk/i.test(entry.causeLabel || '')
+        ),
       details: {
         phrase: continuityPhrase,
         metadata: continuityMetadata,

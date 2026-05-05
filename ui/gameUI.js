@@ -3981,6 +3981,8 @@ class GameUI {
                 threadLines: entry.threadLines || null,
                 referencedMemoryPacketId: entry.referencedMemoryPacketId || null,
                 causeLabel: entry.causeLabel || null,
+                metadata: entry.metadata || null,
+                dialogueMetadata: entry.dialogueMetadata || null,
                 phraseTemplateId: entry.phraseTemplateId || null,
                 conversationId: entry.conversationId || null,
                 pairModeLabel: entry.pairModeLabel || null,
@@ -4008,6 +4010,8 @@ class GameUI {
                 previous.threadLines = entry.threadLines || previous.threadLines;
                 previous.referencedMemoryPacketId = entry.referencedMemoryPacketId || previous.referencedMemoryPacketId;
                 previous.causeLabel = entry.causeLabel || previous.causeLabel;
+                previous.metadata = entry.metadata || previous.metadata;
+                previous.dialogueMetadata = entry.dialogueMetadata || previous.dialogueMetadata;
                 previous.phraseTemplateId = entry.phraseTemplateId || previous.phraseTemplateId;
                 previous.conversationId = entry.conversationId || previous.conversationId;
                 previous.pairModeLabel = entry.pairModeLabel || previous.pairModeLabel;
@@ -4032,6 +4036,8 @@ class GameUI {
                     threadLines: entry.threadLines || null,
                     referencedMemoryPacketId: entry.referencedMemoryPacketId || null,
                     causeLabel: entry.causeLabel || null,
+                    metadata: entry.metadata || null,
+                    dialogueMetadata: entry.dialogueMetadata || null,
                     phraseTemplateId: entry.phraseTemplateId || null,
                     conversationId: entry.conversationId || null,
                     pairModeLabel: entry.pairModeLabel || null,

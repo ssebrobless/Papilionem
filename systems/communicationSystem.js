@@ -4000,11 +4000,21 @@ class CommunicationSystem {
             const packetId = entry?.referencedMemoryPacketId || null;
             const sourceId = entry?.sourceId || entry?.threadSourceId || 'unknown';
             const rawLabel = entry?.causeLabel || this.buildCauseLabelFromMetadata(entry?.metadata || entry?.dialogueMetadata || {});
-            if (!packetId || !rawLabel) return { ...entry, causeLabel: null };
+            const continuityId = entry?.metadata?.referencedDialogueId
+                || entry?.metadata?.referencedLessonId
+                || entry?.dialogueMetadata?.referencedDialogueId
+                || entry?.dialogueMetadata?.referencedLessonId
+                || null;
+            const continuityKey = (entry?.metadata?.conversationContinuity === true
+                || entry?.dialogueMetadata?.conversationContinuity === true)
+                ? (continuityId || entry?.conversationId || entry?.signature || entry?.phraseTemplateId || 'continuity')
+                : null;
+            const labelKey = packetId || continuityKey;
+            if (!labelKey || !rawLabel) return { ...entry, causeLabel: null };
             const seconds = Number.isFinite(entry?.createdAtSeconds)
                 ? entry.createdAtSeconds
                 : Math.round((entry?.timestamp || 0) / 1000);
-            const key = `${sourceId}:${packetId}`;
+            const key = `${sourceId}:${labelKey}`;
             const previous = lastShownByKey.get(key);
             const shouldShow = !Number.isFinite(previous) || Math.abs(seconds - previous) >= cooldownSeconds;
             if (shouldShow) {
@@ -6926,6 +6936,12 @@ class CommunicationSystem {
                 previous.pairTextureLabel = entry.pairTextureLabel || previous.pairTextureLabel;
                 previous.causeLabel = previous.causeLabel || entry.causeLabel || null;
                 previous.referencedMemoryPacketId = previous.referencedMemoryPacketId || entry.referencedMemoryPacketId || null;
+                if (entry.metadata?.conversationContinuity === true) {
+                    previous.metadata = entry.metadata;
+                }
+                if (entry.dialogueMetadata?.conversationContinuity === true) {
+                    previous.dialogueMetadata = entry.dialogueMetadata;
+                }
                 previous.signature = `dialogue-thread:${previous.pairKey}:${previous.motiveFamily}:${previous.threadStartedAt}:${previous.threadCount}`;
                 continue;
             }
