@@ -11,11 +11,12 @@
   ],
   "actions": [
     { "type": "emit_battle_action", "actor": "b", "target": "a", "actionType": "attack", "damage": 8 },
+    { "type": "set_battle_context", "source": "a", "state": "battlePosture", "values": { "allyPressure": 0.14, "enemyThreat": 0.44, "targetPriority": 0.96, "spacingState": "open", "retreatPressure": 0.18, "supportOpportunity": 0.12 } },
     { "type": "step_simulation", "frames": 80 }
   ],
   "corpus": {
     "scenarioFamily": "autobattle",
-    "focusIds": ["a", "b"],
+    "focusIds": ["a"],
     "sampleFrames": [20, 40, 60, 80],
     "correctedLabels": { "autobattlePosture": "focusWeakTarget", "actionFamily": "battlePosture" },
     "tags": ["autobattle-rival", "focus-target"],

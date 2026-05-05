@@ -8,11 +8,12 @@
   ],
   "actions": [
     { "type": "distress", "source": "b", "threat": 0.86, "exhaustion": 0.5 },
+    { "type": "set_battle_context", "source": "a", "state": "battlePosture", "values": { "allyPressure": 0.9, "enemyThreat": 0.38, "targetPriority": 0.28, "spacingState": "crowded", "retreatPressure": 0.16, "supportOpportunity": 0.94 } },
     { "type": "step_simulation", "frames": 80 }
   ],
   "corpus": {
     "scenarioFamily": "autobattle",
-    "focusIds": ["a", "b"],
+    "focusIds": ["a"],
     "sampleFrames": [20, 40, 60, 80],
     "correctedLabels": { "autobattlePosture": "support", "actionFamily": "battlePosture" },
     "tags": ["autobattle-support", "injured-ally"],

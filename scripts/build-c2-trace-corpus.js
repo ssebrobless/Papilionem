@@ -640,18 +640,27 @@ async function captureAutobattleScenario(page) {
       const participant = participants[index];
       const label = postureLabels[index % postureLabels.length];
       const mutable = battleSystem.snapshots.get(snapshot.battleId)?.participantsById?.[participant.id];
+      const labelBattleContext = {
+        supportOpportunity: label === 'support' ? 0.95 : 0.2,
+        allyPressure: label === 'support' ? 0.86 : 0.25,
+        enemyThreat: label === 'retreat' ? 0.94 : 0.42,
+        retreatPressure: label === 'retreat' ? 0.9 : 0.16,
+        targetPriority: label === 'focusWeakTarget' ? 0.94 : 0.45,
+        spacingState: label === 'stabilize' ? 'crowded' : 'open'
+      };
       if (mutable?.cognition?.battle) {
-        mutable.cognition.battle.supportOpportunity = label === 'support' ? 0.95 : 0.2;
-        mutable.cognition.battle.allyPressure = label === 'support' ? 0.86 : 0.25;
-        mutable.cognition.battle.enemyThreat = label === 'retreat' ? 0.94 : 0.42;
-        mutable.cognition.battle.retreatPressure = label === 'retreat' ? 0.9 : 0.16;
-        mutable.cognition.battle.targetPriority = label === 'focusWeakTarget' ? 0.94 : 0.45;
+        mutable.cognition.battle = { ...mutable.cognition.battle, ...labelBattleContext };
       }
       if (mutable) {
         mutable.hp = label === 'retreat' ? 18 : (label === 'stabilize' ? 42 : 86);
         mutable.pressure = label === 'retreat' ? 9 : (label === 'stabilize' ? 5 : 1);
       }
       const refreshed = battleSystem.getParticipantSnapshot(snapshot.battleId, participant.id);
+      refreshed.cognition = refreshed.cognition || {};
+      refreshed.cognition.battle = {
+        ...(refreshed.cognition.battle || {}),
+        ...labelBattleContext
+      };
       const record = mlInferenceSystem.buildBattleCorpusRecord(refreshed, snapshot, gameState, {
         scenarioId: `autobattle-support-window-${label}-${index + 1}`,
         scenarioFamily: 'autobattle',
@@ -858,6 +867,12 @@ async function captureLivedLoopTraceScenario(page, scenario) {
           ...(source.lifeSim.objectAwareness || {}),
           ...(action.values || {})
         };
+      } else if (action.type === 'set_battle_context' && source?.lifeSim) {
+        source.lifeSim.battleContext = {
+          ...(source.lifeSim.battleContext || {}),
+          ...(action.values || {})
+        };
+        source.state = action.state || source.state || 'battlePosture';
       } else if (action.type === 'grant_pollen' && source) {
         source.pollenInventory = {
           ...(source.pollenInventory || {}),

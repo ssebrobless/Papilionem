@@ -60,10 +60,37 @@ function compactFeatureDelta(left = {}, right = {}, featureNames = [], limit = 8
     .slice(0, limit);
 }
 
-function buildFeatureNames(rows = []) {
+function isPolicyRelevantFeature(policyName = '', featureName = '') {
+  if (policyName === 'autobattlePosture') {
+    return featureName.startsWith('autobattle.')
+      || featureName === 'behavior.battleAggression'
+      || featureName === 'behavior.caution'
+      || featureName === 'world.modeIsBattle'
+      || featureName === 'world.nearbyVulnerableTargets';
+  }
+  if (policyName === 'targetPreference') {
+    return featureName.startsWith('object.')
+      || featureName.startsWith('world.')
+      || featureName.startsWith('social.')
+      || featureName === 'behavior.feedUrgency'
+      || featureName === 'behavior.objectInterest'
+      || featureName === 'behavior.shelterSeeking'
+      || featureName === 'behavior.socialConfidence'
+      || featureName === 'behavior.followThroughDrive'
+      || featureName === 'behavior.wanderScale'
+      || featureName === 'drives.socialConnection'
+      || featureName === 'drives.resourceControl'
+      || featureName === 'drives.caregiving'
+      || featureName === 'drives.exploration';
+  }
+  return true;
+}
+
+function buildFeatureNames(rows = [], policyName = '') {
   const names = new Set();
   for (const row of rows) {
     for (const featureName of Object.keys(row.features || {})) {
+      if (!isPolicyRelevantFeature(policyName, featureName)) continue;
       names.add(featureName);
     }
   }
@@ -106,7 +133,7 @@ function analyzePolicy(records = [], policyName = '') {
     if (row.corrected) correctedCounts[row.label] = (correctedCounts[row.label] || 0) + 1;
   }
 
-  const featureNames = buildFeatureNames(rows);
+  const featureNames = buildFeatureNames(rows, policyName);
   const pairConflicts = [];
   for (let leftIndex = 0; leftIndex < rows.length; leftIndex += 1) {
     const left = rows[leftIndex];
