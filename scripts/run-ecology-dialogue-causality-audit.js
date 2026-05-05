@@ -84,7 +84,7 @@ function matchCount(dialogues, pattern) {
 }
 
 function analyzeEcologyDialogue(dialogues = []) {
-  const cleanupPattern = /\b(?:dirt|pile|piles|clean|clear|mess)\b/i;
+  const cleanupPattern = /\b(?:dirt|pile|piles|clean|mess|clear them|clear these|clear it)\b/i;
   const plantingPattern = /\b(?:pollen|plant|flower|flowers|feed us|flowers have room)\b/i;
   const shelterPattern = /\b(?:shade|block|wall|shelter|rest\b(?!\s+of))\b/i;
   const reservePattern = /\b(?:reserve food|reserve|food|scarce|share food|share it)\b/i;
@@ -231,6 +231,9 @@ async function run() {
       const reserveFood = gameCore.convertFlowerToReserveFood?.(reserveFlower, null, {
         source: 'ecology-dialogue-causality'
       });
+      const reserveBaselineInteractionCount = reserveFood?.id && objectSystem?.getObjectState
+        ? (objectSystem.getObjectState(reserveFood.id)?.interactionCount || 0)
+        : 0;
       const blockPoints = [
         { u: 20, v: 16 },
         { u: 21, v: 16 },
@@ -301,6 +304,48 @@ async function run() {
         dirtPileIds,
         reserveFoodId: reserveFood?.id || null,
         blockIds,
+        followThrough: (() => {
+          const flowers = gameCore.gameState?.flowers || [];
+          const remainingSeedDirt = flowers.filter(flower => dirtPileIds.includes(flower.id) && flower.lifecycleKind === 'dirt-pile').length;
+          const pollenPlantings = Array.isArray(gameCore.gameState?.pendingPollenPlantings)
+            ? gameCore.gameState.pendingPollenPlantings.length
+            : 0;
+          const reserveState = reserveFood?.id && objectSystem?.getObjectState
+            ? objectSystem.getObjectState(reserveFood.id)
+            : null;
+          const reservePostSetupInteractions = Math.max(0, (reserveState?.interactionCount || 0) - reserveBaselineInteractionCount);
+          const blocks = (gameCore.gameState?.blocks || []).filter(block => blockIds.includes(block.id));
+          const tiredNearBlocks = (gameCore.gameState?.butterflies || []).filter(entity => {
+            const exhaustion = Math.max(0, Math.min(1, Number(entity.lifeSim?.emotions?.exhaustion || 0)));
+            if (exhaustion < 0.55 || !entity.boardPos) return false;
+            return blocks.some(block => {
+              const board = block.boardPos || {};
+              return board.zoneId === entity.boardPos.zoneId
+                && Number.isFinite(board.u)
+                && Number.isFinite(board.v)
+                && Math.hypot((board.u || 0) - (entity.boardPos.u || 0), (board.v || 0) - (entity.boardPos.v || 0)) <= 4;
+            });
+          }).length;
+          const cleanupTargets = (gameCore.gameState?.butterflies || []).filter(entity =>
+            entity.movement?.targetType === 'cleanup' || entity.targetCleanupPile
+          ).length;
+          const pollenCarriers = (gameCore.gameState?.butterflies || []).filter(entity =>
+            Math.max(0, Math.round(Number(entity.pollenInventory?.charges || 0))) > 0
+          ).length;
+          return {
+            initialSeedDirtPiles: dirtPileIds.length,
+            remainingSeedDirtPiles: remainingSeedDirt,
+            cleanedSeedDirtPiles: Math.max(0, dirtPileIds.length - remainingSeedDirt),
+            cleanupTargetingCount: cleanupTargets,
+            pendingPollenPlantings: pollenPlantings,
+            pollenCarriers,
+            reserveFoodTouched: reservePostSetupInteractions > 0,
+            reserveFoodInteractionCount: reservePostSetupInteractions,
+            reserveFoodBaselineInteractionCount: reserveBaselineInteractionCount,
+            reserveFoodLastInteractionType: reserveState?.lastInteractionType || null,
+            tiredNearBlocksCount: tiredNearBlocks
+          };
+        })(),
         dialogueHistory: JSON.parse(JSON.stringify(communicationSystem.dialogueHistory || []))
       };
     }, { frameCount: FRAME_COUNT, unforcedMode: UNFORCED_MODE });
@@ -314,6 +359,7 @@ async function run() {
       dialogueCount: browserResult.dialogueHistory.length
     };
     report.ecologyDialogue = analyzeEcologyDialogue(browserResult.dialogueHistory);
+    report.followThrough = browserResult.followThrough || {};
     report.screenshot = path.join(outputDir, 'ecology-dialogue-causality.png');
     await page.screenshot({ path: report.screenshot, fullPage: true });
     await restoreStorage(page, initialStorage);
@@ -386,6 +432,12 @@ async function run() {
         ? 'healthy'
         : 'residual';
     }
+    report.followThroughVerdict = {
+      cleanup: (report.followThrough.cleanedSeedDirtPiles || 0) > 0 || (report.followThrough.cleanupTargetingCount || 0) > 0 ? 'observed' : 'residual',
+      pollen: (report.followThrough.pendingPollenPlantings || 0) > 0 || (report.followThrough.pollenCarriers || 0) > 0 ? 'observed' : 'residual',
+      reserveFood: report.followThrough.reserveFoodTouched ? 'observed' : 'residual',
+      shadeRest: (report.followThrough.tiredNearBlocksCount || 0) > 0 ? 'observed' : 'residual'
+    };
 
     report.overall = report.checks.every(check => check.pass) ? 'pass' : 'fail';
   } catch (error) {
@@ -402,6 +454,7 @@ async function run() {
       overall: report.overall,
       mode: report.mode,
       unforcedSoakVerdict: report.unforcedSoakVerdict || null,
+      followThroughVerdict: report.followThroughVerdict || null,
       reportPath,
       checks: report.checks.map(check => ({ name: check.name, pass: check.pass })),
       ecologyDialogue: report.ecologyDialogue || null
