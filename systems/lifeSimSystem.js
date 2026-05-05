@@ -1301,15 +1301,31 @@ class LifeSimSystem {
         let preferredMateZoneId = null;
         let preferredMateScore = -Infinity;
         let preferredZoneId = migration.homeZoneId || zoneId;
+        const migrationConfig = gameConfig?.entities?.migration || {};
+        const diversityNudgeWeight = Math.max(0, Number(migrationConfig.diversityNudgeWeight ?? 0.08));
+        const recentZoneDiversityPenalty = Math.max(0, Number(migrationConfig.recentZoneDiversityPenalty ?? 0.04));
+        const recentZoneIds = Array.isArray(entity?.zoneEcologyState?.recentZoneIds)
+            ? entity.zoneEcologyState.recentZoneIds.filter(candidateZoneId => zoneIds.includes(candidateZoneId)).slice(0, 4)
+            : [];
+        const diversityNudgeByZone = {};
 
         for (const candidateZoneId of zoneIds) {
             const candidateAffinity = this.getMigrationZoneAffinity(migration, candidateZoneId);
             const candidateSummary = gameCore?.getZoneEcologySummary?.(candidateZoneId) || {};
             const visitRatio = this.getMigrationZoneVisitCount(migration, candidateZoneId) / maxVisits;
             const noveltyBonus = Math.max(0, 1 - visitRatio);
+            const recentIndex = recentZoneIds.indexOf(candidateZoneId);
+            const recentPenalty = recentIndex >= 0
+                ? recentZoneDiversityPenalty * (1 - (recentIndex / Math.max(1, recentZoneIds.length)))
+                : 0;
+            const diversityNudge = candidateZoneId !== zoneId
+                ? Math.max(-recentZoneDiversityPenalty, (noveltyBonus * diversityNudgeWeight) - recentPenalty)
+                : 0;
+            diversityNudgeByZone[candidateZoneId] = Number(diversityNudge.toFixed(4));
             const candidateScore = this.clamp01(
                 candidateAffinity * 0.28
                 + noveltyBonus * 0.3
+                + diversityNudge
                 + (candidateSummary.migrationPull || 0) * 0.18
                 + (candidateSummary.foodRichness || 0) * 0.1
                 + (candidateSummary.socialValence || 0) * socialConfidence * 0.12
@@ -1387,7 +1403,8 @@ class LifeSimSystem {
             mateSeeking,
             travelUrgency,
             noveltySeeking: explorationDrive,
-            zoneMateOpportunities
+            zoneMateOpportunities,
+            diversityNudgeByZone
         };
 
         lifeSim.derived.migration = derivedSummary;
