@@ -953,6 +953,7 @@ const PAPILIONEM_BATTLE_ARENA = {
             cleanupNavigationBias: true,
             cleanupNavigationPriority: 4,
             cleanupNavigationMaxUnits: 40,
+            cleanupArrivalBoardRadius: 1.05,
             cleanupSocialModulation: true,
             cleanupSocialPriorityBase: 4,
             cleanupCaregivingDriveWeight: 0.16,

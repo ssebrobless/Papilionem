@@ -1554,7 +1554,7 @@ class Butterfly extends Entity {
         
         if (this.checkCleanupSeeking(flowers)) {
             const targetPile = this.targetCleanupPile || this.findDirtPileAtTarget(flowers);
-            if (targetPile && this.getDistanceToMovementTarget() < 0.65) {
+            if (targetPile && this.getDistanceToMovementTarget() < this.getCleanupArrivalBoardRadius()) {
                 targetPile.tryCleanupDirtPile?.([this]);
                 this.movement.clearTarget('cleanup');
                 this.targetCleanupPile = null;
@@ -3515,6 +3515,10 @@ class Butterfly extends Entity {
         return { selfMaintenance, threshold };
     }
 
+    getCleanupArrivalBoardRadius() {
+        return Math.max(0.5, Number(gameConfig?.cognition?.affordances?.cleanupArrivalBoardRadius ?? 0.65));
+    }
+
     getDirtPilesInCurrentZone(flowers = []) {
         const zoneId = this.getMovementZoneId();
         return (flowers || []).filter(flower =>
@@ -3556,7 +3560,7 @@ class Butterfly extends Entity {
             const pileBoard = this.getEntityBoardPos(pile, targetBoard.zoneId);
             if (!pileBoard) continue;
             const distance = Math.hypot((pileBoard.u || 0) - targetBoard.u, (pileBoard.v || 0) - targetBoard.v);
-            if (distance <= 0.75) return pile;
+            if (distance <= this.getCleanupArrivalBoardRadius()) return pile;
         }
         return null;
     }
