@@ -809,7 +809,9 @@ class CommunicationSystem {
                         this.emitCooperationSignal(source, {
                             signalType: 'guidance_signal',
                             intentFamily: 'task',
-                            intentTags: ['guidance', 'coordination', 'pollen', 'planting', 'companionship'],
+                            intentTags: compostPatchCount > 0
+                                ? ['guidance', 'coordination', 'pollen', 'planting', 'compost', 'companionship']
+                                : ['guidance', 'coordination', 'pollen', 'planting', 'companionship'],
                             phrase: this.composePollenWorkPhrase(source, charges, { compostPatchCount }),
                             targetIds: [partner.id],
                             zoneId,

@@ -1,0 +1,50 @@
+{
+  "id": "seed-compost-pollen-dialogue-organic",
+  "seed": 1505,
+  "world": {
+    "focusedZoneId": "moss-hollow",
+    "renderMode": "sim-board",
+    "disableFlowerDecay": true,
+    "enableEcologyCommunication": true
+  },
+  "entities": [
+    {
+      "id": "planter",
+      "name": "Mira",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "moss-hollow", "u": 9, "v": 12, "h": 0 },
+      "drives": { "selfMaintenance": 0.86, "caregiving": 0.76, "resourceControl": 0.82, "socialConnection": 0.7, "rest": 0.12 },
+      "emotions": { "curiosity": 0.66, "attachment": 0.52, "exhaustion": 0.08 },
+      "derived": { "behaviorBiases": { "objectInterest": 0.88, "followThroughDrive": 0.78, "socialConfidence": 0.72 } }
+    },
+    {
+      "id": "helper",
+      "name": "Aster",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 13, "h": 0 },
+      "drives": { "selfMaintenance": 0.68, "caregiving": 0.72, "resourceControl": 0.64, "socialConnection": 0.82, "rest": 0.12 },
+      "emotions": { "attachment": 0.7, "curiosity": 0.48, "exhaustion": 0.08 },
+      "derived": { "behaviorBiases": { "objectInterest": 0.74, "followThroughDrive": 0.72, "socialConfidence": 0.76 } }
+    }
+  ],
+  "edges": [
+    { "source": "planter", "target": "helper", "values": { "trust": 0.84, "comfort": 0.8, "attachment": 0.72, "bondTier": "companion", "coTimeSeconds": 980 } },
+    { "source": "helper", "target": "planter", "values": { "trust": 0.82, "comfort": 0.78, "attachment": 0.7, "bondTier": "companion", "coTimeSeconds": 980 } }
+  ],
+  "objects": [
+    { "id": "spent-ground", "type": "dirt-pile", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 12, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "cleanup_object", "name": "cleanup-creates-compost-for-dialogue", "source": "planter", "object": "spent-ground" },
+    { "type": "grant_pollen", "name": "planter-has-pollen-while-compost-exists", "source": "planter", "charges": 1, "color": "#f2c94c", "expiresInFrames": 7200 },
+    { "type": "clear_dialogue_history" },
+    { "type": "run_ecology_work_communication", "name": "real-ecology-selector-emits-compost-dialogue", "maxSignals": 1, "min": 1 },
+    { "type": "step_simulation", "frames": 180 }
+  ],
+  "assertions": [
+    { "type": "entity_count", "min": 2 },
+    { "type": "ecology_event_count", "name": "compost-created-before-dialogue", "eventType": "ecology:cleanup-compost-created", "zoneId": "moss-hollow", "min": 1 },
+    { "type": "assert_dialogue_intent", "name": "compost-pollen-dialogue-surfaced", "entity": "planter", "expected_intent_tags": ["compost"], "within_seconds": 20 },
+    { "type": "dialogue_count", "min": 1 }
+  ]
+}

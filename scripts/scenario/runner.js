@@ -786,6 +786,19 @@ function runScenarioInBrowser(scenario) {
         samples: matches.slice(-5)
       });
     }
+    if (action.type === 'run_ecology_work_communication') {
+      const emitted = communicationSystem?.updateEcologyWorkCommunication?.(gameCore.getGameState?.() || state, gameCore.getCurrentFrame?.() || state.currentFrame || 0, {
+        force: action.force === true,
+        maxSignals: action.maxSignals || action.max_signals || 1,
+        ignoreMigration: action.ignoreMigration !== false
+      }) || 0;
+      const min = Number.isFinite(action.min) ? action.min : 1;
+      addAssertion(action.name || 'run_ecology_work_communication', emitted >= min, {
+        emitted,
+        min,
+        force: action.force === true
+      });
+    }
   }
 
   for (const assertion of scenario.assertions || []) {
@@ -1039,7 +1052,14 @@ function runScenarioInBrowser(scenario) {
         entity: assertion.entity,
         expected,
         withinSeconds: within,
-        matchCount: matches.length
+        matchCount: matches.length,
+        recentDialogues: (communicationSystem?.dialogueHistory || []).slice(-6).map(dialogue => ({
+          sourceId: dialogue.sourceId || null,
+          phrase: dialogue.phrase || null,
+          intentTags: dialogue.intentTags || [],
+          reason: dialogue.reason || dialogue.metadata?.reason || null,
+          metadata: dialogue.metadata || {}
+        }))
       });
     } else if (assertion.type === 'assert_recovery_rate_below') {
       const entity = getEntity(assertion.entity);
