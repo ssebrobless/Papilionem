@@ -69,9 +69,11 @@ function computeBondStability(samples = []) {
     const avg = mean(strengths);
     if (!avg) continue;
     const ratio = stdev(strengths) / avg;
+    const isMatureEdge = values.some(entry => getTierRank(entry.tier) >= getTierRank('familiar'));
     ratios.push(ratio);
     pairRatios.push({
       pairKey,
+      isMatureEdge,
       sampleCount: strengths.length,
       meanStrength: avg,
       stdev: stdev(strengths),
@@ -85,7 +87,15 @@ function computeBondStability(samples = []) {
   return {
     pairCount: ratios.length,
     stdevMeanRatio: mean(ratios) ?? 0,
+    maturePairCount: pairRatios.filter(entry => entry.isMatureEdge).length,
+    matureStdevMeanRatio: mean(pairRatios
+      .filter(entry => entry.isMatureEdge)
+      .map(entry => entry.stdevMeanRatio)) ?? 0,
     topVolatilePairs: pairRatios
+      .sort((left, right) => right.stdevMeanRatio - left.stdevMeanRatio)
+      .slice(0, 8),
+    topMatureVolatilePairs: pairRatios
+      .filter(entry => entry.isMatureEdge)
       .sort((left, right) => right.stdevMeanRatio - left.stdevMeanRatio)
       .slice(0, 8)
   };
@@ -120,15 +130,35 @@ function computeRelationshipArcEventChurn(cognitionEvents = [], durationSeconds 
     canonicalTransitions.push(transition);
   }
   const topChurnPairs = summarizeTransitionPairs(canonicalTransitions);
+  const directionCounts = countTransitionsByDirection(canonicalTransitions);
   return {
     eventCount: eventTransitions.length,
     canonicalEventCount: canonicalTransitions.length,
     transitionsPerMinute: canonicalTransitions.length / Math.max(1, durationSeconds / 60),
+    growthTransitionsPerMinute: directionCounts.growth / Math.max(1, durationSeconds / 60),
+    regressionTransitionsPerMinute: directionCounts.regression / Math.max(1, durationSeconds / 60),
+    lateralTransitionsPerMinute: directionCounts.lateral / Math.max(1, durationSeconds / 60),
+    directionCounts,
     eventTransitions,
     canonicalTransitions,
     topChurnPairs,
     sourcePath: 'event-subscription:cognition:triggered:relationshipArcEvent'
   };
+}
+
+function getTransitionDirection(fromTier, toTier) {
+  const delta = getTierRank(toTier) - getTierRank(fromTier);
+  if (delta > 0) return 'growth';
+  if (delta < 0) return 'regression';
+  return 'lateral';
+}
+
+function countTransitionsByDirection(transitions = []) {
+  return transitions.reduce((counts, transition) => {
+    const direction = getTransitionDirection(transition.fromTier, transition.toTier);
+    counts[direction] = (counts[direction] || 0) + 1;
+    return counts;
+  }, { growth: 0, regression: 0, lateral: 0 });
 }
 
 function summarizeTransitionPairs(transitions = []) {
@@ -143,10 +173,16 @@ function summarizeTransitionPairs(transitions = []) {
       });
     }
     const summary = byPair.get(key);
+    const direction = getTransitionDirection(transition.fromTier, transition.toTier);
     summary.count += 1;
+    summary.growthCount = (summary.growthCount || 0) + (direction === 'growth' ? 1 : 0);
+    summary.regressionCount = (summary.regressionCount || 0) + (direction === 'regression' ? 1 : 0);
+    summary.lateralCount = (summary.lateralCount || 0) + (direction === 'lateral' ? 1 : 0);
+    summary.hasOscillation = summary.growthCount > 0 && summary.regressionCount > 0;
     summary.transitions.push({
       fromTier: transition.fromTier || null,
       toTier: transition.toTier || null,
+      direction,
       atFrame: transition.atFrame ?? null,
       fromSeconds: transition.fromSeconds ?? null,
       toSeconds: transition.toSeconds ?? null,
@@ -189,6 +225,7 @@ function computeBondChurn(samples = [], durationSeconds = 1, cognitionEvents = [
       ? transition.pairKey.split('->').sort().join('<->')
       : transition.pairKey
   })));
+  const sampleDirectionCounts = countTransitionsByDirection(pairTransitions);
   const sampleTransitionsPerMinute = transitions / Math.max(1, durationSeconds / 60);
   const eventTransitionsPerMinute = relationshipArcEvents.transitionsPerMinute;
   const primaryTransitionsPerMinute = relationshipArcEvents.eventCount > 0
@@ -198,10 +235,14 @@ function computeBondChurn(samples = [], durationSeconds = 1, cognitionEvents = [
     transitions,
     transitionsPerMinute: sampleTransitionsPerMinute,
     combinedTransitionsPerMinute: Math.max(sampleTransitionsPerMinute, eventTransitionsPerMinute),
+    sampleGrowthTransitionsPerMinute: sampleDirectionCounts.growth / Math.max(1, durationSeconds / 60),
+    sampleRegressionTransitionsPerMinute: sampleDirectionCounts.regression / Math.max(1, durationSeconds / 60),
+    sampleLateralTransitionsPerMinute: sampleDirectionCounts.lateral / Math.max(1, durationSeconds / 60),
     primaryTransitionsPerMinute,
     primarySourcePath: relationshipArcEvents.eventCount > 0
       ? relationshipArcEvents.sourcePath
       : 'sample-series:bondTier',
+    sampleDirectionCounts,
     pairTransitions,
     sampleTopChurnPairs,
     relationshipArcEvents,
@@ -376,7 +417,11 @@ function evaluateBands(metrics = {}) {
       expected: '<= 0.30',
       diagnostic: {
         pairCount: metrics.bondStability.pairCount,
-        topVolatilePairs: metrics.bondStability.topVolatilePairs || []
+        maturePairCount: metrics.bondStability.maturePairCount,
+        allEdgeStdevMeanRatio: metrics.bondStability.stdevMeanRatio,
+        matureEdgeStdevMeanRatio: metrics.bondStability.matureStdevMeanRatio,
+        topVolatilePairs: metrics.bondStability.topVolatilePairs || [],
+        topMatureVolatilePairs: metrics.bondStability.topMatureVolatilePairs || []
       }
     },
     {
@@ -392,6 +437,10 @@ function evaluateBands(metrics = {}) {
         relationshipArcEventTransitionsPerMinute: metrics.bondChurn.relationshipArcEvents?.transitionsPerMinute || 0,
         relationshipArcEventCount: metrics.bondChurn.relationshipArcEvents?.eventCount || 0,
         relationshipArcCanonicalEventCount: metrics.bondChurn.relationshipArcEvents?.canonicalEventCount || 0,
+        relationshipArcGrowthTransitionsPerMinute: metrics.bondChurn.relationshipArcEvents?.growthTransitionsPerMinute || 0,
+        relationshipArcRegressionTransitionsPerMinute: metrics.bondChurn.relationshipArcEvents?.regressionTransitionsPerMinute || 0,
+        sampleGrowthTransitionsPerMinute: metrics.bondChurn.sampleGrowthTransitionsPerMinute || 0,
+        sampleRegressionTransitionsPerMinute: metrics.bondChurn.sampleRegressionTransitionsPerMinute || 0,
         eventTopChurnPairs: metrics.bondChurn.relationshipArcEvents?.topChurnPairs || [],
         sampleTopChurnPairs: metrics.bondChurn.sampleTopChurnPairs || []
       }
