@@ -548,6 +548,10 @@ const PAPILIONEM_BATTLE_ARENA = {
                 handoffRadiusUnits: 2.5,
                 handoffMinDonorCharges: 2,
                 handoffRecipientMaxCharges: 0,
+                handoffDistanceWeight: 1,
+                handoffRelationshipWeight: 0.9,
+                handoffTaskReadinessWeight: 0.35,
+                handoffScarcityWeight: 0.25,
                 plantSearchRadiusUnits: 2,
                 bloomMinDistance: 0,
                 bloomRetryFrames: 30

@@ -168,7 +168,12 @@ async function run() {
       };
 
       const butterflies = (gameCore.gameState.butterflies || []).slice(0, 6);
-      gameCore.gameState.butterflies = butterflies;
+      if (butterflies.length < 6) {
+        add('economy-has-six-butterflies', false, { butterflyCount: butterflies.length });
+        return { assertions, details: { eventCounts: {}, eventSample: [], feedLines: [] } };
+      }
+
+      gameCore.gameState.butterflies = butterflies.slice(0, 3);
       removeZoneFlowers();
       gameCore.gameState.pendingPollenPlantings = [];
       const placements = [
@@ -187,6 +192,63 @@ async function run() {
         butterfly.movement?.clearTarget?.();
       });
 
+      const [donor, closeRecipient, preferredRecipient] = butterflies;
+      const ensureEdge = (source, target) => {
+        lifeSimSystem?.ensureLifeSimState?.(source);
+        lifeSimSystem?.ensureLifeSimState?.(target);
+        if (typeof ensureLifeSocialEdge === 'function') {
+          ensureLifeSocialEdge(source, target.id);
+        } else {
+          source.lifeSim.socialEdges = source.lifeSim.socialEdges || {};
+          source.lifeSim.socialEdges[target.id] = source.lifeSim.socialEdges[target.id] || {};
+        }
+        return source.lifeSim.socialEdges[target.id];
+      };
+      Object.assign(ensureEdge(donor, closeRecipient), {
+        trust: 0.05,
+        comfort: 0.06,
+        admiration: 0.02
+      });
+      Object.assign(ensureEdge(closeRecipient, donor), {
+        trust: 0.04,
+        comfort: 0.05
+      });
+      Object.assign(ensureEdge(donor, preferredRecipient), {
+        trust: 0.94,
+        comfort: 0.92,
+        admiration: 0.55
+      });
+      Object.assign(ensureEdge(preferredRecipient, donor), {
+        trust: 0.9,
+        comfort: 0.88
+      });
+      preferredRecipient.lifeSim.derived = preferredRecipient.lifeSim.derived || {};
+      preferredRecipient.lifeSim.derived.behaviorBiases = {
+        ...(preferredRecipient.lifeSim.derived.behaviorBiases || {}),
+        objectInterest: 0.9
+      };
+      gameCore.grantPollenCharges?.(donor, null, { charges: 2, reason: 'economy-audit-selection' });
+      gameCore.gameState.currentFrame = 180;
+      gameCore.updateButterflyPollenInventories?.();
+      const targetedHandoff = events.find(event => event.eventName === 'pollen:handoff') || null;
+      add('handoff-prefers-socially-suited-recipient', targetedHandoff?.payload?.recipientId === preferredRecipient.id, {
+        selectedRecipientId: targetedHandoff?.payload?.recipientId || null,
+        preferredRecipientId: preferredRecipient.id,
+        closeRecipientId: closeRecipient.id,
+        selectedDropTarget: targetedHandoff?.payload?.recipientDropTarget || null
+      });
+
+      events.length = 0;
+      eventBus.clearHistory?.();
+      butterflies.forEach(butterfly => {
+        butterfly.pendingPollenDropTarget = null;
+        butterfly.pollenInventory = null;
+        butterfly.movement?.clearTarget?.();
+      });
+      gameCore.gameState.butterflies = butterflies;
+      removeZoneFlowers();
+      gameCore.gameState.pendingPollenPlantings = [];
+
       const seededFlowers = [
         spawnFlowerAtCell(17, 14, { flowerType: 'daisy' }),
         spawnFlowerAtCell(21, 15, { flowerType: 'tulip' }),
@@ -194,6 +256,7 @@ async function run() {
       ].filter(Boolean);
       gameCore.grantPollenCharges?.(butterflies[0], seededFlowers[0], { charges: 2, reason: 'economy-audit-fed' });
       gameCore.grantPollenCharges?.(butterflies[3], seededFlowers[1], { charges: 2, reason: 'economy-audit-fed' });
+      gameCore.gameState.currentFrame = 359;
 
       let feedLinesAfterHandoff = [];
       let feedLinesAfterPlanting = [];

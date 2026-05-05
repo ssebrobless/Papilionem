@@ -3669,6 +3669,40 @@ class GameCore {
         return true;
     }
 
+    scorePollenHandoffRecipient(donor, recipient, donorBoard, recipientBoard, config = this.getPollenPropagationConfig()) {
+        if (!donor?.id || !recipient?.id || !donorBoard || !recipientBoard) return -Infinity;
+        const clamp01 = value => Math.max(0, Math.min(1, Number(value) || 0));
+        const distance = Math.hypot((recipientBoard.u || 0) - (donorBoard.u || 0), (recipientBoard.v || 0) - (donorBoard.v || 0));
+        const radiusUnits = Math.max(0.5, Number(config.handoffRadiusUnits ?? 2.5));
+        if (distance > radiusUnits) return -Infinity;
+
+        const donorEdge = donor.lifeSim?.socialEdges?.[recipient.id] || {};
+        const recipientEdge = recipient.lifeSim?.socialEdges?.[donor.id] || {};
+        const relationshipScore = (
+            clamp01(donorEdge.trust)
+            + clamp01(donorEdge.comfort)
+            + clamp01(donorEdge.admiration)
+            + clamp01(recipientEdge.trust)
+            + clamp01(recipientEdge.comfort)
+        ) / 5;
+        const taskReadiness = clamp01(recipient.lifeSim?.derived?.behaviorBiases?.objectInterest);
+        const zoneFlowers = this.getFlowersInZone?.(donorBoard.zoneId) || [];
+        const normalFlowerCount = zoneFlowers.filter(flower =>
+            flower
+            && (flower.lifecycleKind || 'flower') === 'flower'
+            && flower.stage !== 'dissolve'
+            && (flower.occupancyState || 'normal') === 'normal'
+        ).length;
+        const flowerCap = Math.max(1, this.getReadableFlowerCapForZone?.(donorBoard.zoneId, { flowers: zoneFlowers }) || 1);
+        const scarcityScore = Math.max(0, Math.min(1, 1 - (normalFlowerCount / flowerCap)));
+        const distanceScore = Math.max(0, 1 - (distance / radiusUnits));
+
+        return (distanceScore * Number(config.handoffDistanceWeight ?? 1))
+            + (relationshipScore * Number(config.handoffRelationshipWeight ?? 0.9))
+            + (taskReadiness * Number(config.handoffTaskReadinessWeight ?? 0.35))
+            + (scarcityScore * Number(config.handoffScarcityWeight ?? 0.25));
+    }
+
     updateButterflyPollenInventories() {
         const config = this.getPollenPropagationConfig();
         if (config.enabled === false) return;
@@ -3683,7 +3717,6 @@ class GameCore {
             }
         }
         if (!shouldCheckHandoff) return;
-        const radiusUnits = Math.max(0.5, Number(config.handoffRadiusUnits ?? 2.5));
         const minDonorCharges = Math.max(1, Math.round(config.handoffMinDonorCharges ?? 2));
         for (const donor of butterflies) {
             const donorInventory = this.ensureButterflyPollenInventory(donor);
@@ -3691,17 +3724,18 @@ class GameCore {
             const donorBoard = donor.ensureBoardPos?.() || donor.boardPos || null;
             if (!donorBoard?.zoneId) continue;
             let bestRecipient = null;
-            let bestScore = Infinity;
+            let bestScore = -Infinity;
             for (const recipient of butterflies) {
                 if (!recipient?.id || recipient.id === donor.id) continue;
+                if (recipient.state !== 'normal' || recipient.zoneTravel || recipient.pendingPollenDropTarget) continue;
                 const recipientInventory = this.ensureButterflyPollenInventory(recipient);
                 if (!recipientInventory || recipientInventory.charges > Math.max(0, Math.round(config.handoffRecipientMaxCharges ?? 0))) continue;
                 const recipientBoard = recipient.ensureBoardPos?.() || recipient.boardPos || null;
                 if (!recipientBoard || recipientBoard.zoneId !== donorBoard.zoneId) continue;
-                const distance = Math.hypot((recipientBoard.u || 0) - (donorBoard.u || 0), (recipientBoard.v || 0) - (donorBoard.v || 0));
-                if (distance > radiusUnits || distance >= bestScore) continue;
+                const score = this.scorePollenHandoffRecipient(donor, recipient, donorBoard, recipientBoard, config);
+                if (score <= bestScore || score === -Infinity) continue;
                 bestRecipient = recipient;
-                bestScore = distance;
+                bestScore = score;
             }
             if (bestRecipient) {
                 this.transferPollenCharge(donor, bestRecipient, { reason: 'nearby-social-handoff' });
