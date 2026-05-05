@@ -6,6 +6,7 @@ const ROOT = path.resolve(__dirname, '..');
 const URL = 'http://127.0.0.1:3000/';
 const OUTPUT_ROOT = path.join(ROOT, 'qa_screenshots', 'ecology_dialogue_causality_audit');
 const FRAME_COUNT = Math.max(1200, Math.round(Number(getArgValue('--frames', 7200))));
+const UNFORCED_MODE = process.argv.includes('--unforced');
 const STORAGE_KEYS = [
   'papilionem-save-v2',
   'papilionem-progression-v1',
@@ -134,6 +135,7 @@ async function run() {
     startedAt: new Date().toISOString(),
     url: URL,
     frameCount: FRAME_COUNT,
+    mode: UNFORCED_MODE ? 'unforced-soak' : 'fixture-forced-sampling',
     outputDir,
     server: null,
     pageErrors: [],
@@ -168,7 +170,7 @@ async function run() {
     await waitForGame(page);
     await dismissTitle(page);
 
-    const browserResult = await page.evaluate(async frameCount => {
+    const browserResult = await page.evaluate(async ({ frameCount, unforcedMode }) => {
       if (typeof randomSeed === 'function') randomSeed(4721);
       if (typeof noiseSeed === 'function') noiseSeed(4721);
       await gameCore.resetGame?.(true);
@@ -269,26 +271,26 @@ async function run() {
         butterfly.syncDebugGridPos?.();
       });
 
-      for (let sample = 0; sample < 6; sample += 1) {
-        communicationSystem.updateEcologyWorkCommunication?.(gameCore.gameState, 90 * (sample + 1), {
-          force: true,
-          ignoreMigration: true,
-          maxSignals: 4
-        });
-        gameCore.update?.();
+      if (!unforcedMode) {
+        for (let sample = 0; sample < 6; sample += 1) {
+          communicationSystem.updateEcologyWorkCommunication?.(gameCore.gameState, 90 * (sample + 1), {
+            force: true,
+            ignoreMigration: true,
+            maxSignals: 4
+          });
+          gameCore.update?.();
+        }
       }
 
       const previousScoutDiscovery = gameConfig?.world?.scoutDiscovery;
-      if (gameConfig?.world) gameConfig.world.scoutDiscovery = false;
-      const ecologyFrames = Math.max(600, Math.floor(frameCount * 0.55));
-      for (let frame = 0; frame < ecologyFrames; frame += 1) {
-        gameCore.update?.();
-      }
-      if (gameConfig?.world) gameConfig.world.scoutDiscovery = previousScoutDiscovery !== false;
+      const ecologyFrames = unforcedMode ? 0 : Math.max(600, Math.floor(frameCount * 0.55));
+      if (!unforcedMode && gameConfig?.world) gameConfig.world.scoutDiscovery = false;
+      for (let frame = 0; frame < ecologyFrames; frame += 1) gameCore.update?.();
+      if (!unforcedMode && gameConfig?.world) gameConfig.world.scoutDiscovery = previousScoutDiscovery !== false;
       for (let frame = ecologyFrames; frame < frameCount; frame += 1) {
         gameCore.update?.();
       }
-      if (gameConfig?.world) gameConfig.world.scoutDiscovery = previousScoutDiscovery;
+      if (!unforcedMode && gameConfig?.world) gameConfig.world.scoutDiscovery = previousScoutDiscovery;
 
       return {
         currentFrame: gameCore.getCurrentFrame?.() || frameCount,
@@ -301,7 +303,7 @@ async function run() {
         blockIds,
         dialogueHistory: JSON.parse(JSON.stringify(communicationSystem.dialogueHistory || []))
       };
-    }, FRAME_COUNT);
+    }, { frameCount: FRAME_COUNT, unforcedMode: UNFORCED_MODE });
 
     report.browserSummary = {
       currentFrame: browserResult.currentFrame,
@@ -326,40 +328,44 @@ async function run() {
       pass: report.ecologyDialogue.dialogueCount >= 20,
       details: { dialogueCount: report.ecologyDialogue.dialogueCount }
     });
+    const laneChecksAreBlocking = !UNFORCED_MODE;
     report.checks.push({
       name: 'cleanup-dialogue-produced',
-      pass: report.ecologyDialogue.cleanupDialogueCount >= 1,
+      pass: laneChecksAreBlocking ? report.ecologyDialogue.cleanupDialogueCount >= 1 : true,
       details: { cleanupDialogueCount: report.ecologyDialogue.cleanupDialogueCount }
     });
     report.checks.push({
       name: 'pollen-dialogue-produced',
-      pass: report.ecologyDialogue.plantingDialogueCount >= 1,
+      pass: laneChecksAreBlocking ? report.ecologyDialogue.plantingDialogueCount >= 1 : true,
       details: { plantingDialogueCount: report.ecologyDialogue.plantingDialogueCount }
     });
     report.checks.push({
       name: 'reserve-food-dialogue-produced',
-      pass: report.ecologyDialogue.reserveDialogueCount >= 1,
+      pass: laneChecksAreBlocking ? report.ecologyDialogue.reserveDialogueCount >= 1 : true,
       details: { reserveDialogueCount: report.ecologyDialogue.reserveDialogueCount }
     });
     report.checks.push({
       name: 'shade-rest-dialogue-produced',
-      pass: report.ecologyDialogue.shelterDialogueCount >= 1,
+      pass: laneChecksAreBlocking ? report.ecologyDialogue.shelterDialogueCount >= 1 : true,
       details: { shelterDialogueCount: report.ecologyDialogue.shelterDialogueCount }
     });
     report.checks.push({
       name: 'ecology-dialogue-ratio',
-      pass: report.ecologyDialogue.ecologyDialogueRatio >= 0.18,
-      details: { ecologyDialogueRatio: report.ecologyDialogue.ecologyDialogueRatio }
+      pass: laneChecksAreBlocking ? report.ecologyDialogue.ecologyDialogueRatio >= 0.18 : true,
+      details: {
+        ecologyDialogueRatio: report.ecologyDialogue.ecologyDialogueRatio,
+        blocking: laneChecksAreBlocking
+      }
     });
     report.checks.push({
       name: 'multiple-ecology-lanes-visible',
-      pass: [
+      pass: laneChecksAreBlocking ? [
         report.ecologyDialogue.cleanupDialogueCount,
         report.ecologyDialogue.plantingDialogueCount,
         report.ecologyDialogue.shelterDialogueCount,
         report.ecologyDialogue.reserveDialogueCount,
         report.ecologyDialogue.scoutDialogueCount
-      ].filter(count => count > 0).length >= 4,
+      ].filter(count => count > 0).length >= 4 : true,
       details: {
         cleanupDialogueCount: report.ecologyDialogue.cleanupDialogueCount,
         plantingDialogueCount: report.ecologyDialogue.plantingDialogueCount,
@@ -368,6 +374,18 @@ async function run() {
         scoutDialogueCount: report.ecologyDialogue.scoutDialogueCount
       }
     });
+    if (UNFORCED_MODE) {
+      report.unforcedSoakVerdict = [
+        report.ecologyDialogue.cleanupDialogueCount,
+        report.ecologyDialogue.plantingDialogueCount,
+        report.ecologyDialogue.shelterDialogueCount,
+        report.ecologyDialogue.reserveDialogueCount,
+        report.ecologyDialogue.scoutDialogueCount
+      ].filter(count => count > 0).length >= 4
+        && report.ecologyDialogue.ecologyDialogueRatio >= 0.12
+        ? 'healthy'
+        : 'residual';
+    }
 
     report.overall = report.checks.every(check => check.pass) ? 'pass' : 'fail';
   } catch (error) {
@@ -382,6 +400,8 @@ async function run() {
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2));
     console.log(JSON.stringify({
       overall: report.overall,
+      mode: report.mode,
+      unforcedSoakVerdict: report.unforcedSoakVerdict || null,
       reportPath,
       checks: report.checks.map(check => ({ name: check.name, pass: check.pass })),
       ecologyDialogue: report.ecologyDialogue || null
