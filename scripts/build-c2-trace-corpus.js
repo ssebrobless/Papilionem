@@ -80,6 +80,13 @@ function readScenarioFile(name) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
+function inferTrainingPolicies(correctedLabels = {}, configuredPolicies = null) {
+  if (Array.isArray(configuredPolicies)) {
+    return configuredPolicies.filter(Boolean);
+  }
+  return Object.keys(correctedLabels || {});
+}
+
 function buildCorpusManifest(records = [], meta = {}) {
   const scenarioMap = new Map();
   const scenarioFamilies = new Set();
@@ -399,7 +406,9 @@ async function captureGardenScenario(page) {
       scenarioFamily: 'garden',
       auditPhase: 'c2-builder',
       tags: ['block', 'placement', 'reviewed'],
+      trainingPolicies: ['actionFamily', 'targetPreference'],
       review: {
+        trainingPolicies: ['actionFamily', 'targetPreference'],
         correctedLabels: {
           actionFamily: 'buildOrUseObject',
           targetPreference: 'block'
@@ -470,7 +479,9 @@ async function captureCommunicationScenario(page) {
       scenarioFamily: 'communication',
       auditPhase: 'c2-builder',
       tags: ['training-zone', 'teaching-signal', 'reviewed'],
+      trainingPolicies: ['actionFamily', 'signalChoice'],
       review: {
+        trainingPolicies: ['actionFamily', 'signalChoice'],
         correctedLabels: {
           actionFamily: 'teach',
           signalChoice: 'teaching'
@@ -560,7 +571,9 @@ async function captureEcologyScenario(page) {
       scenarioFamily: 'ecology',
       auditPhase: 'c2-builder',
       tags: ['migration', 'away-from-home', 'resource-pressure'],
+      trainingPolicies: [],
       review: {
+        trainingPolicies: [],
         rationale: 'Curated migration-pressure ecology scenario with an away-from-home butterfly and contrasting zone ecology states.'
       }
     });
@@ -644,7 +657,9 @@ async function captureAutobattleScenario(page) {
         scenarioFamily: 'autobattle',
         auditPhase: 'aa4-corpus-growth',
         tags: ['battle', 'reviewed', `posture-${label}`],
+        trainingPolicies: ['autobattlePosture'],
         review: {
+          trainingPolicies: ['autobattlePosture'],
           correctedLabels: {
             autobattlePosture: label
           },
@@ -744,6 +759,13 @@ async function captureLivedLoopTraceScenario(page, scenario) {
         });
       }
       mlInferenceSystem?.update?.(gameState, duration, { currentFrame });
+    }
+
+    function inferBrowserTrainingPolicies(correctedLabels = {}, configuredPolicies = null) {
+      if (Array.isArray(configuredPolicies)) {
+        return configuredPolicies.filter(Boolean);
+      }
+      return Object.keys(correctedLabels || {});
     }
 
     const entitySpecs = (scenarioSpec.entities || []).filter(spec => (spec.type || 'butterfly') === 'butterfly');
@@ -897,6 +919,7 @@ async function captureLivedLoopTraceScenario(page, scenario) {
     const baseScenarioId = scenarioSpec.id || `lived-loop-${focus.id}`;
     const scenarioFamily = corpusConfig.scenarioFamily || 'lived-loop';
     const correctedLabels = corpusConfig.correctedLabels || {};
+    const trainingPolicies = inferBrowserTrainingPolicies(correctedLabels, corpusConfig.trainingPolicies);
     const rationale = corpusConfig.rationale
       || 'Scenario-derived lived-loop trace source captured through production update paths for AA4 corpus growth.';
     const baseTags = [
@@ -926,12 +949,14 @@ async function captureLivedLoopTraceScenario(page, scenario) {
           scenarioFamily,
           auditPhase: 'aa4-corpus-growth',
           tags: baseTags,
+          trainingPolicies,
           review: Object.keys(correctedLabels).length
             ? {
+                trainingPolicies,
                 correctedLabels,
                 rationale
               }
-            : { rationale }
+            : { trainingPolicies, rationale }
         });
         if (record) records.push(record);
       }

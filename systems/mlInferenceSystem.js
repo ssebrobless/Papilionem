@@ -2212,13 +2212,20 @@ class MlInferenceSystem {
         };
     }
 
-    buildReviewedLabels(baseLabels = {}, reviewedLabels = {}) {
-        const trainingLabels = {
-            ...(baseLabels || {})
-        };
+    buildReviewedLabels(baseLabels = {}, reviewedLabels = {}, trainingPolicies = null) {
+        const hasPolicyAllowList = Array.isArray(trainingPolicies);
+        const allowedPolicies = hasPolicyAllowList
+            ? new Set(trainingPolicies.filter(Boolean))
+            : null;
+        const trainingLabels = {};
+        for (const [policyName, label] of Object.entries(baseLabels || {})) {
+            if (hasPolicyAllowList && !allowedPolicies.has(policyName)) continue;
+            trainingLabels[policyName] = label;
+        }
         const corrections = {};
         for (const [policyName, nextLabel] of Object.entries(reviewedLabels || {})) {
             if (!nextLabel) continue;
+            if (hasPolicyAllowList && !allowedPolicies.has(policyName)) continue;
             const previousLabel = trainingLabels[policyName] || null;
             if (previousLabel !== nextLabel) {
                 corrections[policyName] = {
@@ -2576,7 +2583,10 @@ class MlInferenceSystem {
 
         const heuristicTrace = this.buildHeuristicTrace(entity, gameState, features);
         const reviewedLabels = options?.review?.correctedLabels || options?.correctedLabels || {};
-        const labelResolution = this.buildReviewedLabels(heuristicTrace?.chosenPath || {}, reviewedLabels);
+        const trainingPolicies = Array.isArray(options?.trainingPolicies)
+            ? options.trainingPolicies
+            : (Array.isArray(options?.review?.trainingPolicies) ? options.review.trainingPolicies : null);
+        const labelResolution = this.buildReviewedLabels(heuristicTrace?.chosenPath || {}, reviewedLabels, trainingPolicies);
         const reviewStatus = labelResolution.correctedPolicies.length
             ? 'corrected'
             : Object.keys(reviewedLabels).length
@@ -2607,6 +2617,7 @@ class MlInferenceSystem {
             review: {
                 status: reviewStatus,
                 rationale: options?.review?.rationale || null,
+                trainingPolicies: Array.isArray(trainingPolicies) ? [...trainingPolicies] : null,
                 correctedPolicies: labelResolution.correctedPolicies,
                 corrections: this.cloneValue(labelResolution.corrections, {})
             },
@@ -2658,9 +2669,13 @@ class MlInferenceSystem {
         const activeTrace = this.getBattleParticipantPolicyTrace(participant, snapshot, gameState);
         const heuristicTrace = this.getBattleParticipantHeuristicTrace(participant, snapshot, gameState);
         const reviewedLabels = options?.review?.correctedLabels || options?.correctedLabels || {};
+        const trainingPolicies = Array.isArray(options?.trainingPolicies)
+            ? options.trainingPolicies
+            : (Array.isArray(options?.review?.trainingPolicies) ? options.review.trainingPolicies : null);
         const labelResolution = this.buildReviewedLabels(
             { autobattlePosture: heuristicTrace?.chosen || 'stabilize' },
-            reviewedLabels
+            reviewedLabels,
+            trainingPolicies
         );
         const reviewStatus = labelResolution.correctedPolicies.length
             ? 'corrected'
@@ -2691,6 +2706,7 @@ class MlInferenceSystem {
             review: {
                 status: reviewStatus,
                 rationale: options?.review?.rationale || null,
+                trainingPolicies: Array.isArray(trainingPolicies) ? [...trainingPolicies] : null,
                 correctedPolicies: labelResolution.correctedPolicies,
                 corrections: this.cloneValue(labelResolution.corrections, {})
             },
