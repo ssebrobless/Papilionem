@@ -302,8 +302,39 @@ function compareValueMetrics(mlOn, mlOff) {
     sampleInterval: VALUE_SAMPLE_INTERVAL,
     thresholds: VALUE_THRESHOLDS,
     metrics,
+    diagnostics: {
+      mlOn: summarizeValueDiagnostics(mlOn),
+      mlOff: summarizeValueDiagnostics(mlOff)
+    },
     metricsEvaluated: metrics.filter(metric => metric.evaluated).length,
     metricsMeetingThreshold: metrics.filter(metric => metric.evaluated && metric.meetsThreshold).length
+  };
+}
+
+function summarizeValueDiagnostics(scenario = {}) {
+  const inputs = scenario.valueMetricInputs || {};
+  const entities = Array.isArray(inputs.entityMovementDiagnostics)
+    ? inputs.entityMovementDiagnostics
+    : [];
+  const byTopEdge = [...entities]
+    .sort((left, right) => (right.topEdgeFraction || 0) - (left.topEdgeFraction || 0))
+    .slice(0, 5);
+  const byLatency = [...entities]
+    .filter(entity => Number.isFinite(entity.averageAcquisitionFrames))
+    .sort((left, right) => (right.averageAcquisitionFrames || 0) - (left.averageAcquisitionFrames || 0))
+    .slice(0, 5);
+  const distinctZones = entities.map(entity => entity.distinctZoneCount || 0);
+  return {
+    modelVersionId: scenario.runtimeSummary?.modelVersionId || null,
+    topEdgeOffenders: byTopEdge,
+    slowTargetAcquirers: byLatency,
+    zoneTopEdgeFractions: inputs.zoneTopEdgeFractions || {},
+    migrationTargetCounts: inputs.migrationTargetCounts || {},
+    migrationTargetSourceCounts: inputs.migrationTargetSourceCounts || {},
+    meanDistinctZonesPerEntity: distinctZones.length
+      ? Number((distinctZones.reduce((sum, value) => sum + value, 0) / distinctZones.length).toFixed(4))
+      : 0,
+    entityCount: entities.length
   };
 }
 
@@ -344,6 +375,8 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
     const updateSamples = [];
     const movementStats = {};
     const migrationTargetCounts = {};
+    const migrationTargetSourceCounts = {};
+    const zoneTopEdgeSamples = {};
     const getBoardPos = (entity) => {
       const board = entity?.ensureBoardPos?.() || entity?.boardPos || null;
       if (board && Number.isFinite(board.u) && Number.isFinite(board.v)) return board;
@@ -372,6 +405,8 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
         const target = getTarget(butterfly);
         const id = butterfly.id || `butterfly-${Object.keys(movementStats).length}`;
         const stats = movementStats[id] || {
+          id,
+          name: butterfly.name || id,
           previousBoard: null,
           previousDelta: null,
           activeTargetKey: null,
@@ -379,23 +414,48 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
           acquisitions: [],
           topSamples: 0,
           totalSamples: 0,
+          zoneSamples: {},
+          zoneTopSamples: {},
+          migrationTargetCounts: {},
+          migrationTargetSourceCounts: {},
+          targetChangeCount: 0,
           nearTargetSteps: 0,
           jitterFlips: 0
         };
         const zoneId = board.zoneId || butterfly.currentZoneId || gameCore.getFocusedZoneId();
         const depth = Math.max(1, getDepthUnits(zoneId));
-        if (board.v < depth * 0.15) stats.topSamples += 1;
+        const inTopEdge = board.v < depth * 0.15;
+        if (inTopEdge) stats.topSamples += 1;
         stats.totalSamples += 1;
+        stats.zoneSamples[zoneId] = (stats.zoneSamples[zoneId] || 0) + 1;
+        if (inTopEdge) stats.zoneTopSamples[zoneId] = (stats.zoneTopSamples[zoneId] || 0) + 1;
+        zoneTopEdgeSamples[zoneId] = zoneTopEdgeSamples[zoneId] || { topSamples: 0, totalSamples: 0 };
+        zoneTopEdgeSamples[zoneId].totalSamples += 1;
+        if (inTopEdge) zoneTopEdgeSamples[zoneId].topSamples += 1;
         const migration = butterfly.lifeSim?.derived?.migration || butterfly.lifeSim?.migration || {};
-        const migrationTarget = migration.travelTargetZoneId
-          || migration.cohortPreferredZoneId
-          || butterfly.zoneTravel?.targetZoneId
-          || butterfly.currentZoneId
-          || 'none';
+        let migrationTarget = 'none';
+        let migrationTargetSource = 'none';
+        if (migration.travelTargetZoneId) {
+          migrationTarget = migration.travelTargetZoneId;
+          migrationTargetSource = 'derived.travelTargetZoneId';
+        } else if (migration.cohortPreferredZoneId) {
+          migrationTarget = migration.cohortPreferredZoneId;
+          migrationTargetSource = 'derived.cohortPreferredZoneId';
+        } else if (butterfly.zoneTravel?.targetZoneId) {
+          migrationTarget = butterfly.zoneTravel.targetZoneId;
+          migrationTargetSource = 'zoneTravel.targetZoneId';
+        } else if (butterfly.currentZoneId) {
+          migrationTarget = butterfly.currentZoneId;
+          migrationTargetSource = 'currentZoneId';
+        }
         migrationTargetCounts[migrationTarget] = (migrationTargetCounts[migrationTarget] || 0) + 1;
+        migrationTargetSourceCounts[migrationTargetSource] = (migrationTargetSourceCounts[migrationTargetSource] || 0) + 1;
+        stats.migrationTargetCounts[migrationTarget] = (stats.migrationTargetCounts[migrationTarget] || 0) + 1;
+        stats.migrationTargetSourceCounts[migrationTargetSource] = (stats.migrationTargetSourceCounts[migrationTargetSource] || 0) + 1;
         if (target) {
           const targetKey = `${target.zoneId || zoneId}:${Math.round(target.u * 10) / 10}:${Math.round(target.v * 10) / 10}`;
           if (stats.activeTargetKey !== targetKey) {
+            if (stats.activeTargetKey != null) stats.targetChangeCount += 1;
             stats.activeTargetKey = targetKey;
             stats.activeTargetStartFrame = absoluteFrame;
           }
@@ -494,6 +554,40 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
     const totalSamples = allStats.reduce((sum, stats) => sum + (stats.totalSamples || 0), 0);
     const totalNearTarget = allStats.reduce((sum, stats) => sum + (stats.nearTargetSteps || 0), 0);
     const totalJitterFlips = allStats.reduce((sum, stats) => sum + (stats.jitterFlips || 0), 0);
+    const entityMovementDiagnostics = allStats.map(stats => {
+      const acquisitions = stats.acquisitions || [];
+      return {
+        id: stats.id,
+        name: stats.name,
+        topSamples: stats.topSamples || 0,
+        totalSamples: stats.totalSamples || 0,
+        topEdgeFraction: stats.totalSamples
+          ? Number(((stats.topSamples || 0) / stats.totalSamples).toFixed(4))
+          : 0,
+        distinctZoneCount: Object.keys(stats.zoneSamples || {}).length,
+        zoneSamples: stats.zoneSamples || {},
+        zoneTopSamples: stats.zoneTopSamples || {},
+        migrationTargetCounts: stats.migrationTargetCounts || {},
+        migrationTargetSourceCounts: stats.migrationTargetSourceCounts || {},
+        acquisitionSampleCount: acquisitions.length,
+        averageAcquisitionFrames: acquisitions.length
+          ? Number((acquisitions.reduce((sum, value) => sum + value, 0) / acquisitions.length).toFixed(2))
+          : null,
+        targetChangeCount: stats.targetChangeCount || 0,
+        nearTargetStepCount: stats.nearTargetSteps || 0,
+        jitterFlipCount: stats.jitterFlips || 0
+      };
+    });
+    const zoneTopEdgeFractions = Object.entries(zoneTopEdgeSamples).reduce((summary, [zoneId, stats]) => {
+      summary[zoneId] = {
+        topSamples: stats.topSamples,
+        totalSamples: stats.totalSamples,
+        fraction: stats.totalSamples
+          ? Number((stats.topSamples / stats.totalSamples).toFixed(4))
+          : 0
+      };
+      return summary;
+    }, {});
     const durationMinutes = frameCount / 3600;
     const valueMetricInputs = {
       motiveByPair,
@@ -501,12 +595,15 @@ async function runScenario(page, mlOn, storageSnapshot, cadenceFactor = CADENCE_
       edgeChurnTotal: Number(edgeChurnTotal.toFixed(4)),
       edgeChurnPerMinute: Number((edgeChurnTotal / Math.max(0.001, durationMinutes)).toFixed(4)),
       migrationTargetCounts,
+      migrationTargetSourceCounts,
       targetAcquisitionLatencyFrames: acquisitionFrames.length
         ? Number((acquisitionFrames.reduce((sum, value) => sum + value, 0) / acquisitionFrames.length).toFixed(2))
         : null,
       targetAcquisitionSampleCount: acquisitionFrames.length,
       topEdgeFraction: totalSamples ? Number((totalTopSamples / totalSamples).toFixed(4)) : null,
       topEdgeSampleCount: totalSamples,
+      zoneTopEdgeFractions,
+      entityMovementDiagnostics,
       jitterRatio: totalNearTarget ? Number((totalJitterFlips / totalNearTarget).toFixed(4)) : null,
       nearTargetStepCount: totalNearTarget,
       jitterFlipCount: totalJitterFlips
