@@ -1,0 +1,66 @@
+{
+  "id": "seed-pollen-cooperation-organic",
+  "seed": 1505,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board", "disableFlowerDecay": true },
+  "entities": [
+    {
+      "id": "donor",
+      "name": "Mira",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 12, "h": 0 },
+      "drives": { "resourceControl": 0.82, "socialConnection": 0.64, "exploration": 0.42 },
+      "emotions": { "curiosity": 0.62, "attachment": 0.42 },
+      "derived": { "behaviorBiases": { "objectInterest": 0.84, "followThroughDrive": 0.72, "socialConfidence": 0.58 } }
+    },
+    {
+      "id": "recipient",
+      "name": "Aster",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "moss-hollow", "u": 12, "v": 12, "h": 0 },
+      "drives": { "resourceControl": 0.68, "caregiving": 0.54, "socialConnection": 0.72 },
+      "emotions": { "attachment": 0.58, "curiosity": 0.44 },
+      "derived": { "behaviorBiases": { "objectInterest": 0.78, "followThroughDrive": 0.76, "socialConfidence": 0.74 } }
+    },
+    {
+      "id": "nearby",
+      "name": "Clover",
+      "type": "butterfly",
+      "boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 14, "h": 0 },
+      "drives": { "exploration": 0.5, "socialConnection": 0.36 },
+      "emotions": { "curiosity": 0.36 }
+    }
+  ],
+  "edges": [
+    { "source": "donor", "target": "recipient", "values": { "trust": 0.82, "comfort": 0.76, "attachment": 0.68, "bondTier": "companion", "coTimeSeconds": 980 } },
+    { "source": "recipient", "target": "donor", "values": { "trust": 0.8, "comfort": 0.74, "attachment": 0.66, "bondTier": "companion", "coTimeSeconds": 980 } },
+    { "source": "donor", "target": "nearby", "values": { "trust": 0.22, "comfort": 0.18, "attachment": 0.12, "bondTier": "acquaintance", "coTimeSeconds": 90 } }
+  ],
+  "objects": [
+    { "id": "source-flower", "type": "flower", "boardPos": { "zoneId": "moss-hollow", "u": 9, "v": 12, "h": 0 } },
+    { "id": "future-bloom-space", "type": "flower", "boardPos": { "zoneId": "moss-hollow", "u": 14, "v": 12, "h": 0 } }
+  ],
+  "actions": [
+    { "type": "grant_pollen", "source": "donor", "charges": 1, "color": "#f2c94c", "expiresInFrames": 7200, "sourceFlowerId": "source-flower" },
+    { "type": "set_pending_pollen_drop", "source": "donor", "boardPos": { "zoneId": "moss-hollow", "u": 13, "v": 12, "h": 0 }, "reason": "organic-pollen-planting" },
+    { "type": "set_object_awareness", "source": "recipient", "values": { "focusType": "pollen", "currentAffordance": "carry", "carryingType": "none", "pollenFamiliarity": 0.58 } },
+    { "type": "emit_signal", "source": "donor", "targets": ["recipient"], "signalType": "pollen_handoff_invitation", "intentFamily": "cooperation", "intentTags": ["resource", "planting", "help"], "phrase": "Can you help me plant this pollen nearby?" },
+    { "type": "step_simulation", "frames": 20 }
+  ],
+  "corpus": {
+    "scenarioFamily": "pollenCooperation",
+    "focusIds": ["donor", "recipient"],
+    "sampleFrames": [20, 40, 80, 120],
+    "correctedLabels": {
+      "actionFamily": "buildOrUseObject",
+      "targetPreference": "emptySpace",
+      "signalChoice": "invitation",
+      "riskPosture": "approach"
+    },
+    "tags": ["pollen", "planting", "cooperation", "weak-policy-target", "environmental-stewardship"],
+    "rationale": "Pollen cooperation scenario: a pollinated butterfly with a pending planting target should be treated as object/environmental work, and its trusted partner should read the interaction as an invitation."
+  },
+  "assertions": [
+    { "type": "entity_count", "min": 3 },
+    { "type": "object_count", "kind": "flower", "min": 1 }
+  ]
+}

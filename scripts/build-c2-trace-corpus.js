@@ -20,6 +20,7 @@ const LIVED_LOOP_SCENARIO_NAMES = [
   'seed-target-distress-vs-flower',
   'seed-target-mate-vs-rival',
   'seed-target-shelter-fit',
+  'seed-pollen-cooperation-organic',
   'seed-autobattle-defend-injured-ally',
   'seed-autobattle-pursue-fleeing-rival',
   'seed-autobattle-restore-bonded',
@@ -766,6 +767,58 @@ async function captureLivedLoopTraceScenario(page, scenario) {
       ensureEdge(getEntity(edgeSpec.source), getEntity(edgeSpec.target), edgeSpec.values || {});
     }
 
+    for (const objectSpec of scenarioSpec.objects || []) {
+      const boardPos = objectSpec.boardPos || { zoneId: focusedZoneId, u: 10, v: 10, h: 0 };
+      const screen = boardToScreen(boardPos);
+      if (!screen) continue;
+      if (objectSpec.type === 'flower') {
+        const flower = gameCore.spawnFlowerAt?.(boardPos.zoneId || focusedZoneId, screen.x, screen.y, {
+          exactPoint: true,
+          preferredPoint: { x: screen.x, y: screen.y },
+          persistentUntilConsumed: true,
+          resourceOrigin: 'c2-lived-loop-corpus'
+        });
+        if (flower) {
+          flower.boardPos = {
+            zoneId: boardPos.zoneId || focusedZoneId,
+            u: Number(boardPos.u) || 0,
+            v: Number(boardPos.v) || 0,
+            h: Number(boardPos.h) || 0
+          };
+          flower.currentZoneId = flower.boardPos.zoneId;
+          flower.syncDebugGridPos?.();
+          gameCore.assignEntityToZone?.(flower, flower.boardPos.zoneId);
+        }
+      } else if (objectSpec.type === 'dirt-pile') {
+        const pile = new Flower(screen.x, screen.y, true, {
+          currentZoneId: boardPos.zoneId || focusedZoneId,
+          lifecycleKind: 'dirt-pile',
+          spawnedAtFrame: gameCore.getCurrentFrame?.() || 0,
+          decayedAtFrame: gameCore.getCurrentFrame?.() || 0
+        });
+        pile.stage = 'decayed';
+        pile.lifecycleKind = 'dirt-pile';
+        pile.objectProfile = {
+          ...(pile.objectProfile || {}),
+          subtype: 'dirt-pile',
+          lifecycleStage: 'decayed'
+        };
+        pile.boardPos = {
+          zoneId: boardPos.zoneId || focusedZoneId,
+          u: Number(boardPos.u) || 0,
+          v: Number(boardPos.v) || 0,
+          h: Number(boardPos.h) || 0
+        };
+        pile.currentZoneId = pile.boardPos.zoneId;
+        pile.syncDebugGridPos?.();
+        gameState.flowers = gameState.flowers || [];
+        gameState.flowers.push(pile);
+        gameCore.assignEntityToZone?.(pile, pile.boardPos.zoneId);
+        gameCore.entityManager?.addEntity?.('flowers', pile);
+        gameCore.registerEntityWithFoundationSystems?.(pile, 'flower');
+      }
+    }
+
     for (const action of scenarioSpec.actions || []) {
       const source = getEntity(action.source);
       const targetIds = (action.targets || []).map(target => aliases.get(target) || target).filter(Boolean);
@@ -778,6 +831,28 @@ async function captureLivedLoopTraceScenario(page, scenario) {
         }
       } else if (action.type === 'set_drives' && source?.lifeSim) {
         source.lifeSim.drives = { ...(source.lifeSim.drives || {}), ...(action.values || {}) };
+      } else if (action.type === 'set_object_awareness' && source?.lifeSim) {
+        source.lifeSim.objectAwareness = {
+          ...(source.lifeSim.objectAwareness || {}),
+          ...(action.values || {})
+        };
+      } else if (action.type === 'grant_pollen' && source) {
+        source.pollenInventory = {
+          ...(source.pollenInventory || {}),
+          charges: Math.max(0, Math.round(Number(action.charges ?? 1))),
+          color: action.color || source.pollenInventory?.color || '#f2c94c',
+          expiresAtFrame: (gameCore.getCurrentFrame?.() || 0) + Math.max(60, Math.round(Number(action.expiresInFrames || 7200))),
+          sourceFlowerId: action.sourceFlowerId || 'c2-lived-loop-corpus'
+        };
+      } else if (action.type === 'set_pending_pollen_drop' && source && action.boardPos) {
+        source.pendingPollenDropTarget = {
+          zoneId: action.boardPos.zoneId || source.currentZoneId || focusedZoneId,
+          u: Number(action.boardPos.u) || 0,
+          v: Number(action.boardPos.v) || 0,
+          h: Number(action.boardPos.h) || 0,
+          assignedAtFrame: gameCore.getCurrentFrame?.() || 0,
+          reason: action.reason || 'c2-lived-loop-corpus'
+        };
       } else if (action.type === 'set_board_pos' && source && action.boardPos) {
         setEntityBoardPos(source, action.boardPos);
       } else if ((action.type === 'emit_signal' || action.type === 'emit_dialogue') && source) {
