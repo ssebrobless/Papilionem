@@ -150,11 +150,60 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
         : []
     });
 
+    const installEcologySubscriber = () => {
+      if (typeof eventBus === 'undefined' || typeof eventBus.on !== 'function') {
+        return { attached: false, reason: 'eventBus-unavailable' };
+      }
+      if (Array.isArray(window.__LONG_SOAK_ECOLOGY_UNSUBS__)) {
+        window.__LONG_SOAK_ECOLOGY_UNSUBS__.forEach(unsubscribe => {
+          try { unsubscribe?.(); } catch (_error) {}
+        });
+      }
+      window.__LONG_SOAK_ECOLOGY_LOG__ = [];
+      window.__LONG_SOAK_ECOLOGY_DROPPED__ = 0;
+      const eventTypes = [
+        'ecology:cleanup-object-cleaned',
+        'ecology:cleanup-compost-created',
+        'pollen:planted',
+        'pollen:sprinkle',
+        'pollen:bloomed'
+      ];
+      window.__LONG_SOAK_ECOLOGY_UNSUBS__ = eventTypes
+        .map(type => eventBus.on(type, data => {
+          const log = window.__LONG_SOAK_ECOLOGY_LOG__ || [];
+          log.push({ type, ...(data || {}) });
+          if (log.length > 10000) {
+            log.shift();
+            window.__LONG_SOAK_ECOLOGY_DROPPED__ = (window.__LONG_SOAK_ECOLOGY_DROPPED__ || 0) + 1;
+          }
+          window.__LONG_SOAK_ECOLOGY_LOG__ = log;
+        }))
+        .filter(Boolean);
+      return { attached: true, eventNames: eventTypes };
+    };
+
+    const flushEcologySubscriber = () => ({
+      attached: Array.isArray(window.__LONG_SOAK_ECOLOGY_UNSUBS__) && window.__LONG_SOAK_ECOLOGY_UNSUBS__.length > 0,
+      dropped: Number(window.__LONG_SOAK_ECOLOGY_DROPPED__ || 0),
+      events: Array.isArray(window.__LONG_SOAK_ECOLOGY_LOG__)
+        ? JSON.parse(JSON.stringify(window.__LONG_SOAK_ECOLOGY_LOG__))
+        : []
+    });
+
     const uninstallCognitionSubscriber = () => {
       if (typeof window.__LONG_SOAK_COGNITION_UNSUB__ === 'function') {
         window.__LONG_SOAK_COGNITION_UNSUB__();
       }
       window.__LONG_SOAK_COGNITION_UNSUB__ = null;
+    };
+
+    const uninstallEcologySubscriber = () => {
+      if (Array.isArray(window.__LONG_SOAK_ECOLOGY_UNSUBS__)) {
+        window.__LONG_SOAK_ECOLOGY_UNSUBS__.forEach(unsubscribe => {
+          try { unsubscribe?.(); } catch (_error) {}
+        });
+      }
+      window.__LONG_SOAK_ECOLOGY_UNSUBS__ = [];
     };
 
     const boardToScreen = boardPos => renderManager?.boardToScreen?.({
@@ -187,6 +236,11 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
     const getEntity = ref => {
       const id = aliases.get(ref) || ref;
       return (state.butterflies || []).find(entity => entity.id === id) || null;
+    };
+
+    const getObject = ref => {
+      const id = aliases.get(ref) || ref;
+      return [...(state.flowers || []), ...(state.blocks || [])].find(entity => entity?.id === id) || null;
     };
 
     const ensureEdge = (source, target, values = {}) => {
@@ -227,6 +281,30 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
           reason: 'long-soak-fixture-witness-affection',
           metadata: { affectionIntensity: action.affectionIntensity ?? 0.8 }
         });
+      }
+      if (action.type === 'cleanup_object' && source) {
+        getObject(action.object || action.target)?.tryCleanupDirtPile?.([source]);
+      }
+      if (action.type === 'grant_pollen' && source) {
+        const currentFrame = gameCore.getCurrentFrame?.() || state.currentFrame || 0;
+        const charges = Math.max(0, Math.round(Number(action.charges || 1)));
+        source.pollenInventory = {
+          charges,
+          maxCharges: Math.max(charges, Math.round(Number(action.maxCharges || 2))),
+          expiresAtFrame: currentFrame + Math.max(1, Math.round(Number(action.expiresInFrames || 7200))),
+          sourceFlowerTypes: [action.color || action.sourceFlowerId || 'long-soak-pollen'],
+          lastUpdatedFrame: currentFrame
+        };
+      }
+      if (action.type === 'plan_pollen_drop' && source) {
+        source.__longSoakLastPollenTarget = gameCore.planPollenDropTarget?.(source) || null;
+      }
+      if (action.type === 'complete_pollen_drop' && source) {
+        gameCore.completePollenDrop?.(source);
+      }
+      if (action.type === 'step' || action.type === 'step_simulation') {
+        const frames = Math.max(1, Math.round(Number(action.frames || 60)));
+        for (let frame = 0; frame < frames; frame += 1) gameCore.update?.();
       }
     };
 
@@ -311,6 +389,7 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
     };
 
     const subscriber = installCognitionSubscriber();
+    const ecologySubscriber = installEcologySubscriber();
     const fixtureResult = applyFixture(fixtureSpec);
     const totalFrames = Math.max(1, Math.round(seconds * 60));
     const samples = [];
@@ -354,6 +433,9 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
         butterflyCount: butterflies.length,
         flowerCount: (currentState.flowers || []).filter(flower => (flower.lifecycleKind || 'flower') === 'flower').length,
         dirtPileCount: (currentState.flowers || []).filter(flower => flower.lifecycleKind === 'dirt-pile').length,
+        compostPatchCount: Array.isArray(currentState.cleanupCompostPatches)
+          ? currentState.cleanupCompostPatches.length
+          : 0,
         entities: butterflies.map(entity => ({
           id: entity.id,
           zoneId: entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null,
@@ -381,7 +463,9 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
     const dialogues = JSON.parse(JSON.stringify(communicationSystem?.dialogueHistory || []));
     const runtimeSummary = mlInferenceSystem?.getRuntimeSummary?.() || null;
     const cognitionSubscriber = flushCognitionSubscriber();
+    const ecologySubscriberState = flushEcologySubscriber();
     uninstallCognitionSubscriber();
+    uninstallEcologySubscriber();
     gameConfig.ml.useModelInference = previousMl;
     mlInferenceSystem?.deserializeDurableState?.({ modelConfig: gameConfig.ml });
     return {
@@ -395,7 +479,14 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
         dropped: cognitionSubscriber.dropped,
         eventCount: cognitionSubscriber.events.length
       },
+      ecologySubscriber: {
+        attached: !!ecologySubscriber.attached,
+        eventNames: ecologySubscriber.eventNames || [],
+        dropped: ecologySubscriberState.dropped,
+        eventCount: ecologySubscriberState.events.length
+      },
       cognitionEvents: cognitionSubscriber.events,
+      ecologyEvents: ecologySubscriberState.events,
       samples,
       dialogues,
       runtimeSummary
@@ -534,6 +625,7 @@ async function run() {
       rawPath: mlOn.rawPath,
       fixture: mlOnRaw.fixture || null,
       cognitionSubscriber: mlOnRaw.cognitionSubscriber || null,
+      ecologySubscriber: mlOnRaw.ecologySubscriber || null,
       metrics: mlOn.metrics,
       checks: mlOn.checks,
       fixtureAssertions: mlOnFixtureAssertions
@@ -553,6 +645,7 @@ async function run() {
         rawPath: heuristic.rawPath,
         fixture: heuristicRaw.fixture || null,
         cognitionSubscriber: heuristicRaw.cognitionSubscriber || null,
+        ecologySubscriber: heuristicRaw.ecologySubscriber || null,
         metrics: heuristic.metrics,
         checks: heuristic.checks,
         fixtureAssertions: heuristicFixtureAssertions

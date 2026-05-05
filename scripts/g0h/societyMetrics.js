@@ -408,6 +408,53 @@ function computeCleanupGradient(samples = []) {
   };
 }
 
+function computeEcologyLoopPressure(samples = [], dialogues = [], ecologyEvents = [], durationSeconds = 1) {
+  const durationMinutes = Math.max(1, durationSeconds / 60);
+  const eventCount = type => ecologyEvents.filter(event => event?.type === type).length;
+  const compostCreated = eventCount('ecology:cleanup-compost-created');
+  const cleanupObjects = eventCount('ecology:cleanup-object-cleaned');
+  const compostBoostedSprinkles = ecologyEvents.filter(event =>
+    event?.type === 'pollen:sprinkle' && event?.compostBoosted === true
+  ).length;
+  const compostBoostedBlooms = ecologyEvents.filter(event =>
+    event?.type === 'pollen:bloomed' && event?.compostBoosted === true
+  ).length;
+  const pollenWorkDialogues = dialogues.filter(dialogue =>
+    dialogue?.reason === 'pollen-planting-help'
+      || dialogue?.metadata?.reason === 'pollen-planting-help'
+      || (dialogue?.intentTags || []).includes('pollen')
+  );
+  const compostAwarePollenDialogues = pollenWorkDialogues.filter(dialogue =>
+    dialogue?.metadata?.hasCompostPatch === true
+      || Number(dialogue?.metadata?.compostPatchCount || 0) > 0
+      || /cleaned ground|compost|cleared square/i.test(dialogue?.phrase || '')
+  );
+  const compostPatchSamples = samples.map(sample => Math.max(0, Number(sample.compostPatchCount || 0)));
+  const dirtPileCounts = samples.map(sample => Math.max(0, Number(sample.dirtPileCount || 0)));
+  const flowerCounts = samples.map(sample => Math.max(0, Number(sample.flowerCount || 0)));
+  return {
+    cleanupObjectCleanedEventCount: cleanupObjects,
+    cleanupCompostCreatedEventCount: compostCreated,
+    compostCreatedPerMinute: compostCreated / durationMinutes,
+    compostBoostedSprinkleCount: compostBoostedSprinkles,
+    compostBoostedBloomCount: compostBoostedBlooms,
+    compostBoostedBloomPerMinute: compostBoostedBlooms / durationMinutes,
+    pollenWorkDialogueCount: pollenWorkDialogues.length,
+    compostAwarePollenDialogueCount: compostAwarePollenDialogues.length,
+    compostAwarePollenDialogueFraction: pollenWorkDialogues.length
+      ? compostAwarePollenDialogues.length / pollenWorkDialogues.length
+      : 0,
+    maxCompostPatchCount: compostPatchSamples.length ? Math.max(...compostPatchSamples) : 0,
+    meanCompostPatchCount: mean(compostPatchSamples) ?? 0,
+    dirtPileNetDelta: dirtPileCounts.length >= 2 ? dirtPileCounts.at(-1) - dirtPileCounts[0] : 0,
+    flowerNetDelta: flowerCounts.length >= 2 ? flowerCounts.at(-1) - flowerCounts[0] : 0,
+    eventSamples: ecologyEvents
+      .filter(event => event?.type === 'ecology:cleanup-compost-created' || event?.compostBoosted === true)
+      .slice(-8),
+    sourcePath: 'event-subscription:ecology + sample-series:compostPatchCount + dialogue-history:pollen'
+  };
+}
+
 function evaluateBands(metrics = {}) {
   const checks = [
     {
@@ -488,6 +535,31 @@ function evaluateBands(metrics = {}) {
       residual: metrics.cleanupGradient.windows.length === 0
     },
     {
+      id: 'ecology-loop-pressure',
+      pass: metrics.ecologyLoopPressure.cleanupCompostCreatedEventCount >= 1
+        && metrics.ecologyLoopPressure.compostBoostedBloomCount >= 1,
+      observed: {
+        cleanupCompostCreatedEventCount: metrics.ecologyLoopPressure.cleanupCompostCreatedEventCount,
+        compostBoostedBloomCount: metrics.ecologyLoopPressure.compostBoostedBloomCount,
+        compostAwarePollenDialogueFraction: metrics.ecologyLoopPressure.compostAwarePollenDialogueFraction
+      },
+      expected: '>=1 compost-created event and >=1 compost-boosted bloom when fixture/opportunity exists',
+      provisional: true,
+      residual: metrics.ecologyLoopPressure.cleanupCompostCreatedEventCount === 0
+        && metrics.ecologyLoopPressure.maxCompostPatchCount === 0,
+      diagnostic: {
+        sourcePath: metrics.ecologyLoopPressure.sourcePath,
+        cleanupObjectCleanedEventCount: metrics.ecologyLoopPressure.cleanupObjectCleanedEventCount,
+        compostBoostedSprinkleCount: metrics.ecologyLoopPressure.compostBoostedSprinkleCount,
+        pollenWorkDialogueCount: metrics.ecologyLoopPressure.pollenWorkDialogueCount,
+        compostAwarePollenDialogueCount: metrics.ecologyLoopPressure.compostAwarePollenDialogueCount,
+        meanCompostPatchCount: metrics.ecologyLoopPressure.meanCompostPatchCount,
+        dirtPileNetDelta: metrics.ecologyLoopPressure.dirtPileNetDelta,
+        flowerNetDelta: metrics.ecologyLoopPressure.flowerNetDelta,
+        eventSamples: metrics.ecologyLoopPressure.eventSamples
+      }
+    },
+    {
       id: 'zone-migration-entropy',
       pass: metrics.zoneMigrationEntropy.meanEntropy >= 0.50
         && metrics.zoneMigrationEntropy.meanDistinctZonesVisited >= 2,
@@ -531,6 +603,7 @@ function computeSocietyMetrics(run = {}) {
     conversationRepetition: computeConversationRepetition(dialogues),
     witnessedAffectionRate: computeWitnessedAffectionRate(samples, durationSeconds, cognitionEvents),
     cleanupGradient: computeCleanupGradient(samples),
+    ecologyLoopPressure: computeEcologyLoopPressure(samples, dialogues, run.ecologyEvents || [], durationSeconds),
     metricSources: {
       bondStability: 'sample-series:socialEdges.strength',
       bondChurn: 'sample-series:socialEdges.bondTier + event-subscription:cognition:triggered:relationshipArcEvent',
@@ -540,7 +613,8 @@ function computeSocietyMetrics(run = {}) {
       conversationRepetition: 'dialogue-history:template-window',
       witnessedAffectionRate: 'event-subscription:cognition:triggered',
       witnessedAffectionPacketDiagnostic: 'sample-snapshot:latest-packets',
-      cleanupGradient: 'sample-series:dirtPileCount'
+      cleanupGradient: 'sample-series:dirtPileCount',
+      ecologyLoopPressure: 'event-subscription:ecology + sample-series:compostPatchCount + dialogue-history:pollen'
     }
   };
   return {
