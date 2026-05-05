@@ -36,7 +36,7 @@ function stamp() {
 }
 
 function resolvePolicyArtifactPath(policyArg = POLICY_ARG) {
-  if (!policyArg) return path.join(ROOT, 'assets', 'ml', 'm4-garden-policy.json');
+  if (!policyArg) return getConfiguredPolicyArtifactPath();
   return path.isAbsolute(policyArg) ? policyArg : path.join(ROOT, policyArg);
 }
 
@@ -135,6 +135,18 @@ function shannonEntropy(counts = {}) {
 function ratio(onValue, offValue) {
   if (!Number.isFinite(onValue) || !Number.isFinite(offValue) || offValue === 0) return null;
   return onValue / offValue;
+}
+
+function getConfiguredPolicyArtifactPath() {
+  const configPath = path.join(ROOT, 'core', 'config.js');
+  try {
+    const configSource = fs.readFileSync(configPath, 'utf8');
+    const match = configSource.match(/policyArtifactPath:\s*['"]([^'"]+)['"]/);
+    if (match?.[1]) return path.join(ROOT, match[1]);
+  } catch (error) {
+    // Fall back below; this audit should still run even if config parsing changes.
+  }
+  return path.join(ROOT, 'assets', 'ml', 'm8-garden-policy.json');
 }
 
 function compareValueMetrics(mlOn, mlOff) {
