@@ -549,7 +549,8 @@ const PAPILIONEM_BATTLE_ARENA = {
                 handoffMinDonorCharges: 2,
                 handoffRecipientMaxCharges: 0,
                 plantSearchRadiusUnits: 2,
-                bloomMinDistance: 0
+                bloomMinDistance: 0,
+                bloomRetryFrames: 30
             },
             flowerToBlock: {
                 enabled: true,

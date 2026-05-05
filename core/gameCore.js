@@ -3854,6 +3854,7 @@ class GameCore {
                 exactPoint: true,
                 maxAttempts: 16,
                 minDistance: Number.isFinite(config.bloomMinDistance) ? config.bloomMinDistance : 0,
+                ignoreZoneFlowerCap: true,
                 ignoreObjectIds: [planting.id].filter(Boolean)
             });
             if (flower) {
@@ -3867,8 +3868,10 @@ class GameCore {
                         boardPos: planting.boardPos || null
                     });
                 }
+                this.gameState.pendingPollenPlantings.splice(i, 1);
+            } else {
+                planting.framesRemaining = Math.max(1, Math.round(config.bloomRetryFrames ?? 30));
             }
-            this.gameState.pendingPollenPlantings.splice(i, 1);
         }
     }
 
