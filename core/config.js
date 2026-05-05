@@ -989,6 +989,11 @@ const PAPILIONEM_BATTLE_ARENA = {
                     enabled: true,
                     urgentDuringMigrationScore: 0.82
                 },
+                eventFollowup: {
+                    enabled: true,
+                    cooldownFrames: 900,
+                    suppressDuringMigration: true
+                },
                 cleanup: { enabled: true },
                 pollen: { enabled: true },
             reserveFood: {

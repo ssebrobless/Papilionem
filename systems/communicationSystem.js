@@ -57,6 +57,8 @@ class CommunicationSystem {
         if (GameEvents?.BATTLE_ACTION_OCCURRED) {
             this.eventUnsubscribers.push(eventBus.on(GameEvents.BATTLE_ACTION_OCCURRED, data => this.handleBattleActionForWarnings(data)));
         }
+        this.eventUnsubscribers.push(eventBus.on('ecology:cleanup-object-cleaned', data => this.handleEcologyWorkFollowup('cleanup', data)));
+        this.eventUnsubscribers.push(eventBus.on('pollen:sprinkle', data => this.handleEcologyWorkFollowup('pollen', data)));
     }
 
     reset() {
@@ -755,6 +757,100 @@ class CommunicationSystem {
                 return { candidate, score: social - Math.min(1, distance / 12) * 0.18 };
             })
             .sort((left, right) => right.score - left.score)[0]?.candidate || null;
+    }
+
+    getEcologyWorkFollowupConfig() {
+        const config = this.getEcologyCommunicationConfig()?.eventFollowup || {};
+        return {
+            enabled: config.enabled !== false,
+            cooldownFrames: Math.max(180, Math.round(Number(config.cooldownFrames ?? 900))),
+            suppressDuringMigration: config.suppressDuringMigration !== false
+        };
+    }
+
+    isEcologyFollowupMigrationBusy(entity) {
+        if (!entity?.id) return false;
+        const migration = entity.lifeSim?.derived?.migration || {};
+        return !!(entity.zoneTravel
+            || migration.travelTargetZoneId
+            || migration.affordancePull?.targetZoneId);
+    }
+
+    composeEcologyWorkFollowupPhrase(lane = 'cleanup', source = null, data = {}) {
+        const zoneId = data?.zoneId || this.getZoneId(source);
+        if (lane === 'pollen') {
+            const compostBoosted = data?.compostBoosted === true || !!data?.compostPatchId;
+            return this.pickDialogueCandidate(compostBoosted
+                ? [
+                    'I planted the pollen in cleaned ground. This spot should bloom faster now',
+                    'The compost took the pollen well. This square can feed us soon',
+                    'I used the cleaned patch for pollen. Watch this place bloom back'
+                ]
+                : [
+                    'I planted the pollen here. In a little while this spot can feed us',
+                    'This square has pollen now. Keep it clear while it grows',
+                    'I placed the pollen before it faded. This ground can become food again'
+                ], source, 'ecology:pollen-followup', zoneId);
+        }
+        const cleanupKind = data?.cleanupKind || 'cleanup-object';
+        return this.pickDialogueCandidate(cleanupKind === 'depleted-reserve-food'
+            ? [
+                'I cleared the spent food husk. That square can be useful again',
+                'The old reserve food is gone. We can plant on this space again',
+                'I cleaned up the empty food husk so this place does not stay blocked'
+            ]
+            : [
+                'I cleared a dirt pile here. This square can feed us again if we keep it open',
+                'That pile is gone. We can plant on this clean space again',
+                'I cleaned this ground. Help me keep it open for the next flower'
+            ], source, 'ecology:cleanup-followup', zoneId);
+    }
+
+    handleEcologyWorkFollowup(lane = 'cleanup', data = {}) {
+        const config = this.getEcologyWorkFollowupConfig();
+        if (config.enabled === false || this.getEcologyCommunicationConfig()?.enabled === false) return null;
+        if (lane === 'cleanup' && this.getEcologyCommunicationConfig()?.cleanup?.enabled === false) return null;
+        if (lane === 'pollen' && this.getEcologyCommunicationConfig()?.pollen?.enabled === false) return null;
+        const sourceId = data?.butterflyId || data?.sourceId || data?.entityId || null;
+        if (!sourceId) return null;
+        const source = this.getEntityById(sourceId);
+        if (!source?.id) return null;
+        if (lane !== 'pollen' && config.suppressDuringMigration && this.isEcologyFollowupMigrationBusy(source)) return null;
+        const zoneId = data?.zoneId || this.getZoneId(source);
+        if (!zoneId) return null;
+        const currentFrame = Math.max(0, Math.round(Number(data?.currentFrame ?? this.getCurrentFrame()) || 0));
+        const laneKey = `${lane}-followup`;
+        if (!this.canEmitEcologyWorkSignal(source, laneKey, currentFrame, config.cooldownFrames)) return null;
+        const candidates = this.getLiveEntities(gameCore?.gameState)
+            .filter(entity => gameCore?.gameState?.butterflies?.includes?.(entity));
+        const partner = this.getNearestEcologyPartner(source, candidates, zoneId);
+        if (!partner?.id) return null;
+        if (lane !== 'pollen' && config.suppressDuringMigration && this.isEcologyFollowupMigrationBusy(partner)) return null;
+        const phrase = this.composeEcologyWorkFollowupPhrase(lane, source, data);
+        const emitted = this.emitCooperationSignal(source, {
+            signalType: lane === 'pollen' ? 'guidance_signal' : 'acknowledgement_signal',
+            intentFamily: 'task',
+            intentTags: lane === 'pollen'
+                ? ['guidance', 'coordination', 'pollen', 'planting']
+                : ['guidance', 'coordination', 'cleanup', 'planting'],
+            phrase,
+            targetIds: [partner.id],
+            zoneId,
+            reason: lane === 'pollen' ? 'pollen-planted-followup' : 'cleanup-completed-followup',
+            metadata: {
+                reason: lane === 'pollen' ? 'pollen-planted-followup' : 'cleanup-completed-followup',
+                eventFollowup: true,
+                ecologyLane: lane,
+                objectId: data?.objectId || null,
+                cleanupKind: data?.cleanupKind || null,
+                compostBoosted: data?.compostBoosted === true,
+                compostPatchId: data?.compostPatchId || null
+            }
+        });
+        if (emitted) {
+            this.markEcologyWorkSignal(source, laneKey, currentFrame);
+        }
+        return emitted;
     }
 
     applyReserveFoodFollowThrough(source, partner, reserveFood, zoneId = null) {
