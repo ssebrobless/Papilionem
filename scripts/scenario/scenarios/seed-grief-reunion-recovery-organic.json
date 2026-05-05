@@ -1,0 +1,46 @@
+{
+  "id": "seed-grief-reunion-recovery-organic",
+  "seed": 1112,
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "entities": [
+    { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 10, "v": 10, "h": 0 } },
+    { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 10, "h": 0 } }
+  ],
+  "edges": [
+    {
+      "source": "a",
+      "target": "b",
+      "values": {
+        "trust": 0.82,
+        "comfort": 0.8,
+        "attachment": 0.84,
+        "bondTier": "bonded",
+        "coTimeSeconds": 1900,
+        "lastSeenAtFrame": 0,
+        "lastSharedZoneId": "moss-hollow"
+      }
+    }
+  ],
+  "actions": [
+    { "type": "step_simulation", "frames": 30 },
+    { "type": "set_board_pos", "source": "b", "boardPos": { "zoneId": "pool-heart", "u": 12, "v": 9, "h": 0 } },
+    { "type": "advance_cognition", "seconds": 321 },
+    { "type": "set_board_pos", "source": "b", "boardPos": { "zoneId": "moss-hollow", "u": 11, "v": 10, "h": 0 } },
+    { "type": "advance_cognition", "seconds": 0.1 },
+    { "type": "advance_cognition", "seconds": 2 }
+  ],
+  "assertions": [
+    {
+      "type": "memory_packet",
+      "name": "long_absence_packet_recovered",
+      "entity": "a",
+      "family": "social",
+      "kind": "bereavement",
+      "subtype": "long-absence",
+      "partner": "b",
+      "min": 1,
+      "max_intensity": 0.05
+    },
+    { "type": "feeling_min", "name": "grief_does_not_go_negative", "entity": "a", "key": "grief", "min": 0 }
+  ]
+}
