@@ -78,6 +78,15 @@
       "metadata": { "affectionIntensity": 0.72, "arcFixture": "scenario-help" }
     },
     {
+      "type": "emit_dialogue",
+      "source": "a",
+      "targets": ["b"],
+      "intentFamily": "social",
+      "intentTags": ["comfort", "care", "companionship", "warmth"],
+      "phrase": "I stayed. Let me help you steady again.",
+      "metadata": { "affectionIntensity": 0.72, "arcFixture": "scenario-help-dialogue" }
+    },
+    {
       "type": "set_edge",
       "source": "b",
       "target": "a",

@@ -62,16 +62,32 @@ function flattenEdges(samples = []) {
 function computeBondStability(samples = []) {
   const byPair = flattenEdges(samples);
   const ratios = [];
-  for (const values of byPair.values()) {
+  const pairRatios = [];
+  for (const [pairKey, values] of byPair.entries()) {
     const strengths = values.map(entry => entry.strength).filter(value => Number.isFinite(value));
     if (strengths.length < 2) continue;
     const avg = mean(strengths);
     if (!avg) continue;
-    ratios.push(stdev(strengths) / avg);
+    const ratio = stdev(strengths) / avg;
+    ratios.push(ratio);
+    pairRatios.push({
+      pairKey,
+      sampleCount: strengths.length,
+      meanStrength: avg,
+      stdev: stdev(strengths),
+      stdevMeanRatio: ratio,
+      firstStrength: strengths[0],
+      lastStrength: strengths[strengths.length - 1],
+      minStrength: Math.min(...strengths),
+      maxStrength: Math.max(...strengths)
+    });
   }
   return {
     pairCount: ratios.length,
-    stdevMeanRatio: mean(ratios) ?? 0
+    stdevMeanRatio: mean(ratios) ?? 0,
+    topVolatilePairs: pairRatios
+      .sort((left, right) => right.stdevMeanRatio - left.stdevMeanRatio)
+      .slice(0, 8)
   };
 }
 
@@ -103,14 +119,43 @@ function computeRelationshipArcEventChurn(cognitionEvents = [], durationSeconds 
     canonicalSeen.add(key);
     canonicalTransitions.push(transition);
   }
+  const topChurnPairs = summarizeTransitionPairs(canonicalTransitions);
   return {
     eventCount: eventTransitions.length,
     canonicalEventCount: canonicalTransitions.length,
     transitionsPerMinute: canonicalTransitions.length / Math.max(1, durationSeconds / 60),
     eventTransitions,
     canonicalTransitions,
+    topChurnPairs,
     sourcePath: 'event-subscription:cognition:triggered:relationshipArcEvent'
   };
+}
+
+function summarizeTransitionPairs(transitions = []) {
+  const byPair = new Map();
+  for (const transition of transitions) {
+    const key = transition.canonicalPairKey || transition.pairKey || 'unknown';
+    if (!byPair.has(key)) {
+      byPair.set(key, {
+        pairKey: key,
+        count: 0,
+        transitions: []
+      });
+    }
+    const summary = byPair.get(key);
+    summary.count += 1;
+    summary.transitions.push({
+      fromTier: transition.fromTier || null,
+      toTier: transition.toTier || null,
+      atFrame: transition.atFrame ?? null,
+      fromSeconds: transition.fromSeconds ?? null,
+      toSeconds: transition.toSeconds ?? null,
+      arcReasons: transition.arcReasons || []
+    });
+  }
+  return [...byPair.values()]
+    .sort((left, right) => right.count - left.count)
+    .slice(0, 8);
 }
 
 function computeBondChurn(samples = [], durationSeconds = 1, cognitionEvents = []) {
@@ -138,6 +183,12 @@ function computeBondChurn(samples = [], durationSeconds = 1, cognitionEvents = [
     }
   }
   const relationshipArcEvents = computeRelationshipArcEventChurn(cognitionEvents, durationSeconds);
+  const sampleTopChurnPairs = summarizeTransitionPairs(pairTransitions.map(transition => ({
+    ...transition,
+    canonicalPairKey: transition.pairKey?.includes('->')
+      ? transition.pairKey.split('->').sort().join('<->')
+      : transition.pairKey
+  })));
   const sampleTransitionsPerMinute = transitions / Math.max(1, durationSeconds / 60);
   const eventTransitionsPerMinute = relationshipArcEvents.transitionsPerMinute;
   const primaryTransitionsPerMinute = relationshipArcEvents.eventCount > 0
@@ -152,6 +203,7 @@ function computeBondChurn(samples = [], durationSeconds = 1, cognitionEvents = [
       ? relationshipArcEvents.sourcePath
       : 'sample-series:bondTier',
     pairTransitions,
+    sampleTopChurnPairs,
     relationshipArcEvents,
     sourcePath: 'sample-series:bondTier + event-subscription:relationshipArcEvent'
   };
@@ -321,7 +373,11 @@ function evaluateBands(metrics = {}) {
       id: 'bond-stability',
       pass: metrics.bondStability.stdevMeanRatio <= 0.30,
       observed: metrics.bondStability.stdevMeanRatio,
-      expected: '<= 0.30'
+      expected: '<= 0.30',
+      diagnostic: {
+        pairCount: metrics.bondStability.pairCount,
+        topVolatilePairs: metrics.bondStability.topVolatilePairs || []
+      }
     },
     {
       id: 'bond-churn',
@@ -334,7 +390,10 @@ function evaluateBands(metrics = {}) {
         sampleTransitionsPerMinute: metrics.bondChurn.transitionsPerMinute,
         combinedTransitionsPerMinute: metrics.bondChurn.combinedTransitionsPerMinute,
         relationshipArcEventTransitionsPerMinute: metrics.bondChurn.relationshipArcEvents?.transitionsPerMinute || 0,
-        relationshipArcEventCount: metrics.bondChurn.relationshipArcEvents?.eventCount || 0
+        relationshipArcEventCount: metrics.bondChurn.relationshipArcEvents?.eventCount || 0,
+        relationshipArcCanonicalEventCount: metrics.bondChurn.relationshipArcEvents?.canonicalEventCount || 0,
+        eventTopChurnPairs: metrics.bondChurn.relationshipArcEvents?.topChurnPairs || [],
+        sampleTopChurnPairs: metrics.bondChurn.sampleTopChurnPairs || []
       }
     },
     {
