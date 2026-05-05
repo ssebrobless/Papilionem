@@ -846,9 +846,7 @@ class CommunicationSystem {
                 signalType: 'warning_signal',
                 intentFamily: 'care',
                 intentTags: ['warning', 'comfort'],
-                phrase: this.clamp01(lifeSim.emotions?.exhaustion || 0) > this.clamp01(lifeSim.emotions?.threat || 0)
-                    ? 'I am too tired; stay close.'
-                    : 'I feel unsafe; stay close.',
+                phrase: this.composeDistressPhrase(entity, this.clamp01(lifeSim.emotions?.exhaustion || 0) > this.clamp01(lifeSim.emotions?.threat || 0)),
                 targetIds: nearbyCaregivers.map(candidate => candidate.id),
                 zoneId,
                 reason: 'distress'
@@ -886,6 +884,31 @@ class CommunicationSystem {
         return emitted;
     }
 
+    composeDistressPhrase(entity, isExhausted = false) {
+        const zoneId = entity?.currentZoneId || entity?.lifeSim?.lifecycle?.currentZoneId || null;
+        return this.pickDialogueCandidate(isExhausted
+            ? [
+                'I am wearing out. Stay close while I slow down',
+                'I need to rest soon. Keep near me a moment',
+                'my wings are tired. Please stay close'
+            ]
+            : [
+                'I feel unsafe. Stay close while I find a calmer path',
+                'something here worries me. Keep near me',
+                'I need help reading this place. Stay close'
+            ], entity, isExhausted ? 'distress:exhausted' : 'distress:unsafe', zoneId);
+    }
+
+    composeScoutDiscoveryPhrase(entity, zoneLabel = 'that zone') {
+        const zoneId = entity?.currentZoneId || entity?.lifeSim?.lifecycle?.currentZoneId || null;
+        const label = String(zoneLabel || 'that zone').replace(/\s+/g, ' ').trim() || 'that zone';
+        return this.pickDialogueCandidate([
+            `I found a better path toward ${label}. Come with me if you trust my read`,
+            `${label} has more room for us right now. I can show you the way`,
+            `I want to scout ${label} with someone beside me. Will you come?`
+        ], entity, 'scout-discovery', zoneId);
+    }
+
     updateScoutDiscovery(gameState = gameCore?.gameState, currentFrame = 0) {
         if ((Math.max(0, Math.round(currentFrame || 0)) % 1800) !== 0) return 0;
         let emitted = 0;
@@ -909,7 +932,7 @@ class CommunicationSystem {
                 signalType: 'guidance_signal',
                 intentFamily: 'social',
                 intentTags: ['guidance', 'coordination'],
-                phrase: `${zoneLabel} looks better; follow me there.`,
+                phrase: this.composeScoutDiscoveryPhrase(entity, zoneLabel),
                 targetIds: recipients.map(candidate => candidate.id),
                 zoneId: entity.currentZoneId || entity.lifeSim?.lifecycle?.currentZoneId || null,
                 targetZoneId,
@@ -3141,7 +3164,7 @@ class CommunicationSystem {
         const maxPrefix = Math.max(24, Number(gameConfig?.expression?.namedMemoryDialogue?.maxPrefixCharacters ?? 72));
         const clippedPrefix = prefix.length > maxPrefix ? `${prefix.slice(0, maxPrefix - 3)}...` : prefix;
         return {
-            phrase: basePhrase ? `${clippedPrefix} ${basePhrase}` : clippedPrefix,
+            phrase: basePhrase ? this.joinMemoryReferencePhrase(clippedPrefix, basePhrase) : clippedPrefix,
             referencedMemoryPacketId: packet.id,
             referencedMemoryFamily: packet.memoryFamily || null,
             referencedMemoryKind: packet.kind || packet.anchor || null,
@@ -3153,6 +3176,18 @@ class CommunicationSystem {
             }),
             phraseTemplateId: templateId
         };
+    }
+
+    joinMemoryReferencePhrase(prefix = '', basePhrase = '') {
+        const cleanPrefix = String(prefix || '').replace(/\s+/g, ' ').trim();
+        const cleanBase = String(basePhrase || '').replace(/\s+/g, ' ').trim();
+        if (!cleanPrefix) return cleanBase;
+        if (!cleanBase) return cleanPrefix;
+        const sentenceBase = cleanBase.charAt(0).toUpperCase() + cleanBase.slice(1);
+        if (/[.!?]$/.test(cleanPrefix)) {
+            return `${cleanPrefix} ${sentenceBase}`;
+        }
+        return `${cleanPrefix}. ${sentenceBase}`;
     }
 
     getCauseLabelConfig() {
@@ -3235,11 +3270,15 @@ class CommunicationSystem {
     joinDialogueParts(parts = [], band = 'average') {
         const filtered = parts.filter(Boolean).map(part => String(part).trim()).filter(Boolean);
         if (!filtered.length) return '';
+        const sentenceCase = value => {
+            const text = String(value || '').trim();
+            return text ? `${text.charAt(0).toUpperCase()}${text.slice(1)}` : '';
+        };
         if (band === 'below_average') {
-            return filtered.slice(0, 2).join('. ');
+            return filtered.slice(0, 2).map(sentenceCase).join('. ');
         }
         if (band === 'average') {
-            return filtered.slice(0, 2).join(' ');
+            return filtered.slice(0, 2).map(sentenceCase).join('. ');
         }
         if (band === 'above_average') {
             return filtered.slice(0, 3).join('; ');
@@ -3509,7 +3548,7 @@ class CommunicationSystem {
                             ], 'opener-devoted')
                             : pairTexture === 'guarded'
                                 ? pick([
-                                    'I am trying not to guess wrong about you',
+                                    'I am trying not to guess wrong',
                                     'you seem quieter than before',
                                     'are you alright beside me'
                                 ], 'opener-guarded')
@@ -4206,7 +4245,8 @@ class CommunicationSystem {
             above_average: 0.1,
             exceptional: 0.05
         };
-        const slangChance = register === 'casual' ? (slangChanceByBand[band] || 0.08) : 0;
+        const slangAllowed = gameConfig?.expression?.languagePolish?.modernSlangEnabled === true;
+        const slangChance = slangAllowed && register === 'casual' ? (slangChanceByBand[band] || 0.08) : 0;
         const slangRoll = (this.buildNameSeed(entity?.id || 'speaker', text, signalType, register, tone) % 100) / 100;
         if (slangChance > 0 && slangRoll < slangChance && !/\b(?:bet|no cap|sus|low-key|rizz|slay|drip|bussin'|say less|ghosted|lit|hits different)\b/i.test(text)) {
             const slangWord = this.getSlangWord(entity, text);
@@ -4475,7 +4515,7 @@ class CommunicationSystem {
         const byStyle = {
             'open-land-calm': {
                 route: 'open grass',
-                landmark: 'stone edge',
+                landmark: 'garden edge',
                 space: 'quiet ground',
                 shelter: 'sunlit wall',
                 atmosphere: 'light'
@@ -4489,17 +4529,17 @@ class CommunicationSystem {
             },
             'open-land-watchful': {
                 route: 'moss path',
-                landmark: 'covered edge',
+                landmark: 'moss line',
                 space: 'low ground',
                 shelter: 'covered wall',
-                atmosphere: 'air'
+                atmosphere: 'green light'
             },
             'open-land-echoing': {
                 route: 'waterlit path',
                 landmark: 'pool edge',
-                space: 'echoing ground',
+                space: 'pool ground',
                 shelter: 'stone rim',
-                atmosphere: 'echo'
+                atmosphere: 'waterlight'
             }
         };
         return {

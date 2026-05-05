@@ -1020,6 +1020,9 @@ const PAPILIONEM_BATTLE_ARENA = {
             minEdgeComposite: 0.35,
             maxPrefixCharacters: 72
         },
+        languagePolish: {
+            modernSlangEnabled: false
+        },
         whyThisMoment: {
             enabled: true
         },
