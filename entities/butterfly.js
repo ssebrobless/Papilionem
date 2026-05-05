@@ -1444,6 +1444,7 @@ class Butterfly extends Entity {
                 gameCore?.completePollenDrop?.(this);
             }
         }
+        this.checkEcologyRestArrival();
     }
 
     updateBoardMovement(currentSpeed) {
@@ -1463,6 +1464,7 @@ class Butterfly extends Entity {
             if (this.pendingPollenDropTarget) {
                 gameCore?.completePollenDrop?.(this);
             }
+            this.checkEcologyRestArrival({ forceArrived: true });
             this.movement.clearTarget();
             if (this.state === 'normal') {
                 this.timers.wander.current = 0;
@@ -1534,6 +1536,61 @@ class Butterfly extends Entity {
                 gameCore?.completePollenDrop?.(this);
             }
         }
+        this.checkEcologyRestArrival();
+    }
+
+    checkEcologyRestArrival(options = {}) {
+        const target = this.ecologyRestTarget || null;
+        const currentFrame = gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0);
+        if (!target || target.reason !== 'shade-rest-help' || (target.expiresAtFrame || 0) < currentFrame) {
+            if (target && (target.expiresAtFrame || 0) < currentFrame) this.ecologyRestTarget = null;
+            return false;
+        }
+        const zoneId = this.getMovementZoneId();
+        if ((target.boardPos?.zoneId || zoneId) !== zoneId) return false;
+        let arrived = !!options.forceArrived;
+        if (!arrived && this.isBoardMovementWorld() && target.boardPos && this.boardPos) {
+            arrived = Math.hypot((this.boardPos.u || 0) - (target.boardPos.u || 0), (this.boardPos.v || 0) - (target.boardPos.v || 0)) <= 0.85;
+        }
+        if (!arrived && Number.isFinite(target.x) && Number.isFinite(target.y)) {
+            arrived = Math.hypot((this.x || 0) - target.x, ((this.y || 0) + (this.shadowOffset || 0)) - target.y) <= 22;
+        }
+        if (!arrived || target.arrivedAtFrame) return false;
+
+        target.arrivedAtFrame = currentFrame;
+        const sleepState = sleepSystem?.getSleepState?.(this.id) || null;
+        const exhaustion = Math.max(0, Math.min(1, Number(this.lifeSim?.emotions?.exhaustion || 0)));
+        const restDrive = Math.max(0, Math.min(1, Number(this.lifeSim?.drives?.rest || 0)));
+        const sleepPressure = Math.max(
+            exhaustion,
+            restDrive,
+            Number(sleepState?.exhaustion || 0),
+            Number(sleepState?.sleepPressure || 0),
+            Number(target.restNeedAtRequest || 0)
+        );
+        const canSleep = sleepSystem?.canEntitySleep?.(this) !== false;
+        const alreadyResting = !!sleepState?.subtype;
+        const shouldSettle = alreadyResting || (
+            sleepPressure >= 0.34
+            && canSleep
+        );
+        if (shouldSettle) {
+            sleepSystem?.setSleepSubtype?.(this.id, 'settling_sleep', 'shade-rest-arrival');
+        }
+        eventBus?.emit?.('ecology:shade-rest-arrived', {
+            butterflyId: this.id,
+            blockId: target.blockId || null,
+            zoneId,
+            currentFrame,
+            settlingSleep: shouldSettle,
+            sleepPressure,
+            canSleep,
+            exhaustion,
+            restDrive,
+            restNeedAtRequest: Number(target.restNeedAtRequest || 0),
+            sleepSubtypeBefore: sleepState?.subtype || null
+        });
+        return true;
     }
     
     // === STATE BEHAVIOR IMPLEMENTATIONS ===

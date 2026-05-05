@@ -179,6 +179,17 @@ async function run() {
       communicationSystem.dialogueHistory = [];
       communicationSystem.responseQueue = [];
       eventBus.clearHistory?.();
+      const ecologyEventAccumulator = {
+        pollenFollowThrough: [],
+        reserveFoodUsed: [],
+        shadeRestArrived: []
+      };
+      const unsubscribers = [
+        eventBus.on?.('pollen:sprinkle', event => ecologyEventAccumulator.pollenFollowThrough.push(event)),
+        eventBus.on?.('pollen:bloomed', event => ecologyEventAccumulator.pollenFollowThrough.push(event)),
+        eventBus.on?.('ecology:reserve-food-used', event => ecologyEventAccumulator.reserveFoodUsed.push(event)),
+        eventBus.on?.('ecology:shade-rest-arrived', event => ecologyEventAccumulator.shadeRestArrived.push(event))
+      ].filter(Boolean);
 
       const zoneId = 'moss-hollow';
       const points = [
@@ -295,7 +306,7 @@ async function run() {
       }
       if (!unforcedMode && gameConfig?.world) gameConfig.world.scoutDiscovery = previousScoutDiscovery;
 
-      return {
+      const result = {
         currentFrame: gameCore.getCurrentFrame?.() || frameCount,
         butterflyCount: gameCore.gameState?.butterflies?.length || 0,
         dirtPileCount: (gameCore.gameState?.flowers || []).filter(flower => flower.lifecycleKind === 'dirt-pile').length,
@@ -310,13 +321,12 @@ async function run() {
           const pollenPlantings = Array.isArray(gameCore.gameState?.pendingPollenPlantings)
             ? gameCore.gameState.pendingPollenPlantings.length
             : 0;
-          const pollenFollowThroughEvents = [
-            ...(eventBus?.getHistory?.('pollen:sprinkle') || []),
-            ...(eventBus?.getHistory?.('pollen:bloomed') || [])
-          ].length;
+          const pollenFollowThroughEvents = ecologyEventAccumulator.pollenFollowThrough.length;
           const reserveState = reserveFood?.id && objectSystem?.getObjectState
             ? objectSystem.getObjectState(reserveFood.id)
             : null;
+          const reserveFoodUseEvents = ecologyEventAccumulator.reserveFoodUsed;
+          const shadeRestArrivalEvents = ecologyEventAccumulator.shadeRestArrived;
           const reservePostSetupInteractions = Math.max(0, (reserveState?.interactionCount || 0) - reserveBaselineInteractionCount);
           const blocks = (gameCore.gameState?.blocks || []).filter(block => blockIds.includes(block.id));
           const tiredNearBlocks = (gameCore.gameState?.butterflies || []).filter(entity => {
@@ -350,14 +360,35 @@ async function run() {
             pollenCarriers,
             reserveFoodTouched: reservePostSetupInteractions > 0,
             reserveFoodInteractionCount: reservePostSetupInteractions,
+            reserveFoodUseEventCount: reserveFoodUseEvents.length,
+            reserveFoodUseCount: Math.max(0, Math.round(Number(reserveState?.metadata?.reserveFoodUseCount || 0))),
+            reserveFoodMaxUses: Math.max(0, Math.round(Number(reserveState?.metadata?.reserveFoodMaxUses || 0))),
+            reserveFoodDepleted: reserveState?.metadata?.reserveFoodDepleted === true,
             reserveFoodBaselineInteractionCount: reserveBaselineInteractionCount,
             reserveFoodLastInteractionType: reserveState?.lastInteractionType || null,
             tiredNearBlocksCount: tiredNearBlocks,
-            shadeRestTargetingCount: shadeRestTargets
+            shadeRestTargetingCount: shadeRestTargets,
+            shadeRestArrivedCount: shadeRestArrivalEvents.length,
+            shadeRestSettlingSleepCount: shadeRestArrivalEvents.filter(event => event?.settlingSleep).length,
+            shadeRestArrivalSamples: shadeRestArrivalEvents.slice(-6).map(event => ({
+              butterflyId: event?.butterflyId || null,
+              blockId: event?.blockId || null,
+              settlingSleep: event?.settlingSleep === true,
+              sleepPressure: Number(event?.sleepPressure || 0),
+              canSleep: event?.canSleep !== false,
+              exhaustion: Number(event?.exhaustion || 0),
+              restDrive: Number(event?.restDrive || 0),
+              restNeedAtRequest: Number(event?.restNeedAtRequest || 0),
+              sleepSubtypeBefore: event?.sleepSubtypeBefore || null
+            }))
           };
         })(),
         dialogueHistory: JSON.parse(JSON.stringify(communicationSystem.dialogueHistory || []))
       };
+      unsubscribers.forEach(unsubscribe => {
+        try { unsubscribe?.(); } catch (error) {}
+      });
+      return result;
     }, { frameCount: FRAME_COUNT, unforcedMode: UNFORCED_MODE });
 
     report.browserSummary = {
@@ -445,8 +476,8 @@ async function run() {
     report.followThroughVerdict = {
       cleanup: (report.followThrough.cleanedSeedDirtPiles || 0) > 0 || (report.followThrough.cleanupTargetingCount || 0) > 0 ? 'observed' : 'residual',
       pollen: (report.followThrough.pendingPollenPlantings || 0) > 0 || (report.followThrough.pollenCarriers || 0) > 0 || (report.followThrough.pollenFollowThroughEventCount || 0) > 0 ? 'observed' : 'residual',
-      reserveFood: report.followThrough.reserveFoodTouched ? 'observed' : 'residual',
-      shadeRest: (report.followThrough.tiredNearBlocksCount || 0) > 0 || (report.followThrough.shadeRestTargetingCount || 0) > 0 ? 'observed' : 'residual'
+      reserveFood: report.followThrough.reserveFoodTouched || (report.followThrough.reserveFoodUseEventCount || 0) > 0 ? 'observed' : 'residual',
+      shadeRest: (report.followThrough.shadeRestArrivedCount || 0) > 0 || (report.followThrough.tiredNearBlocksCount || 0) > 0 || (report.followThrough.shadeRestTargetingCount || 0) > 0 ? 'observed' : 'residual'
     };
     if (laneChecksAreBlocking) {
       report.checks.push({
@@ -455,6 +486,10 @@ async function run() {
         details: {
           reserveFoodTouched: !!report.followThrough.reserveFoodTouched,
           reserveFoodInteractionCount: report.followThrough.reserveFoodInteractionCount || 0,
+          reserveFoodUseEventCount: report.followThrough.reserveFoodUseEventCount || 0,
+          reserveFoodUseCount: report.followThrough.reserveFoodUseCount || 0,
+          reserveFoodMaxUses: report.followThrough.reserveFoodMaxUses || 0,
+          reserveFoodDepleted: !!report.followThrough.reserveFoodDepleted,
           reserveFoodLastInteractionType: report.followThrough.reserveFoodLastInteractionType || null
         }
       });
@@ -463,7 +498,36 @@ async function run() {
         pass: report.followThroughVerdict.shadeRest === 'observed',
         details: {
           tiredNearBlocksCount: report.followThrough.tiredNearBlocksCount || 0,
-          shadeRestTargetingCount: report.followThrough.shadeRestTargetingCount || 0
+          shadeRestTargetingCount: report.followThrough.shadeRestTargetingCount || 0,
+          shadeRestArrivedCount: report.followThrough.shadeRestArrivedCount || 0,
+          shadeRestSettlingSleepCount: report.followThrough.shadeRestSettlingSleepCount || 0
+        }
+      });
+      report.checks.push({
+        name: 'reserve-food-finite-use-state',
+        pass: (report.followThrough.reserveFoodUseCount || 0) > 0
+          && (report.followThrough.reserveFoodMaxUses || 0) >= report.followThrough.reserveFoodUseCount,
+        details: {
+          reserveFoodUseCount: report.followThrough.reserveFoodUseCount || 0,
+          reserveFoodMaxUses: report.followThrough.reserveFoodMaxUses || 0,
+          reserveFoodDepleted: !!report.followThrough.reserveFoodDepleted
+        }
+      });
+      report.checks.push({
+        name: 'shade-rest-arrival-observed',
+        pass: (report.followThrough.shadeRestArrivedCount || 0) > 0,
+        details: {
+          shadeRestArrivedCount: report.followThrough.shadeRestArrivedCount || 0,
+          shadeRestSettlingSleepCount: report.followThrough.shadeRestSettlingSleepCount || 0,
+          shadeRestArrivalSamples: report.followThrough.shadeRestArrivalSamples || []
+        }
+      });
+      report.checks.push({
+        name: 'shade-rest-settling-observed',
+        pass: (report.followThrough.shadeRestSettlingSleepCount || 0) > 0,
+        details: {
+          shadeRestSettlingSleepCount: report.followThrough.shadeRestSettlingSleepCount || 0,
+          shadeRestArrivalSamples: report.followThrough.shadeRestArrivalSamples || []
         }
       });
     }

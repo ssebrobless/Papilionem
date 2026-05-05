@@ -989,6 +989,7 @@ const PAPILIONEM_BATTLE_ARENA = {
             reserveFood: {
                 enabled: true,
                 followThroughEnabled: true,
+                maxSharedUses: 6,
                 selfMaintenanceRelief: 0.08,
                 resourceRelief: 0.06,
                 exhaustionRelief: 0.03,

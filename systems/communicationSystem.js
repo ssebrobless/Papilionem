@@ -621,6 +621,10 @@ class CommunicationSystem {
     applyReserveFoodFollowThrough(source, partner, reserveFood, zoneId = null) {
         const config = this.getEcologyCommunicationConfig()?.reserveFood || {};
         if (config.followThroughEnabled === false || !source?.id || !reserveFood?.id) return false;
+        const currentState = objectSystem?.getObjectState?.(reserveFood.id) || null;
+        const maxSharedUses = Math.max(1, Math.round(Number(config.maxSharedUses ?? 6)));
+        const currentUses = Math.max(0, Math.round(Number(currentState?.metadata?.reserveFoodUseCount || 0)));
+        if (currentState?.metadata?.reserveFoodDepleted === true || currentUses >= maxSharedUses) return false;
         const recipient = [source, partner].filter(Boolean)
             .sort((left, right) => {
                 const leftNeed = Math.max(
@@ -635,10 +639,14 @@ class CommunicationSystem {
                 );
                 return rightNeed - leftNeed;
             })[0] || source;
+        const nextUses = currentUses + 1;
         const recorded = objectSystem?.recordInteraction?.(reserveFood.id, 'shared reserve food', source.id, {
             recipientId: recipient.id || null,
             zoneId,
-            reason: 'reserve-food-planning'
+            reason: 'reserve-food-planning',
+            reserveFoodUseCount: nextUses,
+            reserveFoodMaxUses: maxSharedUses,
+            reserveFoodDepleted: nextUses >= maxSharedUses
         });
         if (!recorded) return false;
 
@@ -663,6 +671,9 @@ class CommunicationSystem {
             sourceId: source.id,
             recipientId: recipient.id || null,
             zoneId,
+            useCount: nextUses,
+            maxUses: maxSharedUses,
+            depleted: nextUses >= maxSharedUses,
             currentFrame: this.getCurrentFrame()
         });
         return true;
@@ -697,12 +708,19 @@ class CommunicationSystem {
         const targetScreen = renderManager?.boardToScreen?.(boardPos)
             || (Number.isFinite(block.x) && Number.isFinite(block.y) ? { x: block.x, y: block.y } : null);
         if (!targetScreen) return false;
+        const restNeedAtRequest = Math.max(
+            this.clamp01(source.lifeSim?.emotions?.exhaustion || 0),
+            this.clamp01(source.lifeSim?.drives?.rest || 0),
+            this.clamp01(partner?.lifeSim?.emotions?.exhaustion || 0),
+            this.clamp01(partner?.lifeSim?.drives?.rest || 0)
+        );
         const target = {
             reason: 'shade-rest-help',
             blockId: block.id,
             boardPos,
             x: targetScreen.x,
             y: targetScreen.y,
+            restNeedAtRequest,
             expiresAtFrame: currentFrame + durationFrames
         };
         for (const entity of [source, partner].filter(Boolean)) {
@@ -754,7 +772,11 @@ class CommunicationSystem {
             const zoneFlowers = (gameState?.flowers || []).filter(flower => this.getZoneId(flower) === zoneId);
             const dirtPileCount = zoneFlowers.filter(flower => flower?.lifecycleKind === 'dirt-pile').length;
             const careDrive = this.clamp01(source.lifeSim?.drives?.caregiving || 0);
-            const reserveFood = zoneFlowers.find(flower => flower?.isReserveFoodBall?.() || flower?.lifecycleKind === 'reserve-food-ball');
+            const reserveFood = zoneFlowers.find(flower => {
+                if (!(flower?.isReserveFoodBall?.() || flower?.lifecycleKind === 'reserve-food-ball')) return false;
+                const state = objectSystem?.getObjectState?.(flower.id);
+                return state?.metadata?.reserveFoodDepleted !== true;
+            });
             const selfMaintenance = this.clamp01(source.lifeSim?.drives?.selfMaintenance || 0);
             const partnerMaintenance = this.clamp01(partner.lifeSim?.drives?.selfMaintenance || 0);
             const partnerResource = this.clamp01(partner.lifeSim?.drives?.resourceControl || 0);

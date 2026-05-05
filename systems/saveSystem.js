@@ -606,16 +606,23 @@ class SaveSystem {
     }
 
     serializeBlock(block) {
+        const carried = !!block.carriedById;
+        const boardHeight = this.normalizeBlockHeightHint(block.boardPos?.h);
+        const stackIndex = carried
+            ? 0
+            : (boardHeight !== null ? boardHeight : Math.max(0, Math.round(block.stackIndex ?? 0)));
+        const boardPos = this.serializeBoardPos(block, { hHint: stackIndex });
+        if (boardPos) boardPos.h = stackIndex;
         return {
             id: block.id,
             x: block.x,
             y: block.y,
-            boardPos: this.serializeBoardPos(block, { hHint: block.stackIndex ?? 0 }),
+            boardPos,
             currentZoneId: block.currentZoneId || null,
             renderWidth: block.renderWidth ?? null,
             renderHeight: block.renderHeight ?? null,
             blockHeight: block.blockHeight ?? 1,
-            stackIndex: block.stackIndex ?? 0,
+            stackIndex,
             supportBlockId: block.supportBlockId || null,
             lastPlacedMode: block.lastPlacedMode || 'ground',
             carriedById: block.carriedById || null,
@@ -1039,6 +1046,7 @@ class SaveSystem {
     }
 
     recordBlockStackHeightDivergence(savedBlock = {}, block = null) {
+        if (savedBlock?.carriedById || block?.carriedById) return;
         const savedStackIndex = this.normalizeBlockHeightHint(savedBlock?.stackIndex);
         const savedBoardPosH = this.normalizeBlockHeightHint(savedBlock?.boardPos?.h);
         if (savedStackIndex === null || savedBoardPosH === null || savedStackIndex === savedBoardPosH) {
@@ -1062,7 +1070,7 @@ class SaveSystem {
         if (!this.isValidBoardPos(boardPos)) return null;
         const zoneId = boardPos.zoneId || block?.currentZoneId || null;
         if (!zoneId) return null;
-        const savedH = this.normalizeBlockHeightHint(boardPos.h);
+        const savedH = block?.carriedById ? 0 : this.normalizeBlockHeightHint(boardPos.h);
         const stackHint = this.normalizeBlockHeightHint(block?.stackIndex);
         const heightHint = savedH !== null ? savedH : (stackHint !== null ? stackHint : 0);
         const normalized = typeof structureSystem !== 'undefined' && structureSystem?.normalizeBlockCell
