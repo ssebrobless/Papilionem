@@ -976,12 +976,16 @@ const PAPILIONEM_BATTLE_ARENA = {
                 activityScale: 0.22
             }
         },
-        ecologyCommunication: {
-            enabled: true,
-            cooldownFrames: 1800,
-            maxSignalsPerUpdate: 1,
-            cleanup: { enabled: true },
-            pollen: { enabled: true },
+            ecologyCommunication: {
+                enabled: true,
+                cooldownFrames: 1800,
+                maxSignalsPerUpdate: 1,
+                opportunitySelection: {
+                    enabled: true,
+                    urgentDuringMigrationScore: 0.82
+                },
+                cleanup: { enabled: true },
+                pollen: { enabled: true },
             reserveFood: {
                 enabled: true,
                 followThroughEnabled: true,

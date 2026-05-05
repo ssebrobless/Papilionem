@@ -310,6 +310,10 @@ async function run() {
           const pollenPlantings = Array.isArray(gameCore.gameState?.pendingPollenPlantings)
             ? gameCore.gameState.pendingPollenPlantings.length
             : 0;
+          const pollenFollowThroughEvents = [
+            ...(eventBus?.getHistory?.('pollen:sprinkle') || []),
+            ...(eventBus?.getHistory?.('pollen:bloomed') || [])
+          ].length;
           const reserveState = reserveFood?.id && objectSystem?.getObjectState
             ? objectSystem.getObjectState(reserveFood.id)
             : null;
@@ -342,6 +346,7 @@ async function run() {
             cleanedSeedDirtPiles: Math.max(0, dirtPileIds.length - remainingSeedDirt),
             cleanupTargetingCount: cleanupTargets,
             pendingPollenPlantings: pollenPlantings,
+            pollenFollowThroughEventCount: pollenFollowThroughEvents,
             pollenCarriers,
             reserveFoodTouched: reservePostSetupInteractions > 0,
             reserveFoodInteractionCount: reservePostSetupInteractions,
@@ -439,7 +444,7 @@ async function run() {
     }
     report.followThroughVerdict = {
       cleanup: (report.followThrough.cleanedSeedDirtPiles || 0) > 0 || (report.followThrough.cleanupTargetingCount || 0) > 0 ? 'observed' : 'residual',
-      pollen: (report.followThrough.pendingPollenPlantings || 0) > 0 || (report.followThrough.pollenCarriers || 0) > 0 ? 'observed' : 'residual',
+      pollen: (report.followThrough.pendingPollenPlantings || 0) > 0 || (report.followThrough.pollenCarriers || 0) > 0 || (report.followThrough.pollenFollowThroughEventCount || 0) > 0 ? 'observed' : 'residual',
       reserveFood: report.followThrough.reserveFoodTouched ? 'observed' : 'residual',
       shadeRest: (report.followThrough.tiredNearBlocksCount || 0) > 0 || (report.followThrough.shadeRestTargetingCount || 0) > 0 ? 'observed' : 'residual'
     };
