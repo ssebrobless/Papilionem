@@ -976,6 +976,15 @@ const PAPILIONEM_BATTLE_ARENA = {
                 activityScale: 0.22
             }
         },
+        ecologyCommunication: {
+            enabled: true,
+            cooldownFrames: 1800,
+            maxSignalsPerUpdate: 1,
+            cleanup: { enabled: true },
+            pollen: { enabled: true },
+            reserveFood: { enabled: true },
+            shadeRest: { enabled: true }
+        },
         grief: {
             enabled: true,
             longAbsence: { enabled: true }

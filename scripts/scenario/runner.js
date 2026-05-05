@@ -238,6 +238,9 @@ class ScenarioRunner {
       if (gameConfig?.cognition?.affordances?.cleanupActivityDirt) {
         gameConfig.cognition.affordances.cleanupActivityDirt.enabled = world?.enableCleanupActivityDirt === true;
       }
+      if (gameConfig?.cognition?.ecologyCommunication) {
+        gameConfig.cognition.ecologyCommunication.enabled = world?.enableEcologyCommunication !== false;
+      }
       if (gameConfig?.entities?.flower && world?.disableFlowerDecay === true) {
         gameConfig.entities.flower.decayEnabled = false;
       }

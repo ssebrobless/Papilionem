@@ -218,6 +218,28 @@ async function run() {
         const dirt = gameCore.transformFlowerToDirtPile?.(flower, { source: 'ecology-dialogue-causality' });
         if (dirt?.id) dirtPileIds.push(dirt.id);
       }
+      const reserveScreen = renderManager.boardToScreen({ zoneId, u: 22, v: 14, h: 0 });
+      const reserveFlower = gameCore.spawnFlowerAt(zoneId, reserveScreen.x, reserveScreen.y, {
+        exactPoint: true,
+        ignoreZoneFlowerCap: true,
+        allowFlowerOverlap: true,
+        persistentUntilConsumed: true,
+        resourceOrigin: 'ecology-dialogue-reserve'
+      });
+      const reserveFood = gameCore.convertFlowerToReserveFood?.(reserveFlower, null, {
+        source: 'ecology-dialogue-causality'
+      });
+      const blockPoints = [
+        { u: 20, v: 16 },
+        { u: 21, v: 16 },
+        { u: 20, v: 17 }
+      ];
+      const blockIds = [];
+      for (const point of blockPoints) {
+        const screen = renderManager.boardToScreen({ zoneId, ...point, h: 0 });
+        const block = gameCore.godSpawnBlock?.(zoneId, screen.x, screen.y);
+        if (block?.id) blockIds.push(block.id);
+      }
 
       const butterflies = gameCore.gameState.butterflies.slice(0, 12);
       butterflies.forEach((butterfly, index) => {
@@ -230,22 +252,53 @@ async function run() {
         butterfly.y = screen.y - (butterfly.shadowOffset || 0);
         butterfly.lifeSim.drives.caregiving = index % 2 === 0 ? 0.94 : 0.74;
         butterfly.lifeSim.drives.selfMaintenance = index % 3 === 0 ? 0.92 : 0.7;
+        butterfly.lifeSim.drives.rest = index % 4 === 0 ? 0.88 : (butterfly.lifeSim.drives.rest || 0.45);
+        butterfly.lifeSim.emotions.exhaustion = index % 4 === 0 ? 0.86 : (butterfly.lifeSim.emotions.exhaustion || 0.2);
         butterfly.lifeSim.drives.socialConnection = 0.72;
         butterfly.lifeSim.social.belonging = index % 4 === 0 ? 0.35 : 0.5;
+        if (index < 3) {
+          butterfly.pollenInventory = {
+            charges: index === 0 ? 2 : 1,
+            maxCharges: 2,
+            expiresAtFrame: gameCore.getCurrentFrame?.() + 7200
+          };
+        }
         butterfly.lifeSim.objectAwareness = butterfly.lifeSim.objectAwareness || {};
         butterfly.lifeSim.objectAwareness.dirtPileCount = dirtPileIds.length;
+        butterfly.lifeSim.objectAwareness.pollenFamiliarity = index < 3 ? 1 : (butterfly.lifeSim.objectAwareness.pollenFamiliarity || 0);
         butterfly.syncDebugGridPos?.();
       });
 
-      for (let frame = 0; frame < frameCount; frame += 1) {
+      for (let sample = 0; sample < 6; sample += 1) {
+        communicationSystem.updateEcologyWorkCommunication?.(gameCore.gameState, 90 * (sample + 1), {
+          force: true,
+          ignoreMigration: true,
+          maxSignals: 4
+        });
         gameCore.update?.();
       }
+
+      const previousScoutDiscovery = gameConfig?.world?.scoutDiscovery;
+      if (gameConfig?.world) gameConfig.world.scoutDiscovery = false;
+      const ecologyFrames = Math.max(600, Math.floor(frameCount * 0.55));
+      for (let frame = 0; frame < ecologyFrames; frame += 1) {
+        gameCore.update?.();
+      }
+      if (gameConfig?.world) gameConfig.world.scoutDiscovery = previousScoutDiscovery !== false;
+      for (let frame = ecologyFrames; frame < frameCount; frame += 1) {
+        gameCore.update?.();
+      }
+      if (gameConfig?.world) gameConfig.world.scoutDiscovery = previousScoutDiscovery;
 
       return {
         currentFrame: gameCore.getCurrentFrame?.() || frameCount,
         butterflyCount: gameCore.gameState?.butterflies?.length || 0,
         dirtPileCount: (gameCore.gameState?.flowers || []).filter(flower => flower.lifecycleKind === 'dirt-pile').length,
+        reserveFoodCount: (gameCore.gameState?.flowers || []).filter(flower => flower.lifecycleKind === 'reserve-food-ball').length,
+        blockCount: blockIds.length,
         dirtPileIds,
+        reserveFoodId: reserveFood?.id || null,
+        blockIds,
         dialogueHistory: JSON.parse(JSON.stringify(communicationSystem.dialogueHistory || []))
       };
     }, FRAME_COUNT);
@@ -254,6 +307,8 @@ async function run() {
       currentFrame: browserResult.currentFrame,
       butterflyCount: browserResult.butterflyCount,
       dirtPileCount: browserResult.dirtPileCount,
+      reserveFoodCount: browserResult.reserveFoodCount,
+      blockCount: browserResult.blockCount,
       dialogueCount: browserResult.dialogueHistory.length
     };
     report.ecologyDialogue = analyzeEcologyDialogue(browserResult.dialogueHistory);
@@ -277,6 +332,21 @@ async function run() {
       details: { cleanupDialogueCount: report.ecologyDialogue.cleanupDialogueCount }
     });
     report.checks.push({
+      name: 'pollen-dialogue-produced',
+      pass: report.ecologyDialogue.plantingDialogueCount >= 1,
+      details: { plantingDialogueCount: report.ecologyDialogue.plantingDialogueCount }
+    });
+    report.checks.push({
+      name: 'reserve-food-dialogue-produced',
+      pass: report.ecologyDialogue.reserveDialogueCount >= 1,
+      details: { reserveDialogueCount: report.ecologyDialogue.reserveDialogueCount }
+    });
+    report.checks.push({
+      name: 'shade-rest-dialogue-produced',
+      pass: report.ecologyDialogue.shelterDialogueCount >= 1,
+      details: { shelterDialogueCount: report.ecologyDialogue.shelterDialogueCount }
+    });
+    report.checks.push({
       name: 'ecology-dialogue-ratio',
       pass: report.ecologyDialogue.ecologyDialogueRatio >= 0.18,
       details: { ecologyDialogueRatio: report.ecologyDialogue.ecologyDialogueRatio }
@@ -289,7 +359,7 @@ async function run() {
         report.ecologyDialogue.shelterDialogueCount,
         report.ecologyDialogue.reserveDialogueCount,
         report.ecologyDialogue.scoutDialogueCount
-      ].filter(count => count > 0).length >= 2,
+      ].filter(count => count > 0).length >= 4,
       details: {
         cleanupDialogueCount: report.ecologyDialogue.cleanupDialogueCount,
         plantingDialogueCount: report.ecologyDialogue.plantingDialogueCount,

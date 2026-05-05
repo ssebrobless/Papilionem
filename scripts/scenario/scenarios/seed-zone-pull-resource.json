@@ -1,12 +1,13 @@
 {
   "id": "seed-zone-pull-resource",
   "seed": 1404,
-  "durationSeconds": 240,
+  "durationSeconds": 300,
   "world": {
     "focusedZoneId": "ivy-cloister",
     "renderMode": "sim-board",
     "ecologyMode": "wild-release-loop",
-    "enableAffordanceMigrationPressure": true
+    "enableAffordanceMigrationPressure": true,
+    "enableEcologyCommunication": false
   },
   "entities": [
     { "id": "a", "name": "Aster", "type": "butterfly", "boardPos": { "zoneId": "ivy-cloister", "u": 10, "v": 10, "h": 0 }, "drives": { "resourceControl": 0.92, "selfMaintenance": 0.72, "exploration": 0.42 } },
@@ -25,7 +26,7 @@
   ],
   "actions": [
     { "type": "trigger_scarcity_pulse", "zoneId": "ivy-cloister", "durationFrames": 18000 },
-    { "type": "step_simulation", "frames": 14400 }
+    { "type": "step_simulation", "frames": 18000 }
   ],
   "assertions": [
     { "type": "entity_count", "min": 4 },

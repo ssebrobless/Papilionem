@@ -19,6 +19,7 @@ class CommunicationSystem {
         this.warningRecords = [];
         this.scoutOfferRecords = [];
         this.buildingAidRecords = new Map();
+        this.ecologyWorkSignalFrames = new Map();
         this.eventUnsubscribers = [];
         this.partnerSelectionHistory = new Map();
         this.causeLabelCooldowns = new Map();
@@ -68,6 +69,7 @@ class CommunicationSystem {
         this.warningRecords = [];
         this.scoutOfferRecords = [];
         this.buildingAidRecords.clear();
+        this.ecologyWorkSignalFrames.clear();
         this.simulationClockSeconds = 0;
         this.partnerSelectionHistory.clear();
         this.causeLabelCooldowns.clear();
@@ -159,6 +161,9 @@ class CommunicationSystem {
         }
         if (gameConfig?.entities?.block?.shade?.buildingCooperation?.enabled !== false) {
             this.updateShadeBuildingCooperation(gameState, currentFrame);
+        }
+        if (gameConfig?.cognition?.ecologyCommunication?.enabled !== false) {
+            this.updateEcologyWorkCommunication(gameState, currentFrame);
         }
         this.updateQueuedResponses(gameState);
     }
@@ -576,6 +581,207 @@ class CommunicationSystem {
             emitted += 1;
         }
         return emitted;
+    }
+
+    getEcologyCommunicationConfig() {
+        return gameConfig?.cognition?.ecologyCommunication || {};
+    }
+
+    canEmitEcologyWorkSignal(source, lane, currentFrame, cooldownFrames) {
+        if (!source?.id || !lane) return false;
+        const key = `${source.id}:${lane}`;
+        const lastFrame = this.ecologyWorkSignalFrames.get(key);
+        return !Number.isFinite(lastFrame) || (currentFrame - lastFrame) >= cooldownFrames;
+    }
+
+    markEcologyWorkSignal(source, lane, currentFrame) {
+        if (!source?.id || !lane) return;
+        this.ecologyWorkSignalFrames.set(`${source.id}:${lane}`, currentFrame);
+    }
+
+    getNearestEcologyPartner(source, candidates = [], zoneId = null) {
+        if (!source?.id) return null;
+        const sourceBoard = source.boardPos || {};
+        return candidates
+            .filter(candidate => candidate?.id && candidate.id !== source.id)
+            .filter(candidate => this.getZoneId(candidate) === zoneId)
+            .map(candidate => {
+                const board = candidate.boardPos || {};
+                const distance = Number.isFinite(sourceBoard.u) && Number.isFinite(sourceBoard.v)
+                    && Number.isFinite(board.u) && Number.isFinite(board.v)
+                    ? Math.hypot((sourceBoard.u || 0) - (board.u || 0), (sourceBoard.v || 0) - (board.v || 0))
+                    : Infinity;
+                const edge = source.lifeSim?.socialEdges?.[candidate.id] || {};
+                const social = this.clamp01(Math.max(edge.trust || 0, edge.comfort || 0, edge.attachment || 0, edge.familiarity || 0));
+                return { candidate, score: social - Math.min(1, distance / 12) * 0.18 };
+            })
+            .sort((left, right) => right.score - left.score)[0]?.candidate || null;
+    }
+
+    updateEcologyWorkCommunication(gameState = gameCore?.gameState, currentFrame = 0, options = {}) {
+        const config = this.getEcologyCommunicationConfig();
+        if (config.enabled === false) return 0;
+        if (!options.force && (Math.max(0, Math.round(currentFrame || 0)) % 90) !== 0) return 0;
+        const cooldownFrames = Math.max(300, Math.round(Number(config.cooldownFrames ?? 1800)));
+        const maxSignals = Math.max(1, Math.round(Number(options.maxSignals ?? config.maxSignalsPerUpdate ?? 1)));
+        const liveEntities = this.getLiveEntities(gameState).filter(entity => gameState?.butterflies?.includes?.(entity));
+        let emitted = 0;
+
+        for (const source of liveEntities) {
+            if (emitted >= maxSignals) break;
+            const zoneId = this.getZoneId(source);
+            if (!zoneId) continue;
+            const migration = source.lifeSim?.derived?.migration || {};
+            if (!options.ignoreMigration && (source.zoneTravel
+                || migration.travelTargetZoneId
+                || migration.affordancePull?.targetZoneId)) {
+                continue;
+            }
+            const partner = this.getNearestEcologyPartner(source, liveEntities, zoneId);
+            if (!partner) continue;
+            const charges = Math.max(0, Math.round(Number(source.pollenInventory?.charges || 0)));
+            const pendingPollen = !!source.pendingPollenDropTarget;
+            const zoneFlowers = (gameState?.flowers || []).filter(flower => this.getZoneId(flower) === zoneId);
+            const dirtPileCount = zoneFlowers.filter(flower => flower?.lifecycleKind === 'dirt-pile').length;
+            const careDrive = this.clamp01(source.lifeSim?.drives?.caregiving || 0);
+            if (config.pollen?.enabled !== false
+                && (charges > 0 || pendingPollen)
+                && this.canEmitEcologyWorkSignal(source, 'pollen', currentFrame, cooldownFrames)) {
+                this.emitCooperationSignal(source, {
+                    signalType: 'guidance_signal',
+                    intentFamily: 'task',
+                    intentTags: ['guidance', 'coordination', 'pollen', 'planting', 'companionship'],
+                    phrase: this.composePollenWorkPhrase(source, charges),
+                    targetIds: [partner.id],
+                    zoneId,
+                    reason: 'pollen-planting-help',
+                    metadata: {
+                        reason: 'pollen-planting-help',
+                        pollenCharges: charges,
+                        pendingPollenDrop: pendingPollen
+                    }
+                });
+                this.markEcologyWorkSignal(source, 'pollen', currentFrame);
+                emitted += 1;
+                continue;
+            }
+
+            const reserveFood = zoneFlowers.find(flower => flower?.isReserveFoodBall?.() || flower?.lifecycleKind === 'reserve-food-ball');
+            const selfMaintenance = this.clamp01(source.lifeSim?.drives?.selfMaintenance || 0);
+            if (config.reserveFood?.enabled !== false
+                && reserveFood
+                && selfMaintenance >= 0.62
+                && this.canEmitEcologyWorkSignal(source, 'reserve-food', currentFrame, cooldownFrames)) {
+                this.emitCooperationSignal(source, {
+                    signalType: 'acknowledgement_signal',
+                    intentFamily: 'care',
+                    intentTags: ['comfort', 'coordination', 'reserve-food', 'sharing'],
+                    phrase: this.composeReserveFoodWorkPhrase(source),
+                    targetIds: [partner.id],
+                    zoneId,
+                    reason: 'reserve-food-planning',
+                    metadata: {
+                        reason: 'reserve-food-planning',
+                        reserveFoodId: reserveFood.id || null
+                    }
+                });
+                this.markEcologyWorkSignal(source, 'reserve-food', currentFrame);
+                emitted += 1;
+                continue;
+            }
+
+            const blocksInZone = (gameState?.blocks || []).filter(block => this.getZoneId(block) === zoneId);
+            const exhaustion = this.clamp01(source.lifeSim?.emotions?.exhaustion || 0);
+            const restDrive = this.clamp01(source.lifeSim?.drives?.rest || 0);
+            if (config.shadeRest?.enabled !== false
+                && blocksInZone.length >= 2
+                && Math.max(exhaustion, restDrive) >= 0.62
+                && this.canEmitEcologyWorkSignal(source, 'shade-rest', currentFrame, cooldownFrames)) {
+                this.emitCooperationSignal(source, {
+                    signalType: 'calming_signal',
+                    intentFamily: 'care',
+                    intentTags: ['comfort', 'coordination', 'shade', 'rest', 'building'],
+                    phrase: this.composeShadeRestWorkPhrase(source),
+                    targetIds: [partner.id],
+                    zoneId,
+                    reason: 'shade-rest-help',
+                    metadata: {
+                        reason: 'shade-rest-help',
+                        exhaustion,
+                        restDrive,
+                        blockCount: blocksInZone.length
+                    }
+                });
+                this.markEcologyWorkSignal(source, 'shade-rest', currentFrame);
+                emitted += 1;
+                continue;
+            }
+
+            if (config.cleanup?.enabled !== false
+                && dirtPileCount > 0
+                && careDrive >= 0.58
+                && this.canEmitEcologyWorkSignal(source, 'cleanup', currentFrame, cooldownFrames)) {
+                this.emitCooperationSignal(source, {
+                    signalType: 'guidance_signal',
+                    intentFamily: 'task',
+                    intentTags: ['guidance', 'coordination', 'cleanup', 'planting', 'companionship'],
+                    phrase: this.composeCleanupWorkPhrase(source),
+                    targetIds: [partner.id],
+                    zoneId,
+                    reason: 'cleanup-help',
+                    metadata: {
+                        reason: 'cleanup-help',
+                        dirtPileCount
+                    }
+                });
+                this.markEcologyWorkSignal(source, 'cleanup', currentFrame);
+                emitted += 1;
+            }
+        }
+        return emitted;
+    }
+
+    composePollenWorkPhrase(entity, charges = 0) {
+        const zoneId = this.getZoneId(entity);
+        const hasExtra = Math.max(0, Math.round(Number(charges || 0))) > 1;
+        return this.pickDialogueCandidate(hasExtra
+            ? [
+                'I am carrying extra pollen. Help me choose where to plant it',
+                'I have more pollen than I can place well alone. Come read the ground with me',
+                'I can plant twice if someone helps me choose the better spots'
+            ]
+            : [
+                'I have pollen ready. Come help me place it well',
+                'this pollen will fade if I waste the moment. Help me pick a square',
+                'I can start a flower here if you help me read the space'
+            ], entity, 'ecology:pollen-work', zoneId);
+    }
+
+    composeReserveFoodWorkPhrase(entity) {
+        const zoneId = this.getZoneId(entity);
+        return this.pickDialogueCandidate([
+            'There is reserve food here. Let us share it before anyone gets too worn down',
+            'we have stored food nearby. Someone tired should take it before it sits unused',
+            'that reserve food can help us hold this place a little longer'
+        ], entity, 'ecology:reserve-food', zoneId);
+    }
+
+    composeShadeRestWorkPhrase(entity) {
+        const zoneId = this.getZoneId(entity);
+        return this.pickDialogueCandidate([
+                'I need a darker place to rest. Can we stay near the shade?',
+                'the shade would help me settle. Stay with me there a moment',
+                'I am too warm and tired out here. Can we rest under the blocks?'
+            ], entity, 'ecology:shade-rest', zoneId);
+    }
+
+    composeCleanupWorkPhrase(entity) {
+        const zoneId = this.getZoneId(entity);
+        return this.pickDialogueCandidate([
+            'The dirt piles are taking space we could use. Help me clear them',
+            'This ground needs cleaning before we plant here. Will you work with me?',
+            'If we clear these piles together, this place can feed us again'
+        ], entity, 'ecology:cleanup-work', zoneId);
     }
 
     getCurrentFrame() {
