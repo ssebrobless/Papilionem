@@ -175,25 +175,28 @@ function splitRecordsByScenario(records = [], seed = 1) {
   };
 }
 
-function buildCandidateArtifact(baseArtifact, records, metadata = {}) {
+function buildCandidateArtifact(baseArtifact, records, metadata = {}, trainingOptions = TRAINING_OPTIONS, modelVersionId = MODEL_VERSION_ID) {
   const candidate = {
     ...baseArtifact,
-    modelVersionId: MODEL_VERSION_ID,
+    modelVersionId,
     trainedFrom: 'b6-balanced-c2-trace-corpus-heldout-ridge-linear-v1',
     training: {
       trainer: 'scripts/train-m7-garden-policy.js',
       generatedAt: new Date().toISOString(),
       baseModelVersionId: baseArtifact.modelVersionId,
-      ridgeLambda: TRAINING_OPTIONS.lambda,
-      learningRate: TRAINING_OPTIONS.learningRate,
-      epochs: TRAINING_OPTIONS.epochs,
+      ridgeLambda: trainingOptions.lambda,
+      learningRate: trainingOptions.learningRate,
+      epochs: trainingOptions.epochs,
+      protectedLambda: trainingOptions.protectedLambda,
+      protectedLearningRate: trainingOptions.protectedLearningRate,
+      protectedEpochs: trainingOptions.protectedEpochs,
       defaultRuntimePromotion: false,
       ...metadata
     },
     policies: {}
   };
   for (const policyName of POLICY_FAMILIES) {
-    candidate.policies[policyName] = trainPolicy(baseArtifact.policies[policyName], records, policyName, TRAINING_OPTIONS);
+    candidate.policies[policyName] = trainPolicy(baseArtifact.policies[policyName], records, policyName, trainingOptions);
   }
   return candidate;
 }
@@ -231,14 +234,14 @@ function summarizeHeldOutEvaluations(evaluations = []) {
   return perPolicy;
 }
 
-function evaluateHeldOut(baseArtifact = {}, records = []) {
+function evaluateHeldOut(baseArtifact = {}, records = [], trainingOptions = TRAINING_OPTIONS, modelVersionId = MODEL_VERSION_ID) {
   const runs = [];
   for (const seed of HOLDOUT_SEEDS) {
     const split = splitRecordsByScenario(records, seed);
     const candidate = buildCandidateArtifact(baseArtifact, split.train, {
       heldOutTrainingRun: true,
       seed
-    });
+    }, trainingOptions, modelVersionId);
     const m7Eval = evaluateArtifactAgainstCorpus(candidate, split.holdout);
     const m4Eval = evaluateArtifactAgainstCorpus(baseArtifact, split.holdout);
     const perPolicy = {};
@@ -377,14 +380,21 @@ function trainPolicy(basePolicy, records, policyName, options = {}) {
   return nextPolicy;
 }
 
-async function main() {
-  ensureDir(OUTPUT_ROOT);
-  const outputDir = path.join(OUTPUT_ROOT, stamp());
+async function trainCandidate(options = {}) {
+  const outputRoot = options.outputRoot || OUTPUT_ROOT;
+  const outputArtifactPath = options.outputArtifactPath || OUTPUT_ARTIFACT_PATH;
+  const modelVersionId = options.modelVersionId || MODEL_VERSION_ID;
+  const trainingOptions = {
+    ...TRAINING_OPTIONS,
+    ...(options.trainingOptions || {})
+  };
+  ensureDir(outputRoot);
+  const outputDir = path.join(outputRoot, options.auditId || stamp());
   ensureDir(outputDir);
 
-  const corpus = await buildC2TraceCorpus({
+  const corpus = options.corpus || await buildC2TraceCorpus({
     outputRoot: path.join(outputDir, 'c2_trace_corpus'),
-    sourceAudit: 'train-m7-garden-policy',
+    sourceAudit: options.sourceAudit || 'train-m7-garden-policy',
     balance: true
   });
   const records = corpus.records || [];
@@ -395,8 +405,8 @@ async function main() {
     correctedRecordCount: corpus.manifest?.correctedRecordCount || 0,
     correctedPolicyCount: corpus.manifest?.correctedPolicyCount || 0
   });
-  const heldOutEvaluation = evaluateHeldOut(baseArtifact, records);
-  const m7 = buildCandidateArtifact(baseArtifact, records, {
+  const heldOutEvaluation = evaluateHeldOut(baseArtifact, records, trainingOptions, modelVersionId);
+  const candidate = buildCandidateArtifact(baseArtifact, records, {
     corpusManifestPath: path.relative(ROOT, corpus.manifestPath).replace(/\\/g, '/'),
     corpusRecordsPath: path.relative(ROOT, corpus.recordsPath).replace(/\\/g, '/'),
     corpusDigest,
@@ -406,14 +416,14 @@ async function main() {
       perPolicy: heldOutEvaluation.perPolicy,
       promotionGate: heldOutEvaluation.promotionGate
     }
-  });
+  }, trainingOptions, modelVersionId);
 
-  ensureDir(path.dirname(OUTPUT_ARTIFACT_PATH));
-  fs.writeFileSync(OUTPUT_ARTIFACT_PATH, JSON.stringify(m7, null, 2));
+  ensureDir(path.dirname(outputArtifactPath));
+  fs.writeFileSync(outputArtifactPath, JSON.stringify(candidate, null, 2));
   const evaluation = {
     generatedAt: new Date().toISOString(),
     baseArtifactPath: path.relative(ROOT, BASE_ARTIFACT_PATH).replace(/\\/g, '/'),
-    candidateArtifactPath: path.relative(ROOT, OUTPUT_ARTIFACT_PATH).replace(/\\/g, '/'),
+    candidateArtifactPath: path.relative(ROOT, outputArtifactPath).replace(/\\/g, '/'),
     corpus: {
       manifestPath: corpus.manifestPath,
       recordsPath: corpus.recordsPath,
@@ -421,7 +431,7 @@ async function main() {
     },
     heldOut: heldOutEvaluation,
     m4: evaluateArtifactAgainstCorpus(baseArtifact, records),
-    m7: evaluateArtifactAgainstCorpus(m7, records)
+    m7: evaluateArtifactAgainstCorpus(candidate, records)
   };
   evaluation.promotionGate = {
     corpusRecordCountAtLeastSixty: (corpus.manifest?.recordCount || 0) >= 60,
@@ -444,9 +454,9 @@ async function main() {
     && evaluation.promotionGate.autobattlePostureAtLeastPointSeven;
   const evaluationPath = path.join(outputDir, 'm7-training-evaluation.json');
   fs.writeFileSync(evaluationPath, JSON.stringify(evaluation, null, 2));
-  console.log(JSON.stringify({
+  return {
     overall: evaluation.promotionGate.artifactGatePass ? 'candidate-artifact-pass' : 'candidate-artifact-hold',
-    artifactPath: OUTPUT_ARTIFACT_PATH,
+    artifactPath: outputArtifactPath,
     evaluationPath,
     m4: evaluation.m4.overall,
     m7: evaluation.m7.overall,
@@ -455,10 +465,27 @@ async function main() {
       promotionGate: heldOutEvaluation.promotionGate
     },
     promotionGate: evaluation.promotionGate
-  }, null, 2));
+  };
 }
 
-main().catch(error => {
-  console.error(error?.stack || String(error));
-  process.exitCode = 1;
-});
+async function main() {
+  const result = await trainCandidate();
+  console.log(JSON.stringify(result, null, 2));
+}
+
+if (require.main === module) {
+  main().catch(error => {
+    console.error(error?.stack || String(error));
+    process.exitCode = 1;
+  });
+}
+
+module.exports = {
+  POLICY_FAMILIES,
+  TRAINING_OPTIONS,
+  buildCandidateArtifact,
+  evaluateArtifactAgainstCorpus,
+  evaluateHeldOut,
+  trainCandidate,
+  trainPolicy
+};
