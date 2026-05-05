@@ -38,7 +38,7 @@
     { "type": "cleanup_object", "name": "cleanup-creates-compost-for-dialogue", "source": "planter", "object": "spent-ground" },
     { "type": "grant_pollen", "name": "planter-has-pollen-while-compost-exists", "source": "planter", "charges": 1, "color": "#f2c94c", "expiresInFrames": 7200 },
     { "type": "clear_dialogue_history" },
-    { "type": "run_ecology_work_communication", "name": "real-ecology-selector-emits-compost-dialogue", "maxSignals": 1, "min": 1 },
+    { "type": "plan_pollen_drop", "name": "compost-plan-emits-real-ecology-dialogue", "source": "planter", "requireCompost": true },
     { "type": "step_simulation", "frames": 180 }
   ],
   "assertions": [

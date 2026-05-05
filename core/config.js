@@ -558,7 +558,8 @@ const PAPILIONEM_BATTLE_ARENA = {
                 compostEnabled: true,
                 compostTtlFrames: 3600,
                 compostPreferenceBonus: 2.5,
-                compostBloomFrameMultiplier: 0.5
+                compostBloomFrameMultiplier: 0.5,
+                compostPlanningSignalEnabled: true
             },
             flowerToBlock: {
                 enabled: true,

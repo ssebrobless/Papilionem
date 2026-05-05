@@ -754,7 +754,12 @@ class CommunicationSystem {
         if (!options.force && (Math.max(0, Math.round(currentFrame || 0)) % 90) !== 0) return 0;
         const cooldownFrames = Math.max(300, Math.round(Number(config.cooldownFrames ?? 1800)));
         const maxSignals = Math.max(1, Math.round(Number(options.maxSignals ?? config.maxSignalsPerUpdate ?? 1)));
-        const liveEntities = this.getLiveEntities(gameState).filter(entity => gameState?.butterflies?.includes?.(entity));
+        const sourceFilterId = options.sourceId || options.source_id || null;
+        const allButterflies = this.getLiveEntities(gameState)
+            .filter(entity => gameState?.butterflies?.includes?.(entity));
+        const liveEntities = allButterflies
+            .filter(entity => !sourceFilterId || entity?.id === sourceFilterId);
+        const partnerCandidates = sourceFilterId ? allButterflies : liveEntities;
         let emitted = 0;
 
         for (const source of liveEntities) {
@@ -765,7 +770,7 @@ class CommunicationSystem {
             const isMigrationBusy = !options.ignoreMigration && (source.zoneTravel
                 || migration.travelTargetZoneId
                 || migration.affordancePull?.targetZoneId);
-            const partner = this.getNearestEcologyPartner(source, liveEntities, zoneId);
+            const partner = this.getNearestEcologyPartner(source, partnerCandidates, zoneId);
             if (!partner) continue;
             const charges = Math.max(0, Math.round(Number(source.pollenInventory?.charges || 0)));
             const pendingPollen = !!source.pendingPollenDropTarget;

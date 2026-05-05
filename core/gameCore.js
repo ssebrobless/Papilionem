@@ -3860,6 +3860,7 @@ class GameCore {
                     zoneId,
                     compostPatchId: candidate.compostPatchId || null
                 };
+                this.announceCompostPollenPlan(butterfly, butterfly.pendingPollenDropTarget);
                 return butterfly.pendingPollenDropTarget;
             }
         }
@@ -3874,6 +3875,30 @@ class GameCore {
             zoneId
         };
         return butterfly.pendingPollenDropTarget;
+    }
+
+    announceCompostPollenPlan(butterfly, target) {
+        const config = this.getPollenPropagationConfig();
+        if (config.enabled === false || config.compostPlanningSignalEnabled === false) return 0;
+        if (!butterfly?.id || !target?.compostPatchId) return 0;
+        const communication = this.communicationSystem || (typeof communicationSystem !== 'undefined' ? communicationSystem : null);
+        if (!communication?.updateEcologyWorkCommunication) return 0;
+        const currentFrame = this.getCurrentFrame?.() || 0;
+        const emitted = communication.updateEcologyWorkCommunication(this.gameState, currentFrame, {
+            force: true,
+            maxSignals: 1,
+            ignoreMigration: true,
+            sourceId: butterfly.id
+        }) || 0;
+        if (emitted > 0 && typeof eventBus !== 'undefined') {
+            eventBus.emit('pollen:compost-plan-announced', {
+                butterflyId: butterfly.id,
+                zoneId: target.zoneId || this.getEntityZoneId(butterfly, this.getFocusedZoneId()),
+                compostPatchId: target.compostPatchId || null,
+                currentFrame
+            });
+        }
+        return emitted;
     }
 
     completePollenDrop(butterfly) {
