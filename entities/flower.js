@@ -211,6 +211,39 @@ class Flower extends Entity {
         return this.lifecycleKind === 'reserve-food-ball';
     }
 
+    getReserveFoodUseState() {
+        if (!this.isReserveFoodBall()) {
+            return {
+                useCount: 0,
+                maxUses: 0,
+                depleted: false,
+                remainingRatio: 1
+            };
+        }
+        const metadata = objectSystem?.getObjectState?.(this.id)?.metadata || {};
+        const maxUses = Math.max(1, Math.round(Number(metadata.reserveFoodMaxUses || gameConfig?.cognition?.ecologyCommunication?.reserveFood?.maxSharedUses || 6)));
+        const useCount = Math.max(0, Math.min(maxUses, Math.round(Number(metadata.reserveFoodUseCount || 0))));
+        const depleted = metadata.reserveFoodDepleted === true || useCount >= maxUses;
+        return {
+            useCount,
+            maxUses,
+            depleted,
+            remainingRatio: depleted ? 0 : Math.max(0, Math.min(1, (maxUses - useCount) / maxUses))
+        };
+    }
+
+    isReserveFoodDepleted() {
+        return this.getReserveFoodUseState().depleted;
+    }
+
+    getReserveFoodVisualState() {
+        const state = this.getReserveFoodUseState();
+        if (state.depleted) return 'depleted';
+        if (state.remainingRatio <= 0.35) return 'low';
+        if (state.remainingRatio <= 0.7) return 'used';
+        return 'full';
+    }
+
     getDecayFrames() {
         return Math.max(1, Math.round(gameConfig?.entities?.flower?.decayFrames || 3600));
     }
@@ -510,13 +543,36 @@ class Flower extends Entity {
         graphics.push();
         graphics.translate(this.x, this.y);
         const color = Array.isArray(this.petalColor) ? this.petalColor : [255, 220, 150];
+        const useState = this.getReserveFoodUseState();
+        const visualState = this.getReserveFoodVisualState();
+        const remainingScale = Math.max(0.42, 0.72 + (useState.remainingRatio * 0.28));
         graphics.noStroke();
-        graphics.fill(0, 0, 0, alpha * 0.18);
-        graphics.ellipse(0, 3, 10, 4);
-        graphics.fill(color[0], color[1], color[2], alpha);
-        graphics.ellipse(0, -1, 8, 8);
-        graphics.fill(255, 255, 255, alpha * 0.32);
-        graphics.ellipse(-2, -3, 2.4, 2);
+        graphics.fill(0, 0, 0, alpha * (visualState === 'depleted' ? 0.24 : 0.18));
+        graphics.ellipse(0, 3, visualState === 'depleted' ? 11 : 10, visualState === 'depleted' ? 3.2 : 4);
+        if (visualState === 'depleted') {
+            graphics.fill(62, 50, 38, alpha * 0.92);
+            graphics.ellipse(0, 0, 8.5, 4.8);
+            graphics.fill(36, 30, 24, alpha * 0.86);
+            graphics.ellipse(1.2, -0.6, 5.4, 2.2);
+            graphics.stroke(180, 155, 100, alpha * 0.34);
+            graphics.strokeWeight(1);
+            graphics.noFill();
+            graphics.ellipse(0, 0, 9.2, 5.4);
+            graphics.noStroke();
+            graphics.pop();
+            return;
+        }
+        const dim = visualState === 'low' ? 0.72 : (visualState === 'used' ? 0.86 : 1);
+        graphics.fill(color[0] * dim, color[1] * dim, color[2] * dim, alpha);
+        graphics.ellipse(0, -1, 8 * remainingScale, 8 * remainingScale);
+        graphics.fill(255, 255, 255, alpha * 0.32 * useState.remainingRatio);
+        graphics.ellipse(-2, -3, 2.4 * remainingScale, 2 * remainingScale);
+        if (visualState !== 'full') {
+            graphics.stroke(92, 68, 42, alpha * 0.34);
+            graphics.strokeWeight(1);
+            graphics.noFill();
+            graphics.arc(0, -1, 9, 9, -HALF_PI, -HALF_PI + (TWO_PI * useState.remainingRatio));
+        }
         graphics.pop();
     }
 

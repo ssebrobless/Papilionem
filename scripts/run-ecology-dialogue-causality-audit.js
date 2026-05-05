@@ -327,6 +327,8 @@ async function run() {
             : null;
           const reserveFoodUseEvents = ecologyEventAccumulator.reserveFoodUsed;
           const shadeRestArrivalEvents = ecologyEventAccumulator.shadeRestArrived;
+          const reserveFoodUseState = reserveFood?.getReserveFoodUseState?.() || null;
+          const reserveFoodVisualState = reserveFood?.getReserveFoodVisualState?.() || null;
           const reservePostSetupInteractions = Math.max(0, (reserveState?.interactionCount || 0) - reserveBaselineInteractionCount);
           const blocks = (gameCore.gameState?.blocks || []).filter(block => blockIds.includes(block.id));
           const tiredNearBlocks = (gameCore.gameState?.butterflies || []).filter(entity => {
@@ -364,6 +366,8 @@ async function run() {
             reserveFoodUseCount: Math.max(0, Math.round(Number(reserveState?.metadata?.reserveFoodUseCount || 0))),
             reserveFoodMaxUses: Math.max(0, Math.round(Number(reserveState?.metadata?.reserveFoodMaxUses || 0))),
             reserveFoodDepleted: reserveState?.metadata?.reserveFoodDepleted === true,
+            reserveFoodVisualState,
+            reserveFoodUseState,
             reserveFoodBaselineInteractionCount: reserveBaselineInteractionCount,
             reserveFoodLastInteractionType: reserveState?.lastInteractionType || null,
             tiredNearBlocksCount: tiredNearBlocks,
@@ -511,6 +515,17 @@ async function run() {
           reserveFoodUseCount: report.followThrough.reserveFoodUseCount || 0,
           reserveFoodMaxUses: report.followThrough.reserveFoodMaxUses || 0,
           reserveFoodDepleted: !!report.followThrough.reserveFoodDepleted
+        }
+      });
+      report.checks.push({
+        name: 'reserve-food-depleted-visual-state',
+        pass: report.followThrough.reserveFoodDepleted === true
+          ? report.followThrough.reserveFoodVisualState === 'depleted'
+          : !!report.followThrough.reserveFoodVisualState,
+        details: {
+          reserveFoodDepleted: !!report.followThrough.reserveFoodDepleted,
+          reserveFoodVisualState: report.followThrough.reserveFoodVisualState || null,
+          reserveFoodUseState: report.followThrough.reserveFoodUseState || null
         }
       });
       report.checks.push({
