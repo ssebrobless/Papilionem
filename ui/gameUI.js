@@ -780,8 +780,8 @@ class GameUI {
     }
 
     formatBehaviorReasonLabel(reason = '') {
-        const text = String(reason || '').trim();
-        if (!text) return null;
+        const text = String(reason ?? '').trim();
+        if (!text || text === 'null' || text === 'undefined') return null;
         return text
             .replace(/[-_]+/g, ' ')
             .replace(/\s+/g, ' ')
@@ -809,7 +809,10 @@ class GameUI {
             ? behaviorSystem.getRuntime?.(target.id)
             : null;
         const subtype = runtime?.currentActionSubtype || null;
-        const actionLabel = this.formatActionSubtypeLabel(subtype);
+        const rawActionLabel = this.formatActionSubtypeLabel(subtype);
+        const actionLabel = ['normal', 'wander', 'idle'].includes(String(subtype || '').toLowerCase())
+            ? null
+            : rawActionLabel;
         const targetLabel = runtime?.currentTargetId
             ? this.getEntityDisplayName(this.getButterflyById(runtime.currentTargetId), runtime.currentTargetId)
             : null;
