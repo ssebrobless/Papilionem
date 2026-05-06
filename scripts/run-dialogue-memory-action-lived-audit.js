@@ -245,6 +245,39 @@ async function run() {
         || entry?.causeLabel === 'earlier talk'
         || /\[earlier talk\]/i.test(entry?.detail || entry?.text || entry?.message || '')
       );
+      const inspectCausalitySamples = arcs.slice(-8).map(arc => {
+        const entity = (gameCore.getGameState?.()?.butterflies || []).find(item => item?.id === arc.entityId) || null;
+        const detailState = entity && gameUI?.buildInspectDetailDomState
+          ? gameUI.buildInspectDetailDomState(entity, gameCore.getGameState?.())
+          : null;
+        const lines = (detailState?.sections || []).flatMap(section =>
+          (section.lines || []).map(line => ({
+            sectionId: section.id,
+            sectionTitle: section.title,
+            line: String(line || '')
+          }))
+        );
+        const causalityLines = lines.filter(item => /acting because/i.test(item.line));
+        const actionLabel = gameUI?.formatActionSubtypeLabel?.(arc.actionSubtype) || arc.actionSubtype;
+        return {
+          entityId: arc.entityId,
+          entityLabel: arc.entityLabel,
+          actionSubtype: arc.actionSubtype,
+          actionLabel,
+          behaviorReason: arc.behaviorReason || null,
+          dialogueId: arc.dialogueId,
+          causalityLines,
+          matchedRuntimeTruth: causalityLines.some(item =>
+            item.line.includes(actionLabel)
+            || item.line.includes(arc.actionSubtype)
+            || item.line.includes(arc.partnerLabel || '')
+            || /earlier talk|relationship carry-over/i.test(item.line)
+          )
+        };
+      });
+      const feedCausalityEntries = feedEntries.filter(entry =>
+        /Because |Acting because/i.test(String(entry?.consequenceTail || entry?.detail || entry?.line || ''))
+      );
       const actionSubtypeCounts = arcs.reduce((counts, arc) => {
         const key = arc.actionSubtype || 'unknown';
         counts[key] = (counts[key] || 0) + 1;
@@ -261,9 +294,13 @@ async function run() {
         distinctActionSubtypeCount: Object.keys(actionSubtypeCounts).length,
         continuityLineCount: continuityLines.length,
         continuityFeedEntryCount: continuityFeedEntries.length,
+        inspectCausalityCount: inspectCausalitySamples.filter(sample => sample.causalityLines.length > 0).length,
+        inspectCausalityMatchedCount: inspectCausalitySamples.filter(sample => sample.matchedRuntimeTruth).length,
+        feedActionCausalityCount: feedCausalityEntries.length,
         dialogueSamples: dialogueEvents.slice(-8),
         residueSamples: residueHits.slice(-8),
         arcSamples: arcs.slice(-8),
+        inspectCausalitySamples,
         continuitySamples: continuityLines.slice(-8).map(entry => ({
           phrase: entry.phrase,
           sourceLabel: entry.sourceLabel || entry.sourceId,
@@ -271,7 +308,8 @@ async function run() {
           causeLabel: entry.metadata?.causeLabel || entry.dialogueMetadata?.causeLabel || null,
           continuityAgeSeconds: entry.metadata?.continuityAgeSeconds ?? null
         })),
-        feedContinuitySamples: continuityFeedEntries.slice(-8)
+        feedContinuitySamples: continuityFeedEntries.slice(-8),
+        feedCausalitySamples: feedCausalityEntries.slice(-8)
       };
     }, { frameCount: FRAME_COUNT });
 
@@ -305,6 +343,16 @@ async function run() {
       dialogueContinuity: browserResult.continuityLineCount,
       feedContinuity: browserResult.continuityFeedEntryCount
     });
+    addCheck('inspect-causality-visible', browserResult.arcCount <= 0 || browserResult.inspectCausalityCount >= 1, {
+      arcCount: browserResult.arcCount,
+      inspectCausalityCount: browserResult.inspectCausalityCount,
+      samples: browserResult.inspectCausalitySamples
+    });
+    addCheck('inspect-causality-matches-runtime', browserResult.arcCount <= 0 || browserResult.inspectCausalityMatchedCount >= 1, {
+      arcCount: browserResult.arcCount,
+      inspectCausalityMatchedCount: browserResult.inspectCausalityMatchedCount,
+      samples: browserResult.inspectCausalitySamples
+    });
 
     const screenshot = path.join(outputDir, 'dialogue-memory-action-lived.png');
     await page.screenshot({ path: screenshot, fullPage: true });
@@ -313,6 +361,8 @@ async function run() {
     const hardChecksPass = report.checks
       .filter(check => check.name !== 'memory-to-action-arc-observed')
       .filter(check => check.name !== 'memory-to-action-action-diversity')
+      .filter(check => check.name !== 'inspect-causality-visible')
+      .filter(check => check.name !== 'inspect-causality-matches-runtime')
       .every(check => check.pass);
     if (report.checks.every(check => check.pass)) {
       report.overall = 'pass';

@@ -779,13 +779,81 @@ class GameUI {
         return `Feeling ${this.normalizePresentationText(label)}${strengthText}${packetText}`;
     }
 
-    buildWhyThisMomentState(target, gameState = null, mlSummary = null, lifeSimSummary = null) {
+    formatBehaviorReasonLabel(reason = '') {
+        const text = String(reason || '').trim();
+        if (!text) return null;
+        return text
+            .replace(/[-_]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    formatActionSubtypeLabel(subtype = '') {
+        const labels = {
+            'partner-return': 'returning to a familiar partner',
+            'protective-follow-through': 'checking on a vulnerable partner',
+            'admiring-shadow': 'staying near someone they admire',
+            'strained-avoidance': 'giving a strained partner space',
+            'warning-cascade': 'following a local warning',
+            'roosting': 'holding near a roost pocket',
+            'teaching-pocket': 'staying near a teaching pocket',
+            'courtship-territory': 'circling a courtship space',
+            'shelter-seeking': 'seeking shelter'
+        };
+        return labels[subtype] || this.formatBehaviorReasonLabel(subtype);
+    }
+
+    buildCurrentActionCausalityLine(target, gameState = null, communicationSummary = null, lifeSimSummary = null) {
+        if (gameConfig?.expression?.whyThisMoment?.enabled === false || !target?.id) return null;
+        const runtime = typeof behaviorSystem !== 'undefined'
+            ? behaviorSystem.getRuntime?.(target.id)
+            : null;
+        const subtype = runtime?.currentActionSubtype || null;
+        const actionLabel = this.formatActionSubtypeLabel(subtype);
+        const targetLabel = runtime?.currentTargetId
+            ? this.getEntityDisplayName(this.getButterflyById(runtime.currentTargetId), runtime.currentTargetId)
+            : null;
+        const residueLabel = communicationSummary?.recentResidueLabel
+            && communicationSummary.recentResidueLabel !== 'No recent dialogue residue'
+            ? communicationSummary.recentResidueLabel
+            : null;
+        const heardPhrase = communicationSummary?.recentHeardPhrase || null;
+        const reasonLabel = this.formatBehaviorReasonLabel(runtime?.reason);
+
+        let cause = null;
+        if (['partner-return', 'protective-follow-through', 'admiring-shadow', 'strained-avoidance'].includes(subtype)) {
+            cause = residueLabel
+                ? `earlier talk left ${this.normalizePresentationText(residueLabel)}`
+                : 'relationship carry-over';
+        } else if (target?.ecologyRestTarget?.reason === 'shade-rest-help') {
+            cause = 'shade rest need';
+        } else if (target?.targetCleanupPile || target?.movement?.targetType === 'cleanup') {
+            cause = 'dirty ground blocks planting';
+        } else if (target?.pendingPollenDropTarget || Math.max(0, Math.round(Number(target?.pollenInventory?.charges || 0))) > 0) {
+            cause = 'pollen can become future food';
+        } else if (lifeSimSummary?.objects?.cleanupPressure > 0) {
+            cause = 'local cleanup pressure';
+        } else if (reasonLabel && reasonLabel !== 'derived from entity state') {
+            cause = reasonLabel;
+        }
+
+        if (!cause && !actionLabel) return null;
+        const targetText = targetLabel ? ` toward ${targetLabel}` : '';
+        const actionText = actionLabel ? ` -> ${actionLabel}${targetText}` : '';
+        const heardText = heardPhrase && cause?.includes('earlier talk')
+            ? ` | heard "${this.formatFeedHeardMeaning(heardPhrase)}"`
+            : '';
+        return this.normalizePresentationText(`Acting because ${cause}${actionText}${heardText}`);
+    }
+
+    buildWhyThisMomentState(target, gameState = null, mlSummary = null, lifeSimSummary = null, communicationSummary = null) {
         if (gameConfig?.expression?.whyThisMoment?.enabled === false || !target?.id) return null;
         const decision = typeof mlInferenceSystem !== 'undefined'
             ? mlInferenceSystem.getDecisionExplanation?.(target.id, gameState)
             : null;
         const memoryRef = this.getMostRelevantInspectMemory(target, gameState);
         const memoryReason = this.formatInspectMemoryReason(memoryRef, gameState);
+        const actionCause = this.buildCurrentActionCausalityLine(target, gameState, communicationSummary, lifeSimSummary);
         const drive = lifeSimSummary?.dominantDrives?.[0] || null;
         const emotion = lifeSimSummary?.dominantEmotions?.[0] || null;
         const feelingLine = this.getInspectStrongestFeelingLabel(lifeSimSummary, memoryRef);
@@ -797,6 +865,7 @@ class GameUI {
             decision?.shortText || (mlSummary
                 ? `${mlSummary.sourceLabel || 'Fallback'} chose ${mlSummary.actionLabel || 'none'} toward ${mlSummary.targetLabel || 'none'}`
                 : 'No decision trace yet'),
+            actionCause,
             memoryReason,
             mindLine || null,
             decision?.topAlternative ? `Alternative ${decision.topAlternative}` : null,
@@ -852,7 +921,7 @@ class GameUI {
             ? `Feeling ${cognition.strongestFeeling} | lonely ${feelingCounters.loneliness} | grief ${feelingCounters.grief} | jealous ${feelingCounters.jealousy} | pride ${feelingCounters.pride} | shame ${feelingCounters.shame}`
             : `Feeling steady | lonely ${feelingCounters.loneliness} | grief ${feelingCounters.grief} | jealous ${feelingCounters.jealousy} | pride ${feelingCounters.pride} | shame ${feelingCounters.shame}`;
         const isolationMarker = this.getInspectIsolationMarker(target, gameState);
-        const whyThisMoment = this.buildWhyThisMomentState(target, gameState, mlSummary, lifeSimSummary);
+        const whyThisMoment = this.buildWhyThisMomentState(target, gameState, mlSummary, lifeSimSummary, communicationSummary);
         const socialLensLines = this.buildSocialLensInspectLines({
             lifeSimSummary,
             communicationSummary,
@@ -3622,7 +3691,7 @@ class GameUI {
             ...row,
             value: cleanDisplayText(row.value)
         }));
-        const whyThisMoment = this.buildWhyThisMomentState(target, gameState, mlSummary, lifeSimSummary);
+        const whyThisMoment = this.buildWhyThisMomentState(target, gameState, mlSummary, lifeSimSummary, communicationSummary);
         const rosterStatusText = rosterSummary?.label || 'Not rostered';
         const objectStatusText = cleanDisplayText(objectSummary
             ? `${objectSummary.latestLabel} | ${objectSummary.currentCarryLabel}`
@@ -3954,6 +4023,7 @@ class GameUI {
                     contextTags: formatted.contextTags || [],
                     timeLabel: formatted.timeLabel || null,
                     targetText: formatted.targetText || null,
+                    consequenceTail: formatted.consequenceTail || null,
                     threatSignalId: formatted.threatSignalId || null,
                     dangerMemoryId: formatted.dangerMemoryId || null,
                     safetyAvoidanceTrigger: formatted.safetyAvoidanceTrigger || null
@@ -4467,10 +4537,27 @@ class GameUI {
             category: options.category || 'action',
             targetText: targetLabel || null,
             contextTags: options.contextTags || [],
+            consequenceTail: options.consequenceTail || null,
             threatSignalId: options.threatSignalId || null,
             dangerMemoryId: options.dangerMemoryId || null,
             safetyAvoidanceTrigger: options.safetyAvoidanceTrigger || null
         });
+    }
+
+    buildFeedActionCausalityTail(data = {}) {
+        const entityId = data?.sourceId || data?.butterflyId || data?.entityId || null;
+        const entity = this.getButterflyById(entityId);
+        if (!entity?.id) return null;
+        const state = gameCore?.getGameState ? gameCore.getGameState() : gameCore?.gameState;
+        const communicationSummary = typeof communicationSystem !== 'undefined'
+            ? communicationSystem.getCommunicationSummary?.(entity.id)
+            : null;
+        const lifeSimSummary = typeof lifeSimSystem !== 'undefined'
+            ? lifeSimSystem.getEntitySummary?.(entity.id)
+            : null;
+        const line = this.buildCurrentActionCausalityLine(entity, state, communicationSummary, lifeSimSummary);
+        if (!line) return null;
+        return line.replace(/^Acting because\s+/i, 'Because ');
     }
 
     formatFeedLearnLine(time, actorLabel, lessonText, options = {}) {
@@ -4550,7 +4637,8 @@ class GameUI {
                 `${data?.objectType === 'block' ? 'Picked up a shelter block.' : `Picked up ${data?.objectType || data?.subtype || 'an object'}.`}`,
                 null,
                 {
-                    grounding: `${zoneLabel} • ${data?.objectType === 'block' ? 'material gather' : 'object in reach'}`
+                    grounding: `${zoneLabel} • ${data?.objectType === 'block' ? 'material gather' : 'object in reach'}`,
+                    consequenceTail: this.buildFeedActionCausalityTail(data)
                 }
             ),
             [GameEvents?.OBJECT_DROPPED || 'object:dropped']: this.formatFeedActionLine(
@@ -4559,7 +4647,8 @@ class GameUI {
                 `${data?.objectType === 'block' ? 'Set down a carried block.' : `Set down ${data?.objectType || data?.subtype || 'an object'}.`}`,
                 null,
                 {
-                    grounding: `${zoneLabel} • ${data?.objectType === 'block' ? 'material release' : 'object in reach'}`
+                    grounding: `${zoneLabel} • ${data?.objectType === 'block' ? 'material release' : 'object in reach'}`,
+                    consequenceTail: this.buildFeedActionCausalityTail(data)
                 }
             ),
             [GameEvents?.OBJECT_DELIVERED || 'object:delivered']: this.formatFeedActionLine(
@@ -4568,7 +4657,8 @@ class GameUI {
                 `${data?.objectType === 'block' ? 'Delivered a shelter block.' : `Delivered ${data?.objectType || data?.subtype || 'an object'}.`}`,
                 null,
                 {
-                    grounding: `${zoneLabel} • ${data?.objectType === 'block' ? 'material handoff' : 'object handoff'}`
+                    grounding: `${zoneLabel} • ${data?.objectType === 'block' ? 'material handoff' : 'object handoff'}`,
+                    consequenceTail: this.buildFeedActionCausalityTail(data)
                 }
             ),
             ['object:placed']: this.formatFeedActionLine(
@@ -4579,7 +4669,8 @@ class GameUI {
                     : `${data?.placementMode === 'stacked' ? 'Stacked' : 'Placed'} ${data?.objectType || data?.subtype || 'an object'}.`,
                 null,
                 {
-                    grounding: `${zoneLabel} • ${data?.objectType === 'block' ? 'material placement' : 'object placement'}`
+                    grounding: `${zoneLabel} • ${data?.objectType === 'block' ? 'material placement' : 'object placement'}`,
+                    consequenceTail: this.buildFeedActionCausalityTail(data)
                 }
             ),
             ['environment:project-completed']: this.formatFeedActionLine(
@@ -4592,7 +4683,8 @@ class GameUI {
                 {
                     category: 'action',
                     grounding: `${zoneLabel} • ${data?.memoryCount || 0} memories • ${data?.edgeUpdateCount || 0} bond updates${this.formatProjectRoleGrounding(data?.contributorRoles)}`,
-                    contextTags: ['shared work', 'shelter', 'cooperation']
+                    contextTags: ['shared work', 'shelter', 'cooperation'],
+                    consequenceTail: this.buildFeedActionCausalityTail({ ...data, sourceId: data?.contributorIds?.[0] || data?.sourceId })
                 }
             ),
             ['pollen:handoff']: this.formatFeedActionLine(
@@ -4603,7 +4695,8 @@ class GameUI {
                 {
                     category: 'action',
                     grounding: `${zoneLabel} • shared planting`,
-                    contextTags: ['pollen', 'handoff', 'cooperation']
+                    contextTags: ['pollen', 'handoff', 'cooperation'],
+                    consequenceTail: this.buildFeedActionCausalityTail(data)
                 }
             ),
             ['pollen:planted']: this.formatFeedActionLine(
@@ -4614,7 +4707,8 @@ class GameUI {
                 {
                     category: 'action',
                     grounding: `${zoneLabel} • reserved grid cell`,
-                    contextTags: ['pollen', 'planting', 'garden work']
+                    contextTags: ['pollen', 'planting', 'garden work'],
+                    consequenceTail: this.buildFeedActionCausalityTail(data)
                 }
             ),
             ['pollen:bloomed']: this.formatFeedActionLine(
@@ -4691,6 +4785,7 @@ class GameUI {
             contextTags: message.contextTags || [],
             timeLabel: message.timeLabel || null,
             targetText: message.targetText || null,
+            consequenceTail: message.consequenceTail || null,
             threatSignalId: message.threatSignalId || data?.threatSignalId || null,
             dangerMemoryId: message.dangerMemoryId || data?.dangerMemoryId || null,
             safetyAvoidanceTrigger: message.safetyAvoidanceTrigger || data?.safetyAvoidanceTrigger || null
