@@ -4000,6 +4000,7 @@ class GameUI {
             GameEvents?.OBJECT_DELIVERED || 'object:delivered',
             'object:placed',
             'environment:project-completed',
+            'ecology:cleanup-object-cleaned',
             'pollen:handoff',
             'pollen:planted',
             'pollen:bloomed',
@@ -4547,10 +4548,20 @@ class GameUI {
         });
     }
 
-    buildFeedActionCausalityTail(data = {}) {
+    buildStableFeedActionCausalityTail(cause, actionLabel = null) {
+        const causeLabel = this.formatBehaviorReasonLabel(cause);
+        const actionText = this.formatActionSubtypeLabel(actionLabel);
+        if (!causeLabel && !actionText) return null;
+        return `Because ${causeLabel || 'this work matters'}${actionText ? ` -> ${actionText}` : ''}`;
+    }
+
+    buildFeedActionCausalityTail(data = {}, options = {}) {
         const entityId = data?.sourceId || data?.butterflyId || data?.entityId || null;
         const entity = this.getButterflyById(entityId);
-        if (!entity?.id) return null;
+        const fallbackTail = options.fallbackCause
+            ? this.buildStableFeedActionCausalityTail(options.fallbackCause, options.fallbackAction)
+            : null;
+        if (!entity?.id) return fallbackTail;
         const state = gameCore?.getGameState ? gameCore.getGameState() : gameCore?.gameState;
         const communicationSummary = typeof communicationSystem !== 'undefined'
             ? communicationSystem.getCommunicationSummary?.(entity.id)
@@ -4559,7 +4570,10 @@ class GameUI {
             ? lifeSimSystem.getEntitySummary?.(entity.id)
             : null;
         const line = this.buildCurrentActionCausalityLine(entity, state, communicationSummary, lifeSimSummary);
-        if (!line) return null;
+        if (!line) return fallbackTail;
+        if (options.expectedActionPattern && !options.expectedActionPattern.test(line)) {
+            return fallbackTail;
+        }
         return line.replace(/^Acting because\s+/i, 'Because ');
     }
 
@@ -4673,7 +4687,11 @@ class GameUI {
                 null,
                 {
                     grounding: `${zoneLabel} • ${data?.objectType === 'block' ? 'material placement' : 'object placement'}`,
-                    consequenceTail: this.buildFeedActionCausalityTail(data)
+                    consequenceTail: this.buildFeedActionCausalityTail(data, {
+                        expectedActionPattern: /shade|shelter|block/i,
+                        fallbackCause: data?.objectType === 'block' ? 'shelter blocks change rest space' : 'object placement changes the shared space',
+                        fallbackAction: data?.objectType === 'block' ? 'shade-rest' : 'object-placement'
+                    })
                 }
             ),
             ['environment:project-completed']: this.formatFeedActionLine(
@@ -4688,6 +4706,27 @@ class GameUI {
                     grounding: `${zoneLabel} • ${data?.memoryCount || 0} memories • ${data?.edgeUpdateCount || 0} bond updates${this.formatProjectRoleGrounding(data?.contributorRoles)}`,
                     contextTags: ['shared work', 'shelter', 'cooperation'],
                     consequenceTail: this.buildFeedActionCausalityTail({ ...data, sourceId: data?.contributorIds?.[0] || data?.sourceId })
+                }
+            ),
+            ['ecology:cleanup-object-cleaned']: this.formatFeedActionLine(
+                time,
+                butterflyLabel,
+                data?.cleanupKind === 'depleted-reserve-food'
+                    ? 'Cleaned spent reserve food.'
+                    : 'Cleaned a dirt pile.',
+                null,
+                {
+                    category: 'action',
+                    grounding: `${zoneLabel} • cleared occupied grid cell`,
+                    contextTags: ['cleanup', 'ecology', 'garden work'],
+                    consequenceTail: this.buildFeedActionCausalityTail({
+                        ...data,
+                        sourceId: data?.butterflyId || data?.sourceId
+                    }, {
+                        expectedActionPattern: /dirty|clean|cleanup|planting/i,
+                        fallbackCause: 'dirty ground blocks planting',
+                        fallbackAction: 'cleanup'
+                    })
                 }
             ),
             ['pollen:handoff']: this.formatFeedActionLine(
@@ -4711,7 +4750,11 @@ class GameUI {
                     category: 'action',
                     grounding: `${zoneLabel} • reserved grid cell`,
                     contextTags: ['pollen', 'planting', 'garden work'],
-                    consequenceTail: this.buildFeedActionCausalityTail(data)
+                    consequenceTail: this.buildFeedActionCausalityTail(data, {
+                        expectedActionPattern: /pollen|earlier talk/i,
+                        fallbackCause: 'pollen can become future food',
+                        fallbackAction: 'pollen-planting'
+                    })
                 }
             ),
             ['pollen:bloomed']: this.formatFeedActionLine(
@@ -4756,6 +4799,7 @@ class GameUI {
             [GameEvents?.OBJECT_DELIVERED || 'object:delivered']: 'action',
             ['object:placed']: 'action',
             ['environment:project-completed']: 'action',
+            ['ecology:cleanup-object-cleaned']: 'action',
             ['pollen:handoff']: 'action',
             ['pollen:planted']: 'action',
             ['pollen:bloomed']: 'action',

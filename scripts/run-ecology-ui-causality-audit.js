@@ -121,8 +121,8 @@ async function run() {
     await dismissTitle(page);
 
     const browserResult = await page.evaluate(async () => {
-      if (typeof randomSeed === 'function') randomSeed(7301);
-      if (typeof noiseSeed === 'function') noiseSeed(7301);
+      if (typeof randomSeed === 'function') randomSeed(7401);
+      if (typeof noiseSeed === 'function') noiseSeed(7401);
       await gameCore.resetGame?.(true);
       if (gameUI?.firstSessionGuide) gameUI.firstSessionGuide.visible = false;
       gameUI.activityLogPanel.visible = true;
@@ -142,16 +142,11 @@ async function run() {
 
       const zoneId = 'moss-hollow';
       gameCore.focusZone?.(zoneId);
-      while ((gameCore.gameState?.butterflies || []).length < 2) {
-        const index = gameCore.gameState.butterflies.length;
-        const board = { zoneId, u: 12 + (index * 2), v: 12, h: 0 };
-        const screen = renderManager.boardToScreen(board);
-        gameCore.godSpawnButterfly(screen.x, screen.y, null);
-      }
-      const [actor, partner] = gameCore.gameState.butterflies.slice(0, 2);
-      [actor, partner].forEach((entity, index) => {
-        const board = { zoneId, u: 12 + (index * 2), v: 12, h: 0 };
-        const screen = renderManager.boardToScreen(board);
+      const currentFrame = () => gameCore.getCurrentFrame?.() || (typeof frameCount === 'number' ? frameCount : 0) || 0;
+      const boardToScreen = board => renderManager.boardToScreen(board);
+      const placeEntityAtBoard = (entity, u, v) => {
+        const board = { zoneId, u, v, h: 0 };
+        const screen = boardToScreen(board);
         entity.currentZoneId = zoneId;
         entity.lifeSim.lifecycle.currentZoneId = zoneId;
         entity.boardPos = board;
@@ -159,10 +154,42 @@ async function run() {
         entity.y = screen.y - (entity.shadowOffset || 0);
         entity.state = 'normal';
         entity.zoneTravel = null;
+        entity.targetFlower = null;
+        entity.targetCleanupPile = null;
+        entity.pendingPollenDropTarget = null;
+        entity.ecologyRestTarget = null;
+        entity.blockInteraction = entity.blockInteraction || {};
+        entity.blockInteraction.carryingBlockId = null;
+        entity.movement?.clearTarget?.('audit-reset');
         entity.syncDebugGridPos?.();
-      });
-      lifeSimSystem?.ensureLifeSimState?.(actor);
-      lifeSimSystem?.ensureLifeSimState?.(partner);
+        lifeSimSystem?.ensureLifeSimState?.(entity);
+        entity.lifeSim.drives.selfMaintenance = Math.max(entity.lifeSim.drives.selfMaintenance || 0, 0.9);
+        return { board, screen };
+      };
+      const inspectLinesFor = entity => {
+        const inspect = gameUI.buildInspectDetailDomState(entity, gameCore.getGameState?.());
+        return (inspect?.sections || []).flatMap(section =>
+          (section.lines || []).map(line => String(line || ''))
+        ).filter(line => /Acting because/i.test(line));
+      };
+      const refreshFeedEntries = () => {
+        gameUI.activityLogCache = { key: null, entries: [] };
+        return gameUI.getRecentActivityEntries?.() || [];
+      };
+      const latestEntry = (entries, eventName) => {
+        const matches = entries.filter(entry => entry?.event === eventName || String(entry?.signature || '').startsWith(`${eventName}|`));
+        return matches[matches.length - 1] || null;
+      };
+
+      while ((gameCore.gameState?.butterflies || []).length < 3) {
+        const index = gameCore.gameState.butterflies.length;
+        const screen = boardToScreen({ zoneId, u: 12 + (index * 2), v: 12, h: 0 });
+        gameCore.godSpawnButterfly(screen.x, screen.y, null);
+      }
+      const [actor, partner, builder] = gameCore.gameState.butterflies.slice(0, 3);
+      placeEntityAtBoard(actor, 12, 12);
+      placeEntityAtBoard(partner, 14, 12);
+      placeEntityAtBoard(builder, 20, 12);
       ensureLifeSocialEdge?.(actor, partner.id);
       ensureLifeSocialEdge?.(partner, actor.id);
 
@@ -171,7 +198,7 @@ async function run() {
         sourceZoneId: zoneId,
         createdAtSeconds: 30
       }, partner, [actor], {
-        id: 'env73_ecology_guidance',
+        id: 'env74_ecology_guidance',
         timestamp: Date.now(),
         createdAtSeconds: 30,
         phrase: 'Plant this pollen before it fades. I will keep the square clear with you.',
@@ -187,15 +214,15 @@ async function run() {
       actor.pollenInventory = {
         charges: 1,
         maxCharges: 2,
-        expiresAtFrame: gameCore.getCurrentFrame?.() + 7200,
+        expiresAtFrame: currentFrame() + 7200,
         sourceFlowerTypes: ['audit-pollen'],
-        lastUpdatedFrame: gameCore.getCurrentFrame?.() || 0
+        lastUpdatedFrame: currentFrame()
       };
-      const targetBoard = { zoneId, u: 16, v: 12, h: 0 };
-      const targetScreen = renderManager.boardToScreen(targetBoard);
+      const pollenBoard = { zoneId, u: 16, v: 12, h: 0 };
+      const pollenScreen = boardToScreen(pollenBoard);
       actor.pendingPollenDropTarget = {
-        x: targetScreen.x,
-        y: targetScreen.y,
+        x: pollenScreen.x,
+        y: pollenScreen.y,
         zoneId
       };
       behaviorSystem?.assignAction?.(actor, 'work', 'pollen-planting', null, {
@@ -204,33 +231,117 @@ async function run() {
         overrideDurationSeconds: 30
       });
 
-      const inspectBefore = gameUI.buildInspectDetailDomState(actor, gameCore.getGameState?.());
-      const inspectBeforeLines = (inspectBefore?.sections || []).flatMap(section =>
-        (section.lines || []).map(line => String(line || ''))
-      );
-      const completed = gameCore.completePollenDrop?.(actor) === true;
+      const pollenInspectBefore = inspectLinesFor(actor);
+      const pollenCompleted = gameCore.completePollenDrop?.(actor) === true;
       behaviorSystem?.assignAction?.(actor, 'work', 'pollen-planting', null, {
         reason: 'planting-pollen-from-earlier-talk',
         priorityScore: 88,
         overrideDurationSeconds: 30
       });
-      gameUI.activityLogCache = { key: null, entries: [] };
-      const feedEntries = gameUI.getRecentActivityEntries?.() || [];
-      const plantedEntry = feedEntries.find(entry => /^pollen:planted\b/.test(entry?.signature || '')) || null;
-      const inspectAfter = gameUI.buildInspectDetailDomState(actor, gameCore.getGameState?.());
-      const inspectAfterLines = (inspectAfter?.sections || []).flatMap(section =>
-        (section.lines || []).map(line => String(line || ''))
-      );
+      const pollenFeed = refreshFeedEntries();
+      const plantedEntry = latestEntry(pollenFeed, 'pollen:planted');
+      const pollenInspectAfter = inspectLinesFor(actor);
+
+      const cleanupBoard = { zoneId, u: 18, v: 12, h: 0 };
+      const cleanupScreen = boardToScreen(cleanupBoard);
+      const flower = gameCore.spawnFlowerAt(zoneId, cleanupScreen.x, cleanupScreen.y, {
+        exactPoint: true,
+        preferredPoint: cleanupScreen,
+        minDistance: 0,
+        maxAttempts: 1,
+        ignoreZoneFlowerCap: true,
+        allowFlowerOverlap: true,
+        ignoreObjectIds: []
+      });
+      const dirtPile = gameCore.transformFlowerToDirtPile?.(flower, { source: 'ecology-ui-causality' }) || flower;
+      placeEntityAtBoard(actor, 18.1, 12);
+      actor.targetCleanupPile = dirtPile;
+      actor.lifeSim.objectAwareness = {
+        ...(actor.lifeSim.objectAwareness || {}),
+        currentAffordance: 'clean'
+      };
+      actor.movement?.setBoardTarget?.(cleanupBoard.u, cleanupBoard.v, 'cleanup', 8, 0);
+      behaviorSystem?.assignAction?.(actor, 'work', 'cleanup', dirtPile?.id || null, {
+        reason: 'cleaning-dirty-ground-for-planting',
+        priorityScore: 88,
+        overrideDurationSeconds: 30
+      });
+      const cleanupInspectBefore = inspectLinesFor(actor);
+      const cleanupCompleted = dirtPile?.tryCleanupDirtPile?.([actor]) === true;
+      behaviorSystem?.assignAction?.(actor, 'work', 'cleanup', dirtPile?.id || null, {
+        reason: 'cleaning-dirty-ground-for-planting',
+        priorityScore: 88,
+        overrideDurationSeconds: 30
+      });
+      actor.targetCleanupPile = dirtPile;
+      actor.movement?.setBoardTarget?.(cleanupBoard.u, cleanupBoard.v, 'cleanup', 8, 0);
+      const cleanupFeed = refreshFeedEntries();
+      const cleanupEntry = latestEntry(cleanupFeed, 'ecology:cleanup-object-cleaned');
+      const cleanupInspectAfter = inspectLinesFor(actor);
+
+      const shadeBoard = { zoneId, u: 22, v: 12, h: 0 };
+      const shadeScreen = boardToScreen(shadeBoard);
+      placeEntityAtBoard(builder, 22.1, 12);
+      builder.ecologyRestTarget = {
+        reason: 'shade-rest-help',
+        boardPos: shadeBoard,
+        x: shadeScreen.x,
+        y: shadeScreen.y,
+        expiresAtFrame: currentFrame() + 7200
+      };
+      const block = gameCore.godSpawnBlock?.(zoneId, shadeScreen.x, shadeScreen.y);
+      behaviorSystem?.assignAction?.(builder, 'work', 'shade-rest', block?.id || null, {
+        reason: 'shade-rest-need',
+        priorityScore: 88,
+        overrideDurationSeconds: 30
+      });
+      const shadeInspectBefore = inspectLinesFor(builder);
+      const placedBlock = block?.placeAt?.(shadeScreen.x, shadeScreen.y, {
+        movedById: builder.id,
+        zoneId,
+        placementMode: 'ground',
+        stackIndex: 0,
+        skipClamp: true
+      });
+      behaviorSystem?.assignAction?.(builder, 'work', 'shade-rest', block?.id || null, {
+        reason: 'shade-rest-need',
+        priorityScore: 88,
+        overrideDurationSeconds: 30
+      });
+      const shadeFeed = refreshFeedEntries();
+      const shadeEntry = latestEntry(shadeFeed, 'object:placed');
+      const shadeInspectAfter = inspectLinesFor(builder);
+
       return {
         actorId: actor.id,
         actorLabel: communicationSystem.getEntityLabel(actor),
         partnerId: partner.id,
-        completed,
-        pendingPlantingCount: gameCore.gameState?.pendingPollenPlantings?.length || 0,
-        inspectBeforeLines: inspectBeforeLines.filter(line => /Acting because/i.test(line)),
-        inspectAfterLines: inspectAfterLines.filter(line => /Acting because/i.test(line)),
-        plantedEntry,
-        feedEntries: feedEntries.slice(-8)
+        builderId: builder.id,
+        builderLabel: communicationSystem.getEntityLabel(builder),
+        lanes: {
+          pollen: {
+            completed: pollenCompleted,
+            pendingPlantingCount: gameCore.gameState?.pendingPollenPlantings?.length || 0,
+            inspectBeforeLines: pollenInspectBefore,
+            inspectAfterLines: pollenInspectAfter,
+            feedEntry: plantedEntry
+          },
+          cleanup: {
+            completed: cleanupCompleted,
+            dirtPileId: dirtPile?.id || null,
+            inspectBeforeLines: cleanupInspectBefore,
+            inspectAfterLines: cleanupInspectAfter,
+            feedEntry: cleanupEntry
+          },
+          shade: {
+            completed: !!placedBlock,
+            blockId: block?.id || null,
+            inspectBeforeLines: shadeInspectBefore,
+            inspectAfterLines: shadeInspectAfter,
+            feedEntry: shadeEntry
+          }
+        },
+        feedEntries: refreshFeedEntries().slice(-12)
       };
     });
 
@@ -239,37 +350,58 @@ async function run() {
     await page.screenshot({ path: report.screenshot, fullPage: true });
     await restoreStorage(page, initialStorage);
 
+    const pollen = browserResult.lanes?.pollen || {};
+    const cleanup = browserResult.lanes?.cleanup || {};
+    const shade = browserResult.lanes?.shade || {};
+
     addCheck(report, 'browser-clean', report.pageErrors.length === 0 && report.consoleErrors.length === 0, {
       pageErrors: report.pageErrors,
       consoleErrors: report.consoleErrors
     });
-    addCheck(report, 'pollen-action-completed', browserResult.completed === true, {
-      completed: browserResult.completed,
-      pendingPlantingCount: browserResult.pendingPlantingCount
+    addCheck(report, 'pollen-action-completed', pollen.completed === true, {
+      completed: pollen.completed,
+      pendingPlantingCount: pollen.pendingPlantingCount
     });
-    addCheck(report, 'inspect-causality-before-action', browserResult.inspectBeforeLines.some(line =>
+    addCheck(report, 'pollen-inspect-causality-before-action', (pollen.inspectBeforeLines || []).some(line =>
       /Acting because/i.test(line) && /pollen|earlier talk/i.test(line)
     ), {
-      lines: browserResult.inspectBeforeLines
+      lines: pollen.inspectBeforeLines
     });
-    addCheck(report, 'inspect-causality-after-action', browserResult.inspectAfterLines.some(line =>
+    addCheck(report, 'pollen-inspect-causality-after-action', (pollen.inspectAfterLines || []).some(line =>
       /Acting because/i.test(line) && /pollen|earlier talk/i.test(line)
     ), {
-      lines: browserResult.inspectAfterLines
+      lines: pollen.inspectAfterLines
     });
-    addCheck(report, 'feed-action-causality-tail', /^Because /i.test(browserResult.plantedEntry?.consequenceTail || ''), {
-      plantedEntry: browserResult.plantedEntry
+    addCheck(report, 'pollen-feed-action-causality-tail', /^Because /i.test(pollen.feedEntry?.consequenceTail || ''), {
+      feedEntry: pollen.feedEntry
     });
-    addCheck(report, 'feed-and-inspect-share-actor-cause', [
-      browserResult.plantedEntry?.headline || '',
-      browserResult.plantedEntry?.consequenceTail || '',
-      ...(browserResult.inspectBeforeLines || []),
-      ...(browserResult.inspectAfterLines || [])
-    ].some(line => /pollen/i.test(line)), {
-      actorLabel: browserResult.actorLabel,
-      plantedEntry: browserResult.plantedEntry,
-      inspectBeforeLines: browserResult.inspectBeforeLines,
-      inspectAfterLines: browserResult.inspectAfterLines
+    addCheck(report, 'cleanup-action-completed', cleanup.completed === true, {
+      completed: cleanup.completed,
+      dirtPileId: cleanup.dirtPileId
+    });
+    addCheck(report, 'cleanup-inspect-causality', [...(cleanup.inspectBeforeLines || []), ...(cleanup.inspectAfterLines || [])].some(line =>
+      /Acting because/i.test(line) && /dirty|clean|planting/i.test(line)
+    ), {
+      before: cleanup.inspectBeforeLines,
+      after: cleanup.inspectAfterLines
+    });
+    addCheck(report, 'cleanup-feed-action-causality-tail', /^Because /i.test(cleanup.feedEntry?.consequenceTail || '')
+      && /dirty|clean|planting/i.test(cleanup.feedEntry?.consequenceTail || ''), {
+      feedEntry: cleanup.feedEntry
+    });
+    addCheck(report, 'shade-action-completed', shade.completed === true, {
+      completed: shade.completed,
+      blockId: shade.blockId
+    });
+    addCheck(report, 'shade-inspect-causality', [...(shade.inspectBeforeLines || []), ...(shade.inspectAfterLines || [])].some(line =>
+      /Acting because/i.test(line) && /shade/i.test(line)
+    ), {
+      before: shade.inspectBeforeLines,
+      after: shade.inspectAfterLines
+    });
+    addCheck(report, 'shade-feed-action-causality-tail', /^Because /i.test(shade.feedEntry?.consequenceTail || '')
+      && /shade/i.test(shade.feedEntry?.consequenceTail || ''), {
+      feedEntry: shade.feedEntry
     });
 
     report.overall = report.checks.every(check => check.pass) ? 'pass' : 'fail';
