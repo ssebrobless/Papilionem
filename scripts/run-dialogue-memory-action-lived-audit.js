@@ -6,6 +6,7 @@ const ROOT = path.resolve(__dirname, '..');
 const URL = 'http://127.0.0.1:3000/';
 const OUTPUT_ROOT = path.join(ROOT, 'qa_screenshots', 'dialogue_memory_action_lived_audit');
 const FRAME_COUNT = Math.max(2400, Math.round(Number(getArgValue('--frames', 7200))));
+const MIN_ACTION_SUBTYPES = Math.max(1, Math.round(Number(getArgValue('--min-action-subtypes', 1))));
 const STORAGE_KEYS = [
   'papilionem-save-v2',
   'papilionem-progression-v1',
@@ -89,6 +90,7 @@ async function run() {
     startedAt: new Date().toISOString(),
     url: URL,
     frameCount: FRAME_COUNT,
+    minActionSubtypes: MIN_ACTION_SUBTYPES,
     outputDir,
     server: null,
     pageErrors: [],
@@ -243,6 +245,11 @@ async function run() {
         || entry?.causeLabel === 'earlier talk'
         || /\[earlier talk\]/i.test(entry?.detail || entry?.text || entry?.message || '')
       );
+      const actionSubtypeCounts = arcs.reduce((counts, arc) => {
+        const key = arc.actionSubtype || 'unknown';
+        counts[key] = (counts[key] || 0) + 1;
+        return counts;
+      }, {});
 
       return {
         butterflyCount: gameCore.getGameState?.()?.butterflies?.length || 0,
@@ -250,6 +257,8 @@ async function run() {
         dialogueHistoryCount: dialogueHistory.length,
         residueHitCount: residueHits.length,
         arcCount: arcs.length,
+        actionSubtypeCounts,
+        distinctActionSubtypeCount: Object.keys(actionSubtypeCounts).length,
         continuityLineCount: continuityLines.length,
         continuityFeedEntryCount: continuityFeedEntries.length,
         dialogueSamples: dialogueEvents.slice(-8),
@@ -287,6 +296,11 @@ async function run() {
       min: 1,
       samples: browserResult.arcSamples
     });
+    addCheck('memory-to-action-action-diversity', browserResult.distinctActionSubtypeCount >= MIN_ACTION_SUBTYPES, {
+      actual: browserResult.distinctActionSubtypeCount,
+      min: MIN_ACTION_SUBTYPES,
+      actionSubtypeCounts: browserResult.actionSubtypeCounts
+    });
     addCheck('continuity-language-visible', browserResult.continuityLineCount >= 1 || browserResult.continuityFeedEntryCount >= 1, {
       dialogueContinuity: browserResult.continuityLineCount,
       feedContinuity: browserResult.continuityFeedEntryCount
@@ -298,6 +312,7 @@ async function run() {
 
     const hardChecksPass = report.checks
       .filter(check => check.name !== 'memory-to-action-arc-observed')
+      .filter(check => check.name !== 'memory-to-action-action-diversity')
       .every(check => check.pass);
     if (report.checks.every(check => check.pass)) {
       report.overall = 'pass';
@@ -326,6 +341,7 @@ async function run() {
     overall: report.overall,
     reportPath,
     frameCount: FRAME_COUNT,
+    minActionSubtypes: MIN_ACTION_SUBTYPES,
     checks: report.checks,
     residual: report.residual || null
   }, null, 2));
