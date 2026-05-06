@@ -150,9 +150,20 @@ async function run() {
         const place = (entity, screenX, groundY) => {
           const clamped = gameCore.clampPlacementPointInZone(zoneId, screenX, groundY, 8);
           const grid = gridManager.screenToIso(clamped.x, clamped.y);
+          const boardPos = renderManager?.screenToBoard?.(clamped.x, clamped.y, zoneId, 0) || null;
           entity.x = clamped.x;
           entity.y = clamped.y - (entity.shadowOffset || 0);
           entity.gridPos = { x: grid.x, y: grid.y };
+          if (boardPos) {
+            entity.boardPos = {
+              zoneId,
+              u: boardPos.u,
+              v: boardPos.v,
+              h: 0
+            };
+          }
+          entity.currentZoneId = zoneId;
+          entity.lifeSim.lifecycle.currentZoneId = zoneId;
           entity.updateZIndex?.();
           entity.zoneTravel = null;
           entity.isSpawning = false;
@@ -202,6 +213,7 @@ async function run() {
         let summary = null;
         let targetDistance = null;
         let currentDistance = null;
+        let dialogueEvidence = null;
 
         if (scenarioName === 'partner-return') {
           partner = a;
@@ -383,6 +395,117 @@ async function run() {
               recentResidues: [{ type: 'comfort-heard' }]
             }
           );
+        } else if (scenarioName === 'dialogue-residue-follow-through') {
+          partner = a;
+          place(focus, 410, 340);
+          place(partner, 466, 330);
+          configurePair(
+            focus,
+            partner,
+            {
+              trust: 0.62,
+              comfort: 0.38,
+              attachment: 0.26,
+              admiration: 0.08,
+              protectiveness: 0.06,
+              reciprocityScore: 0.12,
+              followThroughScore: 0.25,
+              recentWarmth: 0.06,
+              recentEase: 0.04,
+              recentMutualAttention: 0.04,
+              recentFriction: 0.01,
+              resentment: 0.01,
+              rejectionWeight: 0.01,
+              forgivenessWeight: 0.04,
+              repairState: 'steady',
+              recentResidues: []
+            },
+            {
+              trust: 0.68,
+              comfort: 0.46,
+              attachment: 0.28,
+              admiration: 0.1,
+              protectiveness: 0.08,
+              reciprocityScore: 0.14,
+              followThroughScore: 0.2,
+              recentWarmth: 0.08,
+              recentEase: 0.06,
+              recentMutualAttention: 0.06,
+              recentFriction: 0.01,
+              resentment: 0.01,
+              rejectionWeight: 0.01,
+              forgivenessWeight: 0.04,
+              repairState: 'steady',
+              recentResidues: []
+            }
+          );
+
+          lifeSimSystem.updateButterfly(focus, state);
+          const beforeSummary = lifeSimSystem.getEntitySummary(focus.id)?.socialEcology?.followThrough || null;
+          const beforeIntent = behaviorSystem.getFollowThroughIntent?.(focus) || null;
+
+          communicationSystem.simulationClockSeconds = 12;
+          const emitFollowThroughDialogue = (phrase) => {
+            const dialogue = communicationSystem.createDialogueRecord({
+              signalType: 'calming_signal',
+              sourceZoneId: zoneId,
+              createdAtSeconds: communicationSystem.simulationClockSeconds,
+              targetIds: [focus.id],
+              phrase
+            }, partner, [focus], {
+              targetIds: [focus.id],
+              targetLabels: [communicationSystem.getEntityLabel?.(focus) || focus.id],
+              targetLabel: communicationSystem.getEntityLabel?.(focus) || focus.id,
+              talkMode: 'single_target',
+              phrase,
+              intentFamily: 'support',
+              intentSubtype: 'comfort',
+              intentTags: ['comfort', 'companionship', 'follow_through'],
+              responseExpected: false,
+              metadata: {
+                auditPhase: 'n5-dialogue-residue-follow-through'
+              }
+            });
+            return communicationSystem.emitDialogue(dialogue, [focus]);
+          };
+          const firstDialogue = emitFollowThroughDialogue('Stay with me here; we can settle before we move again.');
+          communicationSystem.simulationClockSeconds += 12;
+          const storedDialogue = emitFollowThroughDialogue('I meant it; I will stay close until you feel steady.');
+          const receivedResidue = (focus.lifeSim.communication.recentResidues || [])
+            .find(entry => entry?.dialogueId === storedDialogue?.id && entry?.partnerId === partner.id) || null;
+          const edgeAfterDialogue = focus.lifeSim.socialEdges?.[partner.id] || null;
+
+          place(focus, 384, 356);
+          place(partner, 468, 328);
+          communicationSystem.simulationClockSeconds += 75;
+          for (let tick = 0; tick < 12; tick += 1) {
+            lifeSimSystem.updateButterfly(focus, state);
+          }
+
+          const communicationSummary = communicationSystem.getCommunicationSummary?.(focus.id) || null;
+          const afterSummary = lifeSimSystem.getEntitySummary(focus.id)?.socialEcology?.followThrough || null;
+          dialogueEvidence = {
+            dialogueId: storedDialogue?.id || null,
+            dialoguePhrase: storedDialogue?.phrase || null,
+            firstDialogueId: firstDialogue?.id || null,
+            residueCountForPartner: (focus.lifeSim.communication.recentResidues || [])
+              .filter(entry => entry?.partnerId === partner.id && entry?.type === 'shared-calm').length,
+            dialogueAgeSeconds: Number((communicationSystem.simulationClockSeconds - (storedDialogue?.createdAtSeconds || 0)).toFixed(2)),
+            residueType: receivedResidue?.type || null,
+            residueLabel: receivedResidue?.label || null,
+            residueDialogueId: receivedResidue?.dialogueId || null,
+            residuePartnerId: receivedResidue?.partnerId || null,
+            residueRememberability: receivedResidue?.rememberability || null,
+            beforeIntentSubtype: beforeIntent?.actionSubtype || null,
+            beforeSeekScore: beforeSummary ? Number((beforeSummary.seekScore || 0).toFixed(3)) : null,
+            afterSeekScore: afterSummary ? Number((afterSummary.seekScore || 0).toFixed(3)) : null,
+            afterDominantMode: afterSummary?.dominantMode || null,
+            edgeLastResidueType: edgeAfterDialogue?.lastDialogueResidue?.type || null,
+            edgeLastResidueDialogueId: edgeAfterDialogue?.lastDialogueResidue?.dialogueId || null,
+            communicationResidueLabel: communicationSummary?.recentResidueLabel || null,
+            communicationResidueDetail: communicationSummary?.recentResidueDetail || null,
+            recentHeardPhrase: communicationSummary?.recentHeardPhrase || null
+          };
         }
 
         butterflies.forEach(entity => lifeSimSystem.updateButterfly(entity, state));
@@ -403,14 +526,19 @@ async function run() {
               })
             : gridManager.isoToScreen(target.x, target.y))
           : null;
-        const partnerGroundPoint = partner?.gridPos
-          ? gridManager.isoToScreen(partner.gridPos.x, partner.gridPos.y)
-          : (partner
-            ? {
-                x: partner.x || 0,
-                y: (partner.y || 0) + (partner.shadowOffset || 0)
-              }
-            : null);
+        const partnerBoard = partner && focus.isBoardMovementWorld?.()
+          ? focus.getEntityBoardPos?.(partner, zoneId)
+          : null;
+        const partnerGroundPoint = partnerBoard && renderManager.boardToScreen
+          ? renderManager.boardToScreen(partnerBoard)
+          : (partner?.gridPos
+            ? gridManager.isoToScreen(partner.gridPos.x, partner.gridPos.y)
+            : (partner
+              ? {
+                  x: partner.x || 0,
+                  y: (partner.y || 0) + (partner.shadowOffset || 0)
+                }
+              : null));
         currentDistance = partner ? Math.hypot((focus.x || 0) - (partner.x || 0), (focus.y || 0) - (partner.y || 0)) : null;
         targetDistance = partnerGroundPoint && targetScreen
           ? Math.hypot((targetScreen.x || 0) - (partnerGroundPoint.x || 0), (targetScreen.y || 0) - (partnerGroundPoint.y || 0))
@@ -422,7 +550,8 @@ async function run() {
           runtime,
           summary,
           currentDistance: currentDistance ? Number(currentDistance.toFixed(2)) : null,
-          targetDistance: targetDistance ? Number(targetDistance.toFixed(2)) : null
+          targetDistance: targetDistance ? Number(targetDistance.toFixed(2)) : null,
+          dialogueEvidence
         };
       }, scenario);
 
@@ -468,6 +597,28 @@ async function run() {
         && details.summary?.dominantMode === 'protect'
         && details.targetDistance !== null
         && details.targetDistance < 86;
+      return { pass, details };
+    });
+
+    await phase(page, report, outputDir, '05-dialogue-residue-drives-later-partner-return', async () => {
+      const details = await runScenario('dialogue-residue-follow-through');
+      const evidence = details.dialogueEvidence || {};
+      const pass = details.ok === true
+        && evidence.dialogueId
+        && evidence.firstDialogueId
+        && evidence.residueCountForPartner >= 2
+        && evidence.dialogueAgeSeconds >= 60
+        && evidence.residueType === 'shared-calm'
+        && evidence.residueDialogueId === evidence.dialogueId
+        && evidence.edgeLastResidueDialogueId === evidence.dialogueId
+        && evidence.beforeIntentSubtype === null
+        && evidence.afterSeekScore > evidence.beforeSeekScore
+        && details.runtime?.currentActionSubtype === 'partner-return'
+        && details.summary?.dominantMode === 'seek'
+        && details.targetDistance !== null
+        && details.targetDistance < 82
+        && /shared calm/i.test(evidence.communicationResidueLabel || '')
+        && /I meant it/i.test(evidence.recentHeardPhrase || '');
       return { pass, details };
     });
 
