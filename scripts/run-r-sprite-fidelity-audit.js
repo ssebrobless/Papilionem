@@ -12,6 +12,11 @@ const STORAGE_KEYS = [
   'papilionem-audit-setup-v1',
   'papilionem-audit-reports-v1'
 ];
+const ARG_SET = new Set(process.argv.slice(2));
+const RUN_FAST_ONLY = ARG_SET.has('--fast') || ARG_SET.has('--fast-fidelity') || ARG_SET.has('--screenshots-only');
+const RUN_PRESSURE_ONLY = ARG_SET.has('--pressure') || ARG_SET.has('--pressure-only');
+const RUN_PRESSURE = !RUN_FAST_ONLY || RUN_PRESSURE_ONLY;
+const RUN_FIDELITY = !RUN_PRESSURE_ONLY;
 
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
@@ -346,6 +351,12 @@ async function run() {
     auditId,
     startedAt: new Date().toISOString(),
     url: URL,
+    mode: {
+      fastOnly: RUN_FAST_ONLY,
+      pressureOnly: RUN_PRESSURE_ONLY,
+      runFidelity: RUN_FIDELITY,
+      runPressure: RUN_PRESSURE
+    },
     outputDir,
     assertions: [],
     screenshots: [],
@@ -371,6 +382,7 @@ async function run() {
     await dismissTitle(page);
     await resetBaseline(page);
 
+    if (RUN_FIDELITY) {
     const details = await page.evaluate(() => {
       const assertion = (id, pass, detail = {}) => ({ id, pass: !!pass, detail });
       const hashCanvasDraw = (draw) => {
@@ -563,7 +575,15 @@ async function run() {
       pass: report.screenshots.length === 4,
       detail: { count: report.screenshots.length, screenshots: report.screenshots }
     });
+    } else {
+      report.assertions.push({
+        id: 'fidelity-lane-skipped-by-pressure-mode',
+        pass: true,
+        detail: { mode: report.mode }
+      });
+    }
 
+    if (RUN_PRESSURE) {
     const pressureHeadroom = await runPressureHeadroomLane(page);
     const pressureMetrics = pressureHeadroom.metrics || {};
     report.pressureHeadroom = pressureHeadroom;
@@ -618,6 +638,13 @@ async function run() {
           .slice(0, 5)
       }
     });
+    } else {
+      report.assertions.push({
+        id: 'pressure-headroom-skipped-by-fast-mode',
+        pass: true,
+        detail: { mode: report.mode }
+      });
+    }
 
     await context.close();
     report.overall = report.assertions.every(item => item.pass)

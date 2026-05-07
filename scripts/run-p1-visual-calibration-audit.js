@@ -378,12 +378,41 @@ async function run() {
     await dismissTitle(page);
     await resetBaseline(page);
 
+    const zoneIds = ['ivy-cloister', 'pool-heart', 'moss-hollow', 'sun-court'];
+    report.screenshots.focusedZones = {};
+    for (const zoneId of zoneIds) {
+      await page.evaluate((nextZoneId) => {
+        gameCore.focusZone?.(nextZoneId);
+        gameUI.activityLogPanel.visible = false;
+        gameUI.inspectPanel.visible = false;
+        gameUI.accessibilityPanel.visible = false;
+        gameCore.draw?.();
+      }, zoneId);
+      await page.waitForTimeout(350);
+      report.screenshots.focusedZones[zoneId] = await saveShot(page, outputDir, `00-zone-${zoneId}`);
+    }
+    await page.evaluate(() => {
+      gameCore.focusZone?.('ivy-cloister');
+    });
+    await page.waitForTimeout(350);
+
     report.screenshots.playerView = await saveShot(page, outputDir, '01-player-view');
     report.calibration = await collectCalibrationState(page);
     await drawCalibrationOverlay(page, report.calibration);
     report.screenshots.calibrationOverlay = await saveShot(page, outputDir, '02-calibration-overlay');
+    report.guardrails.allFocusedZonesCaptured = zoneIds.every(zoneId => !!report.screenshots.focusedZones[zoneId]);
+    report.guardrails.stackHeightCaptured = Number(report.calibration?.fixtures?.stackBlock?.stackIndex || 0) === 1
+      && report.calibration?.fixtures?.stackBlock?.supportContext?.supportState === 'supported';
+    report.guardrails.occupancyAnchorsCaptured = !!report.calibration?.fixtures?.butterfly?.id
+      && !!report.calibration?.fixtures?.flower?.id
+      && !!report.calibration?.fixtures?.baseBlock?.id;
 
-    report.overall = report.calibration?.pass && report.pageErrors.length === 0 && report.consoleErrors.length === 0
+    report.overall = report.calibration?.pass
+      && report.guardrails.allFocusedZonesCaptured
+      && report.guardrails.stackHeightCaptured
+      && report.guardrails.occupancyAnchorsCaptured
+      && report.pageErrors.length === 0
+      && report.consoleErrors.length === 0
       ? 'pass'
       : 'fail';
   } catch (error) {

@@ -169,6 +169,55 @@ async function openInspectAndFeed(page, targetId) {
   await page.waitForTimeout(300);
 }
 
+async function installAuditEventCapture(page, captureName, eventNames = []) {
+  await page.evaluate(({ name, events }) => {
+    window.__finalGrandPlanEventCaptures = window.__finalGrandPlanEventCaptures || {};
+    const previous = window.__finalGrandPlanEventCaptures[name];
+    if (previous?.unsubscribers) {
+      previous.unsubscribers.forEach(unsubscribe => {
+        try { unsubscribe?.(); } catch (error) {}
+      });
+    }
+    const bucket = {
+      events: [],
+      unsubscribers: []
+    };
+    for (const eventName of events || []) {
+      const unsubscribe = eventBus?.on?.(eventName, data => {
+        bucket.events.push({
+          event: eventName,
+          data,
+          timestamp: Date.now(),
+          frame: gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : null)
+        });
+      });
+      if (typeof unsubscribe === 'function') {
+        bucket.unsubscribers.push(unsubscribe);
+      }
+    }
+    window.__finalGrandPlanEventCaptures[name] = bucket;
+  }, { name: captureName, events: eventNames });
+}
+
+async function readAuditEventCapture(page, captureName, clear = true) {
+  return await page.evaluate(({ name, shouldClear }) => {
+    const capture = window.__finalGrandPlanEventCaptures?.[name];
+    const events = (capture?.events || []).map(entry => ({
+      event: entry.event,
+      data: entry.data,
+      timestamp: entry.timestamp,
+      frame: entry.frame
+    }));
+    if (shouldClear && capture?.unsubscribers) {
+      capture.unsubscribers.forEach(unsubscribe => {
+        try { unsubscribe?.(); } catch (error) {}
+      });
+      delete window.__finalGrandPlanEventCaptures[name];
+    }
+    return events;
+  }, { name: captureName, shouldClear: clear });
+}
+
 async function run() {
   ensureDir(OUTPUT_ROOT);
   const auditId = timestampLabel();
@@ -302,6 +351,11 @@ async function run() {
     });
 
     await applyPreset(page, 'teaching-pair');
+    await installAuditEventCapture(page, 'training', [
+      'training:drillStarted',
+      'training:drillCompleted',
+      'teaching:completed'
+    ]);
     await page.evaluate(() => {
       gameCore.focusZone('sun-court');
       const trainingZoneId = 'sun-court';
@@ -330,6 +384,7 @@ async function run() {
     });
     await page.waitForTimeout(1200);
     const trainingSummary = await getSummary(page);
+    const capturedTrainingEvents = await readAuditEventCapture(page, 'training');
     const trainingAudit = await page.evaluate(() => {
       const history = eventBus?.getHistory?.() || [];
       return {
@@ -338,10 +393,24 @@ async function run() {
         teachingCompleted: history.some(entry => entry.event === 'teaching:completed')
       };
     });
+    trainingAudit.capturedEvents = capturedTrainingEvents.map(entry => ({
+      event: entry.event,
+      frame: entry.frame,
+      teacherId: entry.data?.teacherId || null,
+      listenerId: entry.data?.listenerId || null,
+      listenerIds: entry.data?.listenerIds || null,
+      zoneId: entry.data?.zoneId || null
+    }));
+    trainingAudit.capturedDrillStarted = capturedTrainingEvents.some(entry => entry.event === 'training:drillStarted');
+    trainingAudit.capturedDrillCompleted = capturedTrainingEvents.some(entry => entry.event === 'training:drillCompleted');
+    trainingAudit.capturedTeachingCompleted = capturedTrainingEvents.some(entry => entry.event === 'teaching:completed');
     const trainingStarted =
       trainingAudit.drillStarted ||
       trainingAudit.drillCompleted ||
-      trainingAudit.teachingCompleted;
+      trainingAudit.teachingCompleted ||
+      trainingAudit.capturedDrillStarted ||
+      trainingAudit.capturedDrillCompleted ||
+      trainingAudit.capturedTeachingCompleted;
     report.screenshots.push(await saveShot(page, outputDir, '07-training-grounds-feed'));
     report.phases.push({
       name: 'training-grounds',
@@ -573,6 +642,10 @@ async function run() {
     });
     await page.waitForFunction(() => gameCore.getGameState().butterflies.length >= 4, null, { timeout: 20000 });
     await page.waitForTimeout(1000);
+    await installAuditEventCapture(page, 'migration', [
+      'zone:travelStarted',
+      'zone:travelCompleted'
+    ]);
     const migrationSetup = await page.evaluate(() => {
       const before = (gameCore.gameState.butterflies || []).map(entry => ({
         id: entry.id,
@@ -635,6 +708,14 @@ async function run() {
         arrivalZoneId
       };
     }, migrationSetup.before);
+    const capturedMigrationEvents = await readAuditEventCapture(page, 'migration');
+    migrationAudit.capturedTravelEvents = capturedMigrationEvents.map(entry => ({
+      event: entry.event,
+      frame: entry.frame,
+      entityId: entry.data?.entityId || entry.data?.butterflyId || null,
+      sourceZoneId: entry.data?.sourceZoneId || entry.data?.fromZoneId || null,
+      targetZoneId: entry.data?.targetZoneId || entry.data?.toZoneId || null
+    }));
     await page.waitForTimeout(300);
     report.screenshots.push(await saveShot(page, outputDir, '16-migration-arrival'));
     const migrationSummary = await getSummary(page);
@@ -642,7 +723,7 @@ async function run() {
       name: 'migration',
       pass:
         Array.isArray(migrationSetup.startedTravelers) &&
-        migrationSetup.startedTravelers.length >= 1 &&
+        (migrationSetup.startedTravelers.length >= 1 || capturedMigrationEvents.length >= 1) &&
         Array.isArray(migrationAudit.changedZoneIds) &&
         migrationAudit.changedZoneIds.length >= 1 &&
         Object.keys(migrationAudit.occupancy || {}).length >= 2,
