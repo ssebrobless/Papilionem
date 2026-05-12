@@ -2497,9 +2497,8 @@ class MlInferenceSystem {
     getBattleParticipantPolicyTrace(participant, snapshot, gameState = gameCore?.gameState) {
         const traceStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
         const features = this.buildBattleParticipantFeatureBundle(participant, snapshot, gameState);
-        const heuristicScores = this.buildHeuristicPolicies(null, features).autobattlePosture;
         const artifactPolicy = this.modelRuntime.modelArtifact?.policies?.autobattlePosture || null;
-        let resolvedScores = heuristicScores;
+        let resolvedScores = null;
         let source = 'heuristic-fallback';
 
         if (this.modelConfig.useModelInference && artifactPolicy && this.modelRuntime.modelAvailable) {
@@ -2512,6 +2511,10 @@ class MlInferenceSystem {
             }
         } else if (this.modelConfig.useModelInference) {
             this.modelRuntime.fallbackCount += 1;
+        }
+
+        if (!resolvedScores) {
+            resolvedScores = this.buildHeuristicPolicies(null, features).autobattlePosture;
         }
 
         const trace = {

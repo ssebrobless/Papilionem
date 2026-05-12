@@ -1,7 +1,7 @@
 {
   "id": "seed-loneliness-organic",
   "seed": 1101,
-  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board" },
+  "world": { "focusedZoneId": "moss-hollow", "renderMode": "sim-board", "lockButterflyPopulation": true },
   "entities": [
     { "id": "a", "type": "butterfly", "boardPos": { "zoneId": "moss-hollow", "u": 6, "v": 6, "h": 0 }, "drives": { "socialConnection": 0.02 }, "social": { "belonging": 0.02 } },
     { "id": "b", "type": "butterfly", "boardPos": { "zoneId": "pool-heart", "u": 8, "v": 8, "h": 0 } },

@@ -631,7 +631,33 @@ function runScenarioInBrowser(scenario) {
       });
     }
     if (action.type === 'plan_pollen_drop' && source) {
-      const target = gameCore.planPollenDropTarget?.(source) || null;
+      let target = null;
+      if (action.boardPos && renderManager?.boardToScreen) {
+        const boardPos = {
+          zoneId: action.boardPos.zoneId || source.currentZoneId || scenario.world?.focusedZoneId || null,
+          u: Number(action.boardPos.u),
+          v: Number(action.boardPos.v),
+          h: Number(action.boardPos.h || 0)
+        };
+        const screen = boardPos.zoneId && Number.isFinite(boardPos.u) && Number.isFinite(boardPos.v)
+          ? renderManager.boardToScreen(boardPos)
+          : null;
+        const compostPatch = screen
+          ? gameCore.getCleanupCompostPatchForCell?.(boardPos.zoneId, Math.round(boardPos.u), Math.round(boardPos.v))
+          : null;
+        if (screen) {
+          target = {
+            x: screen.x,
+            y: screen.y,
+            zoneId: boardPos.zoneId,
+            compostPatchId: compostPatch?.id || null
+          };
+          source.pendingPollenDropTarget = target;
+          gameCore.announceCompostPollenPlan?.(source, target);
+        }
+      } else {
+        target = gameCore.planPollenDropTarget?.(source) || null;
+      }
       source.__scenarioLastPollenTarget = target ? cloneEvent(target) : null;
       const requiresCompost = action.requireCompost === true || action.require_compost === true;
       const pass = !!target && (!requiresCompost || !!target.compostPatchId);

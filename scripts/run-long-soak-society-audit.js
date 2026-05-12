@@ -377,7 +377,25 @@ async function collectRun(page, options, label, useMlInference, fixture = null) 
         };
       }
       if (action.type === 'plan_pollen_drop' && source) {
-        source.__longSoakLastPollenTarget = gameCore.planPollenDropTarget?.(source) || null;
+        if (action.boardPos) {
+          const screen = boardToScreen(action.boardPos);
+          const compostPatch = gameCore.getCleanupCompostPatchForCell?.(
+            action.boardPos.zoneId,
+            action.boardPos.u,
+            action.boardPos.v
+          );
+          source.pendingPollenDropTarget = screen ? {
+            x: screen.x,
+            y: screen.y,
+            zoneId: action.boardPos.zoneId,
+            boardPos: { ...action.boardPos },
+            compostPatchId: compostPatch?.id || null
+          } : null;
+          source.__longSoakLastPollenTarget = source.pendingPollenDropTarget || null;
+          gameCore.announceCompostPollenPlan?.(source, source.pendingPollenDropTarget);
+        } else {
+          source.__longSoakLastPollenTarget = gameCore.planPollenDropTarget?.(source) || null;
+        }
       }
       if (action.type === 'complete_pollen_drop' && source) {
         gameCore.completePollenDrop?.(source);

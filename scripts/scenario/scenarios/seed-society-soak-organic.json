@@ -46,6 +46,11 @@
     { "type": "step_simulation", "frames": 1260 }
   ],
   "longSoakActions": [
+    { "atSeconds": 20, "type": "set_board_pos", "source": "a", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 12, "h": 0 } },
+    { "atSeconds": 21, "type": "cleanup_object", "source": "a", "object": "dirt-a" },
+    { "atSeconds": 22, "type": "grant_pollen", "source": "a", "charges": 2, "maxCharges": 2, "expiresInFrames": 7200, "color": "society-soak-compost-pollen" },
+    { "atSeconds": 23, "type": "plan_pollen_drop", "source": "a", "boardPos": { "zoneId": "ivy-cloister", "u": 9, "v": 13, "h": 0 } },
+    { "atSeconds": 24, "type": "complete_pollen_drop", "source": "a" },
     { "atSeconds": 120, "type": "set_edge", "source": "j", "target": "k", "values": { "trust": 0.38, "comfort": 0.34, "attachment": 0.24, "rivalry": 0.24, "resentment": 0.12, "bondTier": "familiar", "coTimeSeconds": 420 } },
     { "atSeconds": 240, "type": "set_edge", "source": "j", "target": "k", "values": { "trust": 0.62, "comfort": 0.58, "attachment": 0.52, "rivalry": 0.08, "resentment": 0.02, "bondTier": "companion", "coTimeSeconds": 900 } }
   ],

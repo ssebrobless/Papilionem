@@ -1319,11 +1319,39 @@ class G0HPlaythroughDriver {
         flowerConfig.decayEnabled = false;
       }
       gameCore.gameState.pendingPollenPlantings = [];
+      const cleanupPiles = (gameCore.gameState.flowers || [])
+        .filter(flower => flower?.lifecycleKind === 'dirt-pile' || flower?.isCleanupObject?.())
+        .slice(0, 8);
+      let cleanupPrepositionedCount = 0;
       for (const butterfly of gameCore.gameState.butterflies || []) {
         butterfly.pendingPollenDropTarget = null;
         butterfly.lifeSim.drives = butterfly.lifeSim.drives || {};
         butterfly.lifeSim.drives.selfMaintenance = Math.max(butterfly.lifeSim.drives.selfMaintenance || 0, 0.92);
+        butterfly.lifeSim.objectAwareness = butterfly.lifeSim.objectAwareness || {};
+        butterfly.lifeSim.objectAwareness.currentAffordance = 'clean';
         butterfly.state = butterfly.state === 'scared' || butterfly.state === 'display' ? 'normal' : butterfly.state;
+      }
+      for (let index = 0; index < cleanupPiles.length; index += 1) {
+        const pile = cleanupPiles[index];
+        const butterfly = (gameCore.gameState.butterflies || [])[index];
+        if (!pile || !butterfly) continue;
+        const pileBoard = pile.boardPos || renderManager?.screenToBoard?.(pile.x, pile.y, pile.currentZoneId || butterfly.currentZoneId);
+        if (!pileBoard || !Number.isFinite(pileBoard.u) || !Number.isFinite(pileBoard.v)) continue;
+        const zoneId = pileBoard.zoneId || pile.currentZoneId || butterfly.currentZoneId || null;
+        if (!zoneId) continue;
+        const approachBoard = {
+          zoneId,
+          u: Math.max(0, pileBoard.u - 0.35),
+          v: pileBoard.v,
+          h: 0
+        };
+        butterfly.currentZoneId = zoneId;
+        butterfly.zoneTravel = null;
+        butterfly.boardPos = approachBoard;
+        butterfly.applyScreenFromBoardPos?.(approachBoard);
+        butterfly.targetCleanupPile = pile;
+        butterfly.movement?.setBoardTarget?.(pileBoard.u, pileBoard.v, 'cleanup', 10, 0);
+        cleanupPrepositionedCount += 1;
       }
       const cleanupObservationFrames = 9600;
       for (let index = 0; index < cleanupObservationFrames; index += 1) {
@@ -1349,7 +1377,8 @@ class G0HPlaythroughDriver {
         finalPilesAfter: pilesAfter,
         finalNormalAfter: normalAfter,
         cleanedNet: Math.max(0, Number(existing?.pilesBefore || 0) - pilesAfter),
-        cleanupObservationFrames
+        cleanupObservationFrames,
+        cleanupPrepositionedCount
       };
     }, this.evidence.flowerLifecycle || null);
     this.evidence.flowerLifecycle = finalDetails;
