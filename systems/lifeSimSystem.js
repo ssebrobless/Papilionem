@@ -34,6 +34,7 @@ class LifeSimSystem {
         entity.lifeSim.drives = entity.lifeSim.drives || createDriveProfile();
         entity.lifeSim.emotions = entity.lifeSim.emotions || createEmotionProfile();
         entity.lifeSim.memories = entity.lifeSim.memories || createMemoryStore();
+        entity.lifeSim.socialEdges = entity.lifeSim.socialEdges || {};
         entity.lifeSim.routines = entity.lifeSim.routines || createRoutineStore();
         entity.lifeSim.communication = entity.lifeSim.communication || createCommunicationProfile();
         entity.lifeSim.distortion = entity.lifeSim.distortion || createDistortionProfile();
@@ -60,6 +61,7 @@ class LifeSimSystem {
         entity.lifeSim.battleContext = entity.lifeSim.battleContext || createBattleContextProfile();
         entity.lifeSim.migration = entity.lifeSim.migration || createMigrationProfile();
         entity.lifeSim.selfModel = this.normalizeSelfModel(entity.lifeSim.selfModel);
+        entity.lifeSim.metacognition = this.normalizeMetacognition(entity.lifeSim.metacognition);
         entity.lifeSim.upbringing = entity.lifeSim.upbringing || { imprintSources: [], lessons: [], routineReinforcement: {} };
         entity.lifeSim.interpretation = entity.lifeSim.interpretation || { clarity: 1, lastSignals: [], warpedSignals: 0 };
         entity.lifeSim.lifecycle = entity.lifeSim.lifecycle || createLifecycleProfile();
@@ -104,6 +106,22 @@ class LifeSimSystem {
             initialized: !!source?.initialized,
             lastUpdatedTick: Number.isFinite(source?.lastUpdatedTick) ? source.lastUpdatedTick : 0
         };
+    }
+
+    getMetacognitionConfig() {
+        return gameConfig?.cognition?.metacognition || {};
+    }
+
+    isMetacognitionEnabled() {
+        return this.getMetacognitionConfig().enabled !== false;
+    }
+
+    normalizeMetacognition(source = []) {
+        const cap = Math.max(1, Math.round(this.getMetacognitionConfig().ringBufferCap || 32));
+        if (typeof createMetacognitionStore === 'function') {
+            return createMetacognitionStore(source).slice(-cap);
+        }
+        return Array.isArray(source) ? source.filter(entry => entry && typeof entry === 'object').slice(-cap) : [];
     }
 
     ensureRuntimeState(entityId) {
@@ -3305,6 +3323,9 @@ class LifeSimSystem {
         const stats = {
             enabled: this.isSelfModelEnabled() ? 1 : 0,
             updated: 0,
+            metacognitionEnabled: this.isMetacognitionEnabled() ? 1 : 0,
+            metacognitionTagsCreated: 0,
+            metacognitionActiveInfluences: 0,
             entities: 0,
             meanDivergence: 0
         };
@@ -3316,6 +3337,9 @@ class LifeSimSystem {
             stats.entities += 1;
             const result = this.updateSelfModel(entity, gameState, { ...options, currentFrame, deltaSeconds });
             if (result?.updated) stats.updated += 1;
+            const metaResult = this.updateMetacognition(entity, gameState, { ...options, currentFrame, deltaSeconds });
+            if (metaResult?.created) stats.metacognitionTagsCreated += 1;
+            if (metaResult?.activeInfluence) stats.metacognitionActiveInfluences += 1;
             const divergence = result?.selfModel?.divergenceFromActual;
             if (Number.isFinite(divergence)) values.push(divergence);
         }
@@ -3323,6 +3347,126 @@ class LifeSimSystem {
             ? values.reduce((sum, value) => sum + value, 0) / values.length
             : 0;
         return stats;
+    }
+
+    getMetaEmotionFor(firstOrderEmotion = 'steady', selfModel = {}) {
+        const prediction = selfModel?.predictedNextEmotion || 'steady';
+        if (firstOrderEmotion === 'threat') return 'surprised-by-threat';
+        if (firstOrderEmotion === 'agitation') return 'surprised-by-agitation';
+        if (firstOrderEmotion === 'rejection') return 'embarrassed-by-rejection';
+        if (firstOrderEmotion === 'failure') return 'embarrassed-by-failure';
+        if (firstOrderEmotion === 'exhaustion') return 'worried-about-exhaustion';
+        if (firstOrderEmotion === 'attachment' && prediction !== 'attachment') return 'surprised-by-attachment';
+        if (firstOrderEmotion === 'significance') return 'proud-of-significance';
+        return 'surprised-by-feeling';
+    }
+
+    getMetacognitionDecisionBias(entry = {}) {
+        const metaEmotion = entry.metaEmotion || 'surprised-by-feeling';
+        const intensity = this.clamp01(entry.metaIntensity || 0);
+        if (metaEmotion.includes('threat') || metaEmotion.includes('agitation') || metaEmotion.includes('exhaustion')) {
+            return {
+                shelterSeeking: this.clamp01((this.getMetacognitionConfig().shelterSeekingBoost ?? 0.72) * intensity),
+                caution: this.clamp01((this.getMetacognitionConfig().cautionBoost ?? 0.16) * intensity),
+                socialConfidence: -this.clamp01((this.getMetacognitionConfig().socialConfidencePenalty ?? 0.08) * intensity),
+                actionBias: 'seek-shelter-after-surprise'
+            };
+        }
+        if (metaEmotion.includes('rejection') || metaEmotion.includes('failure')) {
+            return {
+                shelterSeeking: this.clamp01(0.38 * intensity),
+                caution: this.clamp01(0.12 * intensity),
+                socialConfidence: -this.clamp01(0.18 * intensity),
+                actionBias: 'pause-after-social-error'
+            };
+        }
+        if (metaEmotion.includes('attachment') || metaEmotion.includes('significance')) {
+            return {
+                shelterSeeking: 0,
+                caution: 0,
+                socialConfidence: this.clamp01(0.18 * intensity),
+                actionBias: 'stay-social-after-realization'
+            };
+        }
+        return {
+            shelterSeeking: this.clamp01(0.18 * intensity),
+            caution: this.clamp01(0.08 * intensity),
+            socialConfidence: 0,
+            actionBias: 'slow-down-after-surprise'
+        };
+    }
+
+    applyMetacognitionInfluence(entity, entry, currentFrame) {
+        if (!entity?.lifeSim?.derived?.behaviorBiases || !entry) return false;
+        const config = this.getMetacognitionConfig();
+        const influenceFrames = Math.max(1, Math.round(config.decisionInfluenceFrames || 1800));
+        if (Math.max(0, currentFrame - (entry.tick || 0)) > influenceFrames) {
+            return false;
+        }
+        const bias = entry.decisionBias || this.getMetacognitionDecisionBias(entry);
+        const behaviorBiases = entity.lifeSim.derived.behaviorBiases;
+        behaviorBiases.shelterSeeking = this.clamp01(Math.max(behaviorBiases.shelterSeeking || 0, bias.shelterSeeking || 0));
+        behaviorBiases.caution = this.clamp01((behaviorBiases.caution || 0) + (bias.caution || 0));
+        behaviorBiases.socialConfidence = this.clamp01((behaviorBiases.socialConfidence || 0) + (bias.socialConfidence || 0));
+        entity.lifeSim.derived.metacognitionBias = {
+            active: true,
+            metaEmotion: entry.metaEmotion,
+            firstOrderEmotion: entry.firstOrderEmotion,
+            metaIntensity: entry.metaIntensity,
+            actionBias: bias.actionBias || 'reflective-pause',
+            sourceTick: entry.tick,
+            updatedAtFrame: currentFrame
+        };
+        entry.actedOn = true;
+        return true;
+    }
+
+    updateMetacognition(entity, gameState = gameCore?.gameState, options = {}) {
+        const lifeSim = this.ensureLifeSimState(entity);
+        if (!lifeSim) return null;
+        lifeSim.metacognition = this.normalizeMetacognition(lifeSim.metacognition);
+        const currentFrame = Number.isFinite(options.currentFrame)
+            ? Math.max(0, Math.round(options.currentFrame))
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
+        const latest = lifeSim.metacognition[lifeSim.metacognition.length - 1] || null;
+        const activeInfluence = this.isMetacognitionEnabled()
+            ? this.applyMetacognitionInfluence(entity, latest, currentFrame)
+            : false;
+        if (!this.isMetacognitionEnabled()) {
+            return { created: false, activeInfluence, latest };
+        }
+
+        const config = this.getMetacognitionConfig();
+        const selfModel = lifeSim.selfModel || null;
+        const divergence = Number(selfModel?.divergenceFromActual || 0);
+        const actual = this.getActualEmotionState(entity);
+        const metaIntensity = this.clamp01(divergence + actual.intensity * 0.28);
+        const minDivergence = Number(config.minDivergence ?? 0.18);
+        const minIntensity = Number(config.minIntensity ?? 0.22);
+        const minIntervalFrames = Math.max(1, Math.round(config.minIntervalFrames || 300));
+        const recentEnough = latest && Math.max(0, currentFrame - (latest.tick || 0)) < minIntervalFrames;
+        if (divergence < minDivergence || metaIntensity < minIntensity || recentEnough) {
+            return { created: false, activeInfluence, latest };
+        }
+
+        const entry = {
+            feelingId: `meta_${entity.id}_${currentFrame}_${lifeSim.metacognition.length + 1}`,
+            firstOrderEmotion: actual.primary || 'steady',
+            metaEmotion: this.getMetaEmotionFor(actual.primary, selfModel),
+            metaIntensity,
+            tick: currentFrame,
+            source: 'selfModelDivergence',
+            decisionBias: null,
+            actedOn: false
+        };
+        entry.decisionBias = this.getMetacognitionDecisionBias(entry);
+        lifeSim.metacognition.push(entry);
+        const cap = Math.max(1, Math.round(config.ringBufferCap || 32));
+        if (lifeSim.metacognition.length > cap) {
+            lifeSim.metacognition.splice(0, lifeSim.metacognition.length - cap);
+        }
+        const influenced = this.applyMetacognitionInfluence(entity, entry, currentFrame);
+        return { created: true, activeInfluence: influenced || activeInfluence, latest: entry };
     }
 
     update(gameState, deltaSeconds = gameConfig?.simulation?.fixedDeltaSeconds || (1 / 60), options = {}) {
@@ -3419,6 +3563,14 @@ class LifeSimSystem {
                     ? lifeSim.selfModel.lastUpdatedTick
                     : 0
             } : null,
+            metacognition: {
+                enabled: this.isMetacognitionEnabled(),
+                count: Array.isArray(lifeSim.metacognition) ? lifeSim.metacognition.length : 0,
+                latest: Array.isArray(lifeSim.metacognition) && lifeSim.metacognition.length
+                    ? { ...lifeSim.metacognition[lifeSim.metacognition.length - 1] }
+                    : null,
+                activeBias: lifeSim.derived?.metacognitionBias || null
+            },
             freshness: {
                 lastValidFrame,
                 staleFrames: Number.isFinite(lastValidFrame) && Number.isFinite(nowFrame)

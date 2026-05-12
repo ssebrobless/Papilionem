@@ -237,6 +237,29 @@ class BehaviorSystem {
         return null;
     }
 
+    getMetacognitionIntent(entity) {
+        const metaBias = entity?.lifeSim?.derived?.metacognitionBias || null;
+        const behaviorBiases = entity?.lifeSim?.derived?.behaviorBiases || {};
+        if (!metaBias?.active) return null;
+        if (metaBias.actionBias === 'seek-shelter-after-surprise' && (behaviorBiases.shelterSeeking || 0) >= 0.66) {
+            return {
+                actionFamily: 'wander',
+                actionSubtype: 'shelter-seeking',
+                priorityScore: Math.max(70, Math.round((behaviorBiases.shelterSeeking || 0) * 100)),
+                reason: 'metacognition-surprised-by-feeling'
+            };
+        }
+        if (metaBias.actionBias === 'pause-after-social-error') {
+            return {
+                actionFamily: 'socialize',
+                actionSubtype: 'reflective-pause',
+                priorityScore: Math.max(50, Math.round((metaBias.metaIntensity || 0) * 100)),
+                reason: 'metacognition-reflective-pause'
+            };
+        }
+        return null;
+    }
+
     getFollowThroughIntent(entity) {
         const followThrough = entity?.lifeSim?.derived?.socialEcology?.followThrough || null;
         if (!followThrough) return null;
@@ -329,7 +352,7 @@ class BehaviorSystem {
         const actionFamily = this.inferActionFamily(entity);
         const socialIntent = actionFamily === 'sleep'
             ? null
-            : (this.getAffordanceMigrationIntent(entity, gameCore?.gameState) || this.getFollowThroughIntent(entity) || this.getSocialEcologyIntent(entity));
+            : (this.getMetacognitionIntent(entity) || this.getAffordanceMigrationIntent(entity, gameCore?.gameState) || this.getFollowThroughIntent(entity) || this.getSocialEcologyIntent(entity));
         if (socialIntent?.actionSubtype === 'zone-affordance-migration') {
             this.applyAffordanceMigrationIntent(entity, socialIntent);
         }

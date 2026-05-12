@@ -964,6 +964,21 @@ const PAPILIONEM_BATTLE_ARENA = {
             confidenceAlpha: 0.12,
             inspectEnabled: true
         },
+        // SR3 - Metacognition. A bounded lifeSim-owned ring buffer of
+        // second-order emotion tags produced when the SR2 prediction model is
+        // surprised by the next first-order emotion.
+        metacognition: {
+            enabled: true,
+            ringBufferCap: 32,
+            minDivergence: 0.18,
+            minIntensity: 0.22,
+            minIntervalFrames: 300,
+            decisionInfluenceFrames: 1800,
+            shelterSeekingBoost: 0.72,
+            cautionBoost: 0.16,
+            socialConfidencePenalty: 0.08,
+            inspectEnabled: true
+        },
         bondTier: {
             enabled: true,
             arcEvents: {

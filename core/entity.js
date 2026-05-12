@@ -350,6 +350,24 @@ function createSelfModelProfile(overrides = {}) {
     };
 }
 
+function createMetacognitionStore(overrides = []) {
+    return Array.isArray(overrides)
+        ? overrides
+            .filter(entry => entry && typeof entry === 'object')
+            .slice(-32)
+            .map(entry => ({
+                feelingId: entry.feelingId || `meta_${entry.tick || 0}_${entry.firstOrderEmotion || 'steady'}`,
+                firstOrderEmotion: entry.firstOrderEmotion || 'steady',
+                metaEmotion: entry.metaEmotion || 'surprised-by-feeling',
+                metaIntensity: Math.max(0, Math.min(1, entry.metaIntensity ?? 0)),
+                tick: Math.max(0, Math.round(entry.tick || 0)),
+                source: entry.source || 'selfModelDivergence',
+                decisionBias: entry.decisionBias ? { ...entry.decisionBias } : null,
+                actedOn: !!entry.actedOn
+            }))
+        : [];
+}
+
 function createBaseLifeSimState(options = {}) {
     return {
         identity: {
@@ -384,7 +402,8 @@ function createBaseLifeSimState(options = {}) {
             routineReinforcement: {}
         },
         lifecycle: createLifecycleProfile(options.lifecycle),
-        selfModel: createSelfModelProfile(options.selfModel)
+        selfModel: createSelfModelProfile(options.selfModel),
+        metacognition: createMetacognitionStore(options.metacognition)
     };
 }
 

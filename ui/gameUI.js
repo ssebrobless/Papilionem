@@ -1029,6 +1029,18 @@ class GameUI {
                         this.normalizePresentationText(`${selfModelSummary.currentSelfAssessment?.roleGuess || 'wanderer'} | confidence ${Math.round((selfModelSummary.currentSelfAssessment?.confidence || 0) * 100)} | thinks others see ${selfModelSummary.perceivedByOthersBelief?.mood || 'unknown'}`)
                     ]
                 } : null,
+                lifeSimSummary?.metacognition?.enabled && gameConfig?.cognition?.metacognition?.inspectEnabled !== false ? {
+                    id: 'metacognition',
+                    title: 'Metacognition',
+                    lines: [
+                        lifeSimSummary.metacognition.latest
+                            ? this.normalizePresentationText(`${lifeSimSummary.metacognition.latest.metaEmotion || 'surprised-by-feeling'} | ${lifeSimSummary.metacognition.latest.firstOrderEmotion || 'steady'} | intensity ${Math.round((lifeSimSummary.metacognition.latest.metaIntensity || 0) * 100)}`)
+                            : 'No second-order feeling tagged yet',
+                        this.normalizePresentationText(lifeSimSummary.metacognition.activeBias
+                            ? `${lifeSimSummary.metacognition.activeBias.actionBias || 'reflective-pause'} | count ${lifeSimSummary.metacognition.count || 0}`
+                            : `count ${lifeSimSummary.metacognition.count || 0} | no active decision bias`)
+                    ]
+                } : null,
                 {
                     id: 'ecology',
                     title: 'Ecology + Space',
@@ -3619,6 +3631,13 @@ class GameUI {
         const selfModelDetailText = cleanDisplayText(selfModelSummary
             ? `${selfModelSummary.currentSelfAssessment?.roleGuess || 'wanderer'} | confidence ${Math.round((selfModelSummary.currentSelfAssessment?.confidence || 0) * 100)} | seen as ${selfModelSummary.perceivedByOthersBelief?.mood || 'unknown'}`
             : 'wanderer | confidence 0 | seen as unknown');
+        const metacognitionSummary = lifeSimSummary?.metacognition || null;
+        const metacognitionText = cleanDisplayText(metacognitionSummary?.latest
+            ? `${metacognitionSummary.latest.metaEmotion || 'surprised-by-feeling'} | ${metacognitionSummary.latest.firstOrderEmotion || 'steady'} | intensity ${Math.round((metacognitionSummary.latest.metaIntensity || 0) * 100)}`
+            : 'No second-order feeling tagged yet');
+        const metacognitionDetailText = cleanDisplayText(metacognitionSummary?.activeBias
+            ? `${metacognitionSummary.activeBias.actionBias || 'reflective-pause'} | count ${metacognitionSummary.count || 0}`
+            : `count ${metacognitionSummary?.count || 0} | no active decision bias`);
         const playerText = cleanDisplayText(lifeSimSummary
             ? `trust ${lifeSimSummary.player?.trust || 0} | fear ${lifeSimSummary.player?.fear || 0} | ${lifeSimSummary.player?.calmed ? 'calmed' : 'uncalmed'}`
             : 'trust 0 | fear 0 | uncalmed');
@@ -3788,6 +3807,12 @@ class GameUI {
                 id: 'selfModel',
                 title: 'Self-Model',
                 lines: [selfModelText, selfModelDetailText],
+                maxLinesPerItem: 2
+            }] : []),
+            ...(metacognitionSummary && metacognitionSummary.enabled && gameConfig?.cognition?.metacognition?.inspectEnabled !== false ? [{
+                id: 'metacognition',
+                title: 'Metacognition',
+                lines: [metacognitionText, metacognitionDetailText],
                 maxLinesPerItem: 2
             }] : []),
             {

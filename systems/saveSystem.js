@@ -378,6 +378,27 @@ class SaveSystem {
         return entityRecord.lifeSim.selfModel;
     }
 
+    normalizeSavedMetacognition(source = []) {
+        if (typeof createMetacognitionStore === 'function') {
+            return createMetacognitionStore(source || []);
+        }
+        return Array.isArray(source) ? source.filter(entry => entry && typeof entry === 'object').slice(-32) : [];
+    }
+
+    ensureSerializedMetacognition(entityRecord = {}) {
+        entityRecord.lifeSim = entityRecord.lifeSim || {};
+        entityRecord.lifeSim.metacognition = this.normalizeSavedMetacognition(entityRecord.lifeSim.metacognition);
+        return entityRecord.lifeSim.metacognition;
+    }
+
+    ensureSrDefaultFields(serialized = {}) {
+        for (const entity of [...(serialized.butterflies || []), ...(serialized.caterpillars || [])]) {
+            this.ensureSerializedSelfModel(entity);
+            this.ensureSerializedMetacognition(entity);
+        }
+        return serialized;
+    }
+
     captureZoneTravelState(zoneTravel) {
         if (!zoneTravel?.sourceZoneId) return null;
         return {
@@ -847,6 +868,7 @@ class SaveSystem {
             this.normalizeMigratedEntityBoardPos(butterfly, { includeShadowOffset: true });
             this.migrateZoneTravelIntentV5(butterfly);
             this.ensureSerializedSelfModel(butterfly);
+            this.ensureSerializedMetacognition(butterfly);
         }
         for (const flower of migrated.flowers || []) {
             this.migrateFlowerLifecycleBoardPos(flower);
@@ -854,6 +876,7 @@ class SaveSystem {
         for (const caterpillar of migrated.caterpillars || []) {
             this.normalizeMigratedEntityBoardPos(caterpillar, { includeShadowOffset: true });
             this.ensureSerializedSelfModel(caterpillar);
+            this.ensureSerializedMetacognition(caterpillar);
         }
         for (const block of migrated.blocks || []) {
             this.normalizeMigratedEntityBoardPos(block, { hHint: block.stackIndex ?? 0 });
@@ -920,6 +943,7 @@ class SaveSystem {
         if (loadedFromVersion !== CURRENT_SAVE_VERSION) {
             migrated.meta.persistRefreshToStorage = true;
         }
+        this.ensureSrDefaultFields(migrated);
 
         return migrated;
     }

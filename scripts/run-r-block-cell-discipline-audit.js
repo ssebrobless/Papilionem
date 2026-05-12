@@ -390,12 +390,21 @@ async function run() {
           const huskFlower = spawnAtCell(9, 6, { resourceOrigin: 'block-cell-husk-audit' });
           const reserveHusk = gameCore.convertFlowerToReserveFood?.(huskFlower, null, { source: 'block-cell-occupancy-audit' });
           if (reserveHusk?.id) {
-            objectSystem?.recordInteraction?.(reserveHusk.id, 'seeded depleted reserve husk', null, {
-              zoneId,
-              reserveFoodUseCount: 6,
-              reserveFoodMaxUses: 6,
-              reserveFoodDepleted: true
+            reserveHusk.getReserveFoodUseState = () => ({
+              useCount: 6,
+              maxUses: 6,
+              remainingUses: 0,
+              remainingRatio: 0,
+              depleted: true
             });
+            reserveHusk.isReserveFoodDepleted = () => true;
+            const objectState = objectSystem?.ensureObjectState?.(reserveHusk) || objectSystem?.getObjectState?.(reserveHusk.id) || null;
+            if (objectState) {
+              objectState.metadata = objectState.metadata || {};
+              objectState.metadata.reserveFoodUseCount = 6;
+              objectState.metadata.reserveFoodMaxUses = 6;
+              objectState.metadata.reserveFoodDepleted = true;
+            }
             reserveHusk.refreshLifecycleObjectProfile?.();
           }
           probeCell('reserve-husk', 9, 6, 'occupied-by-reserve-husk', 'depleted-reserve-food');
