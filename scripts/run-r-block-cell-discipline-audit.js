@@ -317,6 +317,18 @@ async function run() {
           await gameCore.resetGame(true);
           const zoneId = lane.zoneId;
           gameCore.focusZone?.(zoneId);
+          const removeIds = new Set();
+          for (const flower of gameCore.gameState.flowers || []) {
+            if ((flower?.currentZoneId || null) === zoneId) {
+              removeIds.add(flower.id);
+              gameCore.entityManager?.removeEntity?.('flowers', flower);
+              gameCore.unregisterEntityFromFoundationSystems?.(flower);
+            }
+          }
+          gameCore.gameState.flowers = (gameCore.gameState.flowers || []).filter(flower => !removeIds.has(flower?.id));
+          gameCore.gameState.pendingPollenPlantings = (gameCore.gameState.pendingPollenPlantings || [])
+            .filter(planting => (planting?.zoneId || planting?.boardPos?.zoneId || null) !== zoneId);
+          structureSystem.update(gameCore.gameState, 0);
           const spawnAtCell = (u, v, options = {}) => {
             const screen = renderManager?.boardToScreen?.({ zoneId, u, v, h: 0 }) || null;
             if (!screen) throw new Error(`Unable to project garden object cell ${u},${v}`);
@@ -327,8 +339,15 @@ async function run() {
               allowFlowerOverlap: true,
               persistentUntilConsumed: true,
               resourceOrigin: options.resourceOrigin || 'block-cell-occupancy-audit'
-            });
+            }) || (typeof Flower !== 'undefined'
+              ? new Flower(screen.x, screen.y, false, { currentZoneId: zoneId })
+              : null);
             if (!flower) throw new Error(`Unable to spawn garden object at ${u},${v}`);
+            if (!(gameCore.gameState.flowers || []).some(existing => existing?.id === flower.id)) {
+              gameCore.gameState.flowers = gameCore.gameState.flowers || [];
+              gameCore.gameState.flowers.push(flower);
+              gameCore.registerEntityWithFoundationSystems?.(flower);
+            }
             flower.boardPos = { zoneId, u, v, h: 0 };
             flower.currentZoneId = zoneId;
             flower.syncDebugGridPos?.();

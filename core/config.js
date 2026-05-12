@@ -952,6 +952,18 @@ const PAPILIONEM_BATTLE_ARENA = {
             seedFromObservables: true,
             arbitrationMode: 'top-salience'
         },
+        // SR2 - Self-Model. Durable selfModel state is owned by lifeSim; this
+        // flag only controls whether the after-workspace updater writes new
+        // predictions and divergence values.
+        selfModel: {
+            enabled: true,
+            smoothingAlpha: 0.18,
+            divergenceAlpha: 0.16,
+            divergenceFloor: 0.04,
+            divergenceClamp: 1,
+            confidenceAlpha: 0.12,
+            inspectEnabled: true
+        },
         bondTier: {
             enabled: true,
             arcEvents: {

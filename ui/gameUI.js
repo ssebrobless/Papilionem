@@ -905,6 +905,11 @@ class GameUI {
         const workspaceSummary = typeof workspaceSystem !== 'undefined'
             ? workspaceSystem.getEntitySummary?.(target.id)
             : null;
+        const selfModelSummary = lifeSimSummary?.selfModel || (
+            typeof selfModelSystem !== 'undefined'
+                ? selfModelSystem.getEntitySummary?.(target)
+                : null
+        );
         const spatialProof = this.getInspectSpatialProofSummary(target, gameState);
         const cleanJoin = (lines = [], fallback = '') => {
             const filtered = (lines || []).filter(Boolean).map(line => this.normalizePresentationText(line));
@@ -1014,6 +1019,14 @@ class GameUI {
                         ...workspaceSummary.broadcastQueue.slice(0, 4).map(item =>
                             this.normalizePresentationText(`${item.sourceModule} ${item.label} | salience ${item.salience}`)
                         )
+                    ]
+                } : null,
+                selfModelSummary && selfModelSummary.enabled && gameConfig?.cognition?.selfModel?.inspectEnabled !== false ? {
+                    id: 'selfModel',
+                    title: 'Self-Model',
+                    lines: [
+                        this.normalizePresentationText(`Predicts ${selfModelSummary.predictedNextEmotion || 'steady'} | divergence ${Math.round((selfModelSummary.divergenceFromActual || 0) * 100)}`),
+                        this.normalizePresentationText(`${selfModelSummary.currentSelfAssessment?.roleGuess || 'wanderer'} | confidence ${Math.round((selfModelSummary.currentSelfAssessment?.confidence || 0) * 100)} | thinks others see ${selfModelSummary.perceivedByOthersBelief?.mood || 'unknown'}`)
                     ]
                 } : null,
                 {
@@ -3597,6 +3610,15 @@ class GameUI {
         const socialText = cleanDisplayText(lifeSimSummary
             ? `rep ${lifeSimSummary.social.reputation} | belong ${lifeSimSummary.social.belonging} | conf ${lifeSimSummary.social.confidence} | ${lifeSimSummary.social.context}`
             : 'rep 0 | belong 0 | conf 0 | wandering');
+        const selfModelSummary = lifeSimSummary?.selfModel || (typeof selfModelSystem !== 'undefined'
+            ? selfModelSystem.getEntitySummary?.(target)
+            : null);
+        const selfModelText = cleanDisplayText(selfModelSummary
+            ? `Predicts ${selfModelSummary.predictedNextEmotion || 'steady'} | divergence ${Math.round((selfModelSummary.divergenceFromActual || 0) * 100)}`
+            : 'Predicts steady | divergence 0');
+        const selfModelDetailText = cleanDisplayText(selfModelSummary
+            ? `${selfModelSummary.currentSelfAssessment?.roleGuess || 'wanderer'} | confidence ${Math.round((selfModelSummary.currentSelfAssessment?.confidence || 0) * 100)} | seen as ${selfModelSummary.perceivedByOthersBelief?.mood || 'unknown'}`
+            : 'wanderer | confidence 0 | seen as unknown');
         const playerText = cleanDisplayText(lifeSimSummary
             ? `trust ${lifeSimSummary.player?.trust || 0} | fear ${lifeSimSummary.player?.fear || 0} | ${lifeSimSummary.player?.calmed ? 'calmed' : 'uncalmed'}`
             : 'trust 0 | fear 0 | uncalmed');
@@ -3762,6 +3784,12 @@ class GameUI {
                 lines: [relationshipText, isolationMarkerText, romanceText, followThroughText, `Society ${societyToneText}`, societyToneDetailText, `Rhythm ${socialEcologyText}`, socialEcologyDetailText, playerText, dominantMindText, socialText],
                 maxLinesPerItem: 2
             },
+            ...(selfModelSummary && selfModelSummary.enabled && gameConfig?.cognition?.selfModel?.inspectEnabled !== false ? [{
+                id: 'selfModel',
+                title: 'Self-Model',
+                lines: [selfModelText, selfModelDetailText],
+                maxLinesPerItem: 2
+            }] : []),
             {
                 id: 'continuity',
                 title: 'Memory + Habits',

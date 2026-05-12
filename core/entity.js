@@ -324,6 +324,32 @@ function createLifecycleProfile(overrides = {}) {
     };
 }
 
+function createSelfModelProfile(overrides = {}) {
+    const assessment = overrides.currentSelfAssessment || {};
+    const perceived = overrides.perceivedByOthersBelief || {};
+    return {
+        predictedNextEmotion: overrides.predictedNextEmotion || 'steady',
+        currentSelfAssessment: {
+            confidence: Math.max(0, Math.min(1, assessment.confidence ?? 0.35)),
+            roleGuess: assessment.roleGuess || 'wanderer',
+            dominantDrive: assessment.dominantDrive || null,
+            dominantEmotion: assessment.dominantEmotion || null,
+            workspaceFocus: assessment.workspaceFocus || null
+        },
+        perceivedByOthersBelief: {
+            mood: perceived.mood || 'unknown',
+            intent: perceived.intent || 'unknown',
+            reputationEstimate: Math.max(0, Math.min(1, perceived.reputationEstimate ?? 0.2)),
+            socialContext: perceived.socialContext || 'quiet'
+        },
+        divergenceFromActual: Math.max(0, Math.min(1, overrides.divergenceFromActual ?? 0)),
+        predictedNextEmotionIntensity: Math.max(0, Math.min(1, overrides.predictedNextEmotionIntensity ?? 0)),
+        actualEmotion: overrides.actualEmotion || null,
+        initialized: !!overrides.initialized,
+        lastUpdatedTick: Number.isFinite(overrides.lastUpdatedTick) ? overrides.lastUpdatedTick : 0
+    };
+}
+
 function createBaseLifeSimState(options = {}) {
     return {
         identity: {
@@ -357,7 +383,8 @@ function createBaseLifeSimState(options = {}) {
             lessons: [],
             routineReinforcement: {}
         },
-        lifecycle: createLifecycleProfile(options.lifecycle)
+        lifecycle: createLifecycleProfile(options.lifecycle),
+        selfModel: createSelfModelProfile(options.selfModel)
     };
 }
 

@@ -16,6 +16,7 @@ class GameCore {
         this.structureSystem = null;
         this.sleepSystem = null;
         this.lifeSimSystem = null;
+        this.selfModelSystem = null;
         this.statProfileSystem = null;
         this.mlInferenceSystem = null;
         this.rosterSystem = null;
@@ -165,6 +166,7 @@ class GameCore {
             await this.initializePhysicsSystem();
             await this.initializeSleepSystem();
             await this.initializeLifeSimSystem();
+            await this.initializeSelfModelSystem();
             await this.initializeStatProfileSystem();
             await this.initializeMlInferenceSystem();
             await this.initializeRosterSystem();
@@ -406,6 +408,17 @@ class GameCore {
         this.systems.workspaceSystem = this.workspaceSystem;
         this.completedSteps.add('workspaceSystem');
         console.log('✓ Workspace system initialized (SR1)');
+    }
+
+    async initializeSelfModelSystem() {
+        if (typeof SelfModelSystem === 'undefined' || typeof selfModelSystem === 'undefined') {
+            throw new Error('SelfModelSystem not found - ensure systems/selfModelSystem.js is loaded');
+        }
+        this.selfModelSystem = selfModelSystem;
+        this.selfModelSystem.initialize();
+        this.systems.selfModelSystem = this.selfModelSystem;
+        this.completedSteps.add('selfModelSystem');
+        console.log('✓ Self-model system initialized (SR2)');
     }
 
     async initializeBattleSystem() {
@@ -4671,6 +4684,20 @@ class GameCore {
             foundationBreakdown.workspaceCandidates = workspaceUpdateSummary.candidates || 0;
             foundationBreakdown.workspaceAgentsWithBroadcast = workspaceUpdateSummary.agents || 0;
         }
+        let selfModelUpdateSummary = null;
+        timeStep('selfModelSystemMs', () => {
+            selfModelUpdateSummary = this.lifeSimSystem?.updateSelfModels?.(this.gameState, deltaSeconds, {
+                currentFrame: this.getCurrentFrame()
+            }) || null;
+            this.selfModelSystem?.update?.(this.gameState, deltaSeconds, {
+                currentFrame: this.getCurrentFrame()
+            });
+        });
+        if (selfModelUpdateSummary) {
+            foundationBreakdown.selfModelEnabled = selfModelUpdateSummary.enabled || 0;
+            foundationBreakdown.selfModelUpdatedCount = selfModelUpdateSummary.updated || 0;
+            foundationBreakdown.selfModelMeanDivergence = selfModelUpdateSummary.meanDivergence || 0;
+        }
         timeStep('behaviorSystemMs', () => this.behaviorSystem?.update(this.gameState, deltaSeconds));
         timeStep('mlInferenceSystemMs', () => {
             mlInferenceUpdateSummary = this.mlInferenceSystem?.update(this.gameState, deltaSeconds, {
@@ -5720,6 +5747,7 @@ class GameCore {
         this.teachingSystem?.reset?.();
         this.communicationSystem?.reset?.();
         this.workspaceSystem?.reset?.();
+        this.selfModelSystem?.reset?.();
         this.battleSystem?.reset?.();
         if (!options.preserveTelemetry) {
             this.telemetrySystem?.reset?.();

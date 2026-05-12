@@ -345,6 +345,39 @@ class SaveSystem {
         return cloned;
     }
 
+    normalizeSavedSelfModel(source = null) {
+        if (typeof createSelfModelProfile === 'function') {
+            return createSelfModelProfile(source || {});
+        }
+        return {
+            predictedNextEmotion: source?.predictedNextEmotion || 'steady',
+            currentSelfAssessment: {
+                confidence: Math.max(0, Math.min(1, source?.currentSelfAssessment?.confidence ?? 0.35)),
+                roleGuess: source?.currentSelfAssessment?.roleGuess || 'wanderer',
+                dominantDrive: source?.currentSelfAssessment?.dominantDrive || null,
+                dominantEmotion: source?.currentSelfAssessment?.dominantEmotion || null,
+                workspaceFocus: source?.currentSelfAssessment?.workspaceFocus || null
+            },
+            perceivedByOthersBelief: {
+                mood: source?.perceivedByOthersBelief?.mood || 'unknown',
+                intent: source?.perceivedByOthersBelief?.intent || 'unknown',
+                reputationEstimate: Math.max(0, Math.min(1, source?.perceivedByOthersBelief?.reputationEstimate ?? 0.2)),
+                socialContext: source?.perceivedByOthersBelief?.socialContext || 'quiet'
+            },
+            divergenceFromActual: Math.max(0, Math.min(1, source?.divergenceFromActual ?? 0)),
+            predictedNextEmotionIntensity: Math.max(0, Math.min(1, source?.predictedNextEmotionIntensity ?? 0)),
+            actualEmotion: source?.actualEmotion || null,
+            initialized: !!source?.initialized,
+            lastUpdatedTick: Number.isFinite(source?.lastUpdatedTick) ? source.lastUpdatedTick : 0
+        };
+    }
+
+    ensureSerializedSelfModel(entityRecord = {}) {
+        entityRecord.lifeSim = entityRecord.lifeSim || {};
+        entityRecord.lifeSim.selfModel = this.normalizeSavedSelfModel(entityRecord.lifeSim.selfModel);
+        return entityRecord.lifeSim.selfModel;
+    }
+
     captureZoneTravelState(zoneTravel) {
         if (!zoneTravel?.sourceZoneId) return null;
         return {
@@ -813,12 +846,14 @@ class SaveSystem {
         for (const butterfly of migrated.butterflies || []) {
             this.normalizeMigratedEntityBoardPos(butterfly, { includeShadowOffset: true });
             this.migrateZoneTravelIntentV5(butterfly);
+            this.ensureSerializedSelfModel(butterfly);
         }
         for (const flower of migrated.flowers || []) {
             this.migrateFlowerLifecycleBoardPos(flower);
         }
         for (const caterpillar of migrated.caterpillars || []) {
             this.normalizeMigratedEntityBoardPos(caterpillar, { includeShadowOffset: true });
+            this.ensureSerializedSelfModel(caterpillar);
         }
         for (const block of migrated.blocks || []) {
             this.normalizeMigratedEntityBoardPos(block, { hHint: block.stackIndex ?? 0 });
@@ -1210,6 +1245,7 @@ class SaveSystem {
         if (butterfly.lifeSim?.lifecycle) {
             butterfly.lifeSim.lifecycle.currentZoneId = butterfly.currentZoneId || null;
         }
+        lifeSimSystem?.ensureLifeSimState?.(butterfly);
         butterfly.timers = {
             ...butterfly.timers,
             ...(savedButterfly.timers || {})
@@ -1296,6 +1332,7 @@ class SaveSystem {
         if (caterpillar.lifeSim?.lifecycle) {
             caterpillar.lifeSim.lifecycle.currentZoneId = caterpillar.currentZoneId || null;
         }
+        lifeSimSystem?.ensureLifeSimState?.(caterpillar);
         caterpillar.__savedTargetFlowerId = savedCaterpillar.targetFlowerId || null;
         return caterpillar;
     }

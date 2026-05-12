@@ -59,6 +59,7 @@ class LifeSimSystem {
         entity.lifeSim.progression = entity.lifeSim.progression || createProgressionContextProfile();
         entity.lifeSim.battleContext = entity.lifeSim.battleContext || createBattleContextProfile();
         entity.lifeSim.migration = entity.lifeSim.migration || createMigrationProfile();
+        entity.lifeSim.selfModel = this.normalizeSelfModel(entity.lifeSim.selfModel);
         entity.lifeSim.upbringing = entity.lifeSim.upbringing || { imprintSources: [], lessons: [], routineReinforcement: {} };
         entity.lifeSim.interpretation = entity.lifeSim.interpretation || { clarity: 1, lastSignals: [], warpedSignals: 0 };
         entity.lifeSim.lifecycle = entity.lifeSim.lifecycle || createLifecycleProfile();
@@ -68,6 +69,41 @@ class LifeSimSystem {
             ensureLifeSocialEdge?.(entity, targetId);
         }
         return entity.lifeSim;
+    }
+
+    getSelfModelConfig() {
+        return gameConfig?.cognition?.selfModel || {};
+    }
+
+    isSelfModelEnabled() {
+        return this.getSelfModelConfig().enabled !== false;
+    }
+
+    normalizeSelfModel(source = null) {
+        if (typeof createSelfModelProfile === 'function') {
+            return createSelfModelProfile(source || {});
+        }
+        return {
+            predictedNextEmotion: source?.predictedNextEmotion || 'steady',
+            currentSelfAssessment: {
+                confidence: this.clamp01(source?.currentSelfAssessment?.confidence ?? 0.35),
+                roleGuess: source?.currentSelfAssessment?.roleGuess || 'wanderer',
+                dominantDrive: source?.currentSelfAssessment?.dominantDrive || null,
+                dominantEmotion: source?.currentSelfAssessment?.dominantEmotion || null,
+                workspaceFocus: source?.currentSelfAssessment?.workspaceFocus || null
+            },
+            perceivedByOthersBelief: {
+                mood: source?.perceivedByOthersBelief?.mood || 'unknown',
+                intent: source?.perceivedByOthersBelief?.intent || 'unknown',
+                reputationEstimate: this.clamp01(source?.perceivedByOthersBelief?.reputationEstimate ?? 0.2),
+                socialContext: source?.perceivedByOthersBelief?.socialContext || 'quiet'
+            },
+            divergenceFromActual: this.clamp01(source?.divergenceFromActual ?? 0),
+            predictedNextEmotionIntensity: this.clamp01(source?.predictedNextEmotionIntensity ?? 0),
+            actualEmotion: source?.actualEmotion || null,
+            initialized: !!source?.initialized,
+            lastUpdatedTick: Number.isFinite(source?.lastUpdatedTick) ? source.lastUpdatedTick : 0
+        };
     }
 
     ensureRuntimeState(entityId) {
@@ -3151,6 +3187,144 @@ class LifeSimSystem {
         }
     }
 
+    getActualEmotionState(entity) {
+        const lifeSim = entity?.lifeSim || {};
+        const emotionPeaks = lifeSim.derived?.emotionPeaks?.length
+            ? lifeSim.derived.emotionPeaks
+            : this.getTopLabels(lifeSim.emotions || {}, 2);
+        const primary = emotionPeaks[0]?.label || lifeSim.derived?.dominantEmotion || 'steady';
+        const intensity = this.clamp01(emotionPeaks[0]?.value ?? lifeSim.emotions?.[primary] ?? 0);
+        return { primary, intensity };
+    }
+
+    getSelfModelRoleGuess(entity, lifeSim) {
+        const drive = lifeSim?.derived?.dominantDrive || lifeSim?.social?.focus || 'rest';
+        const context = lifeSim?.social?.activeContext || 'wandering';
+        if (context === 'caregiving' || drive === 'caregiving') return 'caregiver';
+        if (context === 'training' || drive === 'statusExpression') return 'challenger';
+        if (drive === 'exploration') return 'scout';
+        if (drive === 'resourceControl' || drive === 'selfMaintenance') return 'forager';
+        if (drive === 'socialConnection') return 'companion';
+        if (drive === 'rest') return 'resting';
+        return 'wanderer';
+    }
+
+    mapDriveToExpectedEmotion(drive = 'rest') {
+        return {
+            selfMaintenance: 'relief',
+            safetyAvoidance: 'threat',
+            resourceControl: 'curiosity',
+            socialConnection: 'attachment',
+            caregiving: 'attachment',
+            exploration: 'curiosity',
+            statusExpression: 'significance',
+            rest: 'relief'
+        }[drive] || 'steady';
+    }
+
+    getWorkspacePredictionCue(entityId) {
+        const summary = typeof workspaceSystem !== 'undefined'
+            ? workspaceSystem.getEntitySummary?.(entityId)
+            : null;
+        const top = summary?.broadcastQueue?.[0] || null;
+        if (!top) {
+            return { prediction: null, focus: null, socialContext: 'quiet' };
+        }
+        const label = String(top.label || '').toLowerCase();
+        let prediction = null;
+        if (label.includes('threat') || label.includes('warning')) prediction = 'threat';
+        else if (label.includes('bond') || label.includes('care') || label.includes('social')) prediction = 'attachment';
+        else if (label.includes('rest') || label.includes('shelter')) prediction = 'relief';
+        else if (label.includes('status') || label.includes('battle')) prediction = 'significance';
+        else if (label.includes('explore') || label.includes('resource')) prediction = 'curiosity';
+        return {
+            prediction,
+            focus: top.label || top.sourceModule || null,
+            socialContext: top.sourceModule || 'workspace'
+        };
+    }
+
+    updateSelfModel(entity, gameState = gameCore?.gameState, options = {}) {
+        const lifeSim = this.ensureLifeSimState(entity);
+        if (!lifeSim) return null;
+        const selfModel = lifeSim.selfModel = this.normalizeSelfModel(lifeSim.selfModel);
+        if (!this.isSelfModelEnabled()) {
+            return { updated: false, selfModel };
+        }
+        const config = this.getSelfModelConfig();
+        const currentFrame = Number.isFinite(options.currentFrame)
+            ? options.currentFrame
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
+        const actual = this.getActualEmotionState(entity);
+        const previousPrediction = selfModel.initialized
+            ? (selfModel.predictedNextEmotion || 'steady')
+            : (actual.primary || 'steady');
+        const previousIntensity = this.clamp01(selfModel.predictedNextEmotionIntensity ?? actual.intensity ?? 0);
+        const mismatch = previousPrediction !== actual.primary ? 0.28 : 0.055;
+        const intensityDelta = Math.abs(previousIntensity - actual.intensity);
+        const rawDivergence = this.clamp01((config.divergenceFloor ?? 0.04) + mismatch + intensityDelta * 0.48);
+        const divergenceAlpha = this.clamp01(config.divergenceAlpha ?? config.smoothingAlpha ?? 0.16);
+        selfModel.divergenceFromActual = this.clamp01(
+            this.lerpValue(selfModel.divergenceFromActual || 0, rawDivergence, divergenceAlpha)
+        );
+
+        const drive = lifeSim.derived?.dominantDrive || lifeSim.social?.focus || 'rest';
+        const workspaceCue = this.getWorkspacePredictionCue(entity?.id);
+        const predictedNextEmotion = workspaceCue.prediction || this.mapDriveToExpectedEmotion(drive) || actual.primary || 'steady';
+        const confidenceTarget = this.clamp01(
+            0.42
+            + (lifeSim.social?.confidence || 0) * 0.28
+            + (1 - selfModel.divergenceFromActual) * 0.18
+            - (lifeSim.emotions?.threat || 0) * 0.1
+        );
+        const confidenceAlpha = this.clamp01(config.confidenceAlpha ?? 0.12);
+        selfModel.predictedNextEmotion = predictedNextEmotion;
+        selfModel.predictedNextEmotionIntensity = this.clamp01(
+            (actual.intensity * 0.55) + ((lifeSim.drives?.[drive] || 0) * 0.25) + (workspaceCue.prediction ? 0.2 : 0)
+        );
+        selfModel.currentSelfAssessment = {
+            confidence: this.clamp01(this.lerpValue(selfModel.currentSelfAssessment?.confidence ?? 0.35, confidenceTarget, confidenceAlpha)),
+            roleGuess: this.getSelfModelRoleGuess(entity, lifeSim),
+            dominantDrive: drive,
+            dominantEmotion: actual.primary,
+            workspaceFocus: workspaceCue.focus
+        };
+        selfModel.perceivedByOthersBelief = {
+            mood: actual.primary || 'steady',
+            intent: lifeSim.social?.focus || drive || 'rest',
+            reputationEstimate: this.clamp01(lifeSim.social?.reputation ?? selfModel.perceivedByOthersBelief?.reputationEstimate ?? 0.2),
+            socialContext: lifeSim.social?.activeContext || workspaceCue.socialContext || 'quiet'
+        };
+        selfModel.actualEmotion = actual.primary;
+        selfModel.initialized = true;
+        selfModel.lastUpdatedTick = Math.max(0, Math.round(currentFrame || 0));
+        return { updated: true, selfModel };
+    }
+
+    updateSelfModels(gameState, deltaSeconds = gameConfig?.simulation?.fixedDeltaSeconds || (1 / 60), options = {}) {
+        const stats = {
+            enabled: this.isSelfModelEnabled() ? 1 : 0,
+            updated: 0,
+            entities: 0,
+            meanDivergence: 0
+        };
+        const values = [];
+        const currentFrame = Number.isFinite(options.currentFrame)
+            ? options.currentFrame
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
+        for (const entity of this.getLiveEntities(gameState)) {
+            stats.entities += 1;
+            const result = this.updateSelfModel(entity, gameState, { ...options, currentFrame, deltaSeconds });
+            if (result?.updated) stats.updated += 1;
+            const divergence = result?.selfModel?.divergenceFromActual;
+            if (Number.isFinite(divergence)) values.push(divergence);
+        }
+        stats.meanDivergence = values.length
+            ? values.reduce((sum, value) => sum + value, 0) / values.length
+            : 0;
+        return stats;
+    }
+
     update(gameState, deltaSeconds = gameConfig?.simulation?.fixedDeltaSeconds || (1 / 60), options = {}) {
         this.simulationClockSeconds += deltaSeconds;
         const cadence = this.getCadenceConfig(gameState, options);
@@ -3234,6 +3408,17 @@ class LifeSimSystem {
                 context: lifeSim.social?.activeContext || 'wandering'
             },
             cognition: this.getCognitionSummary(entity),
+            selfModel: lifeSim.selfModel ? {
+                enabled: this.isSelfModelEnabled(),
+                predictedNextEmotion: lifeSim.selfModel.predictedNextEmotion || 'steady',
+                divergenceFromActual: Number(lifeSim.selfModel.divergenceFromActual || 0),
+                currentSelfAssessment: { ...(lifeSim.selfModel.currentSelfAssessment || {}) },
+                perceivedByOthersBelief: { ...(lifeSim.selfModel.perceivedByOthersBelief || {}) },
+                initialized: !!lifeSim.selfModel.initialized,
+                lastUpdatedTick: Number.isFinite(lifeSim.selfModel.lastUpdatedTick)
+                    ? lifeSim.selfModel.lastUpdatedTick
+                    : 0
+            } : null,
             freshness: {
                 lastValidFrame,
                 staleFrames: Number.isFinite(lastValidFrame) && Number.isFinite(nowFrame)
