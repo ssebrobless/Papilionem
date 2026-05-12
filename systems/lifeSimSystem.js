@@ -62,6 +62,7 @@ class LifeSimSystem {
         entity.lifeSim.migration = entity.lifeSim.migration || createMigrationProfile();
         entity.lifeSim.selfModel = this.normalizeSelfModel(entity.lifeSim.selfModel);
         entity.lifeSim.metacognition = this.normalizeMetacognition(entity.lifeSim.metacognition);
+        this.ensureTheoryOfMindState(entity);
         entity.lifeSim.upbringing = entity.lifeSim.upbringing || { imprintSources: [], lessons: [], routineReinforcement: {} };
         entity.lifeSim.interpretation = entity.lifeSim.interpretation || { clarity: 1, lastSignals: [], warpedSignals: 0 };
         entity.lifeSim.lifecycle = entity.lifeSim.lifecycle || createLifecycleProfile();
@@ -114,6 +115,47 @@ class LifeSimSystem {
 
     isMetacognitionEnabled() {
         return this.getMetacognitionConfig().enabled !== false;
+    }
+
+    getTheoryOfMindConfig() {
+        return gameConfig?.cognition?.theoryOfMind || {};
+    }
+
+    isTheoryOfMindEnabled() {
+        return this.getTheoryOfMindConfig().enabled !== false;
+    }
+
+    normalizeTheoryOfMind(source = null) {
+        if (typeof createTheoryOfMindProfile === 'function') {
+            return createTheoryOfMindProfile(source || {});
+        }
+        const mood = source?.believedMood || {};
+        return {
+            believedDrives: source?.believedDrives && typeof source.believedDrives === 'object'
+                ? { ...source.believedDrives }
+                : {},
+            believedMood: {
+                primary: mood.primary || null,
+                intensity: this.clamp01(mood.intensity ?? 0)
+            },
+            believedGoal: source?.believedGoal || null,
+            divergenceFromActual: this.clamp01(source?.divergenceFromActual ?? 0),
+            initialized: !!source?.initialized,
+            lastUpdatedTick: Number.isFinite(source?.lastUpdatedTick) ? Math.max(0, Math.round(source.lastUpdatedTick)) : 0,
+            lastContradictionTick: Number.isFinite(source?.lastContradictionTick) ? Math.max(0, Math.round(source.lastContradictionTick)) : 0,
+            evidenceCount: Math.max(0, Math.round(source?.evidenceCount || 0))
+        };
+    }
+
+    ensureTheoryOfMindState(entity) {
+        const edges = entity?.lifeSim?.socialEdges || {};
+        for (const targetId of Object.keys(edges)) {
+            const edge = ensureLifeSocialEdge?.(entity, targetId) || edges[targetId];
+            if (edge && (!edge.theoryOfMind || typeof edge.theoryOfMind !== 'object' || !edge.theoryOfMind.believedMood)) {
+                edge.theoryOfMind = this.normalizeTheoryOfMind(edge.theoryOfMind);
+            }
+        }
+        return edges;
     }
 
     normalizeMetacognition(source = []) {
@@ -3349,6 +3391,201 @@ class LifeSimSystem {
         return stats;
     }
 
+    getActualGoalState(entity) {
+        const runtime = typeof behaviorSystem !== 'undefined' ? behaviorSystem.getRuntime?.(entity?.id) : null;
+        if (runtime?.currentActionSubtype && runtime.currentActionSubtype !== 'idle') return runtime.currentActionSubtype;
+        const lifeSim = entity?.lifeSim || {};
+        if (entity?.state && entity.state !== 'normal') return entity.state;
+        if (entity?.targetFlower || entity?.feeding?.targetFlower) return 'seeking-food';
+        if (entity?.targetCleanupPile || entity?.movement?.targetType === 'cleanup') return 'cleanup';
+        if (lifeSim.derived?.dominantDrive) return lifeSim.derived.dominantDrive;
+        return lifeSim.social?.focus || 'wandering';
+    }
+
+    getBelievedDriveSnapshot(entity) {
+        const peaks = entity?.lifeSim?.derived?.drivePeaks?.length
+            ? entity.lifeSim.derived.drivePeaks
+            : this.getTopLabels(entity?.lifeSim?.drives || {}, 3);
+        return peaks.reduce((memo, peak) => {
+            if (peak?.label) memo[peak.label] = this.clamp01(peak.value || 0);
+            return memo;
+        }, {});
+    }
+
+    getTheoryOfMindDivergence(model = {}, actualMood = {}, actualGoal = 'wandering', actualDrives = {}) {
+        const moodMismatch = model.believedMood?.primary && model.believedMood.primary !== actualMood.primary ? 0.34 : 0.04;
+        const intensityDelta = Math.abs(this.clamp01(model.believedMood?.intensity || 0) - this.clamp01(actualMood.intensity || 0));
+        const goalMismatch = model.believedGoal && model.believedGoal !== actualGoal ? 0.28 : 0.03;
+        const driveKeys = new Set([...Object.keys(model.believedDrives || {}), ...Object.keys(actualDrives || {})]);
+        let driveDelta = 0;
+        for (const key of driveKeys) {
+            driveDelta = Math.max(driveDelta, Math.abs(this.clamp01(model.believedDrives?.[key] || 0) - this.clamp01(actualDrives?.[key] || 0)));
+        }
+        return this.clamp01(moodMismatch + intensityDelta * 0.24 + goalMismatch + driveDelta * 0.18);
+    }
+
+    applyTheoryOfMindInfluence(observer, targetId, model, currentFrame) {
+        const lifeSim = observer?.lifeSim;
+        if (!lifeSim?.derived || !model || !this.isTheoryOfMindEnabled()) return false;
+        const config = this.getTheoryOfMindConfig();
+        const influenceFrames = Math.max(1, Math.round(config.decisionInfluenceFrames || 1800));
+        if (Math.max(0, currentFrame - (model.lastUpdatedTick || 0)) > influenceFrames) return false;
+        const mood = model.believedMood?.primary || 'steady';
+        const intensity = this.clamp01(model.believedMood?.intensity || 0);
+        const divergence = this.clamp01(model.divergenceFromActual || 0);
+        let actionBias = null;
+        if ((mood === 'threat' || mood === 'exhaustion' || mood === 'agitation') && intensity >= (config.careIntentThreshold ?? 0.42)) {
+            actionBias = 'comfort-from-belief';
+        } else if ((mood === 'resentment' || mood === 'rejection') && intensity >= (config.avoidIntentThreshold ?? 0.5)) {
+            actionBias = 'avoid-from-belief';
+        } else if ((model.believedGoal === 'socialConnection' || model.believedGoal === 'courtship-territory') && intensity >= 0.25) {
+            actionBias = 'approach-from-belief';
+        }
+        if (!actionBias) return false;
+        lifeSim.derived.theoryOfMindBias = {
+            active: true,
+            targetId,
+            believedMood: { ...(model.believedMood || {}) },
+            believedGoal: model.believedGoal || null,
+            divergenceFromActual: divergence,
+            actionBias,
+            sourceTick: model.lastUpdatedTick || currentFrame,
+            updatedAtFrame: currentFrame
+        };
+        return true;
+    }
+
+    updateTheoryOfMindModel(observer, subject, gameState = gameCore?.gameState, options = {}) {
+        const observerLife = this.ensureLifeSimState(observer);
+        const subjectLife = this.ensureLifeSimState(subject);
+        if (!observerLife || !subjectLife || !subject?.id || observer?.id === subject.id) return null;
+        const edge = ensureLifeSocialEdge?.(observer, subject.id);
+        if (!edge) return null;
+        const model = edge.theoryOfMind = this.normalizeTheoryOfMind(edge.theoryOfMind);
+        const currentFrame = Number.isFinite(options.currentFrame)
+            ? Math.max(0, Math.round(options.currentFrame))
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
+        if (!this.isTheoryOfMindEnabled()) {
+            return { updated: false, model };
+        }
+        const actualMood = this.getActualEmotionState(subject);
+        const actualGoal = this.getActualGoalState(subject);
+        const actualDrives = this.getBelievedDriveSnapshot(subject);
+        const previousDivergence = this.getTheoryOfMindDivergence(model, actualMood, actualGoal, actualDrives);
+        const forceObservation = !!options.forceObservation;
+        const sameZone = this.getZoneId(observer) && this.getZoneId(observer) === this.getZoneId(subject);
+        const relationshipWeight = this.clamp01((edge.trust || 0) * 0.2 + (edge.comfort || 0) * 0.18 + (edge.attachment || 0) * 0.18 + (sameZone ? 0.18 : 0));
+        const alpha = forceObservation || previousDivergence >= 0.45
+            ? this.clamp01(options.alpha ?? this.getTheoryOfMindConfig().contradictionAlpha ?? 0.55)
+            : this.clamp01(options.alpha ?? this.getTheoryOfMindConfig().divergenceAlpha ?? 0.2);
+        const effectiveAlpha = this.clamp01(alpha + relationshipWeight * 0.25);
+
+        if (!model.initialized) {
+            model.believedDrives = { ...actualDrives };
+            model.believedMood = { primary: actualMood.primary || 'steady', intensity: this.clamp01(actualMood.intensity || 0) };
+            model.believedGoal = actualGoal;
+            model.initialized = true;
+        } else {
+            const driveKeys = new Set([...Object.keys(model.believedDrives || {}), ...Object.keys(actualDrives || {})]);
+            const nextDrives = {};
+            for (const key of driveKeys) {
+                nextDrives[key] = this.clamp01(this.lerpValue(model.believedDrives?.[key] || 0, actualDrives[key] || 0, effectiveAlpha));
+            }
+            model.believedDrives = nextDrives;
+            model.believedMood = {
+                primary: effectiveAlpha >= 0.5 || !model.believedMood?.primary ? actualMood.primary || 'steady' : model.believedMood.primary,
+                intensity: this.clamp01(this.lerpValue(model.believedMood?.intensity || 0, actualMood.intensity || 0, effectiveAlpha))
+            };
+            if (effectiveAlpha >= 0.5 || !model.believedGoal) model.believedGoal = actualGoal;
+        }
+
+        const nextDivergence = this.getTheoryOfMindDivergence(model, actualMood, actualGoal, actualDrives);
+        model.divergenceFromActual = this.clamp01(this.lerpValue(model.divergenceFromActual || 0, nextDivergence, effectiveAlpha));
+        if (previousDivergence >= 0.45 && nextDivergence < previousDivergence) {
+            model.lastContradictionTick = currentFrame;
+        }
+        model.evidenceCount = Math.max(0, Math.round(model.evidenceCount || 0) + 1);
+        model.lastUpdatedTick = currentFrame;
+        const influenced = this.applyTheoryOfMindInfluence(observer, subject.id, model, currentFrame);
+        return { updated: true, model, previousDivergence, nextDivergence, influenced };
+    }
+
+    updateTheoryOfMindModels(gameState, deltaSeconds = gameConfig?.simulation?.fixedDeltaSeconds || (1 / 60), options = {}) {
+        const currentFrame = Number.isFinite(options.currentFrame)
+            ? Math.max(0, Math.round(options.currentFrame))
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
+        const config = this.getTheoryOfMindConfig();
+        const interval = Math.max(1, Math.round(config.updateIntervalFrames || 30));
+        const stats = {
+            enabled: this.isTheoryOfMindEnabled() ? 1 : 0,
+            updated: 0,
+            influenced: 0,
+            edges: 0,
+            meanDivergence: 0
+        };
+        const divergences = [];
+        const maxEdges = Math.max(1, Math.round(config.maxEdgesPerTick || 8));
+        for (const observer of this.getLiveEntities(gameState)) {
+            const lifeSim = this.ensureLifeSimState(observer);
+            const observerHash = Math.abs(String(observer.id || '').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0));
+            if (!options.force && currentFrame % interval !== observerHash % interval) continue;
+            for (const targetId of Object.keys(lifeSim?.socialEdges || {})) {
+                const subject = this.getEntityById(targetId, gameState);
+                const edge = ensureLifeSocialEdge?.(observer, targetId);
+                if (!edge) continue;
+                stats.edges += 1;
+                if (!subject) {
+                    edge.theoryOfMind = this.normalizeTheoryOfMind(edge.theoryOfMind);
+                    continue;
+                }
+                const result = this.updateTheoryOfMindModel(observer, subject, gameState, { ...options, currentFrame, deltaSeconds });
+                if (result?.updated) stats.updated += 1;
+                if (result?.influenced) stats.influenced += 1;
+                const divergence = result?.model?.divergenceFromActual;
+                if (Number.isFinite(divergence)) divergences.push(divergence);
+                if (!options.force && stats.updated >= maxEdges) break;
+            }
+            if (!options.force && stats.updated >= maxEdges) break;
+        }
+        stats.meanDivergence = divergences.length
+            ? divergences.reduce((sum, value) => sum + value, 0) / divergences.length
+            : 0;
+        return stats;
+    }
+
+    getTheoryOfMindSummary(entity, gameState = gameCore?.gameState) {
+        const lifeSim = this.ensureLifeSimState(entity);
+        if (!lifeSim) return null;
+        const entries = Object.entries(lifeSim.socialEdges || {})
+            .map(([targetId, edge]) => ({
+                targetId,
+                model: this.normalizeTheoryOfMind(edge?.theoryOfMind),
+                target: this.getEntityById(targetId, gameState)
+            }))
+            .filter(entry => entry.model);
+        const strongest = entries
+            .slice()
+            .sort((left, right) => (right.model.divergenceFromActual || 0) - (left.model.divergenceFromActual || 0))[0] || null;
+        const initializedCount = entries.filter(entry => entry.model.initialized).length;
+        return {
+            enabled: this.isTheoryOfMindEnabled(),
+            edgeCount: entries.length,
+            initializedCount,
+            meanDivergence: entries.length
+                ? entries.reduce((sum, entry) => sum + (entry.model.divergenceFromActual || 0), 0) / entries.length
+                : 0,
+            strongest: strongest ? {
+                targetId: strongest.targetId,
+                targetLabel: strongest.target?.getDisplayName?.() || strongest.target?.displayName || strongest.target?.personalityType || strongest.targetId,
+                believedMood: { ...(strongest.model.believedMood || {}) },
+                believedGoal: strongest.model.believedGoal || null,
+                divergenceFromActual: strongest.model.divergenceFromActual || 0,
+                lastContradictionTick: strongest.model.lastContradictionTick || 0
+            } : null,
+            activeBias: lifeSim.derived?.theoryOfMindBias || null
+        };
+    }
+
     getMetaEmotionFor(firstOrderEmotion = 'steady', selfModel = {}) {
         const prediction = selfModel?.predictedNextEmotion || 'steady';
         if (firstOrderEmotion === 'threat') return 'surprised-by-threat';
@@ -3571,6 +3808,7 @@ class LifeSimSystem {
                     : null,
                 activeBias: lifeSim.derived?.metacognitionBias || null
             },
+            theoryOfMind: this.getTheoryOfMindSummary(entity, gameCore?.gameState),
             freshness: {
                 lastValidFrame,
                 staleFrames: Number.isFinite(lastValidFrame) && Number.isFinite(nowFrame)

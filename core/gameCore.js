@@ -4698,6 +4698,17 @@ class GameCore {
             foundationBreakdown.selfModelUpdatedCount = selfModelUpdateSummary.updated || 0;
             foundationBreakdown.selfModelMeanDivergence = selfModelUpdateSummary.meanDivergence || 0;
         }
+        let theoryOfMindUpdateSummary = null;
+        timeStep('theoryOfMindSystemMs', () => {
+            theoryOfMindUpdateSummary = this.lifeSimSystem?.updateTheoryOfMindModels?.(this.gameState, deltaSeconds, {
+                currentFrame: this.getCurrentFrame()
+            }) || null;
+        });
+        if (theoryOfMindUpdateSummary) {
+            foundationBreakdown.theoryOfMindEnabled = theoryOfMindUpdateSummary.enabled || 0;
+            foundationBreakdown.theoryOfMindUpdatedCount = theoryOfMindUpdateSummary.updated || 0;
+            foundationBreakdown.theoryOfMindMeanDivergence = theoryOfMindUpdateSummary.meanDivergence || 0;
+        }
         timeStep('behaviorSystemMs', () => this.behaviorSystem?.update(this.gameState, deltaSeconds));
         timeStep('mlInferenceSystemMs', () => {
             mlInferenceUpdateSummary = this.mlInferenceSystem?.update(this.gameState, deltaSeconds, {

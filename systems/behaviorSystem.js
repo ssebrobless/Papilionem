@@ -260,6 +260,40 @@ class BehaviorSystem {
         return null;
     }
 
+    getTheoryOfMindIntent(entity) {
+        const bias = entity?.lifeSim?.derived?.theoryOfMindBias || null;
+        if (!bias?.active || !bias.targetId) return null;
+        const score = Math.max(45, Math.round((0.5 + (bias.divergenceFromActual || 0) * 0.35) * 100));
+        if (bias.actionBias === 'comfort-from-belief') {
+            return {
+                actionFamily: 'socialize',
+                actionSubtype: 'comfort-from-belief',
+                targetId: bias.targetId,
+                priorityScore: score,
+                reason: 'theory-of-mind-belief'
+            };
+        }
+        if (bias.actionBias === 'avoid-from-belief') {
+            return {
+                actionFamily: 'wander',
+                actionSubtype: 'avoid-from-belief',
+                targetId: bias.targetId,
+                priorityScore: score,
+                reason: 'theory-of-mind-belief'
+            };
+        }
+        if (bias.actionBias === 'approach-from-belief') {
+            return {
+                actionFamily: 'socialize',
+                actionSubtype: 'approach-from-belief',
+                targetId: bias.targetId,
+                priorityScore: score,
+                reason: 'theory-of-mind-belief'
+            };
+        }
+        return null;
+    }
+
     getFollowThroughIntent(entity) {
         const followThrough = entity?.lifeSim?.derived?.socialEcology?.followThrough || null;
         if (!followThrough) return null;
@@ -352,7 +386,7 @@ class BehaviorSystem {
         const actionFamily = this.inferActionFamily(entity);
         const socialIntent = actionFamily === 'sleep'
             ? null
-            : (this.getMetacognitionIntent(entity) || this.getAffordanceMigrationIntent(entity, gameCore?.gameState) || this.getFollowThroughIntent(entity) || this.getSocialEcologyIntent(entity));
+            : (this.getTheoryOfMindIntent(entity) || this.getMetacognitionIntent(entity) || this.getAffordanceMigrationIntent(entity, gameCore?.gameState) || this.getFollowThroughIntent(entity) || this.getSocialEcologyIntent(entity));
         if (socialIntent?.actionSubtype === 'zone-affordance-migration') {
             this.applyAffordanceMigrationIntent(entity, socialIntent);
         }

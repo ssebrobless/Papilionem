@@ -979,6 +979,20 @@ const PAPILIONEM_BATTLE_ARENA = {
             socialConfidencePenalty: 0.08,
             inspectEnabled: true
         },
+        // SR4 - Theory of Mind. Durable models live on lifeSim.socialEdges[*];
+        // this controls whether observations update those models and whether
+        // active beliefs can bias the next social decision.
+        theoryOfMind: {
+            enabled: true,
+            updateIntervalFrames: 120,
+            maxEdgesPerTick: 8,
+            divergenceAlpha: 0.2,
+            contradictionAlpha: 0.55,
+            decisionInfluenceFrames: 1800,
+            careIntentThreshold: 0.42,
+            avoidIntentThreshold: 0.5,
+            inspectEnabled: true
+        },
         bondTier: {
             enabled: true,
             arcEvents: {

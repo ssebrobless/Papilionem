@@ -391,10 +391,43 @@ class SaveSystem {
         return entityRecord.lifeSim.metacognition;
     }
 
+    normalizeSavedTheoryOfMind(source = null) {
+        if (typeof createTheoryOfMindProfile === 'function') {
+            return createTheoryOfMindProfile(source || {});
+        }
+        const mood = source?.believedMood || {};
+        return {
+            believedDrives: source?.believedDrives && typeof source.believedDrives === 'object'
+                ? { ...source.believedDrives }
+                : {},
+            believedMood: {
+                primary: mood.primary || null,
+                intensity: Math.max(0, Math.min(1, mood.intensity ?? 0))
+            },
+            believedGoal: source?.believedGoal || null,
+            divergenceFromActual: Math.max(0, Math.min(1, source?.divergenceFromActual ?? 0)),
+            initialized: !!source?.initialized,
+            lastUpdatedTick: Number.isFinite(source?.lastUpdatedTick) ? Math.max(0, Math.round(source.lastUpdatedTick)) : 0,
+            lastContradictionTick: Number.isFinite(source?.lastContradictionTick) ? Math.max(0, Math.round(source.lastContradictionTick)) : 0,
+            evidenceCount: Math.max(0, Math.round(source?.evidenceCount || 0))
+        };
+    }
+
+    ensureSerializedTheoryOfMind(entityRecord = {}) {
+        entityRecord.lifeSim = entityRecord.lifeSim || {};
+        entityRecord.lifeSim.socialEdges = entityRecord.lifeSim.socialEdges || {};
+        for (const edge of Object.values(entityRecord.lifeSim.socialEdges)) {
+            if (!edge || typeof edge !== 'object') continue;
+            edge.theoryOfMind = this.normalizeSavedTheoryOfMind(edge.theoryOfMind);
+        }
+        return entityRecord.lifeSim.socialEdges;
+    }
+
     ensureSrDefaultFields(serialized = {}) {
         for (const entity of [...(serialized.butterflies || []), ...(serialized.caterpillars || [])]) {
             this.ensureSerializedSelfModel(entity);
             this.ensureSerializedMetacognition(entity);
+            this.ensureSerializedTheoryOfMind(entity);
         }
         return serialized;
     }

@@ -798,7 +798,10 @@ class GameUI {
             'roosting': 'holding near a roost pocket',
             'teaching-pocket': 'staying near a teaching pocket',
             'courtship-territory': 'circling a courtship space',
-            'shelter-seeking': 'seeking shelter'
+            'shelter-seeking': 'seeking shelter',
+            'comfort-from-belief': 'checking on someone they believe is upset',
+            'avoid-from-belief': 'giving space because they expect tension',
+            'approach-from-belief': 'approaching from a partner-belief'
         };
         return labels[subtype] || this.formatBehaviorReasonLabel(subtype);
     }
@@ -1027,6 +1030,18 @@ class GameUI {
                     lines: [
                         this.normalizePresentationText(`Predicts ${selfModelSummary.predictedNextEmotion || 'steady'} | divergence ${Math.round((selfModelSummary.divergenceFromActual || 0) * 100)}`),
                         this.normalizePresentationText(`${selfModelSummary.currentSelfAssessment?.roleGuess || 'wanderer'} | confidence ${Math.round((selfModelSummary.currentSelfAssessment?.confidence || 0) * 100)} | thinks others see ${selfModelSummary.perceivedByOthersBelief?.mood || 'unknown'}`)
+                    ]
+                } : null,
+                lifeSimSummary?.theoryOfMind?.enabled && gameConfig?.cognition?.theoryOfMind?.inspectEnabled !== false ? {
+                    id: 'theoryOfMind',
+                    title: 'Theory of Mind',
+                    lines: [
+                        lifeSimSummary.theoryOfMind.strongest
+                            ? this.normalizePresentationText(`Thinks ${lifeSimSummary.theoryOfMind.strongest.targetLabel || lifeSimSummary.theoryOfMind.strongest.targetId} feels ${lifeSimSummary.theoryOfMind.strongest.believedMood?.primary || 'unknown'} | divergence ${Math.round((lifeSimSummary.theoryOfMind.strongest.divergenceFromActual || 0) * 100)}`)
+                            : 'No partner-belief model yet',
+                        this.normalizePresentationText(lifeSimSummary.theoryOfMind.activeBias
+                            ? `${lifeSimSummary.theoryOfMind.activeBias.actionBias || 'belief-bias'} | edges ${lifeSimSummary.theoryOfMind.initializedCount || 0}/${lifeSimSummary.theoryOfMind.edgeCount || 0}`
+                            : `edges ${lifeSimSummary.theoryOfMind.initializedCount || 0}/${lifeSimSummary.theoryOfMind.edgeCount || 0} | no active belief bias`)
                     ]
                 } : null,
                 lifeSimSummary?.metacognition?.enabled && gameConfig?.cognition?.metacognition?.inspectEnabled !== false ? {
@@ -3638,6 +3653,14 @@ class GameUI {
         const metacognitionDetailText = cleanDisplayText(metacognitionSummary?.activeBias
             ? `${metacognitionSummary.activeBias.actionBias || 'reflective-pause'} | count ${metacognitionSummary.count || 0}`
             : `count ${metacognitionSummary?.count || 0} | no active decision bias`);
+        const theoryOfMindSummary = lifeSimSummary?.theoryOfMind || null;
+        const theoryStrongest = theoryOfMindSummary?.strongest || null;
+        const theoryOfMindText = cleanDisplayText(theoryStrongest
+            ? `Thinks ${theoryStrongest.targetLabel || theoryStrongest.targetId} feels ${theoryStrongest.believedMood?.primary || 'unknown'} | divergence ${Math.round((theoryStrongest.divergenceFromActual || 0) * 100)}`
+            : 'No partner-belief model yet');
+        const theoryOfMindDetailText = cleanDisplayText(theoryOfMindSummary?.activeBias
+            ? `${theoryOfMindSummary.activeBias.actionBias || 'belief-bias'} | edges ${theoryOfMindSummary.initializedCount || 0}/${theoryOfMindSummary.edgeCount || 0}`
+            : `edges ${theoryOfMindSummary?.initializedCount || 0}/${theoryOfMindSummary?.edgeCount || 0} | no active belief bias`);
         const playerText = cleanDisplayText(lifeSimSummary
             ? `trust ${lifeSimSummary.player?.trust || 0} | fear ${lifeSimSummary.player?.fear || 0} | ${lifeSimSummary.player?.calmed ? 'calmed' : 'uncalmed'}`
             : 'trust 0 | fear 0 | uncalmed');
@@ -3807,6 +3830,12 @@ class GameUI {
                 id: 'selfModel',
                 title: 'Self-Model',
                 lines: [selfModelText, selfModelDetailText],
+                maxLinesPerItem: 2
+            }] : []),
+            ...(theoryOfMindSummary && theoryOfMindSummary.enabled && gameConfig?.cognition?.theoryOfMind?.inspectEnabled !== false ? [{
+                id: 'theoryOfMind',
+                title: 'Theory of Mind',
+                lines: [theoryOfMindText, theoryOfMindDetailText],
                 maxLinesPerItem: 2
             }] : []),
             ...(metacognitionSummary && metacognitionSummary.enabled && gameConfig?.cognition?.metacognition?.inspectEnabled !== false ? [{

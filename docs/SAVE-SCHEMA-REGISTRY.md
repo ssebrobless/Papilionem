@@ -57,12 +57,22 @@ Rules:
 `- c7 state      -> defaultIfMissing [] signed by SR3 audit
 ```
 
+```text
+2026-05-12 shared save-schema signoff (SR4)
+|- schemaVersion -> 5 (no bump)
+|- runtime v7    -> no shape change
+|- spatial s7    -> no shape change
+|- social n8     -> additive: lifeSim.socialEdges[*].theoryOfMind on butterflies and caterpillars
+`- c7 state      -> defaultIfMissing { initialized:false } signed by SR4 audit
+```
+
 DefaultIfMissing:
 - `lifeSim.selfModel.predictedNextEmotion`: `"steady"` until first SR2 update.
 - `lifeSim.selfModel.currentSelfAssessment`: confidence `0.35`, roleGuess `"wanderer"`, nullable dominant drive/emotion/workspace focus.
 - `lifeSim.selfModel.perceivedByOthersBelief`: mood/intent `"unknown"`, reputationEstimate `0.2`, socialContext `"quiet"`.
 - `lifeSim.selfModel.divergenceFromActual`: `0`, then smoothed per tick after workspace broadcast is available.
 - `lifeSim.metacognition`: `[]`; ring buffer cap 32, persisted as second-order emotion tag packets.
+- `lifeSim.socialEdges[*].theoryOfMind`: believedDrives `{}`, believedMood `{ primary:null, intensity:0 }`, believedGoal `null`, divergenceFromActual `0`, initialized `false`, lastUpdatedTick `0`.
 
 Evidence:
 - [V7-VISUAL-RESTORATION-AUDIT.md](./V7-VISUAL-RESTORATION-AUDIT.md)
@@ -81,6 +91,7 @@ Evidence:
 | `relationship edges` | `butterflies[].lifeSim.socialEdges`, `caterpillars[].lifeSim.socialEdges`, durable edge/residue families under `foundations.lifeSim.*`, `foundations.communication.*`, `foundations.roster.*`, `foundations.teaching.*` | `social n8` | `migration-safe` |
 | `self model` | `butterflies[].lifeSim.selfModel`, `caterpillars[].lifeSim.selfModel` | `social n8 / SR2` | `migration-safe` |
 | `metacognition` | `butterflies[].lifeSim.metacognition`, `caterpillars[].lifeSim.metacognition` | `social n8 / SR3` | `migration-safe` |
+| `theory of mind` | `butterflies[].lifeSim.socialEdges[*].theoryOfMind`, `caterpillars[].lifeSim.socialEdges[*].theoryOfMind` | `social n8 / SR4` | `migration-safe` |
 | `lineage` | `butterflies[].{hybridGenome,mutationProfile,pregnancy,breeding,wildLifecycle}`, `flowers[].{eggData,chrysalisData,goldenBlessing}`, `caterpillars[].lifecycleData`, lineage-bearing entries nested under `progression.hybridJournal` | `baseline-core (reviewed in social n8)` | `migration-safe` |
 | `progression` | `progression.*`, including fallback fields `nextHybridId`, `progressionOrderIndex`, `unlockedButterflyTypes`, `unlockHistory`, `starterPairsSeeded`, `perTypeUnlockStatus`, `perWildButterflyProgress`, `encounteredButterflies`, `collectedButterflies`, `butterflyCollectionStats` | `baseline-core (reviewed in runtime-v7)` | `migration-safe` |
 | `spatial core` | `butterflies[].{x,y,currentZoneId,zoneTravel,blockInteraction,feeding}`, `flowers[].{x,y,currentZoneId,occupancyState,allowedButterflyId}`, `caterpillars[].{x,y,currentZoneId,targetFlowerId}`, `blocks[].{x,y,currentZoneId,renderWidth,renderHeight,blockHeight,stackIndex,supportBlockId,lastPlacedMode,carriedById,attachedOffset,movedAtFrame,lastMovedById}`, `foundations.{zones,objects,sleep}` | `spatial s7` | `migration-safe` |

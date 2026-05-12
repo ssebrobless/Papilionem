@@ -368,6 +368,26 @@ function createMetacognitionStore(overrides = []) {
         : [];
 }
 
+function createTheoryOfMindProfile(overrides = {}) {
+    const mood = overrides.believedMood || {};
+    const drives = overrides.believedDrives && typeof overrides.believedDrives === 'object'
+        ? { ...overrides.believedDrives }
+        : {};
+    return {
+        believedDrives: drives,
+        believedMood: {
+            primary: mood.primary || null,
+            intensity: clampLifeSimUnit(mood.intensity ?? 0)
+        },
+        believedGoal: overrides.believedGoal || null,
+        divergenceFromActual: clampLifeSimUnit(overrides.divergenceFromActual ?? 0),
+        initialized: !!overrides.initialized,
+        lastUpdatedTick: Number.isFinite(overrides.lastUpdatedTick) ? Math.max(0, Math.round(overrides.lastUpdatedTick)) : 0,
+        lastContradictionTick: Number.isFinite(overrides.lastContradictionTick) ? Math.max(0, Math.round(overrides.lastContradictionTick)) : 0,
+        evidenceCount: Math.max(0, Math.round(overrides.evidenceCount || 0))
+    };
+}
+
 function createBaseLifeSimState(options = {}) {
     return {
         identity: {
@@ -480,11 +500,15 @@ function ensureLifeSocialEdge(entity, targetId) {
             coTimeSeconds: 0,
             lastTierChangeAtFrame: null,
             loyalty: 0,
+            theoryOfMind: createTheoryOfMindProfile(),
             lastUpdatedSeconds: null,
             historyTags: []
         };
     }
     const edge = entity.lifeSim.socialEdges[targetId];
+    if (!edge.theoryOfMind || typeof edge.theoryOfMind !== 'object' || !edge.theoryOfMind.believedMood) {
+        edge.theoryOfMind = createTheoryOfMindProfile(edge.theoryOfMind);
+    }
     edge.historyTags = Array.isArray(edge.historyTags) ? edge.historyTags : [];
     edge.recentResidues = Array.isArray(edge.recentResidues) ? edge.recentResidues : [];
     edge.repairState = edge.repairState || 'steady';
