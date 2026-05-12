@@ -24,6 +24,7 @@ class GameCore {
         this.battleSystem = null;
         this.saveSystem = null;
         this.telemetrySystem = null;
+        this.workspaceSystem = null;
         this.systems = {};
         this.replaySessionCounter = 0;
         this.isResettingGame = false;
@@ -169,6 +170,7 @@ class GameCore {
             await this.initializeRosterSystem();
             await this.initializeTeachingSystem();
             await this.initializeCommunicationSystem();
+            await this.initializeWorkspaceSystem();
             await this.initializeBattleSystem();
             await this.initializeSaveSystem();
             await this.initializeTelemetrySystem();
@@ -393,6 +395,17 @@ class GameCore {
         this.systems.communicationSystem = this.communicationSystem;
         this.completedSteps.add('communicationSystem');
         console.log('Communication system initialized');
+    }
+
+    async initializeWorkspaceSystem() {
+        if (typeof WorkspaceSystem === 'undefined' || typeof workspaceSystem === 'undefined') {
+            throw new Error('WorkspaceSystem not found - ensure systems/workspaceSystem.js is loaded');
+        }
+        this.workspaceSystem = workspaceSystem;
+        this.workspaceSystem.initialize();
+        this.systems.workspaceSystem = this.workspaceSystem;
+        this.completedSteps.add('workspaceSystem');
+        console.log('✓ Workspace system initialized (SR1)');
     }
 
     async initializeBattleSystem() {
@@ -4646,6 +4659,18 @@ class GameCore {
         });
         timeStep('teachingSystemMs', () => this.teachingSystem?.update(this.gameState, deltaSeconds));
         timeStep('communicationSystemMs', () => this.communicationSystem?.update(this.gameState, deltaSeconds));
+        let workspaceUpdateSummary = null;
+        timeStep('workspaceSystemMs', () => {
+            workspaceUpdateSummary = this.workspaceSystem?.update(this.gameState, deltaSeconds, {
+                currentFrame: this.getCurrentFrame()
+            }) || null;
+        });
+        if (workspaceUpdateSummary) {
+            foundationBreakdown.workspaceEnabled = workspaceUpdateSummary.enabled || 0;
+            foundationBreakdown.workspaceBroadcasts = workspaceUpdateSummary.broadcasts || 0;
+            foundationBreakdown.workspaceCandidates = workspaceUpdateSummary.candidates || 0;
+            foundationBreakdown.workspaceAgentsWithBroadcast = workspaceUpdateSummary.agents || 0;
+        }
         timeStep('behaviorSystemMs', () => this.behaviorSystem?.update(this.gameState, deltaSeconds));
         timeStep('mlInferenceSystemMs', () => {
             mlInferenceUpdateSummary = this.mlInferenceSystem?.update(this.gameState, deltaSeconds, {
@@ -5694,6 +5719,7 @@ class GameCore {
         this.objectSystem?.reset?.();
         this.teachingSystem?.reset?.();
         this.communicationSystem?.reset?.();
+        this.workspaceSystem?.reset?.();
         this.battleSystem?.reset?.();
         if (!options.preserveTelemetry) {
             this.telemetrySystem?.reset?.();

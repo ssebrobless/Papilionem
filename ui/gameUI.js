@@ -902,6 +902,9 @@ class GameUI {
         const mlSummary = typeof mlInferenceSystem !== 'undefined'
             ? mlInferenceSystem.getEntitySummary?.(target.id, gameState)
             : null;
+        const workspaceSummary = typeof workspaceSystem !== 'undefined'
+            ? workspaceSystem.getEntitySummary?.(target.id)
+            : null;
         const spatialProof = this.getInspectSpatialProofSummary(target, gameState);
         const cleanJoin = (lines = [], fallback = '') => {
             const filtered = (lines || []).filter(Boolean).map(line => this.normalizePresentationText(line));
@@ -1003,6 +1006,16 @@ class GameUI {
                         this.normalizePresentationText(lifeSimSummary?.routines?.headline || 'No strong routine anchors yet')
                     ].filter(Boolean)
                 },
+                workspaceSummary && workspaceSummary.broadcastCount > 0 ? {
+                    id: 'attention',
+                    title: 'Attention',
+                    lines: [
+                        this.normalizePresentationText(`Workspace depth ${workspaceSummary.attentionDepth} | broadcasts ${workspaceSummary.broadcastCount} | totals ${workspaceSummary.totalBroadcasts}`),
+                        ...workspaceSummary.broadcastQueue.slice(0, 4).map(item =>
+                            this.normalizePresentationText(`${item.sourceModule} ${item.label} | salience ${item.salience}`)
+                        )
+                    ]
+                } : null,
                 {
                     id: 'ecology',
                     title: 'Ecology + Space',

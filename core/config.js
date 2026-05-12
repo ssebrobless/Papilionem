@@ -941,6 +941,17 @@ const PAPILIONEM_BATTLE_ARENA = {
 
     cognition: {
         derivedFeelings: { enabled: true },
+        // SR1 - Global Workspace (docs/SR0-SENTIENCE-TARGET-DEFINITION-2026-05-12.md).
+        // Per-agent attention buffer with salience-gated arbitration. Observe-only
+        // in SR1: no downstream module reads broadcastQueue yet.
+        workspace: {
+            enabled: true,
+            attentionDepth: 4,
+            candidateCap: 16,
+            broadcastTtlFrames: 90,
+            seedFromObservables: true,
+            arbitrationMode: 'top-salience'
+        },
         bondTier: {
             enabled: true,
             arcEvents: {

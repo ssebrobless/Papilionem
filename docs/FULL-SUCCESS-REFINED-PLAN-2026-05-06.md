@@ -60,15 +60,25 @@ Important specific findings:
 
 ## 3. Non-Negotiable Constraints
 
+> **Amendment 2026-05-12 (SR0):** the original "do not claim literal sentience"
+> clause is retired and replaced by the honest-claims register in
+> `docs/SR0-SENTIENCE-TARGET-DEFINITION-2026-05-12.md`. FSP9 and FSP10 are
+> refolded as subtasks of the SR ladder; see SR0 section 9 for the updated
+> promotion criteria. Save-schema handling is now governed by
+> `docs/SR-SAVE-SCHEMA-MIGRATION-2026-05-12.md`, which is authoritative over
+> the `Save schema remains v5` line below (the registry is at `schemaVersion =
+> 4` and SR2 bumps it to `5` under joint signoff).
+
 - Do not wipe the player's real long-running save.
-- Save schema remains v5 unless a future phase proves an additive migration is necessary.
-- Do not claim literal sentience, consciousness, or subjective feeling.
-- The target is believable butterfly society with durable emotions, memory, relationships, and communication.
-- ML may score choices and learn policy weights, but lifeSim owns durable feelings, memories, relationships, and social state.
+- Save schema migrations are governed by `docs/SR-SAVE-SCHEMA-MIGRATION-2026-05-12.md`. All additions are `defaultIfMissing`; protected-state groups are never overwritten.
+- Honest claims about consciousness are governed by `docs/SR0-SENTIENCE-TARGET-DEFINITION-2026-05-12.md`. The project claims functional analogues of the engineerable layers (access consciousness, functional consciousness, self-modeling, metacognition, theory of mind, intrinsic motivation, online learning, narrative self). The project does not claim phenomenal consciousness, qualia, subjective experience, suffering, or moral-patient status.
+- The target is a butterfly society whose agents are behaviorally consistent with the engineerable layers of consciousness. The 30-minute behavioral bar is defined in SR0 section 4 (B1 autobiographical reference, B2 metacognition, B3 theory-of-mind divergence, B4 identity-perturbation recovery).
+- ML may score choices and, from SR6 onward, update per-archetype weights from lived experience, but lifeSim owns durable feelings, memories, relationships, and social state. ML never writes lifeSim fields.
+- No external API calls, LLM dependencies, or network reach inside the running game (SR0 self-containment rule).
 - Do not re-found the spatial system or move to a volumetric engine unless a named contradiction proves board/projection contracts are insufficient.
 - Sun-court remains Training Grounds. No ambient blocks there.
 - 1 block = 1 board unit = 1 support/stack unit.
-- New cognition vocabulary is allowed only after proving the existing families cannot express a required behavior. Prefer wiring, evidence, and expression improvements first.
+- New cognition vocabulary is allowed only after proving the existing families cannot express a required behavior. Prefer wiring, evidence, and expression improvements first. SR2/SR3/SR4/SR7 may introduce new vocabulary under their owned scopes.
 
 ## 4. Refined Phase Plan
 
