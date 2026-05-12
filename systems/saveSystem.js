@@ -423,11 +423,30 @@ class SaveSystem {
         return entityRecord.lifeSim.socialEdges;
     }
 
+    normalizeSavedIntrinsicDrives(source = null) {
+        if (typeof createIntrinsicDriveProfile === 'function') {
+            return createIntrinsicDriveProfile(source || {});
+        }
+        return {
+            curiosity: Math.max(0, Math.min(1, source?.curiosity ?? 0)),
+            competence: Math.max(0, Math.min(1, source?.competence ?? 0)),
+            boredom: Math.max(0, Math.min(1, source?.boredom ?? 0)),
+            lastUpdatedTick: Number.isFinite(source?.lastUpdatedTick) ? Math.max(0, Math.round(source.lastUpdatedTick)) : 0
+        };
+    }
+
+    ensureSerializedIntrinsicDrives(entityRecord = {}) {
+        entityRecord.lifeSim = entityRecord.lifeSim || {};
+        entityRecord.lifeSim.intrinsicDrives = this.normalizeSavedIntrinsicDrives(entityRecord.lifeSim.intrinsicDrives);
+        return entityRecord.lifeSim.intrinsicDrives;
+    }
+
     ensureSrDefaultFields(serialized = {}) {
         for (const entity of [...(serialized.butterflies || []), ...(serialized.caterpillars || [])]) {
             this.ensureSerializedSelfModel(entity);
             this.ensureSerializedMetacognition(entity);
             this.ensureSerializedTheoryOfMind(entity);
+            this.ensureSerializedIntrinsicDrives(entity);
         }
         return serialized;
     }

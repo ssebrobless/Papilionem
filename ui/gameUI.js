@@ -801,7 +801,10 @@ class GameUI {
             'shelter-seeking': 'seeking shelter',
             'comfort-from-belief': 'checking on someone they believe is upset',
             'avoid-from-belief': 'giving space because they expect tension',
-            'approach-from-belief': 'approaching from a partner-belief'
+            'approach-from-belief': 'approaching from a partner-belief',
+            'novelty-seeking': 'seeking a less familiar place',
+            'curious-exploration': 'exploring out of curiosity',
+            'practice-from-competence': 'practicing a familiar skill'
         };
         return labels[subtype] || this.formatBehaviorReasonLabel(subtype);
     }
@@ -1042,6 +1045,16 @@ class GameUI {
                         this.normalizePresentationText(lifeSimSummary.theoryOfMind.activeBias
                             ? `${lifeSimSummary.theoryOfMind.activeBias.actionBias || 'belief-bias'} | edges ${lifeSimSummary.theoryOfMind.initializedCount || 0}/${lifeSimSummary.theoryOfMind.edgeCount || 0}`
                             : `edges ${lifeSimSummary.theoryOfMind.initializedCount || 0}/${lifeSimSummary.theoryOfMind.edgeCount || 0} | no active belief bias`)
+                    ]
+                } : null,
+                lifeSimSummary?.intrinsicMotivation?.enabled && gameConfig?.cognition?.intrinsicDrives?.inspectEnabled !== false ? {
+                    id: 'intrinsicMotivation',
+                    title: 'Intrinsic Motivation',
+                    lines: [
+                        this.normalizePresentationText(`Curiosity ${Math.round((lifeSimSummary.intrinsicMotivation.curiosity || 0) * 100)} | competence ${Math.round((lifeSimSummary.intrinsicMotivation.competence || 0) * 100)} | boredom ${Math.round((lifeSimSummary.intrinsicMotivation.boredom || 0) * 100)}`),
+                        this.normalizePresentationText(lifeSimSummary.intrinsicMotivation.activeBias?.active
+                            ? `${lifeSimSummary.intrinsicMotivation.activeBias.dominant || 'intrinsic'} | ${lifeSimSummary.intrinsicMotivation.activeBias.value ? Math.round(lifeSimSummary.intrinsicMotivation.activeBias.value * 100) : 0}`
+                            : 'no active intrinsic bias')
                     ]
                 } : null,
                 lifeSimSummary?.metacognition?.enabled && gameConfig?.cognition?.metacognition?.inspectEnabled !== false ? {
@@ -3661,6 +3674,13 @@ class GameUI {
         const theoryOfMindDetailText = cleanDisplayText(theoryOfMindSummary?.activeBias
             ? `${theoryOfMindSummary.activeBias.actionBias || 'belief-bias'} | edges ${theoryOfMindSummary.initializedCount || 0}/${theoryOfMindSummary.edgeCount || 0}`
             : `edges ${theoryOfMindSummary?.initializedCount || 0}/${theoryOfMindSummary?.edgeCount || 0} | no active belief bias`);
+        const intrinsicSummary = lifeSimSummary?.intrinsicMotivation || null;
+        const intrinsicText = cleanDisplayText(intrinsicSummary
+            ? `Curiosity ${Math.round((intrinsicSummary.curiosity || 0) * 100)} | competence ${Math.round((intrinsicSummary.competence || 0) * 100)} | boredom ${Math.round((intrinsicSummary.boredom || 0) * 100)}`
+            : 'Curiosity 0 | competence 0 | boredom 0');
+        const intrinsicDetailText = cleanDisplayText(intrinsicSummary?.activeBias?.active
+            ? `${intrinsicSummary.activeBias.dominant || 'intrinsic'} | ${Math.round((intrinsicSummary.activeBias.value || 0) * 100)}`
+            : 'no active intrinsic bias');
         const playerText = cleanDisplayText(lifeSimSummary
             ? `trust ${lifeSimSummary.player?.trust || 0} | fear ${lifeSimSummary.player?.fear || 0} | ${lifeSimSummary.player?.calmed ? 'calmed' : 'uncalmed'}`
             : 'trust 0 | fear 0 | uncalmed');
@@ -3836,6 +3856,12 @@ class GameUI {
                 id: 'theoryOfMind',
                 title: 'Theory of Mind',
                 lines: [theoryOfMindText, theoryOfMindDetailText],
+                maxLinesPerItem: 2
+            }] : []),
+            ...(intrinsicSummary && intrinsicSummary.enabled && gameConfig?.cognition?.intrinsicDrives?.inspectEnabled !== false ? [{
+                id: 'intrinsicMotivation',
+                title: 'Intrinsic Motivation',
+                lines: [intrinsicText, intrinsicDetailText],
                 maxLinesPerItem: 2
             }] : []),
             ...(metacognitionSummary && metacognitionSummary.enabled && gameConfig?.cognition?.metacognition?.inspectEnabled !== false ? [{

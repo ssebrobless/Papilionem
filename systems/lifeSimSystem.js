@@ -60,6 +60,9 @@ class LifeSimSystem {
         entity.lifeSim.progression = entity.lifeSim.progression || createProgressionContextProfile();
         entity.lifeSim.battleContext = entity.lifeSim.battleContext || createBattleContextProfile();
         entity.lifeSim.migration = entity.lifeSim.migration || createMigrationProfile();
+        if (!this.hasValidIntrinsicDrives(entity.lifeSim.intrinsicDrives)) {
+            entity.lifeSim.intrinsicDrives = this.normalizeIntrinsicDrives(entity.lifeSim.intrinsicDrives);
+        }
         entity.lifeSim.selfModel = this.normalizeSelfModel(entity.lifeSim.selfModel);
         entity.lifeSim.metacognition = this.normalizeMetacognition(entity.lifeSim.metacognition);
         this.ensureTheoryOfMindState(entity);
@@ -123,6 +126,34 @@ class LifeSimSystem {
 
     isTheoryOfMindEnabled() {
         return this.getTheoryOfMindConfig().enabled !== false;
+    }
+
+    getIntrinsicDrivesConfig() {
+        return gameConfig?.cognition?.intrinsicDrives || {};
+    }
+
+    isIntrinsicDrivesEnabled() {
+        return this.getIntrinsicDrivesConfig().enabled !== false;
+    }
+
+    normalizeIntrinsicDrives(source = null) {
+        if (typeof createIntrinsicDriveProfile === 'function') {
+            return createIntrinsicDriveProfile(source || {});
+        }
+        return {
+            curiosity: this.clamp01(source?.curiosity ?? 0),
+            competence: this.clamp01(source?.competence ?? 0),
+            boredom: this.clamp01(source?.boredom ?? 0),
+            lastUpdatedTick: Number.isFinite(source?.lastUpdatedTick) ? Math.max(0, Math.round(source.lastUpdatedTick)) : 0
+        };
+    }
+
+    hasValidIntrinsicDrives(source = null) {
+        return !!source
+            && typeof source.curiosity === 'number'
+            && typeof source.competence === 'number'
+            && typeof source.boredom === 'number'
+            && typeof source.lastUpdatedTick === 'number';
     }
 
     normalizeTheoryOfMind(source = null) {
@@ -2403,6 +2434,77 @@ class LifeSimSystem {
         };
     }
 
+    updateIntrinsicDrives(entity, context = {}) {
+        const lifeSim = this.ensureLifeSimState(entity);
+        if (!lifeSim) return null;
+        if (!this.hasValidIntrinsicDrives(lifeSim.intrinsicDrives)) {
+            lifeSim.intrinsicDrives = this.normalizeIntrinsicDrives(lifeSim.intrinsicDrives);
+        }
+        lifeSim.derived.intrinsicMotivationBias = lifeSim.derived.intrinsicMotivationBias || { active: false };
+        const currentFrame = Number.isFinite(context.currentFrame)
+            ? Math.max(0, Math.round(context.currentFrame))
+            : (gameCore?.getCurrentFrame?.() ?? (typeof frameCount === 'number' ? frameCount : 0));
+        if (!this.isIntrinsicDrivesEnabled()) {
+            lifeSim.intrinsicDrives.curiosity = 0;
+            lifeSim.intrinsicDrives.competence = 0;
+            lifeSim.intrinsicDrives.boredom = 0;
+            lifeSim.intrinsicDrives.lastUpdatedTick = currentFrame;
+            lifeSim.derived.intrinsicMotivationBias = { active: false, updatedAtFrame: currentFrame };
+            return { updated: false, intrinsicDrives: lifeSim.intrinsicDrives };
+        }
+
+        const config = this.getIntrinsicDrivesConfig();
+        const alpha = this.clamp01(context.alpha ?? config.smoothingAlpha ?? 0.1);
+        const novelty = this.clamp01(context.novelty ?? lifeSim.derived?.novelty ?? 0);
+        const routineMemoryDensity = this.clamp01(context.routineMemoryDensity ?? this.getMemoryDensity(entity, 'routine') / 10);
+        const placeMemoryDensity = this.clamp01(context.placeMemoryDensity ?? this.getMemoryDensity(entity, 'place') / 12);
+        const objectInterest = this.clamp01(context.objectInterest ?? lifeSim.derived?.behaviorBiases?.objectInterest ?? 0);
+        const trainingAffinity = this.clamp01(context.trainingAffinity ?? lifeSim.derived?.behaviorBiases?.trainingAffinity ?? 0);
+        const lessonDepth = this.clamp01(context.lessonDepth ?? ((lifeSim.upbringing?.lessons?.length || 0) / 10));
+        const currentAffordance = context.currentAffordance || lifeSim.objectAwareness?.currentAffordance || 'observe';
+        const activeWork = ['clean', 'plant', 'stack', 'carry', 'shelterUse', 'feedFrom'].includes(currentAffordance) ? 0.18 : 0;
+        const curiosityTarget = this.clamp01(
+            novelty * Number(config.curiosityNoveltyWeight ?? 0.52)
+            + (lifeSim.drives?.exploration || 0) * 0.22
+            + objectInterest * 0.2
+            + (context.focusType === 'none' ? 0.04 : 0)
+        );
+        const competenceTarget = this.clamp01(
+            trainingAffinity * Number(config.competencePracticeWeight ?? 0.46)
+            + lessonDepth * 0.24
+            + activeWork
+            + (lifeSim.social?.confidence || 0) * 0.12
+            + (lifeSim.objectAwareness?.blockFamiliarity || 0) * 0.08
+        );
+        const boredomTarget = this.clamp01(
+            (1 - novelty) * Number(config.boredomFamiliarityWeight ?? 0.5)
+            + routineMemoryDensity * 0.24
+            + placeMemoryDensity * 0.14
+            - objectInterest * 0.18
+            - activeWork * 0.8
+            - (lifeSim.emotions?.threat || 0) * 0.16
+        );
+        lifeSim.intrinsicDrives.curiosity = this.clamp01(this.lerpValue(lifeSim.intrinsicDrives.curiosity || 0, curiosityTarget, alpha));
+        lifeSim.intrinsicDrives.competence = this.clamp01(this.lerpValue(lifeSim.intrinsicDrives.competence || 0, competenceTarget, alpha));
+        lifeSim.intrinsicDrives.boredom = this.clamp01(this.lerpValue(lifeSim.intrinsicDrives.boredom || 0, boredomTarget, alpha));
+        lifeSim.intrinsicDrives.lastUpdatedTick = currentFrame;
+        const dominant = this.getTopLabels({
+            curiosity: lifeSim.intrinsicDrives.curiosity,
+            competence: lifeSim.intrinsicDrives.competence,
+            boredom: lifeSim.intrinsicDrives.boredom
+        }, 1)[0] || { label: 'curiosity', value: 0 };
+        lifeSim.derived.intrinsicMotivationBias = {
+            active: dominant.value >= 0.28,
+            dominant: dominant.label,
+            value: dominant.value,
+            noveltySeeking: this.clamp01(lifeSim.intrinsicDrives.curiosity * Number(config.explorationBoost ?? 0.18) + lifeSim.intrinsicDrives.boredom * Number(config.boredomNoveltyBoost ?? 0.12)),
+            objectInterest: this.clamp01(lifeSim.intrinsicDrives.curiosity * Number(config.objectInterestBoost ?? 0.16)),
+            trainingAffinity: this.clamp01(lifeSim.intrinsicDrives.competence * Number(config.trainingBoost ?? 0.16)),
+            updatedAtFrame: currentFrame
+        };
+        return { updated: true, intrinsicDrives: lifeSim.intrinsicDrives, bias: lifeSim.derived.intrinsicMotivationBias };
+    }
+
     updateDerivedState(lifeSim, options = {}) {
         const drivePeaks = this.getTopLabels(lifeSim.drives, 2);
         const emotionPeaks = this.getTopLabels(lifeSim.emotions, 2);
@@ -2410,6 +2512,8 @@ class LifeSimSystem {
         const distortion = lifeSim.distortion || {};
         const socialEcology = options.socialEcology || lifeSim.derived?.socialEcology || null;
         const feelings = options.derivedFeelings || lifeSim.derived?.derivedFeelings || {};
+        const intrinsic = lifeSim.intrinsicDrives || {};
+        const intrinsicBias = lifeSim.derived?.intrinsicMotivationBias || {};
 
         lifeSim.social.focus = drivePeaks[0]?.label || 'rest';
         lifeSim.derived.dominantDrive = drivePeaks[0]?.label || 'rest';
@@ -2425,6 +2529,8 @@ class LifeSimSystem {
                 0.5
                 + lifeSim.drives.exploration * 0.75
                 + social.confidence * 0.2
+                + (intrinsic.curiosity || 0) * 0.08
+                + (intrinsic.boredom || 0) * 0.06
                 - lifeSim.drives.rest * 0.3
                 - distortion.withdrawalBias * 0.12
                 - (options.lingerBias ?? 0) * 0.18
@@ -2463,8 +2569,8 @@ class LifeSimSystem {
                 + (options.cautionBias ?? 0) * 0.35
                 + (options.cautionBoost ?? 0)
             ),
-            trainingAffinity: this.clamp01((options.trainingAffinity ?? 0) + (options.trainingAffinityBoost ?? 0)),
-            objectInterest: this.clamp01((options.objectInterest ?? 0) + distortion.fixationBias * 0.12),
+            trainingAffinity: this.clamp01((options.trainingAffinity ?? 0) + (options.trainingAffinityBoost ?? 0) + (intrinsicBias.trainingAffinity || 0)),
+            objectInterest: this.clamp01((options.objectInterest ?? 0) + distortion.fixationBias * 0.12 + (intrinsicBias.objectInterest || 0)),
             cursorAffinity: this.clamp01((options.cursorAffinity ?? 0) - distortion.traumaBias * 0.12 - distortion.anxietyBias * 0.05),
             shelterSeeking: this.clamp01(
                 (options.shelterSeeking ?? 0)
@@ -2479,7 +2585,7 @@ class LifeSimSystem {
             socialAvoidance: this.clamp01((options.socialAvoidance ?? 0) + (feelings.socialInsecurity || 0) * 0.18 + (feelings.jealousy || 0) * 0.1 + (feelings.shame || 0) * 0.12),
             migrationUrgency: this.clamp01(options.migrationUrgency ?? 0),
             returnHomeBias: this.clamp01((options.returnHomeBias ?? 0) + (feelings.grief || 0) * 0.12),
-            noveltySeeking: this.clamp01(options.noveltySeeking ?? 0),
+            noveltySeeking: this.clamp01((options.noveltySeeking ?? 0) + (intrinsicBias.noveltySeeking || 0)),
             mateSeeking: this.clamp01((options.mateSeeking ?? 0) + (options.mateSeekingBoost ?? 0)),
             overcrowdingEscape: this.clamp01(options.overcrowdingEscape ?? 0),
             homeAffinity: this.clamp01(options.homeAffinity ?? 0)
@@ -2688,6 +2794,17 @@ class LifeSimSystem {
             deltaSeconds: Number.isFinite(options.deltaSeconds) ? options.deltaSeconds : 0,
             currentFrame
         }) || {};
+        this.updateIntrinsicDrives(entity, {
+            currentFrame,
+            novelty,
+            currentAffordance,
+            focusType,
+            objectInterest: this.clamp01((focusType === 'block' ? 0.36 : focusType === 'flower' ? 0.24 : 0.08) + lifeSim.objectAwareness.blockFamiliarity * 0.18 + (lifeSim.emotions?.curiosity || 0) * 0.24 + zoneInfluence.derived.objectInterest),
+            trainingAffinity: this.clamp01(trainingStrength + (lifeSim.social?.confidence || 0) * 0.25 + zoneInfluence.derived.trainingAffinity),
+            lessonDepth: this.clamp01((lifeSim.upbringing?.lessons?.length || 0) / 10),
+            routineMemoryDensity: this.clamp01(this.getMemoryDensity(entity, 'routine') / 10),
+            placeMemoryDensity: this.clamp01(this.getMemoryDensity(entity, 'place') / 12)
+        });
 
         this.updateDerivedState(lifeSim, {
             crowding,
@@ -3093,6 +3210,25 @@ class LifeSimSystem {
             deltaSeconds: Number.isFinite(options.deltaSeconds) ? options.deltaSeconds : 0,
             currentFrame
         }) || {};
+        this.updateIntrinsicDrives(entity, {
+            currentFrame,
+            novelty,
+            currentAffordance,
+            focusType,
+            objectInterest: this.clamp01(
+                (focusType === 'block' ? 0.4 : focusType === 'flower' ? 0.24 : 0.1)
+                + lifeSim.objectAwareness.blockFamiliarity * 0.22
+                + (lifeSim.objectAwareness.shelterConfidence || 0) * 0.14
+                + (lifeSim.emotions.curiosity || 0) * 0.24
+                + ((socialEcology?.roosting?.score || 0) * 0.16)
+                + ((socialEcology?.warning?.score || 0) * 0.08)
+                + zoneInfluence.derived.objectInterest
+            ),
+            trainingAffinity: this.clamp01(trainingStrength + lessonDepth * 0.22 + lessonReinforcementStrength * 0.18 + reputationBias + lifeSim.social.confidence * 0.25 + zoneInfluence.derived.trainingAffinity),
+            lessonDepth,
+            routineMemoryDensity,
+            placeMemoryDensity
+        });
 
         this.updateDerivedState(lifeSim, {
             crowding,
@@ -3231,6 +3367,15 @@ class LifeSimSystem {
         lifeSim.social.belonging = 0;
         lifeSim.social.confidence = this.clamp01(0.08 + driveTargets.resourceControl * 0.2);
         lifeSim.social.activeContext = seekingChrysalis ? 'metamorphosis' : 'foraging';
+        this.updateIntrinsicDrives(entity, {
+            currentFrame,
+            novelty: this.clamp01(flowerCount <= 1 ? 0.35 : 0.15),
+            currentAffordance: hasTargetFlower ? 'feedFrom' : 'observe',
+            focusType: hasTargetFlower ? 'flower' : 'none',
+            objectInterest: hasTargetFlower ? 0.22 : 0.08,
+            trainingAffinity: 0,
+            lessonDepth: 0
+        });
         this.updateDerivedState(lifeSim, {
             crowding: 0,
             novelty: this.clamp01(flowerCount <= 1 ? 0.35 : 0.15),
@@ -3809,6 +3954,16 @@ class LifeSimSystem {
                 activeBias: lifeSim.derived?.metacognitionBias || null
             },
             theoryOfMind: this.getTheoryOfMindSummary(entity, gameCore?.gameState),
+            intrinsicMotivation: {
+                enabled: this.isIntrinsicDrivesEnabled(),
+                curiosity: Number(lifeSim.intrinsicDrives?.curiosity || 0),
+                competence: Number(lifeSim.intrinsicDrives?.competence || 0),
+                boredom: Number(lifeSim.intrinsicDrives?.boredom || 0),
+                lastUpdatedTick: Number.isFinite(lifeSim.intrinsicDrives?.lastUpdatedTick)
+                    ? lifeSim.intrinsicDrives.lastUpdatedTick
+                    : 0,
+                activeBias: lifeSim.derived?.intrinsicMotivationBias || null
+            },
             freshness: {
                 lastValidFrame,
                 staleFrames: Number.isFinite(lastValidFrame) && Number.isFinite(nowFrame)

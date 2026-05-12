@@ -388,6 +388,15 @@ function createTheoryOfMindProfile(overrides = {}) {
     };
 }
 
+function createIntrinsicDriveProfile(overrides = {}) {
+    return {
+        curiosity: clampLifeSimUnit(overrides.curiosity ?? 0),
+        competence: clampLifeSimUnit(overrides.competence ?? 0),
+        boredom: clampLifeSimUnit(overrides.boredom ?? 0),
+        lastUpdatedTick: Number.isFinite(overrides.lastUpdatedTick) ? Math.max(0, Math.round(overrides.lastUpdatedTick)) : 0
+    };
+}
+
 function createBaseLifeSimState(options = {}) {
     return {
         identity: {
@@ -415,6 +424,7 @@ function createBaseLifeSimState(options = {}) {
         progression: createProgressionContextProfile(options.progression),
         battleContext: createBattleContextProfile(options.battleContext),
         migration: createMigrationProfile(options.migration),
+        intrinsicDrives: createIntrinsicDriveProfile(options.intrinsicDrives),
         genetics: createGeneticsProfile(options.genetics),
         upbringing: {
             imprintSources: [...(options.imprintSources || [])],

@@ -993,6 +993,21 @@ const PAPILIONEM_BATTLE_ARENA = {
             avoidIntentThreshold: 0.5,
             inspectEnabled: true
         },
+        // SR5 - Intrinsic motivation. Adds lifeSim.intrinsicDrives as a
+        // sibling to the locked drive families; the original drives remain
+        // untouched, and these values only add small derived behavior nudges.
+        intrinsicDrives: {
+            enabled: true,
+            smoothingAlpha: 0.1,
+            curiosityNoveltyWeight: 0.52,
+            competencePracticeWeight: 0.46,
+            boredomFamiliarityWeight: 0.5,
+            explorationBoost: 0.18,
+            objectInterestBoost: 0.16,
+            trainingBoost: 0.16,
+            boredomNoveltyBoost: 0.12,
+            inspectEnabled: true
+        },
         bondTier: {
             enabled: true,
             arcEvents: {
